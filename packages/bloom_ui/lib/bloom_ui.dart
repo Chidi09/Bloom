@@ -49,6 +49,7 @@ export 'src/primitives/loading_state.dart';
 
 // Overlay Primitives
 export 'src/primitives/dialog.dart';
+export 'src/primitives/alert_dialog.dart';
 export 'src/primitives/sheet.dart';
 export 'src/primitives/drawer.dart';
 export 'src/primitives/popover.dart';
@@ -58,6 +59,7 @@ export 'src/primitives/dropdown_menu.dart';
 export 'src/primitives/context_menu.dart';
 export 'src/primitives/menubar.dart';
 export 'src/primitives/toast.dart';
+export 'src/primitives/sonner.dart';
 export 'src/primitives/banner.dart';
 export 'src/primitives/direction.dart';
 export 'src/primitives/typography.dart';

@@ -1,6 +1,5 @@
 // lib/src/primitives/pagination.dart
 import 'package:flutter/material.dart';
-import '../utils/extensions.dart';
 import 'button.dart';
 
 class BloomPagination extends StatelessWidget {

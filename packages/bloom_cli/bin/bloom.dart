@@ -24,6 +24,7 @@ import '../lib/src/commands/security_command.dart';
 import '../lib/src/commands/symbols_command.dart';
 import '../lib/src/commands/templates_command.dart';
 import '../lib/src/commands/test_command.dart';
+import '../lib/src/commands/ui_command.dart';
 import '../lib/src/commands/update_command.dart';
 import '../lib/src/commands/upgrade_command.dart';
 import '../lib/src/commands/why_command.dart';
@@ -63,6 +64,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(PrebuildCommand())
     ..addCommand(AddCommand())
     ..addCommand(RemoveCommand())
+    ..addCommand(UiCommand())
     ..addCommand(DeployCommand());
 
   runner.argParser.addFlag(

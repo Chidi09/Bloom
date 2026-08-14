@@ -62,7 +62,7 @@ class BloomButton extends StatelessWidget {
             height: dims.height,
             padding: dims.padding,
             decoration: BoxDecoration(
-              color: isInteractive ? colors.background : colors.background.withOpacity(0.5),
+              color: isInteractive ? colors.background : colors.background.withValues(alpha: 0.5),
               border: colors.border != Colors.transparent ? Border.all(color: colors.border) : null,
               borderRadius: BorderRadius.circular(theme.radius.md),
             ),

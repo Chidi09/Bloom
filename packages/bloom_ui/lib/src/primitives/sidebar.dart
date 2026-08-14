@@ -35,7 +35,7 @@ class BloomSidebar extends StatelessWidget {
         selectedIndex: selectedIndex,
         onDestinationSelected: onDestinationSelected,
         backgroundColor: Colors.transparent,
-        indicatorColor: colors.primary.withOpacity(0.15),
+        indicatorColor: colors.primary.withValues(alpha: 0.15),
         leading: header,
         trailing: footer != null ? Expanded(child: Align(alignment: Alignment.bottomCenter, child: footer!)) : null,
         destinations: items.map((item) {

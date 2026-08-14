@@ -90,29 +90,29 @@ class BloomAlert extends StatelessWidget {
         );
       case BloomAlertVariant.destructive:
         return _AlertStyle(
-          background: c.error.withOpacity(0.08),
-          border: c.error.withOpacity(0.3),
+          background: c.error.withValues(alpha: 0.08),
+          border: c.error.withValues(alpha: 0.3),
           iconColor: c.error,
           defaultIcon: Icons.error_outline,
         );
       case BloomAlertVariant.success:
         return _AlertStyle(
-          background: c.success.withOpacity(0.08),
-          border: c.success.withOpacity(0.3),
+          background: c.success.withValues(alpha: 0.08),
+          border: c.success.withValues(alpha: 0.3),
           iconColor: c.success,
           defaultIcon: Icons.check_circle_outline,
         );
       case BloomAlertVariant.warning:
         return _AlertStyle(
-          background: c.warning.withOpacity(0.08),
-          border: c.warning.withOpacity(0.3),
+          background: c.warning.withValues(alpha: 0.08),
+          border: c.warning.withValues(alpha: 0.3),
           iconColor: c.warning,
           defaultIcon: Icons.warning_amber_outlined,
         );
       case BloomAlertVariant.info:
         return _AlertStyle(
-          background: c.info.withOpacity(0.08),
-          border: c.info.withOpacity(0.3),
+          background: c.info.withValues(alpha: 0.08),
+          border: c.info.withValues(alpha: 0.3),
           iconColor: c.info,
           defaultIcon: Icons.info_outline,
         );

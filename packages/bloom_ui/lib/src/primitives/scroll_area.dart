@@ -23,9 +23,9 @@ class BloomScrollArea extends StatelessWidget {
     return Theme(
       data: Theme.of(context).copyWith(
         scrollbarTheme: ScrollbarThemeData(
-          thumbColor: MaterialStateProperty.all(colors.border),
+          thumbColor: WidgetStateProperty.all(colors.border),
           radius: const Radius.circular(999),
-          thickness: MaterialStateProperty.all(6),
+          thickness: WidgetStateProperty.all(6),
         ),
       ),
       child: Scrollbar(
