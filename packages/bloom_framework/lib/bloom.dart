@@ -50,5 +50,8 @@ export 'src/dev/bloom_go_client.dart';
 export 'src/devtools/devtools_service.dart';
 export 'src/devtools/bloom_overlay.dart';
 
+// Deployment & Over-The-Air Updates (Phase 7)
+export 'src/deployment/bloom_ota.dart';
+
 // Widgets
 export 'src/widgets/app.dart';
