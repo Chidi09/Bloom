@@ -1,6 +1,5 @@
 // lib/src/primitives/skeleton.dart
 import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
 class BloomSkeleton extends StatefulWidget {
@@ -59,7 +58,7 @@ class _BloomSkeletonState extends State<BloomSkeleton> with SingleTickerProvider
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: colors.secondary.withOpacity(opacity),
+            color: colors.secondary.withValues(alpha: opacity),
             shape: widget.shape,
             borderRadius: widget.shape == BoxShape.circle
                 ? null

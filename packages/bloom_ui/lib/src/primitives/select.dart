@@ -38,7 +38,7 @@ class BloomSelect<T> extends StatelessWidget {
     final colors = context.bloomColors;
 
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       items: items.map((item) {
         return DropdownMenuItem<T>(
           value: item.value,

@@ -4,7 +4,6 @@ import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 import 'badge.dart';
 import 'button.dart';
-import 'card.dart';
 
 class BloomPricingCard extends StatelessWidget {
   final String planName;
