@@ -26,9 +26,20 @@ class _WorkspaceStatusCommand extends Command<int> {
   @override
   final String description = 'Discovers all apps, packages, and native modules in the monorepo workspace.';
 
+  _WorkspaceStatusCommand() {
+    argParser.addOption(
+      'workspace-dir',
+      help: 'Explicit path to the workspace root directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
-    final workspace = BloomWorkspaceManager.find();
+    final explicitDir = argResults?['workspace-dir'] != null
+        ? Directory(argResults!['workspace-dir'] as String)
+        : null;
+
+    final workspace = BloomWorkspaceManager.find(explicitDir);
     if (workspace == null) {
       print(Ansi.error('No Bloom workspace found in current or parent directory.'));
       return 1;
@@ -45,9 +56,20 @@ class _WorkspaceDepsCommand extends Command<int> {
   @override
   final String description = 'Visualizes dependencies across all workspace packages and apps.';
 
+  _WorkspaceDepsCommand() {
+    argParser.addOption(
+      'workspace-dir',
+      help: 'Explicit path to the workspace root directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
-    final workspace = BloomWorkspaceManager.find();
+    final explicitDir = argResults?['workspace-dir'] != null
+        ? Directory(argResults!['workspace-dir'] as String)
+        : null;
+
+    final workspace = BloomWorkspaceManager.find(explicitDir);
     if (workspace == null) {
       print(Ansi.error('No Bloom workspace found.'));
       return 1;
@@ -77,9 +99,20 @@ class _WorkspacePrebuildCommand extends Command<int> {
   @override
   final String description = 'Prebuilds all application targets in the workspace in parallel.';
 
+  _WorkspacePrebuildCommand() {
+    argParser.addOption(
+      'workspace-dir',
+      help: 'Explicit path to the workspace root directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
-    final workspace = BloomWorkspaceManager.find();
+    final explicitDir = argResults?['workspace-dir'] != null
+        ? Directory(argResults!['workspace-dir'] as String)
+        : null;
+
+    final workspace = BloomWorkspaceManager.find(explicitDir);
     if (workspace == null) {
       print(Ansi.error('No Bloom workspace found.'));
       return 1;
@@ -95,9 +128,20 @@ class _WorkspaceTestCommand extends Command<int> {
   @override
   final String description = 'Executes test suites across all workspace packages in topological dependency order.';
 
+  _WorkspaceTestCommand() {
+    argParser.addOption(
+      'workspace-dir',
+      help: 'Explicit path to the workspace root directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
-    final workspace = BloomWorkspaceManager.find();
+    final explicitDir = argResults?['workspace-dir'] != null
+        ? Directory(argResults!['workspace-dir'] as String)
+        : null;
+
+    final workspace = BloomWorkspaceManager.find(explicitDir);
     if (workspace == null) {
       print(Ansi.error('No Bloom workspace found.'));
       return 1;

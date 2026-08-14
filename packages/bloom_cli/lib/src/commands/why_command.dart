@@ -1,4 +1,5 @@
 // lib/src/commands/why_command.dart
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../native/dependency_graph.dart';
 import '../utils/ansi.dart';
@@ -10,6 +11,13 @@ class WhyCommand extends Command<int> {
   @override
   final String description = 'Explains why a native module or Dart package is included in the project.';
 
+  WhyCommand() {
+    argParser.addOption(
+      'project-dir',
+      help: 'Explicit path to the Bloom project directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
     final rest = argResults?.rest ?? [];
@@ -19,7 +27,11 @@ class WhyCommand extends Command<int> {
     }
 
     final target = rest.first.trim();
-    final project = BloomProject.find();
+    final explicitDir = argResults?['project-dir'] != null
+        ? Directory(argResults!['project-dir'] as String)
+        : null;
+
+    final project = BloomProject.find(explicitDir);
     if (project == null) {
       print(Ansi.error('No Bloom project found.'));
       return 1;

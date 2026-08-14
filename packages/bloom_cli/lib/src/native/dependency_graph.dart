@@ -286,8 +286,19 @@ class DependencyGraphResolver {
       final manifest = target.moduleManifest;
       if (manifest != null && manifest['permissions'] != null) {
         buffer.writeln('\nRequired Permissions:');
-        final perms = manifest['permissions'] as List? ?? [];
-        for (final p in perms) {
+        final rawPerms = manifest['permissions'];
+        final List<String> permStrings = [];
+        if (rawPerms is List) {
+          for (final p in rawPerms) {
+            permStrings.add(p.toString());
+          }
+        } else if (rawPerms is Map) {
+          for (final entry in rawPerms.entries) {
+            final desc = entry.value is Map ? entry.value['description'] : entry.value;
+            permStrings.add('${entry.key}${desc != null ? ' ($desc)' : ''}');
+          }
+        }
+        for (final p in permStrings) {
           buffer.writeln('  + $p');
         }
       }

@@ -1,4 +1,5 @@
 // lib/src/commands/autolink_command.dart
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../native/autolink_engine.dart';
 import '../utils/ansi.dart';
@@ -10,9 +11,20 @@ class AutolinkCommand extends Command<int> {
   @override
   final String description = 'Discovers native Bloom modules and links Android & iOS build targets without manual edits.';
 
+  AutolinkCommand() {
+    argParser.addOption(
+      'project-dir',
+      help: 'Explicit path to the Bloom project directory.',
+    );
+  }
+
   @override
   Future<int> run() async {
-    final project = BloomProject.find();
+    final explicitDir = argResults?['project-dir'] != null
+        ? Directory(argResults!['project-dir'] as String)
+        : null;
+
+    final project = BloomProject.find(explicitDir);
     if (project == null) {
       print(Ansi.error('No Bloom project found.'));
       return 1;
