@@ -2,116 +2,193 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
-class BloomFieldLabel extends StatelessWidget {
-  final String? label;
-  final Widget? child;
+/// Form field wrapper matching shadcn/ui base-nova field architecture.
+class BloomField extends StatelessWidget {
+  final Widget? label;
+  final Widget? description;
+  final Widget? error;
+  final Widget child;
+  final Axis orientation;
   final bool required;
 
-  const BloomFieldLabel({
+  const BloomField({
     super.key,
     this.label,
-    this.child,
+    this.description,
+    this.error,
+    required this.child,
+    this.orientation = Axis.vertical,
     this.required = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-    final content = child ??
-        (label == null
-            ? null
-            : Text.rich(
-                TextSpan(
-                  text: label,
-                  children: [
-                    if (required)
-                      TextSpan(
-                        text: ' *',
-                        style: TextStyle(color: colors.error),
-                      ),
-                  ],
-                ),
-              ));
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: DefaultTextStyle(
-        style: TextStyle(
-          color: colors.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          fontFamily: context.bloomTypography.sans,
-        ),
-        child: content ?? const SizedBox.shrink(),
-      ),
-    );
-  }
-}
-
-class BloomFieldMessage extends StatelessWidget {
-  final String? message;
-  final bool error;
-
-  const BloomFieldMessage({
-    super.key,
-    this.message,
-    this.error = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Text(
-        message ?? '',
-        style: TextStyle(
-          color: error ? colors.error : colors.textSecondary,
-          fontSize: 12,
-          fontFamily: context.bloomTypography.sans,
-        ),
-      ),
-    );
-  }
-}
-
-class BloomFormField<T> extends StatelessWidget {
-  final Widget label;
-  final Widget child;
-  final Widget? message;
-  final String? errorText;
-  final String? helperText;
-  final bool showError;
-
-  const BloomFormField({
-    super.key,
-    required this.label,
-    required this.child,
-    this.message,
-    this.errorText,
-    this.helperText,
-    this.showError = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasError = showError && errorText != null;
-
-    final bottom = message ??
-        (hasError
-            ? BloomFieldMessage(message: errorText, error: true)
-            : helperText != null
-                ? BloomFieldMessage(message: helperText)
-                : null);
+    if (orientation == Axis.horizontal) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (label != null) ...[
+            SizedBox(
+              width: 120,
+              child: label!,
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                child,
+                if (description != null) ...[
+                  const SizedBox(height: 4),
+                  description!,
+                ],
+                if (error != null) ...[
+                  const SizedBox(height: 4),
+                  error!,
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          label!,
+          const SizedBox(height: 6),
+        ],
+        child,
+        if (description != null) ...[
+          const SizedBox(height: 4),
+          description!,
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 4),
+          error!,
+        ],
+      ],
+    );
+  }
+}
+
+/// Field label
+class BloomFieldLabel extends StatelessWidget {
+  final String text;
+  final bool required;
+
+  const BloomFieldLabel(this.text, {super.key, this.required = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bloomColors;
+
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        label,
-        child,
-        if (bottom != null) bottom,
+        Text(
+          text,
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            fontFamily: context.bloomTypography.sans,
+            letterSpacing: -0.1,
+          ),
+        ),
+        if (required) ...[
+          const SizedBox(width: 3),
+          Text(
+            '*',
+            style: TextStyle(
+              color: colors.destructive,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// Field description/helper text
+class BloomFieldDescription extends StatelessWidget {
+  final String text;
+  const BloomFieldDescription(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: context.bloomColors.textTertiary,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        fontFamily: context.bloomTypography.sans,
+      ),
+    );
+  }
+}
+
+/// Field error message
+class BloomFieldError extends StatelessWidget {
+  final String text;
+  const BloomFieldError(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: context.bloomColors.destructive,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        fontFamily: context.bloomTypography.sans,
+      ),
+    );
+  }
+}
+
+/// Group of related fields
+class BloomFieldGroup extends StatelessWidget {
+  final List<Widget> children;
+  final double spacing;
+
+  const BloomFieldGroup({super.key, required this.children, this.spacing = 16});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children
+          .map((c) => Padding(padding: EdgeInsets.only(bottom: spacing), child: c))
+          .toList(),
+    );
+  }
+}
+
+/// Field Legend
+class BloomFieldLegend extends StatelessWidget {
+  final String text;
+  const BloomFieldLegend(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: context.bloomColors.textPrimary,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        fontFamily: context.bloomTypography.sans,
+      ),
     );
   }
 }

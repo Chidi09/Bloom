@@ -6,8 +6,13 @@ import '../utils/extensions.dart';
 
 enum BloomToggleVariant { defaultVariant, outline }
 
-enum BloomToggleSize { defaultSize, sm, lg }
+enum BloomToggleSize {
+  defaultSize, // h-8 (32px)
+  sm,          // h-7 (28px)
+  lg,          // h-9 (36px)
+}
 
+/// Two-state toggle button matching shadcn/ui base-nova.
 class BloomToggle extends StatefulWidget {
   final bool? checked;
   final bool defaultChecked;
@@ -59,159 +64,183 @@ class _BloomToggleState extends State<BloomToggle> {
 
   void _toggle() {
     if (widget.disabled) return;
-    final next = !_state.value;
-    setState(() => _state.update(next));
+    setState(() => _state.update(!_state.value));
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.bloomTheme;
-    final colors = theme.colors;
-    final isChecked = _state.value;
-    final isInteractive = !widget.disabled;
-    final dims = _resolveSize(widget.size);
+    final colors = context.bloomColors;
+    final isSelected = _state.value;
+    final dims = _resolveDimensions(widget.size);
 
     Color bg;
-    Color fg;
-    Color border;
-    if (widget.variant == BloomToggleVariant.outline) {
-      bg = isChecked ? colors.muted : Colors.transparent;
-      fg = colors.textPrimary;
-      border = colors.buttonBorder;
+    if (isSelected) {
+      bg = colors.surface0; // bg-muted
     } else {
-      bg = isChecked ? colors.muted : Colors.transparent;
-      fg = colors.textPrimary;
-      border = Colors.transparent;
+      bg = Colors.transparent;
     }
 
+    Color textCol = isSelected ? colors.textPrimary : colors.textSecondary;
+    Color borderCol = widget.variant == BloomToggleVariant.outline
+        ? colors.border
+        : Colors.transparent;
+
     return Semantics(
-      button: true,
-      enabled: isInteractive,
-      toggled: isChecked,
-        child: GestureDetector(
-          onTap: isInteractive ? _toggle : null,
+      toggled: isSelected,
+      enabled: !widget.disabled,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.disabled ? null : _toggle,
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
           child: AnimatedContainer(
             duration: BloomMotion.instant,
             height: dims.height,
-            constraints: BoxConstraints(minWidth: dims.minWidth),
+            constraints: BoxConstraints(minWidth: dims.height),
             padding: dims.padding,
-          decoration: BoxDecoration(
-            color: bg,
-            border: border == Colors.transparent ? null : Border.all(color: border),
-            borderRadius: BorderRadius.circular(theme.radius.md),
-          ),
-          child: DefaultTextStyle(
-            style: TextStyle(
-              color: fg,
-              fontSize: dims.fontSize,
-              fontFamily: theme.typography.sans,
-              fontWeight: FontWeight.w500,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(context.bloomRadius.md),
+              border: borderCol != Colors.transparent ? Border.all(color: borderCol) : null,
             ),
-            child: widget.child,
+            child: IconTheme(
+              data: IconThemeData(color: textCol, size: dims.iconSize),
+              child: DefaultTextStyle(
+                style: TextStyle(
+                  color: textCol,
+                  fontSize: dims.fontSize,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: context.bloomTypography.sans,
+                ),
+                child: widget.child,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
-}
 
-_ToggleDims _resolveSize(BloomToggleSize size) {
-  switch (size) {
-    case BloomToggleSize.sm:
-      return const _ToggleDims(height: 28, minWidth: 28, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 12.8);
-    case BloomToggleSize.defaultSize:
-      return const _ToggleDims(height: 32, minWidth: 32, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 14);
-    case BloomToggleSize.lg:
-      return const _ToggleDims(height: 36, minWidth: 36, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 14);
+  _ToggleDimensions _resolveDimensions(BloomToggleSize size) {
+    switch (size) {
+      case BloomToggleSize.sm:
+        return const _ToggleDimensions(
+          height: 28,
+          padding: EdgeInsets.symmetric(horizontal: 10),
+          fontSize: 12.8,
+          iconSize: 14,
+        );
+      case BloomToggleSize.defaultSize:
+        return const _ToggleDimensions(
+          height: 32,
+          padding: EdgeInsets.symmetric(horizontal: 10),
+          fontSize: 14,
+          iconSize: 16,
+        );
+      case BloomToggleSize.lg:
+        return const _ToggleDimensions(
+          height: 36,
+          padding: EdgeInsets.symmetric(horizontal: 10),
+          fontSize: 14,
+          iconSize: 16,
+        );
+    }
   }
 }
 
-class _ToggleDims {
+class _ToggleDimensions {
   final double height;
-  final double minWidth;
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
   final double fontSize;
-  const _ToggleDims({required this.height, required this.minWidth, required this.padding, required this.fontSize});
+  final double iconSize;
+  const _ToggleDimensions({
+    required this.height,
+    required this.padding,
+    required this.fontSize,
+    required this.iconSize,
+  });
 }
 
 class BloomToggleGroupItem<T> {
   final T value;
   final Widget label;
-
   const BloomToggleGroupItem({required this.value, required this.label});
 }
 
-class BloomToggleGroup<T> extends StatefulWidget {
-  final List<BloomToggleGroupItem<T>> items;
+/// Composable ToggleGroup supporting single and multiple selection matching shadcn base-nova.
+class BloomToggleGroup<T> extends StatelessWidget {
+  final List<BloomToggleGroupItem<T>>? items;
+  final List<Widget>? children;
   final T? value;
-  final T defaultValue;
+  final List<T>? values;
   final ValueChanged<T>? onChanged;
+  final ValueChanged<List<T>>? onMultipleChanged;
+  final bool isMultiple;
   final bool disabled;
   final BloomToggleVariant variant;
-  final int spacing;
+  final BloomToggleSize size;
+  final double spacing;
+  final Axis orientation;
 
   const BloomToggleGroup({
     super.key,
-    required this.items,
+    this.items,
+    this.children,
     this.value,
-    required this.defaultValue,
+    this.values,
     this.onChanged,
+    this.onMultipleChanged,
+    this.isMultiple = false,
     this.disabled = false,
     this.variant = BloomToggleVariant.defaultVariant,
+    this.size = BloomToggleSize.defaultSize,
     this.spacing = 2,
+    this.orientation = Axis.horizontal,
   });
 
   @override
-  State<BloomToggleGroup<T>> createState() => _BloomToggleGroupState<T>();
-}
-
-class _BloomToggleGroupState<T> extends State<BloomToggleGroup<T>> {
-  late BloomControllableValue<T> _state;
-
-  @override
-  void initState() {
-    super.initState();
-    _state = BloomControllableValue<T>(
-      controlledValue: widget.value,
-      defaultValue: widget.defaultValue,
-      onChanged: widget.onChanged,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant BloomToggleGroup<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      _state = BloomControllableValue<T>(
-        controlledValue: widget.value,
-        defaultValue: widget.defaultValue,
-        onChanged: widget.onChanged,
+  Widget build(BuildContext context) {
+    if (children != null) {
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        direction: orientation,
+        children: children!,
       );
     }
-  }
 
-  void _select(T value) {
-    if (widget.disabled) return;
-    setState(() => _state.update(value));
-  }
+    final itemList = items!;
+    return Wrap(
+      spacing: spacing,
+      runSpacing: spacing,
+      direction: orientation,
+      children: itemList.map((item) {
+        final isSelected = isMultiple
+            ? (values?.contains(item.value) ?? false)
+            : (value == item.value);
 
-  @override
-  Widget build(BuildContext context) {
-    final selected = _state.value;
-
-    return Semantics(
-      child: Wrap(
-        spacing: widget.spacing.toDouble(),
-        runSpacing: widget.spacing.toDouble(),
-        children: widget.items.map((item) {
-          return BloomToggle(
-            checked: selected == item.value,
-            onPressed: widget.disabled ? null : (_) => _select(item.value),
-            variant: widget.variant,
-            child: item.label,
-          );
-        }).toList(),
-      ),
+        return BloomToggle(
+          checked: isSelected,
+          disabled: disabled,
+          variant: variant,
+          size: size,
+          onPressed: (_) {
+            if (isMultiple) {
+              final next = List<T>.from(values ?? []);
+              if (next.contains(item.value)) {
+                next.remove(item.value);
+              } else {
+                next.add(item.value);
+              }
+              onMultipleChanged?.call(next);
+            } else {
+              onChanged?.call(item.value);
+            }
+          },
+          child: item.label,
+        );
+      }).toList(),
     );
   }
 }

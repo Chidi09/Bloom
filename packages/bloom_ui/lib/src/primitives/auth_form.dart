@@ -73,8 +73,8 @@ class _BloomAuthFormState extends State<BloomAuthForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               BloomCardHeader(
-                title: Text(widget.title),
-                subtitle: Text(widget.description),
+                title: BloomCardTitle(widget.title),
+                description: BloomCardDescription(widget.description),
               ),
               if (_error != null) ...[
                 Container(
@@ -112,7 +112,7 @@ class _BloomAuthFormState extends State<BloomAuthForm> {
                   BloomCheckbox(
                     checked: _rememberMe,
                     label: const Text('Remember me'),
-                    onChanged: (val) => setState(() => _rememberMe = val),
+                    onChanged: (val) => setState(() => _rememberMe = val ?? false),
                   ),
                   if (widget.onForgotPassword != null)
                     GestureDetector(

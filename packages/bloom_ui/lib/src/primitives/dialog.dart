@@ -1,91 +1,215 @@
 // lib/src/primitives/dialog.dart
 import 'package:flutter/material.dart';
+import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// Modal dialog container matching shadcn/ui base-nova dialog architecture.
 class BloomDialog extends StatelessWidget {
-  final String title;
-  final String? description;
+  final Widget? header;
   final Widget? content;
-  final List<Widget>? actions;
+  final Widget? footer;
+  final Widget? child;
+  final double maxWidth;
+  final bool showClose;
+  final VoidCallback? onClose;
 
   const BloomDialog({
     super.key,
-    required this.title,
-    this.description,
+    this.header,
     this.content,
-    this.actions,
+    this.footer,
+    this.child,
+    this.maxWidth = 440,
+    this.showClose = true,
+    this.onClose,
   });
 
+  /// Static helper to display modal dialog easily
   static Future<T?> show<T>({
     required BuildContext context,
-    required String title,
-    String? description,
-    Widget? content,
-    List<Widget>? actions,
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
   }) {
     return showDialog<T>(
       context: context,
-      builder: (context) => BloomDialog(
-        title: title,
-        description: description,
-        content: content,
-        actions: actions,
-      ),
+      barrierDismissible: barrierDismissible,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: builder,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
+    final radius = context.bloomRadius.xl;
 
     return Dialog(
-      backgroundColor: colors.surface1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.bloomRadius.lg),
-        side: BorderSide(color: colors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                fontFamily: context.bloomTypography.sans,
-              ),
-            ),
-            if (description != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                description!,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 14,
-                  fontFamily: context.bloomTypography.sans,
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface1,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: colors.border),
+            boxShadow: const [BloomShadows.s3],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Stack(
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (header != null) header!,
+                    if (content != null) content!,
+                    if (child != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: child!,
+                      ),
+                    if (footer != null) footer!,
+                  ],
                 ),
-              ),
-            ],
-            if (content != null) ...[
-              const SizedBox(height: 16),
-              content!,
-            ],
-            if (actions != null) ...[
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: actions!
-                    .map((a) => Padding(padding: const EdgeInsets.only(left: 8.0), child: a))
-                    .toList(),
-              ),
-            ],
-          ],
+                if (showClose)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: InkWell(
+                      onTap: onClose ?? () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(context.bloomRadius.sm),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Dialog header slot
+class BloomDialogHeader extends StatelessWidget {
+  final Widget? title;
+  final Widget? description;
+  final Widget? child;
+
+  const BloomDialogHeader({
+    super.key,
+    this.title,
+    this.description,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: child ??
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null) title!,
+              if (description != null) ...[
+                const SizedBox(height: 4),
+                description!,
+              ],
+            ],
+          ),
+    );
+  }
+}
+
+/// Dialog title
+class BloomDialogTitle extends StatelessWidget {
+  final String text;
+  const BloomDialogTitle(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        fontFamily: context.bloomTypography.sans,
+        color: context.bloomColors.textPrimary,
+        letterSpacing: -0.2,
+      ),
+    );
+  }
+}
+
+/// Dialog subtitle description
+class BloomDialogDescription extends StatelessWidget {
+  final String text;
+  const BloomDialogDescription(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w400,
+        fontFamily: context.bloomTypography.sans,
+        color: context.bloomColors.textSecondary,
+        height: 1.4,
+      ),
+    );
+  }
+}
+
+/// Dialog body content slot
+class BloomDialogContent extends StatelessWidget {
+  final Widget child;
+  const BloomDialogContent({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: child,
+    );
+  }
+}
+
+/// Styled footer slot for BloomDialog with shaded background and top border
+class BloomDialogFooter extends StatelessWidget {
+  final List<Widget> actions;
+  final Widget? child;
+
+  const BloomDialogFooter({super.key, this.actions = const [], this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bloomColors;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface0.withValues(alpha: 0.5),
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: child ??
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: actions
+                .map((a) => Padding(padding: const EdgeInsets.only(left: 8), child: a))
+                .toList(),
+          ),
     );
   }
 }

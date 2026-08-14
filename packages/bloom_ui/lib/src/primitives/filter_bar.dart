@@ -26,8 +26,8 @@ class BloomFilterBar<T> extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: BloomChip(
-              label: labelBuilder(option),
-              selected: isSelected,
+              label: Text(labelBuilder(option)),
+              variant: isSelected ? BloomBadgeVariant.defaultVariant : BloomBadgeVariant.secondary,
               onTap: () => onSelected(option),
             ),
           );
