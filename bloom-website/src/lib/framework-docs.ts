@@ -20,7 +20,20 @@ export interface DocSectionNav {
   items: { title: string; href: string; slug: string }[];
 }
 
-const DOCS_BASE_DIR = path.resolve('/root/dev/Bloom/docs');
+function getDocsBaseDir(): string {
+  const candidates = [
+    path.resolve(process.cwd(), 'src/docs-content'),
+    path.resolve(process.cwd(), 'docs-content'),
+    path.resolve(process.cwd(), '../docs'),
+    path.resolve('/root/dev/Bloom/docs'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return path.resolve(process.cwd(), 'src/docs-content');
+}
+
+const DOCS_BASE_DIR = getDocsBaseDir();
 
 const SECTIONS_CONFIG: { dir: string; sectionName: string; categoryTitle: string }[] = [
   { dir: 'getting-started', sectionName: 'getting-started', categoryTitle: 'Getting Started' },
