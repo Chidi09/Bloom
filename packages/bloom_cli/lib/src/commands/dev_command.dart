@@ -118,6 +118,7 @@ class DevCommand extends Command<int> {
     }
     if (flavor != null) {
       flutterArgs.addAll(['--flavor', flavor]);
+      flutterArgs.add('--dart-define=BLOOM_FLAVOR=$flavor');
       final config = project.loadBloomConfig();
       if (config['flavors'] is Map && config['flavors'][flavor] is Map) {
         final flavorConfig = config['flavors'][flavor] as Map;
