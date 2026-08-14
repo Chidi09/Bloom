@@ -125,6 +125,53 @@ class BloomWorkspaceManager {
     return projects;
   }
 
+  /// Performs genuine topological sort of workspace projects.
+  /// A dependency will always appear before any project that depends on it.
+  List<WorkspaceProject> topologicalSort() {
+    final projects = discoverProjects();
+    final projectMap = {for (final p in projects) p.name: p};
+    final inDegree = <String, int>{for (final p in projects) p.name: 0};
+    final outgoing = <String, Set<String>>{for (final p in projects) p.name: <String>{}};
+
+    for (final project in projects) {
+      for (final dep in project.dependencies) {
+        if (projectMap.containsKey(dep)) {
+          // dep -> project (dep must be tested before project)
+          outgoing[dep]!.add(project.name);
+          inDegree[project.name] = (inDegree[project.name] ?? 0) + 1;
+        }
+      }
+    }
+
+    // Queue of projects with 0 dependencies within the workspace
+    final queue = projects.where((p) => (inDegree[p.name] ?? 0) == 0).map((p) => p.name).toList()
+      ..sort();
+
+    final result = <WorkspaceProject>[];
+    while (queue.isNotEmpty) {
+      final currentName = queue.removeAt(0);
+      final currentProj = projectMap[currentName]!;
+      result.add(currentProj);
+
+      for (final dependent in outgoing[currentName] ?? <String>{}) {
+        inDegree[dependent] = (inDegree[dependent] ?? 1) - 1;
+        if (inDegree[dependent] == 0) {
+          queue.add(dependent);
+          queue.sort();
+        }
+      }
+    }
+
+    // Handle any circular or remaining packages
+    for (final project in projects) {
+      if (!result.contains(project)) {
+        result.add(project);
+      }
+    }
+
+    return result;
+  }
+
   /// Prints workspace status overview.
   void printStatus() {
     final projects = discoverProjects();
@@ -143,13 +190,12 @@ class BloomWorkspaceManager {
     print('');
   }
 
-  /// Runs Prebuild on all apps in the workspace.
+  /// Runs Prebuild on all apps in the workspace in parallel.
   Future<int> prebuildAll() async {
-    final projects = discoverProjects().where((p) => p.type == WorkspaceProjectType.app).toList();
-    print(Ansi.boldText('\n⚙  Running Prebuild across ${projects.length} workspace app(s)...\n'));
+    final apps = discoverProjects().where((p) => p.type == WorkspaceProjectType.app).toList();
+    print(Ansi.boldText('\n⚙  Running Prebuild in parallel across ${apps.length} workspace app(s)...\n'));
 
-    var failed = 0;
-    for (final proj in projects) {
+    final results = await Future.wait(apps.map((proj) async {
       print('› Prebuilding: ${Ansi.cyan}${proj.name}${Ansi.reset}');
       final bloomProj = BloomProject(
         rootDir: proj.dir,
@@ -158,34 +204,24 @@ class BloomWorkspaceManager {
       );
 
       final engine = PrebuildEngine(bloomProj);
-      final ok = await engine.run();
-      if (!ok) failed++;
-    }
+      return engine.run();
+    }));
 
+    final failed = results.where((ok) => !ok).length;
     return failed == 0 ? 0 : 1;
   }
 
-  /// Runs tests across all workspace packages with topological ordering.
+  /// Runs tests across all workspace packages with true topological dependency ordering.
   Future<int> testAll() async {
-    final projects = discoverProjects();
-    print(Ansi.boldText('\n🧪 Running tests across ${projects.length} workspace package(s)...\n'));
-
-    // Topological sort: packages & modules first, then apps
-    final ordered = List<WorkspaceProject>.from(projects)
-      ..sort((a, b) {
-        if (a.type == b.type) return a.name.compareTo(b.name);
-        if (a.type == WorkspaceProjectType.nativeModule) return -1;
-        if (b.type == WorkspaceProjectType.nativeModule) return 1;
-        if (a.type == WorkspaceProjectType.package) return -1;
-        return 1;
-      });
+    final ordered = topologicalSort();
+    print(Ansi.boldText('\n🧪 Running tests across ${ordered.length} workspace package(s) (topological order)...\n'));
 
     var failed = 0;
     for (final proj in ordered) {
       final testDir = Directory(p.join(proj.dir.path, 'test'));
       if (!testDir.existsSync()) continue;
 
-      print('› Testing: ${Ansi.cyan}${proj.name}${Ansi.reset}');
+      print('› Testing [${proj.typeLabel}]: ${Ansi.cyan}${proj.name}${Ansi.reset}');
       final result = await Process.run('flutter', ['test'], workingDirectory: proj.dir.path);
       if (result.exitCode != 0) {
         print(Ansi.error('Tests failed in ${proj.name}:\n${result.stdout}\n${result.stderr}'));
