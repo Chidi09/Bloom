@@ -10,7 +10,7 @@ class BuildCommand extends Command<int> {
   @override
   final String name = 'build';
   @override
-  final String description = 'Compiles production artifacts with Bloom environment injection.';
+  final String description = 'Compiles production artifacts with Bloom environment injection and flavor profiles.';
 
   BuildCommand() {
     argParser
@@ -19,9 +19,19 @@ class BuildCommand extends Command<int> {
         help: 'Build a release version of the application.',
         defaultsTo: true,
       )
+      ..addFlag(
+        'profile',
+        help: 'Build a performance profiling version of the application.',
+        defaultsTo: false,
+      )
       ..addOption(
         'flavor',
-        help: 'Build flavor to use.',
+        abbr: 'f',
+        help: 'Build flavor to use (defined in bloom.yaml).',
+      )
+      ..addOption(
+        'env-file',
+        help: 'Explicit environment file to inject during build.',
       );
   }
 
@@ -40,7 +50,10 @@ class BuildCommand extends Command<int> {
       return 1;
     }
 
-    print(Ansi.boldText('\n🏗  Building Bloom target: ${Ansi.cyan}$target${Ansi.reset}\n'));
+    final flavor = argResults?['flavor'] as String?;
+    final explicitEnv = argResults?['env-file'] as String?;
+
+    print(Ansi.boldText('\n🏗  Building Bloom target: ${Ansi.cyan}$target${Ansi.reset}${flavor != null ? ' [Flavor: $flavor]' : ''}\n'));
 
     // 1. Sync routes first
     final routes = project.scanRoutes();
@@ -52,13 +65,36 @@ class BuildCommand extends Command<int> {
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
 
-    // 2. Run flutter build
+    // 2. Determine environment file injection
+    String? envToInject = explicitEnv;
+    if (envToInject == null && flavor != null) {
+      final config = project.loadBloomConfig();
+      if (config['flavors'] is Map && config['flavors'][flavor] is Map) {
+        final flavorConfig = config['flavors'][flavor] as Map;
+        envToInject = flavorConfig['env_file']?.toString() ?? flavorConfig['envFile']?.toString();
+      }
+      envToInject ??= '.env.$flavor';
+    }
+
+    // 3. Assemble flutter build arguments
     final buildArgs = ['build', target];
-    if (argResults?['release'] == true) {
+
+    if (argResults?['profile'] == true) {
+      buildArgs.add('--profile');
+    } else if (argResults?['release'] == true) {
       buildArgs.add('--release');
     }
-    if (argResults?['flavor'] != null) {
-      buildArgs.addAll(['--flavor', argResults!['flavor'] as String]);
+
+    if (flavor != null) {
+      buildArgs.addAll(['--flavor', flavor]);
+    }
+
+    if (envToInject != null) {
+      final envFile = File(p.join(project.rootDir.path, envToInject));
+      if (envFile.existsSync()) {
+        buildArgs.add('--dart-define-from-file=$envToInject');
+        print(Ansi.step('Injecting environment definition: $envToInject'));
+      }
     }
 
     final proc = await Process.start(
