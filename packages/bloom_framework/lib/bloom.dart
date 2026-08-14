@@ -24,8 +24,14 @@ export 'src/state/watch.dart';
 // Router & Navigation
 export 'src/router/route.dart';
 export 'src/router/router.dart';
+export 'src/router/route_context.dart';
+export 'src/router/metadata.dart';
+export 'src/router/loader_annotations.dart';
 export 'package:go_router/go_router.dart'
     show GoRouter, GoRoute, RouteBase, ShellRoute, GoRouterState;
+
+// Full-Stack Server & API Routes (Phase 12)
+export 'bloom_server.dart';
 
 // Data, Queries & Offline Architecture (Phase 2)
 export 'src/data/cache.dart';
