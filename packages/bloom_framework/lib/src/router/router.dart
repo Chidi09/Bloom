@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/logger.dart';
+import '../native/deep_links.dart';
 import 'route.dart';
 
 /// Central Bloom router orchestrating `GoRouter`.
@@ -9,6 +10,9 @@ class BloomRouter {
   static GoRouter? _activeGoRouter;
   static final GlobalKey<NavigatorState> rootNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'bloom_root_navigator');
+
+  /// Whether the [GoRouter] instance has been created and mounted.
+  static bool get isInitialized => _activeGoRouter != null;
 
   /// Get the active [GoRouter] instance.
   static GoRouter get instance {
@@ -60,6 +64,12 @@ class BloomRouter {
         return null;
       },
     );
+
+    // Drain any cold-start deep links that arrived before router creation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      BloomDeepLinks.drainPending();
+    });
+
     return _activeGoRouter!;
   }
 

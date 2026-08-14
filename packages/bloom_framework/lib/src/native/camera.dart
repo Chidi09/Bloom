@@ -1,6 +1,7 @@
 // lib/src/native/camera.dart
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
@@ -20,77 +21,99 @@ class BloomCapturedPhoto {
   });
 }
 
-abstract class BloomCameraPlatform {
-  FutureOr<bool> initialize();
-  FutureOr<BloomCapturedPhoto> takePicture();
-}
-
-/// Native MethodChannel implementation for camera operations.
-class MethodChannelBloomCameraPlatform implements BloomCameraPlatform {
-  static const MethodChannel _channel = MethodChannel('bloom/camera');
-
-  @override
-  Future<bool> initialize() async {
-    try {
-      final res = await _channel.invokeMethod<bool>('initialize');
-      return res ?? true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  @override
-  Future<BloomCapturedPhoto> takePicture() async {
-    try {
-      final res = await _channel.invokeMethod<Map>('takePicture');
-      if (res != null) {
-        return BloomCapturedPhoto(
-          path: res['path']?.toString() ?? '/tmp/bloom_camera_capture.jpg',
-          width: res['width'] as int?,
-          height: res['height'] as int?,
-          mimeType: res['mimeType']?.toString() ?? 'image/jpeg',
-        );
-      }
-    } catch (_) {}
-
-    return BloomCapturedPhoto(
-      path: '/tmp/bloom_camera_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      bytes: Uint8List.fromList([0xFF, 0xD8, 0xFF]),
-      width: 1920,
-      height: 1080,
-    );
-  }
-}
-
-/// Camera capture and media interface for Bloom applications.
+/// Camera capture and media interface for Bloom applications wrapping `image_picker`.
 class BloomCamera {
-  final BloomCameraPlatform platform;
-  bool _initialized = false;
+  final ImagePicker _picker;
+  bool _isInitialized = false;
 
-  BloomCamera([BloomCameraPlatform? platform])
-      : platform = platform ?? MethodChannelBloomCameraPlatform();
+  BloomCamera([ImagePicker? picker]) : _picker = picker ?? ImagePicker();
 
-  /// Initialize the camera hardware preview and sensors.
+  /// Initialize and verify camera hardware access permissions.
   Future<bool> initialize() async {
-    final status = await BloomPermissions.request(BloomPermission.camera);
-    if (!status.isGranted) {
-      logger.warn('BloomCamera: Camera permission denied.');
+    try {
+      final status = await BloomPermissions.request(BloomPermission.camera);
+      _isInitialized = status.isGranted;
+      if (!_isInitialized) {
+        logger.warn('BloomCamera: Camera permission denied by user.');
+      } else {
+        logger.info('BloomCamera: Camera hardware access authorized.');
+      }
+      return _isInitialized;
+    } catch (e) {
+      logger.error('BloomCamera: Failed to initialize camera hardware: $e');
+      _isInitialized = false;
       return false;
     }
-    _initialized = await platform.initialize();
-    logger.info('BloomCamera: Initialized camera hardware.');
-    return _initialized;
   }
 
-  /// Capture a still photo.
-  Future<BloomCapturedPhoto?> takePicture() async {
-    if (!_initialized) {
-      final ok = await initialize();
-      if (!ok) return null;
+  /// Capture a real photo using native OS camera interface.
+  /// Returns `null` if the user cancels or if permission is not granted.
+  Future<BloomCapturedPhoto?> takePicture({
+    CameraDevice preferredCamera = CameraDevice.rear,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    final status = await BloomPermissions.request(BloomPermission.camera);
+    if (!status.isGranted) {
+      logger.warn('BloomCamera: Camera permission denied. Cannot take picture.');
+      return null;
     }
-    logger.info('BloomCamera: Taking picture...');
-    final photo = await platform.takePicture();
-    logger.info('BloomCamera: Captured photo saved to: ${photo.path}');
-    return photo;
+
+    try {
+      logger.info('BloomCamera: Launching native camera capture...');
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: preferredCamera,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality,
+      );
+
+      if (file == null) {
+        logger.info('BloomCamera: Capture cancelled by user.');
+        return null;
+      }
+
+      final bytes = await file.readAsBytes();
+      logger.info('BloomCamera: Captured photo saved to: ${file.path} (${bytes.length} bytes)');
+
+      return BloomCapturedPhoto(
+        path: file.path,
+        bytes: bytes,
+        mimeType: file.mimeType ?? 'image/jpeg',
+      );
+    } catch (e, st) {
+      logger.error('BloomCamera: Camera capture failed: $e', e, st);
+      return null;
+    }
+  }
+
+  /// Select a photo from the device photo library.
+  Future<BloomCapturedPhoto?> pickFromGallery({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality,
+      );
+
+      if (file == null) return null;
+      final bytes = await file.readAsBytes();
+
+      return BloomCapturedPhoto(
+        path: file.path,
+        bytes: bytes,
+        mimeType: file.mimeType ?? 'image/jpeg',
+      );
+    } catch (e, st) {
+      logger.error('BloomCamera: Gallery picker failed: $e', e, st);
+      return null;
+    }
   }
 }

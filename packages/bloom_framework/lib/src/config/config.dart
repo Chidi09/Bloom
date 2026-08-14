@@ -17,12 +17,56 @@ class BloomFlavorConfig {
   });
 
   factory BloomFlavorConfig.fromMap(String name, Map<dynamic, dynamic> map) {
+    const knownKeys = {'app_name', 'appName', 'app_id', 'appId', 'env_file', 'envFile'};
+    final customMap = <String, dynamic>{};
+    map.forEach((k, v) {
+      if (!knownKeys.contains(k.toString())) {
+        customMap[k.toString()] = v;
+      }
+    });
+
     return BloomFlavorConfig(
       name: name,
       appName: map['app_name']?.toString() ?? map['appName']?.toString(),
       appId: map['app_id']?.toString() ?? map['appId']?.toString(),
       envFile: map['env_file']?.toString() ?? map['envFile']?.toString(),
-      custom: Map<String, dynamic>.from(map),
+      custom: customMap,
+    );
+  }
+}
+
+class BloomDeepLinksConfig {
+  final bool enabled;
+  final List<String> schemes;
+  final List<String> domains;
+  final Map<String, String> routeMappings;
+
+  const BloomDeepLinksConfig({
+    this.enabled = false,
+    this.schemes = const [],
+    this.domains = const [],
+    this.routeMappings = const {},
+  });
+
+  factory BloomDeepLinksConfig.fromMap(Map<dynamic, dynamic> map) {
+    final schemesList = map['schemes'] is List ? List<String>.from(map['schemes']) : <String>[];
+    final domainsList = <String>[];
+    if (map['domains'] is List) {
+      for (final d in map['domains']) {
+        if (d is String) domainsList.add(d);
+        if (d is Map && d['host'] != null) domainsList.add(d['host'].toString());
+      }
+    }
+    final mappings = <String, String>{};
+    if (map['routes'] is Map) {
+      map['routes'].forEach((k, v) => mappings[k.toString()] = v.toString());
+    }
+
+    return BloomDeepLinksConfig(
+      enabled: map['enabled'] is bool ? map['enabled'] as bool : false,
+      schemes: schemesList,
+      domains: domainsList,
+      routeMappings: mappings,
     );
   }
 }
@@ -33,8 +77,10 @@ class BloomConfig {
   final String name;
   final String version;
   final String description;
+  final String mode; // 'managed' or 'bare'
   final BloomPlatforms platforms;
   final BloomFeatures features;
+  final BloomDeepLinksConfig deepLinks;
   final List<String> envFiles;
   final Map<String, BloomFlavorConfig> flavors;
   final Map<String, dynamic> plugins;
@@ -45,8 +91,10 @@ class BloomConfig {
     this.name = 'bloom_app',
     this.version = '0.1.0',
     this.description = '',
+    this.mode = 'managed',
     this.platforms = const BloomPlatforms(),
     this.features = const BloomFeatures(),
+    this.deepLinks = const BloomDeepLinksConfig(),
     this.envFiles = const ['.env', '.env.local'],
     this.flavors = const {},
     this.plugins = const {},
@@ -65,6 +113,9 @@ class BloomConfig {
   factory BloomConfig.fromMap(Map<dynamic, dynamic> map) {
     final platformsMap = map['platforms'] is Map ? map['platforms'] as Map : {};
     final featuresMap = map['features'] is Map ? map['features'] as Map : {};
+    final deepLinksMap = map['deep_links'] is Map
+        ? map['deep_links'] as Map
+        : (map['deepLinks'] is Map ? map['deepLinks'] as Map : {});
     
     final envList = <String>[];
     if (map['environment'] is Map && map['environment']['files'] is List) {
@@ -106,6 +157,7 @@ class BloomConfig {
       'name',
       'version',
       'description',
+      'mode',
       'platforms',
       'features',
       'environment',
@@ -128,8 +180,10 @@ class BloomConfig {
       name: map['name']?.toString() ?? 'bloom_app',
       version: map['version']?.toString() ?? '0.1.0',
       description: map['description']?.toString() ?? '',
+      mode: map['mode']?.toString().toLowerCase() ?? 'managed',
       platforms: BloomPlatforms.fromMap(platformsMap),
       features: BloomFeatures.fromMap(featuresMap),
+      deepLinks: BloomDeepLinksConfig.fromMap(deepLinksMap),
       envFiles: envList,
       flavors: flavorsMap,
       plugins: pluginsMap,

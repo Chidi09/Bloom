@@ -59,9 +59,14 @@ class BloomContainer {
     _bindings[T] = _Binding<T>.value(value);
   }
 
-  /// Override a dependency (ideal for mock injection in tests).
+  /// Override a dependency with a concrete generic type [T].
   void override<T>(T instance) {
     _overrides[T] = instance;
+  }
+
+  /// Override a dependency with an explicit [type].
+  void overrideType(Type type, dynamic instance) {
+    _overrides[type] = instance;
   }
 
   /// Remove a test override by generic type or explicit [type].

@@ -51,18 +51,19 @@ class BloomNotifications {
   Future<void> initialize({
     List<BloomNotificationChannel> channels = const [],
     String defaultAndroidIcon = '@mipmap/ic_launcher',
+    bool requestPermissions = true,
     void Function(NotificationResponse response)? onNotificationTap,
   }) async {
     if (_isInitialized) return;
 
-    logger.info('BloomNotifications: Initializing native notifications with ${channels.length} channels.');
+    logger.info('BloomNotifications: Initializing native notifications with ${channels.length} channel(s)...');
 
     final initSettings = InitializationSettings(
       android: AndroidInitializationSettings(defaultAndroidIcon),
       iOS: const DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
       ),
       linux: const LinuxInitializationSettings(defaultActionName: 'Open'),
     );
@@ -73,22 +74,37 @@ class BloomNotifications {
         onDidReceiveNotificationResponse: onNotificationTap,
       );
 
-      // Create Android Notification Channels
+      // Create Android Notification Channels (Always includes fallback default_channel for Android 8+)
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
+        // 1. Create fallback default channel
+        const defaultChannel = BloomNotificationChannel(
+          id: 'default_channel',
+          name: 'General Notifications',
+          description: 'General system and application alerts',
+          importance: NotificationImportance.high,
+        );
+        await androidPlugin.createNotificationChannel(defaultChannel.toAndroidChannel());
+
+        // 2. Create user-specified channels
         for (final ch in channels) {
           await androidPlugin.createNotificationChannel(ch.toAndroidChannel());
           logger.debug('BloomNotifications: Registered Android channel "${ch.id}"');
         }
       }
+
+      if (requestPermissions) {
+        await this.requestPermissions();
+      }
+
       _isInitialized = true;
     } catch (e) {
       logger.warn('BloomNotifications: Initialization note: $e');
     }
   }
 
-  /// Request notification authorization.
+  /// Request notification authorization from the user.
   Future<bool> requestPermissions() async {
     final status = await BloomPermissions.request(BloomPermission.notifications);
     return status.isGranted;

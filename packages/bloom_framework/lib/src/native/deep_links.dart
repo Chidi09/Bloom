@@ -13,10 +13,19 @@ class BloomDeepLinks {
 
   static StreamSubscription<dynamic>? _linkSubscription;
   static DeepLinkHandler? _customHandler;
+  static Map<String, String> _routeMappings = {};
+  static Uri? _pendingInitialUri;
 
-  /// Initialize deep link listening. Automatically navigates via [BloomRouter] unless [onLink] is provided.
-  static Future<void> initialize({DeepLinkHandler? onLink}) async {
+  /// Pending cold-start URI waiting for router creation.
+  static Uri? get pendingInitialUri => _pendingInitialUri;
+
+  /// Initialize deep link listening.
+  static Future<void> initialize({
+    DeepLinkHandler? onLink,
+    Map<String, String> routeMappings = const {},
+  }) async {
     _customHandler = onLink;
+    _routeMappings = routeMappings;
 
     // 1. Get initial launch deep link (cold start)
     try {
@@ -49,8 +58,17 @@ class BloomDeepLinks {
     } catch (_) {}
   }
 
-  /// Manually dispatch and process a deep link URI.
+  /// Resolve and navigate a deep link URI.
   static void dispatch(Uri uri) => _dispatch(uri);
+
+  /// Drain and navigate pending cold-start deep link once router is mounted.
+  static void drainPending() {
+    if (_pendingInitialUri != null) {
+      final uri = _pendingInitialUri!;
+      _pendingInitialUri = null;
+      _dispatch(uri);
+    }
+  }
 
   static void _dispatch(Uri uri) {
     if (_customHandler != null) {
@@ -58,18 +76,37 @@ class BloomDeepLinks {
       return;
     }
 
-    // Default: route path + query parameters
-    var targetPath = uri.path;
-    if (targetPath.isEmpty) targetPath = '/';
-    if (uri.hasQuery) {
-      targetPath = '$targetPath?${uri.query}';
+    // 1. Check configurable host->route mappings
+    final hostAndPath = '${uri.host}${uri.path}';
+    String? targetPath;
+
+    for (final entry in _routeMappings.entries) {
+      if (entry.key == hostAndPath || entry.key == uri.path || entry.key == uri.host) {
+        targetPath = entry.value;
+        break;
+      }
     }
 
-    try {
-      logger.info('BloomDeepLinks: Navigating to $targetPath');
-      BloomRouter.go(targetPath);
-    } catch (e) {
-      logger.error('BloomDeepLinks: Failed to navigate to $targetPath: $e');
+    // 2. Default to uri.path if no specific mapping matched
+    targetPath ??= uri.path.isNotEmpty ? uri.path : '/';
+
+    if (uri.hasQuery) {
+      targetPath = targetPath.contains('?')
+          ? '$targetPath&${uri.query}'
+          : '$targetPath?${uri.query}';
+    }
+
+    // 3. Safe navigation with cold-start buffering
+    if (BloomRouter.isInitialized) {
+      try {
+        logger.info('BloomDeepLinks: Navigating to $targetPath');
+        BloomRouter.go(targetPath);
+      } catch (e) {
+        logger.error('BloomDeepLinks: Failed to navigate to $targetPath: $e');
+      }
+    } else {
+      logger.info('BloomDeepLinks: Router not yet mounted. Buffering initial link: $uri');
+      _pendingInitialUri = uri;
     }
   }
 
@@ -78,5 +115,7 @@ class BloomDeepLinks {
     _linkSubscription?.cancel();
     _linkSubscription = null;
     _customHandler = null;
+    _pendingInitialUri = null;
+    _routeMappings = {};
   }
 }

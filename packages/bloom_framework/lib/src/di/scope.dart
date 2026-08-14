@@ -18,7 +18,7 @@ class BloomTestScope {
       : container = BloomContainer(parent: parent ?? globalContainer) {
     if (overrides != null) {
       for (final o in overrides) {
-        container.override(o.instance);
+        container.overrideType(o.type, o.instance);
         _appliedOverrides.add(o.type);
       }
     }
