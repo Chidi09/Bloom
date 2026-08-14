@@ -81,14 +81,11 @@ class BloomSsgEngine {
           dynamicPaths.addAll(configuredStaticPaths[routePath]!);
         } else {
           // Check for staticPaths in source file
-          final staticPathsMatch = RegExp(r'''staticPaths\s*=>\s*\[(.*?)\]''').firstMatch(fileContent);
+          final staticPathsMatch = RegExp(r'''staticPaths\s*(=>|=)\s*\[(.*?)\]''').firstMatch(fileContent);
           if (staticPathsMatch != null) {
-            final rawList = staticPathsMatch.group(1)!;
+            final rawList = staticPathsMatch.group(2)!;
             final items = RegExp(r'''['"](.*?)['"]''').allMatches(rawList).map((m) => m.group(1)!).toList();
             dynamicPaths.addAll(items);
-          } else {
-            // Default seed values for sample parameterized generation
-            dynamicPaths.addAll(['1', '2']);
           }
         }
       }
@@ -148,6 +145,11 @@ class BloomSsgEngine {
     // 1. Generate HTML for each static route and enumerated parameterized paths
     for (final route in routes) {
       if (route.isDynamic) {
+        if (route.staticPaths.isEmpty) {
+          print(Ansi.warn('  ⚠ Notice: Dynamic route "${route.path}" has no static_paths configured. Skipping static pre-rendering.'));
+          continue;
+        }
+
         for (final paramVal in route.staticPaths) {
           final instantiatedPath = route.path.replaceAll(RegExp(r'\[.*?\]'), paramVal);
           _generateHtmlPage(
@@ -244,7 +246,7 @@ class BloomSsgEngine {
   <meta property="og:type" content="website" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/Icon-192.png" />
-  <meta name="theme-color" content="$themeColor" />
+  <meta name="theme-color" content="${_escapeHtml(themeColor)}" />
   <style>
     body { margin: 0; padding: 0; background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1F2937; }
     #bloom-app-root { min-height: 100vh; display: flex; flex-direction: column; }
@@ -273,7 +275,7 @@ class BloomSsgEngine {
     </div>
   </noscript>
   <script>
-    window.__BLOOM_ROUTE__ = "$routePath";
+    window.__BLOOM_ROUTE__ = ${jsonEncode(routePath)};
     window.__BLOOM_DATA__ = ${jsonEncode({'route': routePath, 'title': title})};
   </script>
   <script src="flutter.js" defer></script>
