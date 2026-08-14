@@ -133,6 +133,19 @@ class BloomRouter {
     );
   }
 
+  /// Helper to create a nested persistent tab / shell route.
+  static ShellRoute shell({
+    required Widget Function(BuildContext context, GoRouterState state, Widget child) builder,
+    required List<RouteBase> routes,
+    GlobalKey<NavigatorState>? navigatorKey,
+  }) {
+    return ShellRoute(
+      navigatorKey: navigatorKey,
+      builder: builder,
+      routes: routes,
+    );
+  }
+
   /// Default error builder for unhandled routes (404).
   static Widget _defaultErrorBuilder(BuildContext context, GoRouterState state) {
     return Scaffold(
