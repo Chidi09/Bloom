@@ -1,0 +1,108 @@
+// lib/src/commands/workspace_command.dart
+import 'dart:io';
+import 'package:args/command_runner.dart';
+import '../native/dependency_graph.dart';
+import '../native/workspace_manager.dart';
+import '../utils/ansi.dart';
+import '../utils/project.dart';
+
+class WorkspaceCommand extends Command<int> {
+  @override
+  final String name = 'workspace';
+  @override
+  final String description = 'Monorepo & workspace coordinator (status, deps, prebuild, test).';
+
+  WorkspaceCommand() {
+    addSubcommand(_WorkspaceStatusCommand());
+    addSubcommand(_WorkspaceDepsCommand());
+    addSubcommand(_WorkspacePrebuildCommand());
+    addSubcommand(_WorkspaceTestCommand());
+  }
+}
+
+class _WorkspaceStatusCommand extends Command<int> {
+  @override
+  final String name = 'status';
+  @override
+  final String description = 'Discovers all apps, packages, and native modules in the monorepo workspace.';
+
+  @override
+  Future<int> run() async {
+    final workspace = BloomWorkspaceManager.find();
+    if (workspace == null) {
+      print(Ansi.error('No Bloom workspace found in current or parent directory.'));
+      return 1;
+    }
+
+    workspace.printStatus();
+    return 0;
+  }
+}
+
+class _WorkspaceDepsCommand extends Command<int> {
+  @override
+  final String name = 'deps';
+  @override
+  final String description = 'Visualizes dependencies across all workspace packages and apps.';
+
+  @override
+  Future<int> run() async {
+    final workspace = BloomWorkspaceManager.find();
+    if (workspace == null) {
+      print(Ansi.error('No Bloom workspace found.'));
+      return 1;
+    }
+
+    final projects = workspace.discoverProjects();
+    print(Ansi.boldText('\n🏢 Bloom Workspace Dependencies (${projects.length} projects):\n'));
+
+    for (final p in projects) {
+      final bloomProj = BloomProject(
+        rootDir: p.dir,
+        bloomYamlFile: File('${p.dir.path}/bloom.yaml'),
+        pubspecFile: File('${p.dir.path}/pubspec.yaml'),
+      );
+      final resolver = DependencyGraphResolver(bloomProj);
+      print(resolver.renderTree());
+      print('');
+    }
+
+    return 0;
+  }
+}
+
+class _WorkspacePrebuildCommand extends Command<int> {
+  @override
+  final String name = 'prebuild';
+  @override
+  final String description = 'Prebuilds all application targets in the workspace in parallel.';
+
+  @override
+  Future<int> run() async {
+    final workspace = BloomWorkspaceManager.find();
+    if (workspace == null) {
+      print(Ansi.error('No Bloom workspace found.'));
+      return 1;
+    }
+
+    return workspace.prebuildAll();
+  }
+}
+
+class _WorkspaceTestCommand extends Command<int> {
+  @override
+  final String name = 'test';
+  @override
+  final String description = 'Executes test suites across all workspace packages in topological dependency order.';
+
+  @override
+  Future<int> run() async {
+    final workspace = BloomWorkspaceManager.find();
+    if (workspace == null) {
+      print(Ansi.error('No Bloom workspace found.'));
+      return 1;
+    }
+
+    return workspace.testAll();
+  }
+}

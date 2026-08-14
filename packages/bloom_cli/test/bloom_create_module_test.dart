@@ -9,12 +9,14 @@ import '../lib/src/commands/generate_command.dart';
 
 void main() {
   late Directory tempDir;
+  final rootDir = Directory.current;
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('bloom_module_test_');
   });
 
   tearDown(() {
+    Directory.current = rootDir;
     if (tempDir.existsSync()) {
       tempDir.deleteSync(recursive: true);
     }
