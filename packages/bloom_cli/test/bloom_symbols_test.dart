@@ -84,12 +84,31 @@ build_number: "42"
       ]);
       expect(packageExit, 0);
 
+      // Start local mock telemetry server for upload testing
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      late String receivedBody;
+      late String receivedUserAgent;
+
+      server.listen((HttpRequest req) async {
+        receivedUserAgent = req.headers.value('user-agent') ?? '';
+        final bodyBytes = await req.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        receivedBody = utf8.decode(bodyBytes);
+        req.response.statusCode = 200;
+        req.response.write('{"status": "ok"}');
+        await req.response.close();
+      });
+
       final uploadExit = await runner.run([
         'symbols',
         'upload',
         '--project-dir=${appDir.path}',
+        '--endpoint=http://${server.address.host}:${server.port}/upload',
       ]);
       expect(uploadExit, 0);
+      expect(receivedUserAgent, 'Bloom-CLI/1.0');
+      expect(receivedBody, contains('cli_symbols_app'));
+
+      await server.close();
     });
   });
 }
