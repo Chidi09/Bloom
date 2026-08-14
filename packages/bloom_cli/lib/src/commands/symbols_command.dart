@@ -86,6 +86,26 @@ class _UploadSymbolsCommand extends Command<int> {
 
     print(Ansi.boldText('🚀 Uploading symbol manifest to $endpoint...'));
     print('  Manifest: ${manifestFile.path} (${manifestFile.lengthSync()} bytes)');
+
+    final manifestBytes = manifestFile.readAsBytesSync();
+    final client = HttpClient();
+    try {
+      final req = await client.postUrl(Uri.parse(endpoint));
+      req.headers.contentType = ContentType.json;
+      req.headers.set('user-agent', 'Bloom-CLI/1.0');
+      req.add(manifestBytes);
+      final res = await req.close();
+      if (res.statusCode >= 400) {
+        print(Ansi.error('✖ Upload failed: HTTP ${res.statusCode}'));
+        return 1;
+      }
+    } catch (e) {
+      print(Ansi.error('✖ Upload failed: $e'));
+      return 1;
+    } finally {
+      client.close();
+    }
+
     print(Ansi.success('✔ Symbols uploaded successfully to Bloom Observability!'));
     return 0;
   }

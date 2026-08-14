@@ -12,6 +12,7 @@ import '../native/deep_links.dart';
 import '../modules/module_registry.dart';
 import '../observability/models.dart';
 import '../observability/observability.dart';
+import '../updates/runtime_fingerprint.dart';
 import 'env.dart';
 import 'logger.dart';
 
@@ -185,6 +186,7 @@ class Bloom {
             'name': _config.name,
             'version': _config.version,
           },
+          runtimeFingerprint: BloomRuntimeFingerprint.fromConfig(_config).computeHash(),
         );
     BloomObservability.initialize(obsConfig);
 
