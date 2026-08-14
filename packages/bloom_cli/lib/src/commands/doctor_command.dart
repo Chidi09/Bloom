@@ -1,7 +1,11 @@
 // lib/src/commands/doctor_command.dart
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../commands/audit_command.dart';
 import '../dev/mdns_discovery.dart';
+import '../native/autolink_engine.dart';
+import '../security/secret_scanner.dart';
+import '../upgrade/breaking_change_analyzer.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
@@ -9,15 +13,55 @@ class DoctorCommand extends Command<int> {
   @override
   final String name = 'doctor';
   @override
-  final String description = 'Validates environment, toolchain, and project configuration.';
+  final String description = 'Validates environment, toolchain, project configuration, and CI health.';
+
+  DoctorCommand() {
+    argParser.addFlag(
+      'upgrade',
+      help: 'Performs upgrade breaking-change compatibility analysis.',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'ci',
+      help: 'Runs strict CI continuous diagnostic verification and fails on any risk.',
+      defaultsTo: false,
+    );
+    argParser.addOption(
+      'project-dir',
+      help: 'Explicit path to the Bloom project directory.',
+    );
+  }
 
   @override
   Future<int> run() async {
+    final projectDir = argResults?['project-dir'] != null
+        ? Directory(argResults!['project-dir'] as String)
+        : Directory.current;
+
+    final project = BloomProject.find(projectDir);
+
+    // 1. Check if --upgrade flag was requested
+    if (argResults?['upgrade'] == true) {
+      if (project == null) {
+        print(Ansi.error('✖ Not a valid Bloom project directory: ${projectDir.path}'));
+        return 1;
+      }
+      final analyzer = BreakingChangeAnalyzer(project);
+      final report = analyzer.analyze();
+      return report.isCompatible ? 0 : 1;
+    }
+
+    // 2. Check if --ci flag was requested
+    if (argResults?['ci'] == true) {
+      return _runCiDoctor(project, projectDir);
+    }
+
+    // 3. Standard interactive developer health check
     print(Ansi.boldText('\n🩺 Bloom Diagnostic System Health Check\n'));
 
     bool allGood = true;
 
-    // 1. Dart SDK Check
+    // Dart SDK Check
     stdout.write('  Checking Dart SDK... ');
     final dartRes = await Process.run('dart', ['--version']);
     if (dartRes.exitCode == 0 || dartRes.stderr.toString().contains('Dart SDK version')) {
@@ -25,36 +69,36 @@ class DoctorCommand extends Command<int> {
           ? dartRes.stdout.toString().trim()
           : dartRes.stderr.toString().trim();
       final firstLine = out.split('\n').first;
-      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}($firstLine)${Ansi.reset}');
+      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('($firstLine)')}');
     } else {
       print('${Ansi.red}✖ Missing${Ansi.reset}');
       allGood = false;
     }
 
-    // 2. Flutter SDK Check
+    // Flutter SDK Check
     stdout.write('  Checking Flutter SDK... ');
     final flutterRes = await Process.run('flutter', ['--version']);
     if (flutterRes.exitCode == 0) {
       final out = flutterRes.stdout.toString().trim();
       final firstLine = out.split('\n').first;
-      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}($firstLine)${Ansi.reset}');
+      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('($firstLine)')}');
     } else {
       print('${Ansi.red}✖ Missing${Ansi.reset}');
       allGood = false;
     }
 
-    // 3. Android SDK / Java Check
+    // Android SDK / Java Check
     stdout.write('  Checking Android Toolchain / Java... ');
     final javaRes = await Process.run('java', ['-version']);
     final androidHome = Platform.environment['ANDROID_HOME'] ?? Platform.environment['ANDROID_SDK_ROOT'];
     if (javaRes.exitCode == 0) {
       final sdkStatus = androidHome != null ? 'SDK: $androidHome' : 'Java present';
-      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}($sdkStatus)${Ansi.reset}');
+      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('($sdkStatus)')}');
     } else {
       print('${Ansi.yellow}⚠ JDK not found (Required for Android builds)${Ansi.reset}');
     }
 
-    // 4. iOS / macOS Toolchain (if running on macOS)
+    // iOS / macOS Toolchain
     if (Platform.isMacOS) {
       stdout.write('  Checking Xcode & CocoaPods... ');
       final xcodeRes = await Process.run('xcode-select', ['-p']);
@@ -65,44 +109,41 @@ class DoctorCommand extends Command<int> {
       }
     }
 
-    // 5. Shorebird OTA CLI Check
+    // Shorebird OTA CLI Check
     stdout.write('  Checking Shorebird CLI (OTA)... ');
     try {
       final shorebirdRes = await Process.run('shorebird', ['--version']);
       if (shorebirdRes.exitCode == 0) {
         final versionLine = shorebirdRes.stdout.toString().trim().split('\n').first;
-        print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}($versionLine)${Ansi.reset}');
+        print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('($versionLine)')}');
       } else {
-        print('${Ansi.dim}ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)${Ansi.reset}');
+        print('${Ansi.dimText('ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)')}');
       }
     } catch (_) {
-      print('${Ansi.dim}ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)${Ansi.reset}');
+      print('${Ansi.dimText('ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)')}');
     }
 
-    // 6. Network Interface & Bloom Discovery Check
+    // Network Interface & Bloom Discovery Check
     stdout.write('  Checking Local Network Interfaces... ');
     final localIpResult = await MdnsDiscovery.getLocalIp();
     if (localIpResult.isLoopback) {
       print('${Ansi.yellow}⚠ Loopback only (${localIpResult.ip})${Ansi.reset}');
     } else {
-      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}(LAN IP: ${localIpResult.ip})${Ansi.reset}');
+      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(LAN IP: ${localIpResult.ip})')}');
     }
 
-    // 7. Project-level diagnostic (if executed inside a Bloom app)
-    final project = BloomProject.find();
+    // Project-level diagnostic
     if (project != null) {
       print(Ansi.boldText('\n📁 Project Configuration (${project.projectName})'));
-      
-      // bloom.yaml
+
       if (project.bloomYamlFile.existsSync()) {
         final config = project.loadBloomConfig();
-        print('  ${Ansi.green}✔ bloom.yaml valid${Ansi.reset} ${Ansi.dim}(schema: ${config['schema'] ?? 1})${Ansi.reset}');
+        print('  ${Ansi.green}✔ bloom.yaml valid${Ansi.reset} ${Ansi.dimText('(schema: ${config['schema'] ?? 1})')}');
       } else {
         print('  ${Ansi.red}✖ bloom.yaml missing${Ansi.reset}');
         allGood = false;
       }
 
-      // .env
       final envFile = File('${project.rootDir.path}/.env');
       if (envFile.existsSync()) {
         print('  ${Ansi.green}✔ .env file present${Ansi.reset}');
@@ -110,14 +151,13 @@ class DoctorCommand extends Command<int> {
         print('  ${Ansi.yellow}⚠ .env file missing (create a .env file in project root)${Ansi.reset}');
       }
 
-      // routes
       final routes = project.scanRoutes();
       print('  ${Ansi.green}✔ ${routes.length} filesystem route(s) discovered${Ansi.reset}');
       for (final r in routes) {
-        print('    ${Ansi.dim}• ${r.routePath} -> ${r.componentClassName} (${r.relativeFilePath})${Ansi.reset}');
+        print('    ${Ansi.dimText('• ${r.routePath} -> ${r.componentClassName} (${r.relativeFilePath})')}');
       }
     } else {
-      print('\n${Ansi.dim}(Not inside a Bloom project directory)${Ansi.reset}');
+      print('\n${Ansi.dimText('(Not inside a Bloom project directory)')}');
     }
 
     print('');
@@ -128,5 +168,71 @@ class DoctorCommand extends Command<int> {
       print(Ansi.warn('Some checks did not pass. Please resolve above items.\n'));
       return 1;
     }
+  }
+
+  Future<int> _runCiDoctor(BloomProject? project, Directory projectDir) async {
+    print(Ansi.boldText('\n🤖 Bloom Continuous CI Health Agent\n'));
+
+    if (project == null) {
+      print(Ansi.error('✖ CI Check Failed: Not inside a valid Bloom project (${projectDir.path})\n'));
+      return 1;
+    }
+
+    var ciFailed = false;
+
+    // 1. Validate bloom.yaml
+    if (!project.bloomYamlFile.existsSync()) {
+      print(Ansi.error('✖ [CONFIG] Missing required bloom.yaml configuration file.'));
+      ciFailed = true;
+    } else {
+      print(Ansi.success('✔ [CONFIG] Valid bloom.yaml configuration'));
+    }
+
+    // 2. Run Dependency Security Audit
+    final auditReport = AuditCommand.runAudit(project);
+    if (auditReport.hasVulnerabilities) {
+      print(Ansi.error('✖ [SECURITY] Discovered ${auditReport.findings.length} vulnerable dependency advisory/advisories!'));
+      ciFailed = true;
+    } else {
+      print(Ansi.success('✔ [SECURITY] Dependency audit clean (0 CVEs)'));
+    }
+
+    // 3. Run Secret Scanner
+    final secretScanner = SecretScanner(project);
+    final secretResult = secretScanner.scan();
+    if (secretResult.hasSecrets) {
+      print(Ansi.error('✖ [SECRETS] Exposed secret tokens or private keys detected in codebase!'));
+      ciFailed = true;
+    } else {
+      print(Ansi.success('✔ [SECRETS] 0 exposed secret tokens found'));
+    }
+
+    // 4. Run Autolink & Duplicate Conflict Check
+    try {
+      final autolink = AutolinkEngine(project);
+      autolink.discoverAllRequirements();
+      final modules = autolink.detectConflicts();
+      if (modules.isEmpty) {
+        print(Ansi.success('✔ [AUTOLINK] Native module autolink verified with no version conflicts'));
+      } else {
+        for (final c in modules) {
+          print(Ansi.error(
+              '✖ [AUTOLINK] Duplicate native module "${c.moduleName}" with conflicting versions: ${c.conflictingVersions.join(', ')}'));
+        }
+        ciFailed = true;
+      }
+    } catch (e) {
+      print(Ansi.error('✖ [AUTOLINK] Native module autolink failure: $e'));
+      ciFailed = true;
+    }
+
+    print('');
+    if (ciFailed) {
+      print(Ansi.error('✖ Continuous CI Verification Failed! Please address above diagnostic errors.\n'));
+      return 1;
+    }
+
+    print(Ansi.success('✔ Continuous CI Health Check Passed: 100% Healthy & Production-Ready!\n'));
+    return 0;
   }
 }
