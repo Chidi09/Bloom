@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'preact/hooks';
-import { Search, Terminal, Sliders, Code, Box, X, Copy, ChevronRight } from 'lucide-preact';
+import { Search, Terminal, Sliders, Code, Box, X, Copy, ChevronRight, Layers, Sparkles } from 'lucide-preact';
 import { showToast } from './ToastSystem';
+import { UI_REGISTRY } from '../../lib/ui-registry';
 
 interface CommandItem {
   id: string;
   title: string;
-  category: 'Navigation' | 'Actions' | 'Documentation';
+  category: 'Navigation' | 'Actions' | 'Components';
   icon: any;
   action: () => void;
 }
@@ -15,7 +16,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const commands: CommandItem[] = [
+  const staticCommands: CommandItem[] = [
     {
       id: 'cmd-copy',
       title: 'Copy CLI Install Command',
@@ -24,6 +25,27 @@ export function CommandPalette() {
       action: () => {
         navigator.clipboard.writeText('dart pub global activate bloom_cli');
         showToast('Command Copied', 'Run "dart pub global activate bloom_cli" in your terminal.', 'emerald');
+        setIsOpen(false);
+      },
+    },
+    {
+      id: 'cmd-ui-add-all',
+      title: 'bloom ui add all (Copy source components)',
+      category: 'Actions',
+      icon: Layers,
+      action: () => {
+        navigator.clipboard.writeText('bloom ui add all');
+        showToast('Command Copied', 'Run "bloom ui add all" to copy the component suite.', 'emerald');
+        setIsOpen(false);
+      },
+    },
+    {
+      id: 'nav-ui',
+      title: 'Bloom UI — Component Library Overview',
+      category: 'Navigation',
+      icon: Sparkles,
+      action: () => {
+        window.location.href = '/ui';
         setIsOpen(false);
       },
     },
@@ -68,6 +90,19 @@ export function CommandPalette() {
       },
     },
   ];
+
+  const componentCommands: CommandItem[] = UI_REGISTRY.map((c) => ({
+    id: `comp-${c.slug}`,
+    title: `${c.title} (${c.name}) — ${c.category}`,
+    category: 'Components',
+    icon: Layers,
+    action: () => {
+      window.location.href = `/ui/${c.slug}`;
+      setIsOpen(false);
+    },
+  }));
+
+  const commands = [...staticCommands, ...componentCommands];
 
   const filteredCommands = commands.filter((cmd) =>
     cmd.title.toLowerCase().includes(query.toLowerCase()) ||
