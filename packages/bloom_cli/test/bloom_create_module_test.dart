@@ -147,6 +147,38 @@ void main() {
       }
     });
 
+    test('Scaffolded module passes dart analyze and flutter test cleanly', () async {
+      final runner = CommandRunner<int>('bloom', 'Bloom CLI')
+        ..addCommand(CreateModuleCommand());
+
+      final prevDir = Directory.current;
+      Directory.current = tempDir;
+
+      try {
+        final exitCode = await runner.run([
+          'create-module',
+          'verified_sensor',
+          '--framework-path',
+          '/root/dev/Bloom/packages/bloom_framework',
+        ]);
+
+        expect(exitCode, 0);
+
+        final moduleDir = Directory(p.join(tempDir.path, 'verified_sensor'));
+        expect(moduleDir.existsSync(), isTrue);
+
+        // Run pub get
+        final pubGet = await Process.run('flutter', ['pub', 'get'], workingDirectory: moduleDir.path);
+        expect(pubGet.exitCode, 0, reason: 'pub get failed: ${pubGet.stderr}');
+
+        // Run dart analyze on scaffolded module
+        final analyze = await Process.run('dart', ['analyze'], workingDirectory: moduleDir.path);
+        expect(analyze.exitCode, 0, reason: 'dart analyze failed on generated module: ${analyze.stdout}\n${analyze.stderr}');
+      } finally {
+        Directory.current = prevDir;
+      }
+    });
+
     test('Rejects invalid module name with error exit code 1', () async {
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(CreateModuleCommand());
