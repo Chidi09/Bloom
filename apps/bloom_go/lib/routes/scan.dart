@@ -1,6 +1,7 @@
 // lib/routes/scan.dart
 import 'package:flutter/material.dart';
 import 'package:bloom_framework/bloom.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ScanRoute extends StatefulWidget {
   const ScanRoute({super.key});
@@ -11,15 +12,22 @@ class ScanRoute extends StatefulWidget {
 
 class _ScanRouteState extends State<ScanRoute> {
   final TextEditingController _uriController = TextEditingController();
+  final MobileScannerController _scannerController = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+  );
+  bool _isProcessing = false;
 
   @override
   void dispose() {
+    _scannerController.dispose();
     _uriController.dispose();
     super.dispose();
   }
 
   void _processScannedUri(String rawUri) {
-    if (rawUri.trim().isEmpty) return;
+    if (_isProcessing || rawUri.trim().isEmpty) return;
+    _isProcessing = true;
 
     try {
       final uri = Uri.parse(rawUri.trim());
@@ -27,9 +35,12 @@ class _ScanRouteState extends State<ScanRoute> {
       final encoded = Uri.encodeComponent(rawUri.trim());
       BloomRouter.go('/session?uri=$encoded');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invalid Bloom URI: $e')),
-      );
+      _isProcessing = false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid Bloom URI: $e')),
+        );
+      }
     }
   }
 
@@ -39,46 +50,71 @@ class _ScanRouteState extends State<ScanRoute> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan Terminal QR'),
+        title: const Text('Scan Terminal QR Code'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on_rounded),
+            tooltip: 'Toggle Flashlight',
+            onPressed: () => _scannerController.toggleTorch(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.flip_camera_ios_rounded),
+            tooltip: 'Switch Camera',
+            onPressed: () => _scannerController.switchCamera(),
+          ),
+        ],
         elevation: 0,
       ),
       body: Column(
         children: [
-          // Viewfinder simulation / camera viewfinder box
+          // Real Mobile Camera QR Viewfinder
           Expanded(
-            child: Container(
-              color: Colors.black,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.deepPurpleAccent, width: 3),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.qr_code_scanner_rounded,
-                          size: 96,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Point camera at the QR code displayed by `bloom dev`',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ],
+            child: Stack(
+              children: [
+                MobileScanner(
+                  controller: _scannerController,
+                  onDetect: (capture) {
+                    final List<Barcode> barcodes = capture.barcodes;
+                    for (final barcode in barcodes) {
+                      if (barcode.rawValue != null) {
+                        _processScannedUri(barcode.rawValue!);
+                        break;
+                      }
+                    }
+                  },
                 ),
-              ),
+                // Scanning Target Overlay
+                Center(
+                  child: Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.deepPurpleAccent, width: 3),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 24,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Point camera at the QR code displayed in your terminal',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Manual URI Input Bar
+          // Manual URI Input Fallback
           Container(
             padding: const EdgeInsets.all(20),
             color: theme.colorScheme.surface,

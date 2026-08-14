@@ -18,6 +18,7 @@ class _SessionRouteState extends State<SessionRoute> {
   String? _error;
   String _httpBaseUrl = '';
   String _projectId = '';
+  bool _deviceRegistered = false;
 
   @override
   void initState() {
@@ -46,7 +47,7 @@ class _SessionRouteState extends State<SessionRoute> {
       final manifest = await _client.fetchManifest(_httpBaseUrl);
 
       // 2. Register mobile device pairing
-      await _client.registerDevice(
+      final registered = await _client.registerDevice(
         httpBaseUrl: _httpBaseUrl,
         deviceName: 'Bloom Go Mobile Client',
         os: 'Flutter Native Runtime',
@@ -55,6 +56,7 @@ class _SessionRouteState extends State<SessionRoute> {
       if (mounted) {
         setState(() {
           _manifest = manifest;
+          _deviceRegistered = registered;
           _isLoading = false;
         });
       }
@@ -79,7 +81,7 @@ class _SessionRouteState extends State<SessionRoute> {
           IconButton(
             icon: const Icon(Icons.tune_rounded),
             tooltip: 'Open Bloom Dev Inspector',
-            onPressed: () => BloomDevOverlay.show(context),
+            onPressed: () => BloomDevOverlay.show(context, remoteBaseUrl: _httpBaseUrl),
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -154,6 +156,11 @@ class _SessionRouteState extends State<SessionRoute> {
                                   'Host: $_httpBaseUrl (v${_manifest!.version})',
                                   style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                 ),
+                                if (!_deviceRegistered)
+                                  Text(
+                                    'Warning: Pairing registration pending',
+                                    style: TextStyle(color: Colors.amber.shade900, fontSize: 12),
+                                  ),
                               ],
                             ),
                           ),
@@ -185,9 +192,9 @@ class _SessionRouteState extends State<SessionRoute> {
 
                     // Quick Actions
                     ElevatedButton.icon(
-                      onPressed: () => BloomDevOverlay.show(context),
+                      onPressed: () => BloomDevOverlay.show(context, remoteBaseUrl: _httpBaseUrl),
                       icon: const Icon(Icons.developer_mode_rounded),
-                      label: const Text('Open Bloom Dev Overlay'),
+                      label: const Text('Open Remote Project Inspector'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
                         backgroundColor: Colors.deepPurple,
