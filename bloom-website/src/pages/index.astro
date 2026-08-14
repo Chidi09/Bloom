@@ -9,7 +9,6 @@ import { OrchestrationPipeline } from '../components/interactive/OrchestrationPi
 import { ChapterCards } from '../components/interactive/ChapterCards';
 import { FeatureGridShowcase } from '../components/interactive/FeatureGridShowcase';
 import { CLIToolingExplorer } from '../components/interactive/CLIToolingExplorer';
-import { PriorityRoadmap } from '../components/interactive/PriorityRoadmap';
 import { FolderTree, RefreshCw, Send, Terminal, Code, Sliders, Box, ArrowRight, CheckCircle2, Sparkles, Cpu, Layers, ShieldCheck, Zap, Server, Globe, FileCode2 } from 'lucide-preact';
 
 const colors = ['#FF4B8B', '#FF884D', '#20C9B0', '#3B82F6', '#8B5CF6'];
@@ -220,20 +219,7 @@ const fallingPetals = Array.from({ length: 25 }).map((_, i) => {
     <CLIToolingExplorer client:visible />
   </Section>
 
-  <!-- Engineering Roadmap Matrix -->
-  <Section id="roadmap">
-    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
-      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
-        Engineering Priority Roadmap
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
-        Phased strategy built around ecosystem orchestration rather than premature reimplementation.
-      </p>
-    </div>
 
-    {/* Interactive Priority Roadmap Table */}
-    <PriorityRoadmap client:visible />
-  </Section>
 
   <!-- Community & Testimonials -->
   <Section id="community">
