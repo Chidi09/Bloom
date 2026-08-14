@@ -70,7 +70,7 @@ class BloomPermissions {
       return bloomStatus;
     } catch (e) {
       logger.warn('BloomPermissions: Failed to check permission $permission: $e');
-      return BloomPermissionStatus.granted;
+      return BloomPermissionStatus.unknown;
     }
   }
 
@@ -85,7 +85,7 @@ class BloomPermissions {
       return bloomStatus;
     } catch (e) {
       logger.warn('BloomPermissions: Failed to request permission $permission: $e');
-      return BloomPermissionStatus.granted;
+      return BloomPermissionStatus.denied;
     }
   }
 

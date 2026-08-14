@@ -2,6 +2,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloom_framework/bloom.dart';
 
+class MockCounterService {
+  final int count = 999;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -44,9 +48,12 @@ flavors:
   });
 
   group('Phase 4: BloomDeepLinks', () {
-    test('dispatches deep links to custom handler', () async {
+    test('dispatches deep links with route mappings and buffering', () async {
       Uri? handledUri;
       await BloomDeepLinks.initialize(
+        routeMappings: {
+          'app.bloom.dev/invite': '/auth/invite',
+        },
         onLink: (uri) {
           handledUri = uri;
         },
@@ -83,6 +90,21 @@ flavors:
     test('returns false for unregistered tasks', () async {
       final success = await BloomBackground.executeTask('unregistered_task');
       expect(success, false);
+    });
+  });
+
+  group('Phase 4: BloomTestScope list override typed resolution', () {
+    test('preserves generic types when applying list overrides', () {
+      final mock = MockCounterService();
+      final scope = Bloom.createTestScope(overrides: [
+        BloomTestOverride<MockCounterService>(mock),
+      ]);
+
+      final resolved = scope.inject<MockCounterService>();
+      expect(resolved, isNotNull);
+      expect(resolved.count, 999);
+
+      scope.dispose();
     });
   });
 }
