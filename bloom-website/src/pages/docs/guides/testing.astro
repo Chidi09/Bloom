@@ -1,0 +1,118 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { ShieldCheck, Terminal, ArrowRight, Code2 } from 'lucide-preact';
+
+const testCode = `import 'package:flutter_test/flutter_test.dart';
+import 'package:bloom_framework/bloom.dart';
+import 'package:my_app/features/counter/counter_controller.dart';
+
+void main() {
+  group('CounterController Unit Tests', () {
+    late BloomContainer container;
+    late CounterController controller;
+
+    setUp(() {
+      container = BloomContainer();
+      controller = CounterController();
+      container.provideSingleton<CounterController>((c) => controller);
+    });
+
+    test('initializes with count 0', () {
+      expect(controller.count.value, equals(0));
+    });
+
+    test('increments counter value by 1', () {
+      controller.increment();
+      expect(controller.count.value, equals(1));
+    });
+  });
+}`;
+
+const widgetTestCode = `testWidgets('CounterRoute updates on button press', (tester) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: ThemeData(extensions: const [BloomTheme.light]),
+      home: const CounterRoute(),
+    ),
+  );
+
+  expect(find.text('0'), findsOneWidget);
+  await tester.tap(find.byIcon(Icons.add));
+  await tester.pump();
+  expect(find.text('1'), findsOneWidget);
+});`;
+---
+
+<DocsLayout
+  title="Testing & DevTools"
+  description="Unit, widget, and integration testing with Bloom DI mocks and DevTools diagnostics."
+  currentSlug="guides-testing"
+  category="Guides & Recipes"
+  toc={[
+    { id: 'unit-testing', title: '1. Unit Testing Controllers' },
+    { id: 'widget-testing', title: '2. Widget Testing Primitives' },
+    { id: 'cli-testing', title: '3. Running bloom test in CI' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Testing & DevTools
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom's dependency injection container and pure Signals make automated testing fast, isolated, and free of complex mock frameworks.
+      </p>
+    </div>
+
+    <!-- Unit Testing -->
+    <section id="unit-testing" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        1. Unit Testing Controllers
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Signals controllers can be tested in pure Dart without launching any widget trees:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{testCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Widget Testing -->
+    <section id="widget-testing" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        2. Widget Testing Primitives
+      </h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{widgetTestCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- CLI Testing in CI -->
+    <section id="cli-testing" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        3. Running bloom test in CI
+      </h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>bloom test --coverage</code>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/guides/migration"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Migration Guide</span>
+      </a>
+      <a
+        href="/docs/guides/troubleshooting"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Troubleshooting & FAQ</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

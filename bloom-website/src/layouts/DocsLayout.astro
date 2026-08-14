@@ -14,7 +14,8 @@ import {
   ExternalLink,
   Code2,
   Cpu,
-  Workflow
+  Workflow,
+  BookMarked
 } from 'lucide-preact';
 import { UI_REGISTRY, UI_CATEGORIES } from '../lib/ui-registry';
 
@@ -59,6 +60,16 @@ const docNavSections = [
       { title: 'Prebuild & Native Sync', href: '/docs/framework/prebuild', slug: 'framework-prebuild' },
       { title: 'Cloud OTA Deployment', href: '/docs/framework/ota', slug: 'framework-ota' },
       { title: 'Backend Adapters', href: '/docs/framework/adapters', slug: 'framework-adapters' },
+    ],
+  },
+  {
+    title: 'Guides & Recipes',
+    items: [
+      { title: 'Cookbook & Recipes', href: '/docs/guides/cookbook', slug: 'guides-cookbook' },
+      { title: 'Best Practices', href: '/docs/guides/best-practices', slug: 'guides-best-practices' },
+      { title: 'Migration Guide', href: '/docs/guides/migration', slug: 'guides-migration' },
+      { title: 'Testing & DevTools', href: '/docs/guides/testing', slug: 'guides-testing' },
+      { title: 'Troubleshooting & FAQ', href: '/docs/guides/troubleshooting', slug: 'guides-troubleshooting' },
     ],
   },
   {

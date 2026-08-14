@@ -1,0 +1,108 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { ShieldCheck, CheckCircle2, ArrowRight, Code2 } from 'lucide-preact';
+
+const dirStructureCode = `lib/
+├── app/                        # Bootstrapper, theme, compiled routes
+├── config/                     # Static tokens and environment configs
+├── features/                   # Domain-driven features
+│   ├── auth/
+│   │   ├── auth_controller.dart
+│   │   ├── auth_service.dart
+│   │   └── widgets/
+│   └── catalog/
+│       ├── catalog_controller.dart
+│       └── widgets/
+└── routes/                     # Filesystem route entry points
+    ├── index.dart
+    └── (auth)/
+        ├── login.dart
+        └── register.dart`;
+---
+
+<DocsLayout
+  title="Architectural Best Practices"
+  description="Guidelines for structuring large-scale, maintainable applications with the Bloom Framework."
+  currentSlug="guides-best-practices"
+  category="Guides & Recipes"
+  toc={[
+    { id: 'directory-structure', title: '1. Recommended Directory Structure' },
+    { id: 'controller-scope', title: '2. Controller Granularity & Scope' },
+    { id: 'query-design', title: '3. Query Cache Key Design' },
+    { id: 'logging', title: '4. Structured Logging & Telemetry' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Best Practices
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Architectural conventions and design principles for building scalable, high-performance Flutter applications with Bloom.
+      </p>
+    </div>
+
+    <!-- Directory Structure -->
+    <section id="directory-structure" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        1. Recommended Directory Structure
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Structure code by <strong>domain feature</strong> rather than technical layer:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{dirStructureCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Controller Scope -->
+    <section id="controller-scope" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        2. Controller Granularity & Scope
+      </h2>
+      <ul class="list-disc list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+        <li><strong>One controller per bounded context</strong>: Avoid monolithic "GlobalAppController" god classes. Keep controllers focused on a single feature domain (e.g. <code class="text-purple-400">CartController</code>, <code class="text-purple-400">ProfileController</code>).</li>
+        <li><strong>Use <code class="text-purple-400">createSignal</code> and <code class="text-purple-400">createComputed</code></strong>: Signal subscriptions registered inside controllers are automatically garbage collected on disposal.</li>
+        <li><strong>Expose read-only signals</strong>: Keep writable signals private (<code class="text-purple-400">_count</code>) and expose public read-only views (<code class="text-purple-400">ReadonlySignal&lt;int&gt; get count => _count</code>).</li>
+      </ul>
+    </section>
+
+    <!-- Query Design -->
+    <section id="query-design" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        3. Query Cache Key Design
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Use hierarchical arrays: <code class="font-mono text-purple-400">['domain', 'action', id]</code>. This allows invalidating an entire entity collection with <code class="font-mono text-purple-400">BloomData.invalidateQueries(['domain'])</code> in a single call.
+      </p>
+    </section>
+
+    <!-- Logging -->
+    <section id="logging" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        4. Structured Logging & Telemetry
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Avoid raw <code class="font-mono text-purple-400">print()</code> statements in production code. Use contextual loggers like <code class="font-mono text-purple-400">logger.child('PAYMENTS').info(...)</code> for structured log streams in CI and error dashboards.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/guides/cookbook"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Cookbook</span>
+      </a>
+      <a
+        href="/docs/guides/migration"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Migration Guide</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
