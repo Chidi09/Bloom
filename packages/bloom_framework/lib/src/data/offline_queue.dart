@@ -69,6 +69,10 @@ class OfflineMutationQueue {
   final Map<String, CustomConflictResolver> _resolvers = HashMap<String, CustomConflictResolver>();
   bool _isProcessing = false;
 
+  /// Default singleton instance for global application use.
+  static final OfflineMutationQueue instance = OfflineMutationQueue();
+  static int get pendingCount => instance.queueDepth;
+
   OfflineMutationQueue({this.storage});
 
   int get queueDepth => _queue.length;

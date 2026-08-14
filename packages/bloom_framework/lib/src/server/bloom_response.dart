@@ -23,6 +23,7 @@ class BloomResponse {
   }) {
     final encoded = jsonEncode(data);
     final finalHeaders = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
       'content-type': 'application/json; charset=utf-8',
       ...?headers,
     };
