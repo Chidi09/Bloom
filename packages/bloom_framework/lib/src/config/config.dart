@@ -71,6 +71,55 @@ class BloomDeepLinksConfig {
   }
 }
 
+/// Shorebird OTA Deployment Configuration in `bloom.yaml`.
+class BloomShorebirdConfig {
+  final bool enabled;
+  final String appId;
+  final bool autoCheckUpdate;
+  final Map<String, String> flavors;
+
+  const BloomShorebirdConfig({
+    this.enabled = false,
+    this.appId = 'auto',
+    this.autoCheckUpdate = true,
+    this.flavors = const {},
+  });
+
+  factory BloomShorebirdConfig.fromMap(Map<dynamic, dynamic> map) {
+    final flavorsMap = <String, String>{};
+    if (map['flavors'] is Map) {
+      (map['flavors'] as Map).forEach((k, v) {
+        flavorsMap[k.toString()] = v.toString();
+      });
+    }
+
+    return BloomShorebirdConfig(
+      enabled: map['enabled'] is bool ? map['enabled'] as bool : true,
+      appId: map['app_id']?.toString() ?? map['appId']?.toString() ?? 'auto',
+      autoCheckUpdate: map['auto_check_update'] is bool
+          ? map['auto_check_update'] as bool
+          : (map['autoCheckUpdate'] is bool ? map['autoCheckUpdate'] as bool : true),
+      flavors: flavorsMap,
+    );
+  }
+}
+
+/// Deployment block in `bloom.yaml`.
+class BloomDeploymentConfig {
+  final BloomShorebirdConfig shorebird;
+
+  const BloomDeploymentConfig({
+    this.shorebird = const BloomShorebirdConfig(),
+  });
+
+  factory BloomDeploymentConfig.fromMap(Map<dynamic, dynamic> map) {
+    final shorebirdMap = map['shorebird'] is Map ? map['shorebird'] as Map : {};
+    return BloomDeploymentConfig(
+      shorebird: BloomShorebirdConfig.fromMap(shorebirdMap),
+    );
+  }
+}
+
 /// Strongly typed configuration model mapping directly to `bloom.yaml`.
 class BloomConfig {
   final int schema;
@@ -81,6 +130,7 @@ class BloomConfig {
   final BloomPlatforms platforms;
   final BloomFeatures features;
   final BloomDeepLinksConfig deepLinks;
+  final BloomDeploymentConfig deployment;
   final List<String> envFiles;
   final Map<String, BloomFlavorConfig> flavors;
   final Map<String, dynamic> plugins;
@@ -95,6 +145,7 @@ class BloomConfig {
     this.platforms = const BloomPlatforms(),
     this.features = const BloomFeatures(),
     this.deepLinks = const BloomDeepLinksConfig(),
+    this.deployment = const BloomDeploymentConfig(),
     this.envFiles = const ['.env', '.env.local'],
     this.flavors = const {},
     this.plugins = const {},
@@ -116,6 +167,7 @@ class BloomConfig {
     final deepLinksMap = map['deep_links'] is Map
         ? map['deep_links'] as Map
         : (map['deepLinks'] is Map ? map['deepLinks'] as Map : {});
+    final deploymentMap = map['deployment'] is Map ? map['deployment'] as Map : {};
     
     final envList = <String>[];
     if (map['environment'] is Map && map['environment']['files'] is List) {
@@ -166,6 +218,7 @@ class BloomConfig {
       'plugins',
       'deep_links',
       'deepLinks',
+      'deployment',
     };
 
     final customMap = <String, dynamic>{};
@@ -184,6 +237,7 @@ class BloomConfig {
       platforms: BloomPlatforms.fromMap(platformsMap),
       features: BloomFeatures.fromMap(featuresMap),
       deepLinks: BloomDeepLinksConfig.fromMap(deepLinksMap),
+      deployment: BloomDeploymentConfig.fromMap(deploymentMap),
       envFiles: envList,
       flavors: flavorsMap,
       plugins: pluginsMap,

@@ -1,5 +1,6 @@
 // lib/src/deployment/bloom_ota.dart
 import 'dart:async';
+import 'package:shorebird_code_push/shorebird_code_push.dart';
 import '../core/logger.dart';
 
 /// Status events emitted during OTA code patch life-cycle.
@@ -27,16 +28,22 @@ class BloomOtaPatch {
     this.releaseNotes,
   });
 
-  Map<String, dynamic> toJson() => {
-    'patchNumber': patchNumber,
-    'channel': channel,
-    'releasedAt': releasedAt.toIso8601String(),
-    'releaseNotes': releaseNotes,
-  };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'patchNumber': patchNumber,
+      'channel': channel,
+      'releasedAt': releasedAt.toIso8601String(),
+    };
+    if (releaseNotes != null) {
+      map['releaseNotes'] = releaseNotes;
+    }
+    return map;
+  }
 }
 
 /// Over-The-Air (OTA) update and code-push controller powered by Shorebird.
 class BloomOTA {
+  static final ShorebirdUpdater _updater = ShorebirdUpdater();
   static final StreamController<BloomOtaStatus> _statusController =
       StreamController<BloomOtaStatus>.broadcast();
 
@@ -54,26 +61,41 @@ class BloomOTA {
   /// Currently active Shorebird patch number (null if running vanilla release).
   static int? get currentPatchNumber => _currentPatchNumber;
 
+  /// Whether the app is currently running on the Shorebird engine with OTA support.
+  static bool get isAvailable => _updater.isAvailable;
+
   /// Active OTA deployment channel.
   static String get activeChannel => _activeChannel;
 
   /// The latest available patch (if downloaded or available).
   static BloomOtaPatch? get availablePatch => _availablePatch;
 
-  /// Initialize OTA runtime with active deployment channel.
+  /// Initialize OTA runtime with active deployment channel and read installed patch.
   static Future<void> initialize({
     String channel = 'production',
     int? currentPatch,
   }) async {
     _activeChannel = channel;
-    _currentPatchNumber = currentPatch;
-    logger.info('BloomOTA: Initialized on channel "$_activeChannel" (Current patch: ${_currentPatchNumber ?? "base"})');
+    if (currentPatch != null) {
+      _currentPatchNumber = currentPatch;
+    } else if (_updater.isAvailable) {
+      try {
+        final patch = await _updater.readCurrentPatch();
+        _currentPatchNumber = patch?.number;
+      } catch (e) {
+        logger.debug('BloomOTA: Could not read installed patch number: $e');
+      }
+    }
+
+    logger.info('BloomOTA: Initialized on channel "$_activeChannel" (Current patch: ${_currentPatchNumber ?? "base"}) [Shorebird Engine: ${_updater.isAvailable}]');
   }
 
   /// Sets status internally and notifies listeners.
   static void _setStatus(BloomOtaStatus status) {
     _currentStatus = status;
-    _statusController.add(status);
+    if (!_statusController.isClosed) {
+      _statusController.add(status);
+    }
     logger.debug('BloomOTA: Status -> ${status.name}');
   }
 
@@ -91,8 +113,25 @@ class BloomOTA {
           _setStatus(BloomOtaStatus.updateAvailable);
           return true;
         }
+        _setStatus(BloomOtaStatus.upToDate);
+        return false;
       }
 
+      if (_updater.isAvailable) {
+        final status = await _updater.checkForUpdate();
+        if (status == UpdateStatus.outdated) {
+          _setStatus(BloomOtaStatus.updateAvailable);
+          return true;
+        } else if (status == UpdateStatus.restartRequired) {
+          _setStatus(BloomOtaStatus.updateReady);
+          return true;
+        } else {
+          _setStatus(BloomOtaStatus.upToDate);
+          return false;
+        }
+      }
+
+      // If running in development without Shorebird engine
       _setStatus(BloomOtaStatus.upToDate);
       return false;
     } catch (e) {
@@ -102,14 +141,10 @@ class BloomOTA {
     }
   }
 
-  /// Simulate or trigger patch download and staging.
+  /// Trigger patch download and staging using the Shorebird engine.
   static Future<bool> downloadUpdate({
     Future<bool> Function()? customDownloader,
   }) async {
-    if (_availablePatch == null && customDownloader == null) {
-      return false;
-    }
-
     _setStatus(BloomOtaStatus.downloading);
 
     try {
@@ -119,11 +154,17 @@ class BloomOTA {
           _setStatus(BloomOtaStatus.updateReady);
           return true;
         }
-      } else {
+        _setStatus(BloomOtaStatus.error);
+        return false;
+      }
+
+      if (_updater.isAvailable) {
+        await _updater.update();
         _setStatus(BloomOtaStatus.updateReady);
         return true;
       }
 
+      logger.warn('BloomOTA: Cannot download update because app is not running on Shorebird engine.');
       _setStatus(BloomOtaStatus.error);
       return false;
     } catch (e) {
