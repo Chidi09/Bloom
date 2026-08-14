@@ -1,0 +1,133 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/common/Section.astro';
+import GlassPanel from '../components/common/GlassPanel.astro';
+import { PhoneSimulator } from '../components/interactive/PhoneSimulator';
+import HeroVideoBg from '../components/common/HeroVideoBg.astro';
+import { BuildArchitecturePlayground } from '../components/interactive/BuildArchitecturePlayground';
+import { BootDIVisualizer } from '../components/interactive/BootDIVisualizer';
+import { SignalsReactivitySimulator } from '../components/interactive/SignalsReactivitySimulator';
+import { BloomQueryPlayground } from '../components/interactive/BloomQueryPlayground';
+import { FileSystemTreeExplorer } from '../components/interactive/FileSystemTreeExplorer';
+import { FolderTree, Cpu, Zap, CheckCircle2, ArrowRight, ShieldCheck, Terminal, Layers, RefreshCw } from 'lucide-preact';
+---
+
+<Layout
+  title="BUILD — Bloom Framework & Developer Experience"
+  description="Next.js-style file-system routing, fine-grained reactive signals, thin DI abstraction, and automated CLI generators for Flutter."
+  hue="build"
+  petalHighlight="purple"
+  nextChapterTitle="SHIP — Cloud OTA Delivery"
+  nextChapterLink="/ship"
+  nextChapterSubtitle="Deploy instant over-the-air byte patches to iOS & Android devices without app store reviews."
+  ogPage="build"
+>
+  <!-- Hero Section -->
+  <Section reveal={false} className="pt-16 pb-16 lg:pt-24 lg:pb-20 relative">
+    <HeroVideoBg mode="build" />
+    <div class="text-center max-w-4xl mx-auto space-y-6 relative z-10">
+
+      <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+        Opinionated Architecture.<br />
+        <span class="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent">File-based Routing &amp; Signals for Flutter.</span>
+      </h1>
+
+      <p class="text-slate-600 dark:text-slate-400 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed">
+        Stop arguing over directory structures and state packages. Bloom brings Next.js-style file-system routing, signals reactivity, dependency injection, and automated code generation to Flutter.
+      </p>
+    </div>
+
+    {/* Interactive Architecture Playground */}
+    <div class="mt-14">
+      <BuildArchitecturePlayground client:visible />
+    </div>
+  </Section>
+
+  <!-- Boot & DI Architecture -->
+  <Section id="boot-di">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Thin Boot Sequence &amp; Dependency Injection
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Bloom handles environment initialization, DI container registration, and app lifecycle prior to `runApp()`.
+      </p>
+    </div>
+
+    {/* Interactive Boot & DI Visualizer */}
+    <BootDIVisualizer client:visible />
+  </Section>
+
+  <!-- State Management (Signals) Section -->
+  <Section id="signals-state">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Fine-Grained Reactivity with Signals
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Say goodbye to verbose state containers. Signals track dependencies automatically, rebuilding only the exact widgets reading their value.
+      </p>
+    </div>
+
+    {/* Interactive Signals Reactivity Simulator */}
+    <SignalsReactivitySimulator client:visible />
+  </Section>
+
+  <!-- Bloom Query (Declarative Data Fetching) Section -->
+  <Section id="bloom-query">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Declarative Data Fetching with Bloom Query
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Manage server state, caching, refetching, and pagination out of the box with zero boilerplate.
+      </p>
+    </div>
+
+    {/* Interactive Bloom Query Playground */}
+    <BloomQueryPlayground client:visible />
+  </Section>
+
+  <!-- Deep Architecture Section -->
+  <Section id="file-routing">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Zero-Boilerplate Routing Engine
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Directory structure *is* your routing tree. Group routes, protect layouts with guards, and capture dynamic URL parameters seamlessly.
+      </p>
+    </div>
+
+    {/* Interactive File-System Tree Explorer */}
+    <FileSystemTreeExplorer client:visible />
+  </Section>ion>
+
+  <Section>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <GlassPanel variant="interactive" className="p-6">
+        <Zap className="w-6 h-6 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Signals Reactive State</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Fine-grained state updates with zero `setState` or verbose Bloc boilerplate. Rebuilds only the exact widgets reading the signal.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-6">
+        <Cpu className="w-6 h-6 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">CLI Code Generation</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Generates route tables, typed navigation extensions, and data models automatically on file save.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-6">
+        <CheckCircle2 className="w-6 h-6 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Nested Layouts</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Persist sidebars, bottom navigation, and search bars across route changes without losing component state.
+        </p>
+      </GlassPanel>
+    </div>
+  </Section>
+</Layout>

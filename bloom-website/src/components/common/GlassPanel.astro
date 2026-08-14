@@ -1,0 +1,14 @@
+---
+interface Props {
+  variant?: 'static' | 'interactive';
+  className?: string;
+  id?: string;
+}
+
+const { variant = 'static', className = '', id } = Astro.props;
+const baseClass = variant === 'interactive' ? 'mouse-glow-card' : 'glass-panel';
+---
+
+<div id={id} class={`${baseClass} rounded-3xl ${className}`}>
+  <slot />
+</div>

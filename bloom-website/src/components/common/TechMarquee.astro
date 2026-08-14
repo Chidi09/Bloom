@@ -1,0 +1,84 @@
+---
+// Tech Brand Logos fetched directly from CDNs (Google Cloud CDN & Devicon CDN)
+const logos = [
+  {
+    name: 'Google Cloud',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/googlecloud/googlecloud-original.svg',
+    height: 'h-8',
+  },
+  {
+    name: 'Flutter 3.29',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flutter/flutter-original.svg',
+    height: 'h-7',
+  },
+  {
+    name: 'Dart 3.7',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dart/dart-original.svg',
+    height: 'h-7',
+  },
+  {
+    name: 'Firebase',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg',
+    height: 'h-8',
+  },
+  {
+    name: 'GitHub',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg',
+    height: 'h-7',
+    className: 'dark:invert',
+  },
+  {
+    name: 'iOS / Apple',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/apple/apple-original.svg',
+    height: 'h-7',
+    className: 'dark:invert',
+  },
+  {
+    name: 'Android',
+    url: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg',
+    height: 'h-7',
+  },
+];
+---
+
+<section class="py-12 border-y border-slate-200/50 dark:border-slate-800/50 bg-white/40 dark:bg-slate-900/30 backdrop-blur-md overflow-hidden relative">
+  <div class="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-slate-50 dark:from-[#030509] to-transparent z-10 pointer-events-none"></div>
+  <div class="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-slate-50 dark:from-[#030509] to-transparent z-10 pointer-events-none"></div>
+  
+  <p class="text-center text-[10px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-8 font-bold">
+    BUILT ON THE SHOULDERS OF GIANTS
+  </p>
+  
+  <div class="flex overflow-hidden group w-[200%] select-none">
+    <div class="flex space-x-16 sm:space-x-24 items-center animate-marquee opacity-90 dark:opacity-80 transition-all duration-500">
+      
+      {logos.map((logo) => (
+        <div class="flex items-center gap-3 font-bold text-lg text-slate-900 dark:text-white shrink-0">
+          <img
+            src={logo.url}
+            alt={`${logo.name} logo`}
+            class={`${logo.height} w-auto object-contain ${logo.className || ''}`}
+            loading="eager"
+            decoding="async"
+          />
+          <span>{logo.name}</span>
+        </div>
+      ))}
+
+      {/* Duplicated loop set for infinite scroll */}
+      {logos.map((logo) => (
+        <div class="flex items-center gap-3 font-bold text-lg text-slate-900 dark:text-white shrink-0">
+          <img
+            src={logo.url}
+            alt={`${logo.name} logo`}
+            class={`${logo.height} w-auto object-contain ${logo.className || ''}`}
+            loading="eager"
+            decoding="async"
+          />
+          <span>{logo.name}</span>
+        </div>
+      ))}
+
+    </div>
+  </div>
+</section>

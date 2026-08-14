@@ -1,0 +1,67 @@
+/* Design Tokens for Bloom */
+:root {
+  /* Brand Swatches */
+  --petal-pink: #FF4B8B;
+  --petal-orange: #FF884D;
+  --petal-cyan: #20C9B0;
+  --petal-blue: #3B82F6;
+  --petal-purple: #8B5CF6;
+
+  /* Surfaces (Light Mode) */
+  --surface-0: #FAFAFA;
+  --surface-1: #FFFFFF;
+  --surface-2: rgba(255, 255, 255, 0.6);
+  --border-subtle: rgba(226, 232, 240, 0.8);
+
+  /* Typography Colors */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
+
+  /* Spacing & Radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-full: 9999px;
+
+  /* Shadows (Enhanced for Light Mode) */
+  --shadow-1: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-2: 0 14px 30px -8px rgba(15, 23, 42, 0.14), 0 6px 16px -4px rgba(15, 23, 42, 0.1);
+  --shadow-3: 0 20px 40px -10px rgba(15, 23, 42, 0.18), 0 10px 20px -6px rgba(15, 23, 42, 0.12);
+  --shadow-4: 0 28px 60px -14px rgba(15, 23, 42, 0.3), 0 14px 28px -8px rgba(15, 23, 42, 0.2);
+  --shadow-glass-inset: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --dur-instant: 120ms;
+  --dur-fast: 200ms;
+  --dur-base: 400ms;
+  --dur-slow: 800ms;
+
+  /* Z-Index */
+  --z-bg: -2;
+  --z-grid: -1;
+  --z-base: 0;
+  --z-sticky: 50;
+  --z-modal: 100;
+  --z-toast: 110;
+}
+
+.dark {
+  /* Surfaces (Dark Mode - Pure OLED Black) */
+  --surface-0: #000000;
+  --surface-1: #000000;
+  --surface-2: rgba(0, 0, 0, 0.85);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+
+  /* Typography Colors */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-tertiary: #64748B;
+
+  /* Shadows */
+  --shadow-2: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --shadow-glass-inset: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}

@@ -1,0 +1,137 @@
+---
+import GlassPanel from './GlassPanel.astro';
+import { Sparkles, Layers, Cpu, Zap, Box, Globe, Shield, Terminal, Activity, RefreshCcw, Orbit } from 'lucide-preact';
+
+const items = [
+  {
+    id: 'liquid-studio',
+    title: 'FFI & UI Studio Liquid Engine',
+    category: 'FFI STUDIO',
+    gif: '/gifs/liquid-studio.gif',
+    description: 'Sleek fluid motion backdrop powering real-time design token updates and mobile UI component rendering.',
+    icon: Sparkles,
+  },
+  {
+    id: 'wave-arch',
+    title: 'Boot Sequence & Wave Architecture',
+    category: 'FRAMEWORK DX',
+    gif: '/gifs/wave-arch.gif',
+    description: 'Next.js-style file-system routing initialization, DI container registration, and zero-boilerplate setup.',
+    icon: Cpu,
+  },
+  {
+    id: 'data-signals',
+    title: 'Fine-Grained Reactive Signals',
+    category: 'STATE ENGINE',
+    gif: '/gifs/data-signals.gif',
+    description: 'High-frequency reactive data stream tracking dependencies and updating targeted UI widgets without setState.',
+    icon: Zap,
+  },
+  {
+    id: 'cloud-nodes',
+    title: '142 Edge CDN Particle Cloud',
+    category: 'CLOUD INFRA',
+    gif: '/gifs/cloud-nodes.gif',
+    description: 'Distributed particle network delivering cryptographic delta byte-patches across global edge nodes.',
+    icon: Globe,
+  },
+  {
+    id: 'grid-blocks',
+    title: 'Building Blocks & Component Grid',
+    category: 'BUILDING BLOCKS',
+    gif: '/gifs/grid-blocks.gif',
+    description: 'Standardized modular building blocks architecture bringing composable primitives to Flutter apps.',
+    icon: Layers,
+  },
+  {
+    id: 'speed-pulse',
+    title: '1.2s OTA Byte Broadcast Speed Pulse',
+    category: 'INSTANT OTA',
+    gif: '/gifs/speed-pulse.gif',
+    description: 'Milliseconds AOT delta patch transmission bypassing traditional App Store review bottleneck queues.',
+    icon: Box,
+  },
+  {
+    id: 'liquid-bloom',
+    title: 'Liquid Bloom Ecosystem Field',
+    category: 'ORCHESTRATION',
+    gif: '/gifs/liquid-bloom.gif',
+    description: 'Unified orchestration layer delegating low-level Flutter infrastructure while elevating developer DX.',
+    icon: Shield,
+  },
+  {
+    id: 'cyber-matrix',
+    title: 'Declarative Release & CLI Matrix',
+    category: 'CLI TOOLING',
+    gif: '/gifs/cyber-matrix.gif',
+    description: 'RSA-2048 cryptographic signature validation and automated release channel canary promotions.',
+    icon: Terminal,
+  },
+  {
+    id: 'liquid-wave-3d',
+    title: '3D Liquid Wave Motion Engine',
+    category: '3D LIQUID',
+    gif: '/gifs/liquid-wave-3d.gif',
+    description: 'Sleek 3D fluid wave dynamics driving reactive UI token state transitions.',
+    icon: Activity,
+  },
+  {
+    id: 'cyber-grid-sphere',
+    title: 'Cyber Grid Sphere Topology',
+    category: 'CYBER SPHERE',
+    gif: '/gifs/cyber-grid-sphere.gif',
+    description: 'Topological cyber grid sphere visualizing high-frequency signals and state graph nodes.',
+    icon: Orbit,
+  },
+  {
+    id: 'abstract-fluid-tunnel',
+    title: 'Abstract Fluid Tunnel Pipeline',
+    category: 'FLUID TUNNEL',
+    gif: '/gifs/abstract-fluid-tunnel.gif',
+    description: 'High-speed abstract fluid tunnel animation representing instant over-the-air bytecode updates.',
+    icon: RefreshCcw,
+  },
+];
+---
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+  {items.map((item) => {
+    const IconComp = item.icon;
+    return (
+      <GlassPanel variant="interactive" className="p-5 overflow-hidden group flex flex-col justify-between border border-slate-200/80 dark:border-slate-800/80">
+        <div class="space-y-4">
+          <!-- Monochromatic GIF Container -->
+          <div class="relative w-full h-44 rounded-2xl overflow-hidden bg-slate-900 border border-slate-700/60 shadow-inner group-hover:scale-[1.02] transition-transform duration-500">
+            <img
+              src={item.gif}
+              alt={item.title}
+              class="w-full h-full object-cover filter grayscale contrast-135 brightness-95 opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
+              loading="lazy"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
+            
+            <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-700/70 text-[10px] font-mono text-slate-200 font-bold backdrop-blur-md">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span>
+              {item.category}
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2 mb-1 text-slate-800 dark:text-slate-200 font-bold text-sm">
+              <IconComp className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400 stroke-[1.75]" />
+              <h3 class="truncate">{item.title}</h3>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans line-clamp-3">
+              {item.description}
+            </p>
+          </div>
+        </div>
+
+        <div class="pt-4 mt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px] font-mono text-slate-500">
+          <span>MONOCHROME_LIVE</span>
+          <span class="font-bold text-slate-700 dark:text-slate-300">60FPS</span>
+        </div>
+      </GlassPanel>
+    );
+  })}
+</div>

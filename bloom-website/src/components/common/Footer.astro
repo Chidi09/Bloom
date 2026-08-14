@@ -1,0 +1,90 @@
+---
+import PetalLogo from './PetalLogo.astro';
+
+interface Props {
+  nextChapterTitle?: string;
+  nextChapterLink?: string;
+  nextChapterSubtitle?: string;
+}
+
+const {
+  nextChapterTitle = 'Ship with Cloud OTA',
+  nextChapterLink = '/ship',
+  nextChapterSubtitle = 'Push instant byte-patches to live apps without App Store review delays.',
+} = Astro.props;
+---
+
+<footer class="bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/80 pt-16 pb-8 relative z-10">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <!-- Narrative Cross-Linking CTA Banner (Monochromatic Vercel-Style) -->
+    <div class="mb-16 p-8 sm:p-10 rounded-3xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden group">
+      <div class="space-y-2 max-w-xl">
+        <span class="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Next Chapter
+        </span>
+        <h3 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+          {nextChapterTitle}
+        </h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          {nextChapterSubtitle}
+        </p>
+      </div>
+
+      <a
+        href={nextChapterLink}
+        class="px-6 py-3.5 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center gap-2 shrink-0 group-hover:translate-x-1"
+      >
+        <span>Continue to {nextChapterTitle.split(' ')[0]}</span>
+        <svg class="w-4 h-4 text-slate-400 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+        </svg>
+      </a>
+    </div>
+
+    <!-- Main Footer Grid -->
+    <div class="flex flex-col md:flex-row justify-between items-start gap-8 mb-16">
+      
+      <div class="space-y-4 max-w-sm">
+        <a href="/" class="flex items-center gap-3">
+          <PetalLogo highlight="all" size={32} />
+          <span class="font-black text-xl text-slate-900 dark:text-white">bloom</span>
+        </a>
+        <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+          The opinionated application platform for Dart & Flutter. Framework, Cloud OTA, and UI tokens working as one system.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-8 text-sm w-full md:w-auto">
+        <div class="space-y-3">
+          <h4 class="font-bold text-slate-900 dark:text-white">Landings</h4>
+          <a href="/build" class="block text-slate-500 hover:text-purple-500 transition">Framework (BUILD)</a>
+          <a href="/ship" class="block text-slate-500 hover:text-blue-500 transition">Cloud OTA (SHIP)</a>
+          <a href="/bloom" class="block text-slate-500 hover:text-pink-500 transition">UI Studio (BLOOM)</a>
+        </div>
+        <div class="space-y-3">
+          <h4 class="font-bold text-slate-900 dark:text-white">Resources</h4>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Documentation</a>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">GitHub</a>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Discord</a>
+        </div>
+        <div class="space-y-3">
+          <h4 class="font-bold text-slate-900 dark:text-white">Community</h4>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Changelog</a>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Showcase</a>
+          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Releases</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Legal Bar -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+      <p>© 2026 Bloom Platform Inc. All rights reserved.</p>
+      <div class="flex items-center gap-2 text-emerald-500 font-mono font-semibold">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
+        All systems operational (142 Edge Nodes)
+      </div>
+    </div>
+
+  </div>
+</footer>
