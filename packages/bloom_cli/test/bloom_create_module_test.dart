@@ -154,12 +154,17 @@ void main() {
       final prevDir = Directory.current;
       Directory.current = tempDir;
 
+      final frameworkPath = Platform.environment['BLOOM_FRAMEWORK_PATH'] ??
+          (Directory(p.join(prevDir.path, '..', 'bloom_framework')).existsSync()
+              ? p.normalize(p.join(prevDir.path, '..', 'bloom_framework'))
+              : '/root/dev/Bloom/packages/bloom_framework');
+
       try {
         final exitCode = await runner.run([
           'create-module',
           'verified_sensor',
           '--framework-path',
-          '/root/dev/Bloom/packages/bloom_framework',
+          frameworkPath,
         ]);
 
         expect(exitCode, 0);
@@ -174,6 +179,10 @@ void main() {
         // Run dart analyze on scaffolded module
         final analyze = await Process.run('dart', ['analyze'], workingDirectory: moduleDir.path);
         expect(analyze.exitCode, 0, reason: 'dart analyze failed on generated module: ${analyze.stdout}\n${analyze.stderr}');
+
+        // Run flutter test on scaffolded module
+        final testRun = await Process.run('flutter', ['test'], workingDirectory: moduleDir.path);
+        expect(testRun.exitCode, 0, reason: 'flutter test failed on generated module: ${testRun.stdout}\n${testRun.stderr}');
       } finally {
         Directory.current = prevDir;
       }
