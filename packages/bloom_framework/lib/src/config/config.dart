@@ -1,6 +1,32 @@
 // lib/src/config/config.dart
 import 'package:yaml/yaml.dart';
 
+class BloomFlavorConfig {
+  final String name;
+  final String? appName;
+  final String? appId;
+  final String? envFile;
+  final Map<String, dynamic> custom;
+
+  const BloomFlavorConfig({
+    required this.name,
+    this.appName,
+    this.appId,
+    this.envFile,
+    this.custom = const {},
+  });
+
+  factory BloomFlavorConfig.fromMap(String name, Map<dynamic, dynamic> map) {
+    return BloomFlavorConfig(
+      name: name,
+      appName: map['app_name']?.toString() ?? map['appName']?.toString(),
+      appId: map['app_id']?.toString() ?? map['appId']?.toString(),
+      envFile: map['env_file']?.toString() ?? map['envFile']?.toString(),
+      custom: Map<String, dynamic>.from(map),
+    );
+  }
+}
+
 /// Strongly typed configuration model mapping directly to `bloom.yaml`.
 class BloomConfig {
   final int schema;
@@ -10,6 +36,7 @@ class BloomConfig {
   final BloomPlatforms platforms;
   final BloomFeatures features;
   final List<String> envFiles;
+  final Map<String, BloomFlavorConfig> flavors;
   final Map<String, dynamic> plugins;
   final Map<String, dynamic> custom;
 
@@ -21,6 +48,7 @@ class BloomConfig {
     this.platforms = const BloomPlatforms(),
     this.features = const BloomFeatures(),
     this.envFiles = const ['.env', '.env.local'],
+    this.flavors = const {},
     this.plugins = const {},
     this.custom = const {},
   });
@@ -51,6 +79,15 @@ class BloomConfig {
       envList.addAll(['.env', '.env.local']);
     }
 
+    final flavorsMap = <String, BloomFlavorConfig>{};
+    if (map['flavors'] is Map) {
+      map['flavors'].forEach((k, v) {
+        if (v is Map) {
+          flavorsMap[k.toString()] = BloomFlavorConfig.fromMap(k.toString(), v);
+        }
+      });
+    }
+
     final pluginsMap = <String, dynamic>{};
     if (map['plugins'] is List) {
       for (final item in map['plugins']) {
@@ -64,7 +101,6 @@ class BloomConfig {
       map['plugins'].forEach((k, v) => pluginsMap[k.toString()] = v);
     }
 
-    // Filter out known keys so `custom` only contains unknown configuration properties
     const knownKeys = {
       'schema',
       'name',
@@ -74,6 +110,7 @@ class BloomConfig {
       'features',
       'environment',
       'envFiles',
+      'flavors',
       'plugins',
       'deep_links',
       'deepLinks',
@@ -94,6 +131,7 @@ class BloomConfig {
       platforms: BloomPlatforms.fromMap(platformsMap),
       features: BloomFeatures.fromMap(featuresMap),
       envFiles: envList,
+      flavors: flavorsMap,
       plugins: pluginsMap,
       custom: customMap,
     );

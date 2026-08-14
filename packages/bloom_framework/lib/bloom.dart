@@ -37,11 +37,13 @@ export 'src/data/http_client.dart';
 export 'src/data/repository.dart';
 export 'src/data/auth.dart';
 
-// Native Architecture & Plugins (Phase 3)
+// Native Architecture & Plugins (Phase 3 & 4)
 export 'src/native/permissions.dart';
 export 'src/native/secure_storage.dart';
 export 'src/native/notifications.dart';
 export 'src/native/camera.dart';
+export 'src/native/deep_links.dart';
+export 'src/native/background.dart';
 
 // Widgets
 export 'src/widgets/app.dart';
