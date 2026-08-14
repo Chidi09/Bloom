@@ -144,8 +144,12 @@ class BloomUpdates {
       originalFlutterError?.call(details);
     };
 
+    final originalPlatformError = PlatformDispatcher.instance.onError;
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
       _watchdog.recordStartupCrash();
+      if (originalPlatformError != null) {
+        return originalPlatformError(error, stack);
+      }
       return false; // let unhandled error propagate
     };
   }
