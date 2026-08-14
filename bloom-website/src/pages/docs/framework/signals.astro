@@ -1,95 +1,167 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Zap, Activity, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Zap, Sparkles, ArrowRight, Layers, Cpu, CheckCircle2 } from 'lucide-preact';
 
-const signalsCode = `import 'package:bloom_framework/bloom.dart';
+const signalsBasicsCode = `// 1. Primitive Signals
+final count = createSignal<int>(0);
+print(count.value); // 0
+count.value = 5;    // Notifies dependents automatically
 
-class CartController extends BloomController {
-  // Reactive Signal
-  late final items = createSignal<List<CartItem>>([], debugLabel: 'cart.items');
+// 2. Computed Derived State (Lazy & Memoized)
+final doubleCount = createComputed(() => count.value * 2);
+print(doubleCount.value); // 10
 
-  // Computed Signal (auto-tracks dependencies)
-  late final totalPrice = createComputed<double>(() {
-    return items.value.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
-  }, debugLabel: 'cart.totalPrice');
+// 3. Side Effects
+final disposeEffect = createEffect(() {
+  print('Count changed to: \${count.value}');
+});`;
 
-  late final itemCount = createComputed<int>(() {
-    return items.value.fold(0, (count, item) => count + item.quantity);
+const controllerCode = `// lib/features/todos/todo_controller.dart
+import 'package:bloom_framework/bloom.dart';
+
+class TodoItem {
+  final String id;
+  final String title;
+  final bool completed;
+  TodoItem({required this.id, required this.title, this.completed = false});
+}
+
+class TodoController extends BloomController {
+  late final todos = createSignal<List<TodoItem>>([]);
+  late final filter = createSignal<String>('all');
+
+  // Computed filtered list
+  late final visibleTodos = createComputed<List<TodoItem>>(() {
+    final currentFilter = filter.value;
+    final all = todos.value;
+    if (currentFilter == 'active') return all.where((t) => !t.completed).toList();
+    if (currentFilter == 'completed') return all.where((t) => t.completed).toList();
+    return all;
   });
 
-  @override
-  void onInit() {
-    super.onInit();
-    // Side effect runs whenever items change
-    createEffect(() {
-      print('Cart updated: \${items.value.length} distinct products.');
-    });
+  void addTodo(String title) {
+    todos.value = [
+      ...todos.value,
+      TodoItem(id: DateTime.now().millisecondsSinceEpoch.toString(), title: title),
+    ];
   }
 
-  void addItem(CartItem item) {
-    items.value = [...items.value, item];
-  }
-
-  void clearCart() {
-    items.value = [];
+  void toggleTodo(String id) {
+    todos.value = todos.value.map((t) {
+      if (t.id == id) {
+        return TodoItem(id: t.id, title: t.title, completed: !t.completed);
+      }
+      return t;
+    }).toList();
   }
 }`;
 
-const widgetCode = `class CartTotalWidget extends StatelessWidget {
-  const CartTotalWidget({super.key});
+const widgetConsumptionCode = `// lib/routes/todos.dart
+import 'package:flutter/material.dart';
+import 'package:bloom_framework/bloom.dart';
+import '../features/todos/todo_controller.dart';
+
+class TodoRoute extends StatelessWidget {
+  const TodoRoute({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cart = inject<CartController>();
+    final controller = inject<TodoController>();
 
-    // Watch widget ONLY rebuilds this small text node when price changes!
-    return Watch((context) => Text(
-      'Total: \\\$\${cart.totalPrice.value.toStringAsFixed(2)}',
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-    ));
+    return Scaffold(
+      appBar: AppBar(title: const Text('Todo List')),
+      body: Column(
+        children: [
+          // Subscribes and rebuilds ONLY this ListView when visibleTodos updates
+          Expanded(
+            child: Watch((context) {
+              final list = controller.visibleTodos.value;
+              if (list.isEmpty) {
+                return const Center(child: Text('No tasks found.'));
+              }
+              return ListView.builder(
+                itemCount: list.length,
+                itemBuilder: (context, i) {
+                  final item = list[i];
+                  return CheckboxListTile(
+                    title: Text(
+                      item.title,
+                      style: TextStyle(
+                        decoration: item.completed ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                    value: item.completed,
+                    onChanged: (_) => controller.toggleTodo(item.id),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
   }
 }`;
 ---
 
 <DocsLayout
-  title="Signals & Reactivity"
-  description="Fine-grained reactive state management built on Preact Signals for 60fps Flutter Impeller rendering."
+  title="Signals Reactivity"
+  description="Fine-grained reactive state primitives with zero setState boilerplate."
   currentSlug="framework-signals"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
-    { id: 'controller', title: 'BloomController & Signals' },
-    { id: 'computed', title: 'Computed Values & Effects' },
-    { id: 'watch', title: 'Watch Widget & Granular Rebuilds' },
+    { id: 'primitives', title: 'Signals, Computed & Effects' },
+    { id: 'controllers', title: 'BloomController Encapsulation' },
+    { id: 'ui-watch', title: 'Granular UI Subscriptions with Watch' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <Zap className="w-3.5 h-3.5" />
+        Fine-Grained Reactivity
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-        Signals & State
+        Signals Reactivity
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom replaces complex boilerplate like Bloc or ChangeNotifier with <strong>Signals</strong>. Signals automatically track reactive dependencies and re-render only the precise widgets that read their values.
+        Bloom's reactivity is powered by fine-grained signals. Only the exact leaf widgets reading a signal re-render when state mutates—giving you 60fps Impeller performance without <code class="font-mono text-purple-400">setState()</code> overhead.
       </p>
     </div>
 
-    <!-- BloomController -->
-    <section id="controller" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">BloomController & Signals</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{signalsCode}</code></pre>
-      </div>
+    <!-- Section 1 -->
+    <section id="primitives" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Signals, Computed & Effects
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The core reactivity triad provides predictable, glitch-free dependency tracking:
+      </p>
+      <CodeBlock code={signalsBasicsCode} lang="dart" filename="Signals API" />
     </section>
 
-    <!-- Watch Widget -->
-    <section id="watch" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Watch Widget & Granular Rebuilds</h2>
+    <!-- Section 2 -->
+    <section id="controllers" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomController Encapsulation
+      </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Wrap widgets in <code class="font-mono text-purple-400">Watch</code> so only the inner widget rebuilds when a signal changes, avoiding expensive whole-screen rebuilds:
+        Organize business logic into controllers. <code class="font-mono text-purple-400">BloomController</code> manages signal lifecycles and automatically cleans up active effect subscriptions when disposed:
       </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{widgetCode}</code></pre>
-      </div>
+      <CodeBlock code={controllerCode} lang="dart" filename="lib/features/todos/todo_controller.dart" />
+    </section>
+
+    <!-- Section 3 -->
+    <section id="ui-watch" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Granular UI Subscriptions with Watch
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Wrap only the widgets that depend on dynamic state with <code class="font-mono text-purple-400">Watch</code>. Parent scaffold and layout widgets never rebuild unnecessarily:
+      </p>
+      <CodeBlock code={widgetConsumptionCode} lang="dart" filename="lib/routes/todos.dart" />
     </section>
 
     <!-- Next Page Footer -->
@@ -98,7 +170,7 @@ const widgetCode = `class CartTotalWidget extends StatelessWidget {
         href="/docs/framework/routing"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: Routing</span>
+        <span>Previous: Filesystem Routing</span>
       </a>
       <a
         href="/docs/framework/di"

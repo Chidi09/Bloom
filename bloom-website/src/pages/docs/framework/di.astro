@@ -1,68 +1,114 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Cpu, Layers, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Layers, Zap, ArrowRight, ShieldCheck, Cpu, CheckCircle2 } from 'lucide-preact';
 
-const diCode = `// lib/app/boot.dart
+const registrationCode = `// lib/app/boot.dart
 import 'package:bloom_framework/bloom.dart';
-import '../services/api_service.dart';
+import '../services/analytics_service.dart';
+import '../services/database_service.dart';
 import '../features/auth/auth_controller.dart';
 
 class AppBootstrapper implements BloomBootstrapper {
   @override
   Future<void> onBoot(BloomContainer container) async {
-    // 1. Eager Singleton (initialized at app boot)
-    container.provideSingleton<ApiService>((c) => ApiService());
+    // 1. Eager Singleton (Instantiated immediately at boot)
+    container.provideSingleton<AnalyticsService>((c) => AnalyticsService());
 
-    // 2. Lazy Singleton (initialized on first inject<T>() call)
-    container.provideLazySingleton<AuthController>(
-      (c) => AuthController(api: c.resolve<ApiService>()),
-    );
+    // 2. Lazy Singleton (Instantiated on first inject<T>() call)
+    container.provideLazySingleton<DatabaseService>((c) => DatabaseService(
+      analytics: c.inject<AnalyticsService>(),
+    ));
 
-    // 3. Factory (new instance returned on every resolution)
-    container.provideFactory<UuidService>((c) => UuidService());
+    // 3. Factory (New instance created on every injection)
+    container.provideFactory<AuthController>((c) => AuthController(
+      db: c.inject<DatabaseService>(),
+    ));
   }
 }`;
 
-const injectCode = `// Inside any widget or controller:
-final auth = inject<AuthController>();
-final api = inject<ApiService>();`;
+const injectionCode = `// 1. Injection in Controllers / Services
+class FeedController extends BloomController {
+  final db = inject<DatabaseService>();
+}
+
+// 2. Injection in Flutter Widgets
+class UserProfileWidget extends StatelessWidget {
+  const UserProfileWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Resolved from root container
+    final auth = inject<AuthController>();
+    return Text(auth.user.value?.email ?? 'Guest');
+  }
+}`;
+
+const scopedContainerCode = `// Child Scoped Container (e.g. for Modal / Flow lifetime)
+final flowContainer = container.createChild();
+flowContainer.provideSingleton<CheckoutSession>((c) => CheckoutSession());
+
+// Disposing the scope tears down all scoped instances
+flowContainer.dispose();`;
 ---
 
 <DocsLayout
   title="Dependency Injection"
-  description="Lightweight, type-safe dependency injection container with eager, lazy, and factory lifetimes."
+  description="Hierarchical, testable dependency injection with zero reflection and instant compile-time safety."
   currentSlug="framework-di"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
-    { id: 'container', title: 'BloomContainer & Lifetimes' },
-    { id: 'inject', title: 'Resolving with inject<T>()' },
+    { id: 'registration', title: 'Registration Strategies' },
+    { id: 'resolution', title: 'Resolution with inject<T>()' },
+    { id: 'scopes', title: 'Hierarchical Scoped Containers' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Layers className="w-3.5 h-3.5" />
+        Type-Safe IoC
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Dependency Injection
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom includes an ultra-fast, zero-reflection Dependency Injection (DI) container that powers application startup, controller lifecycle, and mockable testing.
+        Bloom includes an ultra-fast, zero-reflection dependency injection container (<code class="font-mono text-purple-400">BloomContainer</code>) supporting singletons, lazy factories, and hierarchical child scopes.
       </p>
     </div>
 
-    <!-- BloomContainer -->
-    <section id="container" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">BloomContainer & Lifetimes</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{diCode}</code></pre>
-      </div>
+    <!-- Section 1 -->
+    <section id="registration" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Registration Strategies
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Register dependencies during boot with the registration strategy suited for your service lifecycle:
+      </p>
+      <CodeBlock code={registrationCode} lang="dart" filename="lib/app/boot.dart" />
     </section>
 
-    <!-- Resolving -->
-    <section id="inject" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Resolving Dependencies</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{injectCode}</code></pre>
-      </div>
+    <!-- Section 2 -->
+    <section id="resolution" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Resolution with inject&lt;T&gt;()
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Call <code class="font-mono text-purple-400">inject&lt;T&gt;()</code> from any controller, service, or widget:
+      </p>
+      <CodeBlock code={injectionCode} lang="dart" filename="Resolution Syntax" />
+    </section>
+
+    <!-- Section 3 -->
+    <section id="scopes" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Hierarchical Scoped Containers
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Spawn child containers for isolated flows (such as a checkout flow or tenant session) that can be disposed cleanly in a single call:
+      </p>
+      <CodeBlock code={scopedContainerCode} lang="dart" filename="Scoped Container API" />
     </section>
 
     <!-- Next Page Footer -->
@@ -71,13 +117,13 @@ final api = inject<ApiService>();`;
         href="/docs/framework/signals"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: Signals & State</span>
+        <span>Previous: Signals Reactivity</span>
       </a>
       <a
         href="/docs/framework/data"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
       >
-        <span>Next: Data Layer</span>
+        <span>Next: Data Layer & Caching</span>
         <ArrowRight className="w-4 h-4" />
       </a>
     </div>

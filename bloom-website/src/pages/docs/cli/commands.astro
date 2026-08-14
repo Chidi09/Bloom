@@ -1,0 +1,73 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Terminal, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const cliCommands = [
+  { cmd: 'bloom create <app_name>', desc: 'Scaffolds a new Bloom application with filesystem routing, DI, and signals.' },
+  { cmd: 'bloom dev', desc: 'Starts the interactive developer server with keyboard hot reload and QR pairing.' },
+  { cmd: 'bloom generate', desc: 'Compiles lib/routes into lib/app/routes.g.dart without launching Flutter.' },
+  { cmd: 'bloom prebuild', desc: 'Syncs native iOS and Android manifests from bloom.yaml declaratively.' },
+  { cmd: 'bloom deploy release', desc: 'Builds signed release binaries for App Store and Google Play distribution.' },
+  { cmd: 'bloom deploy patch', desc: 'Deploys an instant Shorebird OTA bytecode delta patch to live users.' },
+  { cmd: 'bloom doctor', desc: 'Runs comprehensive diagnostic checks on Flutter, Android SDK, Xcode, and CocoaPods.' },
+];
+---
+
+<DocsLayout
+  title="CLI Master Commands"
+  description="Master cheat sheet of all available Bloom CLI commands and workflows."
+  currentSlug="cli-commands"
+  category="CLI Tooling"
+  toc={[
+    { id: 'cheat-sheet', title: 'Command Cheat Sheet' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Terminal className="w-3.5 h-3.5" />
+        CLI Overview
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        CLI Master Commands
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        One unified CLI orchestrating Dart, Flutter, build generators, and deployment channels.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="cheat-sheet" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Command Cheat Sheet
+      </h2>
+      <div class="grid grid-cols-1 gap-3 pt-2">
+        {cliCommands.map((item) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+            <code class="text-purple-400 font-bold font-mono text-sm block">{item.cmd}</code>
+            <p class="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/native/plugins"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Native Plugins</span>
+      </a>
+      <a
+        href="/docs/cli/create"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: bloom create</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

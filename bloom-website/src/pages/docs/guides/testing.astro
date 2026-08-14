@@ -1,101 +1,97 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { ShieldCheck, Terminal, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldCheck, Zap, ArrowRight, CheckCircle2 } from 'lucide-preact';
 
-const testCode = `import 'package:flutter_test/flutter_test.dart';
-import 'package:bloom_framework/bloom.dart';
-import 'package:my_app/features/counter/counter_controller.dart';
+const unitTestCode = `// test/features/counter_controller_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quickstart_app/features/counter/counter_controller.dart';
 
 void main() {
-  group('CounterController Unit Tests', () {
-    late BloomContainer container;
-    late CounterController controller;
+  test('CounterController increments count signal', () {
+    final controller = CounterController();
+    expect(controller.count.value, equals(0));
 
-    setUp(() {
-      container = BloomContainer();
-      controller = CounterController();
-      container.provideSingleton<CounterController>((c) => controller);
-    });
-
-    test('initializes with count 0', () {
-      expect(controller.count.value, equals(0));
-    });
-
-    test('increments counter value by 1', () {
-      controller.increment();
-      expect(controller.count.value, equals(1));
-    });
+    controller.increment();
+    expect(controller.count.value, equals(1));
   });
 }`;
 
-const widgetTestCode = `testWidgets('CounterRoute updates on button press', (tester) async {
-  await tester.pumpWidget(
-    MaterialApp(
-      theme: ThemeData(extensions: const [BloomTheme.light]),
-      home: const CounterRoute(),
-    ),
-  );
+const widgetTestCode = `// test/routes/counter_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bloom_framework/bloom.dart';
+import 'package:quickstart_app/routes/counter.dart';
+import 'package:quickstart_app/features/counter/counter_controller.dart';
 
-  expect(find.text('0'), findsOneWidget);
-  await tester.tap(find.byIcon(Icons.add));
-  await tester.pump();
-  expect(find.text('1'), findsOneWidget);
-});`;
+void main() {
+  testWidgets('CounterRoute displays incremented value on tap', (tester) async {
+    // Setup isolated test container
+    final container = BloomContainer();
+    final controller = CounterController();
+    container.provideInstance<CounterController>(controller);
+
+    await tester.pumpWidget(
+      BloomScope(
+        container: container,
+        child: const MaterialApp(home: CounterRoute()),
+      ),
+    );
+
+    expect(find.text('0'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump(); // Fast synchronous rebuild
+
+    expect(find.text('1'), findsOneWidget);
+  });
+}`;
 ---
 
 <DocsLayout
   title="Testing & DevTools"
-  description="Unit, widget, and integration testing with Bloom DI mocks and DevTools diagnostics."
+  description="Fast synchronous unit tests, mockable DI containers, and widget tests for Bloom apps."
   currentSlug="guides-testing"
-  category="Guides & Recipes"
+  category="Engineering Guides"
   toc={[
-    { id: 'unit-testing', title: '1. Unit Testing Controllers' },
-    { id: 'widget-testing', title: '2. Widget Testing Primitives' },
-    { id: 'cli-testing', title: '3. Running bloom test in CI' },
+    { id: 'unit-testing', title: 'Controller Unit Testing' },
+    { id: 'widget-testing', title: 'Widget Testing with BloomScope' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        High Confidence Testing
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Testing & DevTools
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom's dependency injection container and pure Signals make automated testing fast, isolated, and free of complex mock frameworks.
+        Because Bloom signals and controllers are pure Dart classes without Flutter UI dependencies, unit tests execute synchronously in milliseconds.
       </p>
     </div>
 
-    <!-- Unit Testing -->
+    <!-- Section 1 -->
     <section id="unit-testing" class="space-y-4">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        1. Unit Testing Controllers
+        Controller Unit Testing
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Signals controllers can be tested in pure Dart without launching any widget trees:
+        Test controllers with standard Dart <code class="font-mono text-purple-400">flutter_test</code>:
       </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{testCode}</code></pre>
-      </div>
+      <CodeBlock code={unitTestCode} lang="dart" filename="test/features/counter_controller_test.dart" />
     </section>
 
-    <!-- Widget Testing -->
-    <section id="widget-testing" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+    <!-- Section 2 -->
+    <section id="widget-testing" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        2. Widget Testing Primitives
+        Widget Testing with BloomScope
       </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{widgetTestCode}</code></pre>
-      </div>
-    </section>
-
-    <!-- CLI Testing in CI -->
-    <section id="cli-testing" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        3. Running bloom test in CI
-      </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom test --coverage</code>
-      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Supply mock services into isolated test containers with <code class="font-mono text-purple-400">BloomScope</code>:
+      </p>
+      <CodeBlock code={widgetTestCode} lang="dart" filename="test/routes/counter_test.dart" />
     </section>
 
     <!-- Next Page Footer -->

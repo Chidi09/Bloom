@@ -1,79 +1,128 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Database, RefreshCw, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Database, Zap, ArrowRight, RefreshCw, ShieldCheck, CheckCircle2 } from 'lucide-preact';
 
-const queryCode = `// Fetching data with automatic caching and stale-while-revalidate
-final userQuery = createQuery<User>(
-  key: ['users', userId],
-  fetcher: () => api.fetchUser(userId),
-  staleTime: const Duration(minutes: 5),
-  cacheTime: const Duration(hours: 1),
-);
+const queryCode = `// lib/features/posts/posts_controller.dart
+import 'package:bloom_framework/bloom.dart';
+import '../services/api_service.dart';
 
-// Inside UI:
-Watch((context) {
-  if (userQuery.isLoading.value) return const BloomSkeleton();
-  if (userQuery.hasError.value) return Text('Error: \${userQuery.error.value}');
-  final user = userQuery.data.value!;
-  return Text('Welcome, \${user.name}!');
-});`;
+class PostsController extends BloomController {
+  late final postsQuery = createQuery<List<Post>>(
+    queryKey: ['posts', 'feed'],
+    queryFn: () => inject<ApiService>().fetchPosts(),
+    staleTime: const Duration(minutes: 5),
+    gcTime: const Duration(hours: 1),
+  );
 
-const mutationCode = `// Optimistic mutation with automated rollback
-final updateTodoMutation = createMutation<Todo, String>(
-  mutationFn: (newTitle) => api.updateTodoTitle(todoId, newTitle),
-  onMutate: (newTitle) {
-    // Snapshot current state for rollback
-    final prev = currentTodo.value;
-    // Apply optimistic update immediately
-    currentTodo.value = currentTodo.value.copyWith(title: newTitle);
-    return prev;
+  void refreshPosts() {
+    postsQuery.refetch();
+  }
+}`;
+
+const mutationCode = `// Optimistic Mutation with Rollback
+late final addPostMutation = createMutation<Post, String>(
+  mutationFn: (newTitle) => inject<ApiService>().createPost(newTitle),
+  onMutate: (newTitle) async {
+    // 1. Snapshot previous cache
+    final previousPosts = postsQuery.data.value;
+
+    // 2. Optimistically update UI immediately
+    final optimisticPost = Post(id: 'temp-\${DateTime.now()}', title: newTitle);
+    postsQuery.setData([...(previousPosts ?? []), optimisticPost]);
+
+    // Return context for rollback
+    return {'previous': previousPosts};
   },
-  onError: (err, newTitle, rollbackSnapshot) {
-    // Rollback to previous state on failure
-    currentTodo.value = rollbackSnapshot;
-    BloomSonner.error(context, 'Failed to save changes. Reverted.');
+  onError: (error, newTitle, context) {
+    // 3. Rollback on failure
+    if (context?['previous'] != null) {
+      postsQuery.setData(context!['previous'] as List<Post>);
+    }
   },
-  onSuccess: (data, variables, context) {
-    BloomSonner.success(context, 'Saved successfully!');
+  onSettled: (data, error, variables, context) {
+    // 4. Invalidate to sync server state
+    invalidateQueries(['posts']);
   },
 );`;
+
+const uiConsumptionCode = `// In your Flutter Widget
+Watch((context) {
+  final state = controller.postsQuery;
+
+  if (state.isLoading.value) {
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  if (state.isError.value) {
+    return Center(child: Text('Error: \${state.error.value}'));
+  }
+
+  final posts = state.data.value ?? [];
+  return ListView.builder(
+    itemCount: posts.length,
+    itemBuilder: (context, i) => ListTile(title: Text(posts[i].title)),
+  );
+})`;
 ---
 
 <DocsLayout
-  title="Data Layer & Queries"
-  description="TanStack Query-style asynchronous data fetching, stale-while-revalidate caching, and optimistic mutations."
+  title="Data Layer & Caching"
+  description="TanStack-style declarative queries, SWR caching, and optimistic mutations with automatic rollback."
   currentSlug="framework-data"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
-    { id: 'queries', title: 'Queries & SWR Caching' },
+    { id: 'queries', title: 'Declarative Queries (SWR)' },
     { id: 'mutations', title: 'Optimistic Mutations & Rollback' },
+    { id: 'ui', title: 'UI Consumption with Watch' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-mono font-bold">
+        <Database className="w-3.5 h-3.5" />
+        Async Server State
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-        Data Layer & Queries
+        Data Layer & Caching
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom includes a built-in reactive asynchronous data engine inspired by TanStack Query. It manages stale-while-revalidate caching, automated retries, offline queueing, and optimistic mutations.
+        Bloom Data provides TanStack Query semantics for Flutter. Automatic stale-while-revalidate (SWR) caching, garbage collection, and optimistic mutation rollbacks keep your UI instant and resilient.
       </p>
     </div>
 
-    <!-- Queries -->
+    <!-- Section 1 -->
     <section id="queries" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Queries & SWR Caching</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{queryCode}</code></pre>
-      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Declarative Queries (SWR)
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Define queries inside your controller with declarative stale and garbage collection timeouts:
+      </p>
+      <CodeBlock code={queryCode} lang="dart" filename="lib/features/posts/posts_controller.dart" />
     </section>
 
-    <!-- Mutations -->
-    <section id="mutations" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Optimistic Mutations & Rollback</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{mutationCode}</code></pre>
-      </div>
+    <!-- Section 2 -->
+    <section id="mutations" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Optimistic Mutations &amp; Rollback
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Mutate server state optimistically for instantaneous user feedback with safe automatic rollback if network requests fail:
+      </p>
+      <CodeBlock code={mutationCode} lang="dart" filename="Optimistic Mutation Pattern" />
+    </section>
+
+    <!-- Section 3 -->
+    <section id="ui" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        UI Consumption with Watch
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Queries expose reactive signals for <code class="font-mono text-purple-400">isLoading</code>, <code class="font-mono text-purple-400">data</code>, and <code class="font-mono text-purple-400">isError</code>:
+      </p>
+      <CodeBlock code={uiConsumptionCode} lang="dart" filename="Widget Consumption" />
     </section>
 
     <!-- Next Page Footer -->
@@ -85,7 +134,7 @@ final updateTodoMutation = createMutation<Todo, String>(
         <span>Previous: Dependency Injection</span>
       </a>
       <a
-        href="/docs/framework/prebuild"
+        href="/docs/framework/native"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
       >
         <span>Next: Prebuild & Native Sync</span>

@@ -1,6 +1,7 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Terminal, Zap, ArrowRight, Code2, Copy, Check } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Terminal, Zap, ArrowRight, Code2, Cpu, CheckCircle2 } from 'lucide-preact';
 
 const step1Code = `bloom create quickstart_app
 cd quickstart_app`;
@@ -96,24 +97,30 @@ class AppBootstrapper implements BloomBootstrapper {
     container.provideSingleton<CounterController>((c) => CounterController());
   }
 }`;
+
+const step5Code = `bloom dev`;
 ---
 
 <DocsLayout
   title="5-Minute Quickstart"
   description="Build and run your first full-stack reactive Bloom application in under five minutes."
   currentSlug="framework-quickstart"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
-    { id: 'create', title: '1. Create Project' },
+    { id: 'create', title: '1. Create New Project' },
     { id: 'controller', title: '2. Signals Controller' },
     { id: 'route', title: '3. Filesystem Route' },
-    { id: 'boot', title: '4. Bootstrapper & DI' },
+    { id: 'boot', title: '4. Register in Bootstrapper' },
     { id: 'run', title: '5. Dev Server & Hot Reload' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Zap className="w-3.5 h-3.5" />
+        Rapid Onboarding
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         5-Minute Quickstart
       </h1>
@@ -124,81 +131,103 @@ class AppBootstrapper implements BloomBootstrapper {
 
     <!-- Step 1 -->
     <section id="create" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-        <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs font-bold">1</span>
-        <span>Create a New Project</span>
-      </h2>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-sm">
+          1
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Create a New Project
+        </h2>
+      </div>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
         Run <code class="font-mono text-purple-400">bloom create</code> to scaffold a modern Bloom application:
       </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <pre class="leading-relaxed"><code>{step1Code}</code></pre>
-      </div>
+      <CodeBlock code={step1Code} lang="bash" filename="Terminal" />
     </section>
 
     <!-- Step 2 -->
-    <section id="controller" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-        <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs font-bold">2</span>
-        <span>Add a Controller with Signals Reactivity</span>
-      </h2>
+    <section id="controller" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-sm">
+          2
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Add a Controller with Signals Reactivity
+        </h2>
+      </div>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
         Controllers extend <code class="font-mono text-purple-400">BloomController</code> and manage fine-grained reactive signals:
       </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{step2Code}</code></pre>
-      </div>
+      <CodeBlock code={step2Code} lang="dart" filename="lib/features/counter/counter_controller.dart" />
     </section>
 
     <!-- Step 3 -->
-    <section id="route" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-        <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs font-bold">3</span>
-        <span>Create a Filesystem Route</span>
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Generate a page route at <code class="font-mono text-purple-400">lib/routes/counter.dart</code>:
-      </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{step3Code}</code></pre>
+    <section id="route" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-sm">
+          3
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Create a Filesystem Route
+        </h2>
       </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Create <code class="font-mono text-purple-400">lib/routes/counter.dart</code>. Bloom automatically generates typed routing definitions in <code class="font-mono text-purple-400">lib/app/routes.g.dart</code>:
+      </p>
+      <CodeBlock code={step3Code} lang="dart" filename="lib/routes/counter.dart" />
     </section>
 
     <!-- Step 4 -->
-    <section id="boot" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-        <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs font-bold">4</span>
-        <span>Register Controller in Bootstrapper</span>
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Open <code class="font-mono text-purple-400">lib/app/boot.dart</code> and register dependencies:
-      </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{step4Code}</code></pre>
+    <section id="boot" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-sm">
+          4
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Register Controller in Bootstrapper
+        </h2>
       </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Open <code class="font-mono text-purple-400">lib/app/boot.dart</code> and register dependencies inside <code class="font-mono text-purple-400">onBoot</code>:
+      </p>
+      <CodeBlock code={step4Code} lang="dart" filename="lib/app/boot.dart" />
     </section>
 
     <!-- Step 5 -->
-    <section id="run" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-        <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs font-bold">5</span>
-        <span>Launch Developer Server</span>
-      </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom dev</code>
+    <section id="run" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-sm">
+          5
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Launch Developer Server
+        </h2>
       </div>
-      <p class="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
-        Press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-white font-mono">r</kbd> for Hot Reload, <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-white font-mono">w</kbd> for Wireless QR Code, or <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-white font-mono">d</kbd> for DevTools.
-      </p>
+      <CodeBlock code={step5Code} lang="bash" filename="Terminal" />
+      <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-2">
+        <div class="font-bold text-slate-900 dark:text-white font-mono">Interactive Keyboard Controls</div>
+        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+          <li><span class="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-purple-400">r</span> Trigger Hot Reload</li>
+          <li><span class="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-purple-400">R</span> Trigger Hot Restart</li>
+          <li><span class="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-purple-400">w</span> Wireless QR Pairing</li>
+          <li><span class="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-purple-400">d</span> Open Flutter DevTools</li>
+        </ul>
+      </div>
     </section>
 
     <!-- Next Page Footer -->
-    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
       <a
-        href="/docs/framework/routing"
+        href="/docs/introduction"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Introduction</span>
+      </a>
+      <a
+        href="/docs/framework/boot"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
       >
-        <span>Next: Filesystem Routing</span>
+        <span>Next: Boot & Lifecycle</span>
         <ArrowRight className="w-4 h-4" />
       </a>
     </div>

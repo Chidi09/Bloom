@@ -1,0 +1,59 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Sliders, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const devToolsLaunch = `# Open Flutter DevTools connected to your Bloom app
+bloom dev --devtools`;
+---
+
+<DocsLayout
+  title="DevTools Extensions"
+  description="Inspect Signals dependency trees and Query cache state in Flutter DevTools."
+  currentSlug="dev-devtools-extensions"
+  category="Developer Experience"
+  toc={[
+    { id: 'inspect-signals', title: 'Signals & Cache Inspector' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <Sliders className="w-3.5 h-3.5" />
+        Inspection
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        DevTools Extensions
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Debug reactive dependency graphs, inspect live query cache keys, and trigger time-travel state rollbacks inside Flutter DevTools.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="inspect-signals" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Signals &amp; Cache Inspector
+      </h2>
+      <CodeBlock code={devToolsLaunch} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/dev-experience/dev-server"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Dev Server</span>
+      </a>
+      <a
+        href="/docs/dev-experience/ota-deployments"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: OTA Deployments</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
