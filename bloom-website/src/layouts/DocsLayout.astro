@@ -18,6 +18,7 @@ import {
   BookMarked
 } from 'lucide-preact';
 import { UI_REGISTRY, UI_CATEGORIES } from '../lib/ui-registry';
+import { getDocsNav } from '../lib/framework-docs';
 
 interface Props {
   title: string;
@@ -37,49 +38,35 @@ const {
 
 const currentPath = Astro.url.pathname;
 
-const docNavSections = [
-  {
-    title: 'Getting Started (UI)',
-    items: [
-      { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
-      { title: 'Installation', href: '/docs/installation', slug: 'installation' },
-      { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
-      { title: 'CLI Tooling', href: '/docs/cli', slug: 'cli' },
-      { title: 'Typography', href: '/docs/typography', slug: 'typography' },
-      { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
-    ],
-  },
-  {
-    title: 'Framework & DX',
-    items: [
-      { title: 'Quickstart', href: '/docs/framework/quickstart', slug: 'framework-quickstart' },
-      { title: 'Filesystem Routing', href: '/docs/framework/routing', slug: 'framework-routing' },
-      { title: 'Signals & State', href: '/docs/framework/signals', slug: 'framework-signals' },
-      { title: 'Dependency Injection', href: '/docs/framework/di', slug: 'framework-di' },
-      { title: 'Data Layer & Queries', href: '/docs/framework/data', slug: 'framework-data' },
-      { title: 'Prebuild & Native Sync', href: '/docs/framework/prebuild', slug: 'framework-prebuild' },
-      { title: 'Cloud OTA Deployment', href: '/docs/framework/ota', slug: 'framework-ota' },
-      { title: 'Backend Adapters', href: '/docs/framework/adapters', slug: 'framework-adapters' },
-    ],
-  },
-  {
-    title: 'Guides & Recipes',
-    items: [
-      { title: 'Cookbook & Recipes', href: '/docs/guides/cookbook', slug: 'guides-cookbook' },
-      { title: 'Best Practices', href: '/docs/guides/best-practices', slug: 'guides-best-practices' },
-      { title: 'Migration Guide', href: '/docs/guides/migration', slug: 'guides-migration' },
-      { title: 'Testing & DevTools', href: '/docs/guides/testing', slug: 'guides-testing' },
-      { title: 'Troubleshooting & FAQ', href: '/docs/guides/troubleshooting', slug: 'guides-troubleshooting' },
-    ],
-  },
-  {
-    title: 'Themes & Blocks',
-    items: [
-      { title: 'Theme Generator', href: '/themes', slug: 'themes' },
-      { title: 'Application Blocks', href: '/blocks', slug: 'blocks' },
-      { title: 'All Components', href: '/ui', slug: 'ui' },
-    ],
-  },
+const uiGettingStartedSection = {
+  title: 'Bloom UI (shadcn)',
+  section: 'ui-getting-started',
+  items: [
+    { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
+    { title: 'Installation', href: '/docs/installation', slug: 'installation' },
+    { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
+    { title: 'CLI Tooling', href: '/docs/cli', slug: 'cli' },
+    { title: 'Typography', href: '/docs/typography', slug: 'typography' },
+    { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
+  ],
+};
+
+const frameworkDocSections = getDocsNav();
+
+const themesAndBlocksSection = {
+  title: 'Studio & Templates',
+  section: 'studio-blocks',
+  items: [
+    { title: 'Theme Generator', href: '/themes', slug: 'themes' },
+    { title: 'Application Blocks', href: '/blocks', slug: 'blocks' },
+    { title: 'Component Gallery', href: '/ui', slug: 'ui' },
+  ],
+};
+
+const allNavSections = [
+  uiGettingStartedSection,
+  ...frameworkDocSections,
+  themesAndBlocksSection,
 ];
 ---
 
@@ -109,7 +96,7 @@ const docNavSections = [
       <aside class="hidden lg:block lg:col-span-3 space-y-8 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-4 scrollbar-thin">
         
         <!-- Navigation Sections -->
-        {docNavSections.map((section) => (
+        {allNavSections.map((section) => (
           <div class="space-y-2">
             <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
               {section.title}
