@@ -14,17 +14,28 @@ dart pub global activate bloom_cli
 
 | Command | Purpose | Underlying Mechanism |
 | :--- | :--- | :--- |
-| `bloom create <app>` | Initializes a new standardized Bloom application | `flutter create` + Bloom structure & templates |
-| `bloom dev` | Starts interactive development server & device manager | Orchestrates `flutter run` with interactive TUI |
+| `bloom create <app> [--template <name>]` | Initializes a new standardized Bloom application from template | `flutter create` + Bloom architecture scaffolds |
+| `bloom dev` | Starts interactive development server & device manager with wireless pairing | Orchestrates `flutter run` + LAN UDP discovery & TUI |
 | `bloom generate <type> <name>` | Scaffolds deterministic routes, pages, controllers, models | Bloom AST generator / templates |
-| `bloom doctor` | Validates environment, toolchain, and project config | System checks + `flutter doctor` + Bloom validator |
-| `bloom add <plugin>` | Adds & configures official/community Bloom plugins | Updates `bloom.yaml` & resolves dependencies |
-| `bloom remove <plugin>` | Removes plugin and cleans native configurations | Updates `bloom.yaml` & prunes configs |
+| `bloom doctor [--ci] [--upgrade]` | Validates environment, CI health, secrets, autolink, breaking changes | System checks + security scanner + AST deprecation analyzer |
+| `bloom add <plugin>` | Adds & autolinks official/community native Bloom plugins | Updates `bloom.yaml`, autolinks native Android/iOS AST |
+| `bloom remove <plugin>` | Removes plugin and cleans native configurations | Updates `bloom.yaml` & prunes native configs |
+| `bloom deps` / `bloom why <pkg>` | Inspects native autolink graph and reasons for inclusion | Native dependency tree analyzer |
+| `bloom workspace [info\|sync]` | Resolves and validates monorepo workspace dependencies | Monorepo root AST parser |
+| `bloom create module <name>` | Scaffolds a new native module package with DSL | Dart ↔ Swift/Kotlin binding generator |
+| `bloom module dev` / `bloom module test`| Runs isolated sandbox dev server and multi-platform native tests | Sandbox test runner & harness |
+| `bloom assets optimize\|analyze\|generate`| Compresses assets, audits disk footprint, generates typed icons | Asset compression & code generation engine |
+| `bloom audit` / `bloom security scan` | Audits dependencies for known CVEs and scans for exposed secrets | Security vulnerability DB & regex entropy scanner |
+| `bloom explain route <path>` | Explains route hierarchy, parameters, guards, and layout tree | Bloom route AST analyzer |
+| `bloom graph` | Generates visual dependency graphs (ASCII / Mermaid) | Architectural graph generator |
+| `bloom registry search\|info` | Queries Bloom ecosystem package registry with CI badges | Verified package index client |
+| `bloom upgrade [--dry-run]` | Upgrades framework dependencies and runs automated AST code migrations | AST refactoring & migration engine |
+| `bloom symbols package\|upload` | Packages debug symbols and dSYMs for observability crash reporting | Symbol map packager & multipart uploader |
+| `bloom templates list` | Lists all official and community starter templates | Template registry client |
 | `bloom analyze` | Performs strict linting and convention checking | `dart analyze` + Bloom custom rules |
 | `bloom test` | Runs unit, widget, and integration test suites | `flutter test` with structured output |
 | `bloom prebuild` | Generates Android/iOS native files from `bloom.yaml` | Bloom native configuration generator |
 | `bloom build <target>` | Compiles production binaries (apk, ipa, web, desktop) | `flutter build` + environment injection |
-| `bloom upgrade` | Upgrades framework dependencies and migration scripts | Pub solver & Bloom migration runner |
 | `bloom deploy` | Deploys OTA patches or uploads web/app artifacts | Shorebird integration / Cloud connectors |
 
 ---

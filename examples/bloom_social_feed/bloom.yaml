@@ -1,0 +1,17 @@
+name: bloom_social_feed
+version: 1.0.0
+schema: 2
+mode: managed
+
+platforms:
+  - android
+  - ios
+  - web
+
+plugins:
+  camera:
+    allowFrontCamera: true
+  notifications:
+    channels:
+      - id: feed_likes
+        name: Social Alerts
