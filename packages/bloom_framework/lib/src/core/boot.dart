@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../config/config.dart';
 import '../di/container.dart';
 import '../di/scope.dart';
+import '../native/deep_links.dart';
 import 'env.dart';
 import 'logger.dart';
 
@@ -20,6 +21,7 @@ abstract class BloomBootstrapper {
 class Bloom {
   static bool _isBooted = false;
   static BloomConfig _config = const BloomConfig();
+  static String? _activeFlavor;
 
   /// Whether Bloom has completed its boot sequence.
   static bool get isBooted => _isBooted;
@@ -27,11 +29,15 @@ class Bloom {
   /// Active configuration instance.
   static BloomConfig get config => _config;
 
+  /// Currently active build flavor (if specified).
+  static String? get activeFlavor => _activeFlavor;
+
   /// Global dependency injection container.
   static BloomContainer get container => globalContainer;
 
   /// Main boot pipeline for Bloom applications.
   static Future<void> boot({
+    String? flavor,
     BloomBootstrapper? bootstrapper,
     String? envContent,
     String? configYaml,
@@ -56,13 +62,30 @@ class Bloom {
       }
     }
 
-    // 3. Load environment variables (.env, .env.local, and declared envFiles in order)
+    // 3. Resolve active flavor
+    _activeFlavor = flavor ??
+        (const bool.hasEnvironment('BLOOM_FLAVOR')
+            ? const String.fromEnvironment('BLOOM_FLAVOR')
+            : null);
+
+    // 4. Load environment variables (.env, .env.local, and flavor-specific envFiles in order)
     if (envContent != null) {
       BloomEnv.loadContent(envContent);
     } else {
-      final envFilesToLoad = _config.envFiles.isNotEmpty
-          ? _config.envFiles
-          : const ['.env', '.env.local'];
+      final envFilesToLoad = <String>[];
+      if (_config.envFiles.isNotEmpty) {
+        envFilesToLoad.addAll(_config.envFiles);
+      } else {
+        envFilesToLoad.addAll(['.env', '.env.local']);
+      }
+
+      // Add flavor-specific env file if active
+      if (_activeFlavor != null && _config.flavors.containsKey(_activeFlavor)) {
+        final flavorEnv = _config.flavors[_activeFlavor]!.envFile ?? '.env.$_activeFlavor';
+        if (!envFilesToLoad.contains(flavorEnv)) {
+          envFilesToLoad.add(flavorEnv);
+        }
+      }
 
       for (final envFile in envFilesToLoad) {
         try {
@@ -75,13 +98,20 @@ class Bloom {
       }
     }
 
-    // 4. Configure logger
-    logger.info('Booting Bloom application "${_config.name}" (v${_config.version})');
+    // 5. Configure logger
+    logger.info('Booting Bloom application "${_config.name}" (v${_config.version})${_activeFlavor != null ? ' [Flavor: $_activeFlavor]' : ''}');
 
-    // 5. Register core framework bindings in DI
+    // 6. Register core framework bindings in DI
     container.provideValue<BloomConfig>(_config);
 
-    // 6. Execute user bootstrapper if provided
+    // 7. Initialize Deep Links listener
+    if (_config.deepLinks.enabled) {
+      await BloomDeepLinks.initialize(
+        routeMappings: _config.deepLinks.routeMappings,
+      );
+    }
+
+    // 8. Execute user bootstrapper if provided
     if (bootstrapper != null) {
       await bootstrapper.onBoot(container);
     }
@@ -99,7 +129,9 @@ class Bloom {
   static void reset() {
     _isBooted = false;
     _config = const BloomConfig();
+    _activeFlavor = null;
     BloomEnv.clear();
     container.reset();
+    BloomDeepLinks.dispose();
   }
 }

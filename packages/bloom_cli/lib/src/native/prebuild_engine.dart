@@ -13,9 +13,16 @@ class PrebuildEngine {
   PrebuildEngine(this.project);
 
   Future<bool> run() async {
-    print(Ansi.boldText('\n⚙  Running Bloom Prebuild Engine for "${project.projectName}"...\n'));
-
     final config = project.loadBloomConfig();
+    final mode = config['mode']?.toString().toLowerCase() ?? 'managed';
+
+    if (mode == 'bare') {
+      print(Ansi.info('\nℹ  Bloom Native Mode is set to "bare". Skipping automated manifest synchronization.\n'));
+      return true;
+    }
+
+    print(Ansi.boldText('\n⚙  Running Bloom Prebuild Engine (mode: $mode) for "${project.projectName}"...\n'));
+
     final platforms = config['platforms'] is Map ? config['platforms'] as Map : {};
     final plugins = config['plugins'] is List ? config['plugins'] as List : [];
     final deepLinks = config['deep_links'] is Map
