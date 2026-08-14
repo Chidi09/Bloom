@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 import 'android_prebuild.dart';
+import 'deep_links_prebuild.dart';
 import 'ios_prebuild.dart';
 
 class PrebuildEngine {
@@ -21,6 +22,9 @@ class PrebuildEngine {
         ? config['deep_links'] as Map
         : (config['deepLinks'] is Map ? config['deepLinks'] as Map : null);
 
+    final androidPackage = platforms['android'] is Map ? platforms['android']['package']?.toString() : null;
+    final iosBundleId = platforms['ios'] is Map ? platforms['ios']['bundle_identifier']?.toString() : null;
+
     // 1. Android Prebuild
     final androidDir = Directory(p.join(project.rootDir.path, 'android'));
     final androidSync = AndroidPrebuild(androidDir);
@@ -37,6 +41,14 @@ class PrebuildEngine {
       platforms: platforms,
       plugins: plugins,
       deepLinks: deepLinks,
+    );
+
+    // 3. Deep Links Domain Verification files (.well-known)
+    final deepLinksSync = DeepLinksPrebuild(project.rootDir);
+    await deepLinksSync.synchronize(
+      deepLinks: deepLinks,
+      packageName: androidPackage,
+      iosBundleId: iosBundleId,
     );
 
     print('\n${Ansi.success('Native platform synchronization completed successfully!')}\n');
