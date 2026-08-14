@@ -1,7 +1,16 @@
 name: bloom_ui
-description: Reusable, accessible, token-driven Flutter UI primitives inspired by shadcn/ui.
+description: Reusable, accessible, token-driven Flutter UI primitives inspired by shadcn/ui with zero runtime dependencies.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom/tree/main/packages/bloom_ui
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+documentation: https://bloom.dev/docs/ui
+topics:
+  - ui
+  - flutter
+  - components
+  - widgets
+  - shadcn
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
