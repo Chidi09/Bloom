@@ -78,8 +78,13 @@ flavors:
       runner = CommandRunner<int>('bloom', 'test')..addCommand(DeployCommand());
     });
 
+    final rootDir = Directory.current;
+
     tearDown(() {
-      tempDir.deleteSync(recursive: true);
+      Directory.current = rootDir;
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
     });
 
     test('rejects invalid target platform with error exit code 1', () async {

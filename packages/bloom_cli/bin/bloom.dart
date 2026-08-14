@@ -3,16 +3,20 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../lib/src/commands/add_command.dart';
 import '../lib/src/commands/analyze_command.dart';
+import '../lib/src/commands/autolink_command.dart';
 import '../lib/src/commands/build_command.dart';
 import '../lib/src/commands/create_command.dart';
 import '../lib/src/commands/create_module_command.dart';
 import '../lib/src/commands/deploy_command.dart';
+import '../lib/src/commands/deps_command.dart';
 import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/remove_command.dart';
 import '../lib/src/commands/test_command.dart';
+import '../lib/src/commands/why_command.dart';
+import '../lib/src/commands/workspace_command.dart';
 import '../lib/src/utils/ansi.dart';
 
 const String bloomVersion = '0.1.0';
@@ -24,6 +28,10 @@ Future<void> main(List<String> args) async {
   )
     ..addCommand(CreateCommand())
     ..addCommand(CreateModuleCommand())
+    ..addCommand(AutolinkCommand())
+    ..addCommand(DepsCommand())
+    ..addCommand(WhyCommand())
+    ..addCommand(WorkspaceCommand())
     ..addCommand(DevCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(GenerateCommand())

@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 import 'android_prebuild.dart';
+import 'autolink_engine.dart';
 import 'deep_links_prebuild.dart';
 import 'ios_prebuild.dart';
 
@@ -57,6 +58,10 @@ class PrebuildEngine {
       packageName: androidPackage,
       iosBundleId: iosBundleId,
     );
+
+    // 4. Zero-Config Autolinking & bloom.lock generation
+    final autolink = AutolinkEngine(project);
+    await autolink.runAutolink();
 
     print('\n${Ansi.success('Native platform synchronization completed successfully!')}\n');
     return true;
