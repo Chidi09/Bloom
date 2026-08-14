@@ -8,15 +8,25 @@ import 'bloom.dart';
 export 'package:flutter_test/flutter_test.dart';
 export 'bloom.dart';
 
-/// Base class for Bloom service test doubles and mocks.
+/// Base class for Bloom service test doubles with call recording utilities.
 abstract class BloomMock {
-  const BloomMock();
+  final Map<String, int> _callCounts = {};
+
+  void recordCall(String methodName) {
+    _callCounts[methodName] = (_callCounts[methodName] ?? 0) + 1;
+  }
+
+  int getCallCount(String methodName) => _callCounts[methodName] ?? 0;
+
+  bool wasCalled(String methodName) => (_callCounts[methodName] ?? 0) > 0;
+
+  void resetMockCalls() => _callCounts.clear();
 }
 
 /// Testing utilities and extensions for Bloom applications.
 extension BloomWidgetTesterExtensions on WidgetTester {
   /// Pumps a fully configured [BloomApp] within an isolated test scope.
-  Future<void> pumpBloomApp({
+  Future<BloomTestScope> pumpBloomApp({
     String initialLocation = '/',
     List<RouteBase>? routes,
     List<BloomTestOverride<dynamic>>? overrides,
@@ -27,7 +37,8 @@ extension BloomWidgetTesterExtensions on WidgetTester {
     Bloom.reset();
 
     // Create test scope with supplied overrides
-    Bloom.createTestScope(overrides: overrides);
+    final scope = Bloom.createTestScope(overrides: overrides);
+    addTearDown(() => scope.dispose());
 
     final appRoutes = routes ??
         [
@@ -48,5 +59,6 @@ extension BloomWidgetTesterExtensions on WidgetTester {
     );
 
     await pumpAndSettle(const Duration(milliseconds: 100));
+    return scope;
   }
 }

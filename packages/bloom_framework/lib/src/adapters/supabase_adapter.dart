@@ -1,3 +1,6 @@
+// lib/src/adapters/supabase_adapter.dart
+import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../core/logger.dart';
 import '../data/auth.dart';
 import '../data/http_client.dart';
@@ -40,15 +43,17 @@ class BloomSupabaseUser {
   };
 }
 
-/// Official Bloom authentication adapter for Supabase.
+/// Official Bloom authentication adapter for Supabase with real token refresh support.
 class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
   final String supabaseUrl;
   final String supabaseAnonKey;
   final BloomHttpClient _http;
+  final sb.SupabaseClient? supabaseClient;
 
   BloomSupabaseAuthAdapter({
     required this.supabaseUrl,
     required this.supabaseAnonKey,
+    this.supabaseClient,
     super.storage,
     String sessionKey = 'bloom_supabase_session',
   })  : _http = BloomHttpClient(baseUrl: '$supabaseUrl/auth/v1'),
@@ -61,6 +66,21 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
       req.headers['apikey'] = supabaseAnonKey;
       return req;
     });
+
+    // If a live SupabaseClient is provided, listen to auth state changes
+    supabaseClient?.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null) {
+        final user = BloomSupabaseUser(
+          id: session.user.id,
+          email: session.user.email ?? '',
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+          userMetadata: session.user.userMetadata ?? const {},
+        );
+        setSession(user: user, token: session.accessToken);
+      }
+    });
   }
 
   /// Sign in with email and password via Supabase Auth API.
@@ -69,6 +89,25 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
     required String password,
   }) async {
     try {
+      if (supabaseClient != null) {
+        final res = await supabaseClient!.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+        final session = res.session;
+        final user = BloomSupabaseUser(
+          id: res.user?.id ?? '',
+          email: res.user?.email ?? email,
+          accessToken: session?.accessToken,
+          refreshToken: session?.refreshToken,
+          userMetadata: res.user?.userMetadata ?? const {},
+        );
+        if (session != null) {
+          await setSession(user: user, token: session.accessToken);
+        }
+        return user;
+      }
+
       final data = await _http.post<Map<String, dynamic>>(
         '/token?grant_type=password',
         body: {'email': email, 'password': password},
@@ -101,6 +140,26 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
     Map<String, dynamic>? data,
   }) async {
     try {
+      if (supabaseClient != null) {
+        final res = await supabaseClient!.auth.signUp(
+          email: email,
+          password: password,
+          data: data,
+        );
+        final session = res.session;
+        final user = BloomSupabaseUser(
+          id: res.user?.id ?? '',
+          email: res.user?.email ?? email,
+          accessToken: session?.accessToken,
+          refreshToken: session?.refreshToken,
+          userMetadata: res.user?.userMetadata ?? (data ?? const {}),
+        );
+        if (session != null) {
+          await setSession(user: user, token: session.accessToken);
+        }
+        return user;
+      }
+
       final json = await _http.post<Map<String, dynamic>>(
         '/signup',
         body: {
@@ -130,6 +189,56 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
       rethrow;
     }
   }
+
+  /// Refresh the active Supabase session using the stored refresh token.
+  Future<BloomSupabaseUser?> refreshSession() async {
+    final current = currentUser.value;
+    if (current?.refreshToken == null) {
+      logger.debug('BloomSupabaseAuth: No refresh token available.');
+      return null;
+    }
+
+    try {
+      if (supabaseClient != null) {
+        final res = await supabaseClient!.auth.refreshSession();
+        final session = res.session;
+        if (session != null) {
+          final user = BloomSupabaseUser(
+            id: session.user.id,
+            email: session.user.email ?? current!.email,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            userMetadata: session.user.userMetadata ?? current!.userMetadata,
+          );
+          await setSession(user: user, token: session.accessToken);
+          return user;
+        }
+      }
+
+      final data = await _http.post<Map<String, dynamic>>(
+        '/token?grant_type=refresh_token',
+        body: {'refresh_token': current!.refreshToken},
+      );
+
+      final token = data['access_token']?.toString() ?? '';
+      final userMap = data['user'] as Map<String, dynamic>? ?? {};
+      final user = BloomSupabaseUser(
+        id: userMap['id']?.toString() ?? current.id,
+        email: userMap['email']?.toString() ?? current.email,
+        accessToken: token,
+        refreshToken: data['refresh_token']?.toString() ?? current.refreshToken,
+        userMetadata: userMap['user_metadata'] is Map
+            ? Map<String, dynamic>.from(userMap['user_metadata'] as Map)
+            : current.userMetadata,
+      );
+
+      await setSession(user: user, token: token);
+      return user;
+    } catch (e) {
+      logger.error('BloomSupabaseAuth: refreshSession error: $e');
+      return null;
+    }
+  }
 }
 
 /// Strongly-typed CRUD repository adapter for Supabase REST tables.
@@ -147,11 +256,15 @@ class BloomSupabaseTableRepository<T> implements BloomCrudRepository<T, String> 
     required this.supabaseAnonKey,
     required this.fromJson,
     required this.toJson,
+    String? Function()? authTokenProvider,
     String? bearerToken,
-  }) : _http = BloomHttpClient(baseUrl: '$supabaseUrl/rest/v1/$tableName') {
+  }) : _http = BloomHttpClient(
+          baseUrl: '$supabaseUrl/rest/v1/$tableName',
+          authTokenProvider: authTokenProvider,
+          authToken: bearerToken,
+        ) {
     _http.requestInterceptors.add((req) {
       req.headers['apikey'] = supabaseAnonKey;
-      req.headers['Authorization'] = bearerToken != null ? 'Bearer $bearerToken' : 'Bearer $supabaseAnonKey';
       req.headers['Prefer'] = 'return=representation';
       return req;
     });
