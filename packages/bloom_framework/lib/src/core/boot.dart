@@ -3,15 +3,18 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../config/config.dart';
+import '../config/env_schema.dart';
 import '../data/cache.dart';
 import '../deployment/bloom_ota.dart';
 import '../devtools/devtools_service.dart';
 import '../di/container.dart';
 import '../di/scope.dart';
+import '../features/feature_flags.dart';
 import '../native/deep_links.dart';
 import '../modules/module_registry.dart';
 import '../observability/models.dart';
 import '../observability/observability.dart';
+import '../updates/bloom_updates.dart';
 import '../updates/runtime_fingerprint.dart';
 import 'env.dart';
 import 'logger.dart';
@@ -29,6 +32,7 @@ class Bloom {
   static bool _isBooted = false;
   static BloomConfig _config = const BloomConfig();
   static String? _activeFlavor;
+  static final BloomFeatureFlags _features = BloomFeatureFlags();
 
   /// Whether Bloom has completed its boot sequence.
   static bool get isBooted => _isBooted;
@@ -41,6 +45,9 @@ class Bloom {
 
   /// Global dependency injection container.
   static BloomContainer get container => globalContainer;
+
+  /// Dynamic feature flags management.
+  static BloomFeatureFlags get features => _features;
 
   /// Records a chronological breadcrumb in the observability buffer.
   static void addBreadcrumb({
@@ -63,6 +70,7 @@ class Bloom {
     dynamic stackTrace,
     Map<String, dynamic>? context,
     List<String>? fingerprint,
+    String? exceptionType,
     BloomErrorLevel level = BloomErrorLevel.error,
   }) {
     return BloomObservability.captureException(
@@ -70,6 +78,7 @@ class Bloom {
       stackTrace: stackTrace,
       context: context,
       fingerprint: fingerprint,
+      exceptionType: exceptionType,
       level: level,
     );
   }
@@ -96,6 +105,7 @@ class Bloom {
     String? envContent,
     String? configYaml,
     BloomObservabilityConfig? observability,
+    BloomEnvironmentSchema? environmentSchema,
   }) async {
     if (_isBooted) {
       logger.warn('Bloom.boot() was called multiple times. Skipping duplicate initialization.');
@@ -153,6 +163,17 @@ class Bloom {
       }
     }
 
+    // 4b. Enforce strict environment schema validation if specified
+    if (environmentSchema != null) {
+      BloomEnv.validate(environmentSchema);
+    }
+
+    // 4c. Register feature flags from config
+    final customFlags = _config.custom['feature_flags'] ?? _config.custom['features'];
+    if (customFlags is Map) {
+      _features.registerAll(Map<String, dynamic>.from(customFlags));
+    }
+
     // 5. Configure logger
     logger.info('Booting Bloom application "${_config.name}" (v${_config.version})${_activeFlavor != null ? ' [Flavor: $_activeFlavor]' : ''}');
 
@@ -179,16 +200,48 @@ class Bloom {
     }
 
     // 10. Initialize Error Observability & Telemetry SDK
-    final obsConfig = observability ??
-        BloomObservabilityConfig(
-          enabled: true,
-          appInfo: {
-            'name': _config.name,
-            'version': _config.version,
-          },
-          runtimeFingerprint: BloomRuntimeFingerprint.fromConfig(_config).computeHash(),
-        );
-    BloomObservability.initialize(obsConfig);
+    final runtimeFp = BloomRuntimeFingerprint.fromConfig(_config).computeHash();
+    final obsConfig = observability != null
+        ? BloomObservabilityConfig(
+            enabled: observability.enabled,
+            sampleRate: observability.sampleRate,
+            autoCaptureFlutterErrors: observability.autoCaptureFlutterErrors,
+            autoCaptureZoneErrors: observability.autoCaptureZoneErrors,
+            autoCaptureNativeCrashes: observability.autoCaptureNativeCrashes,
+            maxBreadcrumbs: observability.maxBreadcrumbs,
+            transport: observability.transport,
+            beforeSend: observability.beforeSend,
+            appInfo: {
+              'name': _config.name,
+              'version': _config.version,
+              'buildNumber': _config.buildNumber,
+              ...observability.appInfo,
+            },
+            tags: observability.tags,
+            runtimeFingerprint: observability.runtimeFingerprint ?? runtimeFp,
+            bloomVersion: observability.bloomVersion ?? _config.version,
+            flutterVersion: observability.flutterVersion ?? '3.27.0',
+            channel: observability.channel ?? _activeFlavor ?? 'production',
+            activePatchId: observability.activePatchId ??
+                BloomOTA.activePatchId ??
+                BloomUpdates.activePatchId,
+            buildNumber: observability.buildNumber ?? _config.buildNumber,
+          )
+        : BloomObservabilityConfig(
+            enabled: true,
+            bloomVersion: _config.version,
+            flutterVersion: '3.27.0',
+            channel: _activeFlavor ?? 'production',
+            activePatchId: BloomOTA.activePatchId ?? BloomUpdates.activePatchId,
+            buildNumber: _config.buildNumber,
+            runtimeFingerprint: runtimeFp,
+            appInfo: {
+              'name': _config.name,
+              'version': _config.version,
+              'buildNumber': _config.buildNumber,
+            },
+          );
+    await BloomObservability.initialize(obsConfig);
 
     // 11. Execute user bootstrapper if provided
     if (bootstrapper != null) {
@@ -205,16 +258,18 @@ class Bloom {
   }
 
   /// Reset Bloom runtime state (useful between tests).
-  static void reset() {
+  static Future<void> reset() async {
     _isBooted = false;
     _config = const BloomConfig();
     _activeFlavor = null;
     BloomEnv.clear();
+    _features.reset();
     resetActiveContainer();
     BloomDeepLinks.dispose();
     BloomData.stopGarbageCollector();
     BloomOTA.reset();
+    BloomUpdates.reset();
     BloomModuleRegistry().resetSync();
-    BloomObservability.reset();
+    await BloomObservability.reset();
   }
 }

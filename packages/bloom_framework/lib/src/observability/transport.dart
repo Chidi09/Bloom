@@ -1,9 +1,20 @@
 // lib/src/observability/transport.dart
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'models.dart';
+
+/// Exception thrown when telemetry transmission over HTTP fails.
+class BloomHttpException implements Exception {
+  final String message;
+  final int? statusCode;
+  final Uri? uri;
+
+  BloomHttpException(this.message, {this.statusCode, this.uri});
+
+  @override
+  String toString() => 'BloomHttpException: $message';
+}
 
 /// Transport contract for dispatching telemetry and crash events.
 abstract class BloomTelemetryTransport {
@@ -74,8 +85,9 @@ class BloomHttpTelemetryTransport implements BloomTelemetryTransport {
           .timeout(timeout);
 
       if (response.statusCode >= 400) {
-        throw HttpException(
+        throw BloomHttpException(
           'Telemetry endpoint rejected event with status ${response.statusCode}: ${response.body}',
+          statusCode: response.statusCode,
           uri: endpoint,
         );
       }
@@ -83,6 +95,7 @@ class BloomHttpTelemetryTransport implements BloomTelemetryTransport {
       if (onError != null) {
         onError!(event, e, stack);
       }
+      rethrow;
     }
   }
 
