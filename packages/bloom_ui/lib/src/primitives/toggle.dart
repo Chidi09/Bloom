@@ -4,11 +4,17 @@ import '../theme/tokens.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
+enum BloomToggleVariant { defaultVariant, outline }
+
+enum BloomToggleSize { defaultSize, sm, lg }
+
 class BloomToggle extends StatefulWidget {
   final bool? checked;
   final bool defaultChecked;
   final ValueChanged<bool>? onPressed;
   final bool disabled;
+  final BloomToggleVariant variant;
+  final BloomToggleSize size;
   final Widget child;
 
   const BloomToggle({
@@ -17,6 +23,8 @@ class BloomToggle extends StatefulWidget {
     this.defaultChecked = false,
     this.onPressed,
     this.disabled = false,
+    this.variant = BloomToggleVariant.defaultVariant,
+    this.size = BloomToggleSize.defaultSize,
     required this.child,
   });
 
@@ -61,27 +69,41 @@ class _BloomToggleState extends State<BloomToggle> {
     final colors = theme.colors;
     final isChecked = _state.value;
     final isInteractive = !widget.disabled;
+    final dims = _resolveSize(widget.size);
+
+    Color bg;
+    Color fg;
+    Color border;
+    if (widget.variant == BloomToggleVariant.outline) {
+      bg = isChecked ? colors.muted : Colors.transparent;
+      fg = colors.textPrimary;
+      border = colors.buttonBorder;
+    } else {
+      bg = isChecked ? colors.muted : Colors.transparent;
+      fg = colors.textPrimary;
+      border = Colors.transparent;
+    }
 
     return Semantics(
       button: true,
       enabled: isInteractive,
       toggled: isChecked,
-      child: GestureDetector(
-        onTap: _toggle,
-        child: AnimatedContainer(
-          duration: BloomMotion.instant,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: GestureDetector(
+          onTap: isInteractive ? _toggle : null,
+          child: AnimatedContainer(
+            duration: BloomMotion.instant,
+            height: dims.height,
+            constraints: BoxConstraints(minWidth: dims.minWidth),
+            padding: dims.padding,
           decoration: BoxDecoration(
-            color: isChecked ? colors.primary : colors.surface1,
-            border: Border.all(
-              color: isChecked ? colors.primary : colors.border,
-            ),
+            color: bg,
+            border: border == Colors.transparent ? null : Border.all(color: border),
             borderRadius: BorderRadius.circular(theme.radius.md),
           ),
           child: DefaultTextStyle(
             style: TextStyle(
-              color: isChecked ? colors.primaryForeground : colors.textPrimary,
-              fontSize: 14,
+              color: fg,
+              fontSize: dims.fontSize,
               fontFamily: theme.typography.sans,
               fontWeight: FontWeight.w500,
             ),
@@ -93,14 +115,30 @@ class _BloomToggleState extends State<BloomToggle> {
   }
 }
 
+_ToggleDims _resolveSize(BloomToggleSize size) {
+  switch (size) {
+    case BloomToggleSize.sm:
+      return const _ToggleDims(height: 28, minWidth: 28, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 12.8);
+    case BloomToggleSize.defaultSize:
+      return const _ToggleDims(height: 32, minWidth: 32, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 14);
+    case BloomToggleSize.lg:
+      return const _ToggleDims(height: 36, minWidth: 36, padding: EdgeInsets.symmetric(horizontal: 10), fontSize: 14);
+  }
+}
+
+class _ToggleDims {
+  final double height;
+  final double minWidth;
+  final EdgeInsets padding;
+  final double fontSize;
+  const _ToggleDims({required this.height, required this.minWidth, required this.padding, required this.fontSize});
+}
+
 class BloomToggleGroupItem<T> {
   final T value;
   final Widget label;
 
-  const BloomToggleGroupItem({
-    required this.value,
-    required this.label,
-  });
+  const BloomToggleGroupItem({required this.value, required this.label});
 }
 
 class BloomToggleGroup<T> extends StatefulWidget {
@@ -109,6 +147,8 @@ class BloomToggleGroup<T> extends StatefulWidget {
   final T defaultValue;
   final ValueChanged<T>? onChanged;
   final bool disabled;
+  final BloomToggleVariant variant;
+  final int spacing;
 
   const BloomToggleGroup({
     super.key,
@@ -117,6 +157,8 @@ class BloomToggleGroup<T> extends StatefulWidget {
     required this.defaultValue,
     this.onChanged,
     this.disabled = false,
+    this.variant = BloomToggleVariant.defaultVariant,
+    this.spacing = 2,
   });
 
   @override
@@ -156,37 +198,18 @@ class _BloomToggleGroupState<T> extends State<BloomToggleGroup<T>> {
   @override
   Widget build(BuildContext context) {
     final theme = context.bloomTheme;
-    final colors = theme.colors;
+    final selected = _state.value;
 
     return Semantics(
       child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
+        spacing: widget.spacing.toDouble(),
+        runSpacing: widget.spacing.toDouble(),
         children: widget.items.map((item) {
-          final selected = _state.value == item.value;
-
-          return GestureDetector(
-            onTap: widget.disabled ? null : () => _select(item.value),
-            child: AnimatedContainer(
-              duration: BloomMotion.instant,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: selected ? colors.primary : colors.surface1,
-                border: Border.all(
-                  color: selected ? colors.primary : colors.border,
-                ),
-                borderRadius: BorderRadius.circular(theme.radius.md),
-              ),
-              child: DefaultTextStyle(
-                style: TextStyle(
-                  color: selected ? colors.primaryForeground : colors.textPrimary,
-                  fontSize: 14,
-                  fontFamily: theme.typography.sans,
-                  fontWeight: FontWeight.w500,
-                ),
-                child: item.label,
-              ),
-            ),
+          return BloomToggle(
+            checked: selected == item.value,
+            onPressed: widget.disabled ? null : (_) => _select(item.value),
+            variant: widget.variant,
+            child: item.label,
           );
         }).toList(),
       ),

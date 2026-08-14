@@ -81,6 +81,8 @@ export 'src/primitives/carousel.dart';
 export 'src/primitives/chart.dart';
 export 'src/primitives/message.dart';
 export 'src/primitives/bubble.dart';
+export 'src/primitives/questionnaire.dart';
+export 'src/primitives/message_scroller.dart';
 
 // Advanced & Composite Primitives
 export 'src/primitives/command_palette.dart';
