@@ -68,24 +68,44 @@ const isActive = (path: string) => {
         Ship
       </a>
       <a
-        href="/bloom"
-        class={`px-4 py-1.5 rounded-xl transition-all ${
-          isActive('/bloom')
-            ? 'bg-white dark:bg-slate-800 text-pink-600 dark:text-pink-400 shadow-sm font-bold'
+        href="/docs/introduction"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/docs')
+            ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
             : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
-        Studio
+        Docs
       </a>
       <a
         href="/ui"
-        class={`px-4 py-1.5 rounded-xl transition-all ${
+        class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/ui')
             ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 shadow-sm font-bold'
             : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Components
+      </a>
+      <a
+        href="/blocks"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/blocks')
+            ? 'bg-white dark:bg-slate-800 text-pink-600 dark:text-pink-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        Blocks
+      </a>
+      <a
+        href="/themes"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/themes')
+            ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        Themes
       </a>
     </nav>
 
@@ -147,8 +167,10 @@ const isActive = (path: string) => {
       <a href="/" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900">Hub</a>
       <a href="/build" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400">Build</a>
       <a href="/ship" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400">Ship</a>
-      <a href="/bloom" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-pink-100 dark:hover:bg-pink-900/30 text-pink-600 dark:text-pink-400">UI Studio</a>
-      <a href="/ui" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-cyan-100 dark:hover:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400">Components Docs</a>
+      <a href="/docs/introduction" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400">Documentation</a>
+      <a href="/ui" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-cyan-100 dark:hover:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400">Components</a>
+      <a href="/blocks" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-pink-100 dark:hover:bg-pink-900/30 text-pink-600 dark:text-pink-400">Blocks</a>
+      <a href="/themes" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400">Theme Studio</a>
       
       <hr class="border-slate-200 dark:border-slate-800 my-4" />
       

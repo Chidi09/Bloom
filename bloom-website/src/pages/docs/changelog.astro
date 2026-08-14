@@ -1,0 +1,77 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { Sparkles, CheckCircle2, ArrowRight } from 'lucide-preact';
+---
+
+<DocsLayout
+  title="Changelog"
+  description="Latest releases, improvements, and updates to the Bloom UI ecosystem."
+  currentSlug="changelog"
+  category="Getting Started"
+  toc={[
+    { id: 'v0-1-0', title: 'v0.1.0 — Initial Release' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Changelog
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        All notable changes and releases for the Bloom UI package and CLI.
+      </p>
+    </div>
+
+    <!-- v0.1.0 -->
+    <section id="v0-1-0" class="space-y-6">
+      <div class="flex items-center gap-3">
+        <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          v0.1.0
+        </span>
+        <span class="text-xs text-slate-500 font-mono">August 2026</span>
+      </div>
+
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
+            🚀 100% shadcn/ui Parity for Flutter
+          </h2>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Initial public release of Bloom UI with 60+ primitives and pure Dart charts built from scratch with zero runtime dependencies.
+          </p>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+          <div class="font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider text-[11px]">
+            Highlights
+          </div>
+          <ul class="space-y-2 list-disc list-inside">
+            <li><strong>60+ Primitives</strong>: Button, Card, Dialog, Sheet, Drawer, Table, Sidebar, Tabs, Calendar, Combobox, and more.</li>
+            <li><strong>Pure Dart Chart Suite</strong>: Area, Bar, Line, Pie, Radar, and Radial charts with responsive drag tooltip tracking.</li>
+            <li><strong>8 Style Presets</strong>: Nova, Vega, Maia, Lyra, Mira, Luma, Sera, Rhea with dark mode synchronization.</li>
+            <li><strong>CLI Workflow</strong>: Full support for <code class="font-mono text-purple-400">bloom ui init</code> and <code class="font-mono text-purple-400">bloom ui add</code>.</li>
+            <li><strong>Pub.dev Release</strong>: Officially published under <code class="font-mono text-emerald-400">bloom_ui: ^0.1.0</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/typography"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Typography</span>
+      </a>
+      <a
+        href="/ui"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Explore All Components</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

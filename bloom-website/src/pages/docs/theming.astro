@@ -1,0 +1,179 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { Palette, Sparkles, Sliders, ArrowRight, Code2 } from 'lucide-preact';
+
+const contextExtCode = `// Access colors
+final colors = context.bloomColors;
+colors.primary;        // Active brand color
+colors.surface0;       // Canvas background (bg-muted/50)
+colors.surface1;       // Card / Popover background
+colors.border;         // Border stroke
+colors.destructive;    // Soft destructive tint
+
+// Access typography
+final typography = context.bloomTypography;
+typography.sans;       // Inter / system sans font family
+typography.mono;       // JetBrains Mono font family
+
+// Access radius
+final radius = context.bloomRadius;
+radius.sm;  // 4.0
+radius.md;  // 6.0
+radius.lg;  // 8.0
+radius.xl;  // 12.0
+
+// Access motion durations
+BloomMotion.fast;      // 150ms spring
+BloomMotion.normal;    // 250ms easeOutCubic`;
+
+const customThemeCode = `final myCustomTheme = BloomTheme(
+  colors: BloomColorScheme(
+    primary: const Color(0xFF6366F1),
+    destructive: const Color(0xFFEF4444),
+    surface0: const Color(0xFF0F172A),
+    surface1: const Color(0xFF1E293B),
+    surface2: const Color(0xFF334155),
+    border: const Color(0xFF334155),
+    ring: const Color(0xFF6366F1),
+    textPrimary: const Color(0xFFF8FAFC),
+    textSecondary: const Color(0xFF94A3B8),
+    textTertiary: const Color(0xFF64748B),
+    cardBackground: const Color(0xFF1E293B),
+    cardBorder: const Color(0xFF334155),
+  ),
+);`;
+---
+
+<DocsLayout
+  title="Theming & Design Tokens"
+  description="Master the 5-petal color palette, 8 style presets, modular spacing, and Flutter ThemeExtensions."
+  currentSlug="theming"
+  category="Getting Started"
+  toc={[
+    { id: 'styles', title: '8 Style Presets' },
+    { id: 'petal-palette', title: '5-Petal Color Palette' },
+    { id: 'context-extensions', title: 'BuildContext Extensions' },
+    { id: 'custom-theme', title: 'Creating Custom Themes' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Theming & Tokens
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom UI provides an opinionated, multi-theme architecture powered by Flutter's official <code class="font-mono text-purple-400">ThemeExtension</code> API. Access colors, typography, radius, and motion directly on any <code class="font-mono text-purple-400">BuildContext</code>.
+      </p>
+    </div>
+
+    <!-- 8 Style Presets -->
+    <section id="styles" class="space-y-6">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        8 Style Presets
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Bloom UI includes 8 curated visual styles corresponding to the modern shadcn style scale:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { name: 'Nova', desc: 'Neutral, crisp, high contrast (Default)', bg: 'bg-zinc-900', ring: 'ring-zinc-400' },
+          { name: 'Vega', desc: 'Warm amber tones, golden accents', bg: 'bg-amber-600', ring: 'ring-amber-400' },
+          { name: 'Maia', desc: 'Emerald forest, clean enterprise tech', bg: 'bg-emerald-600', ring: 'ring-emerald-400' },
+          { name: 'Lyra', desc: 'Tech violet, cyber aesthetics', bg: 'bg-violet-600', ring: 'ring-violet-400' },
+          { name: 'Mira', desc: 'Deep royal blue, oceanic contrast', bg: 'bg-blue-600', ring: 'ring-blue-400' },
+          { name: 'Luma', desc: 'Vibrant neon pink, modern consumer', bg: 'bg-pink-600', ring: 'ring-pink-400' },
+          { name: 'Sera', desc: 'Teal & cyan, fintech precision', bg: 'bg-cyan-600', ring: 'ring-cyan-400' },
+          { name: 'Rhea', desc: 'Sunset orange, dynamic energy', bg: 'bg-orange-600', ring: 'ring-orange-400' },
+        ].map((s) => (
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div class="flex items-center gap-2">
+              <div class={`w-4 h-4 rounded-full ${s.bg}`}></div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">{s.name}</h3>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- 5-Petal Palette -->
+    <section id="petal-palette" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        5-Petal Color Palette
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Bloom's brand identity is built on a harmonious 5-color petal spectrum:
+      </p>
+
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs text-center">
+        <div class="p-4 rounded-xl bg-[#8B5CF6] text-white font-bold">
+          <div>Petal Purple</div>
+          <div class="text-[10px] opacity-80">#8B5CF6</div>
+        </div>
+        <div class="p-4 rounded-xl bg-[#3B82F6] text-white font-bold">
+          <div>Petal Blue</div>
+          <div class="text-[10px] opacity-80">#3B82F6</div>
+        </div>
+        <div class="p-4 rounded-xl bg-[#FF4B8B] text-white font-bold">
+          <div>Petal Pink</div>
+          <div class="text-[10px] opacity-80">#FF4B8B</div>
+        </div>
+        <div class="p-4 rounded-xl bg-[#06B6D4] text-white font-bold">
+          <div>Petal Cyan</div>
+          <div class="text-[10px] opacity-80">#06B6D4</div>
+        </div>
+        <div class="p-4 rounded-xl bg-[#F59E0B] text-white font-bold">
+          <div>Petal Orange</div>
+          <div class="text-[10px] opacity-80">#F59E0B</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BuildContext Extensions -->
+    <section id="context-extensions" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BuildContext Extensions
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Instead of verbose calls, Bloom provides concise extensions:
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{contextExtCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Creating Custom Themes -->
+    <section id="custom-theme" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Creating Custom Themes
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        You can create custom themes by defining a <code class="font-mono text-purple-400">BloomColorScheme</code> and bundling it with your own typography and corner radii:
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{customThemeCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/installation"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Installation</span>
+      </a>
+      <a
+        href="/docs/cli"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: CLI Tooling</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

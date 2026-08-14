@@ -1,0 +1,133 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { ArrowRight, Code2 } from 'lucide-preact';
+---
+
+<DocsLayout
+  title="Typography"
+  description="Styles for headings, paragraphs, lists, and inline text elements."
+  currentSlug="typography"
+  category="Getting Started"
+  toc={[
+    { id: 'h1', title: 'h1 — Heading 1' },
+    { id: 'h2', title: 'h2 — Heading 2' },
+    { id: 'h3', title: 'h3 — Heading 3' },
+    { id: 'p', title: 'p — Paragraph' },
+    { id: 'lead', title: 'lead — Lead text' },
+    { id: 'muted', title: 'muted — Muted text' },
+    { id: 'code', title: 'code — Inline code' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Typography
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        A structured typography scale for headings, body copy, lead text, blockquotes, and code snippets matching shadcn typography guidelines.
+      </p>
+    </div>
+
+    <!-- H1 -->
+    <section id="h1" class="space-y-4">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white lg:text-5xl">
+          The Joke Tax Chronicles
+        </h1>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomHeading.h1('The Joke Tax Chronicles')</code>
+      </div>
+    </section>
+
+    <!-- H2 -->
+    <section id="h2" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <h2 class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          The People of the Kingdom
+        </h2>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomHeading.h2('The People of the Kingdom')</code>
+      </div>
+    </section>
+
+    <!-- H3 -->
+    <section id="h3" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <h3 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          The Joke Tax
+        </h3>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomHeading.h3('The Joke Tax')</code>
+      </div>
+    </section>
+
+    <!-- P -->
+    <section id="p" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <p class="text-sm leading-7 text-slate-700 dark:text-slate-300">
+          The king, thought to be sane by all who knew him, began to tax the telling of jokes. Citizens who laughed too loudly were fined two gold pieces.
+        </p>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomText.p('The king, thought to be sane by all who knew him...')</code>
+      </div>
+    </section>
+
+    <!-- Lead -->
+    <section id="lead" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <p class="text-xl text-slate-600 dark:text-slate-400">
+          A modern and modal design system built for reactive Flutter applications.
+        </p>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomLead('A modern and modal design system built for reactive Flutter applications.')</code>
+      </div>
+    </section>
+
+    <!-- Muted -->
+    <section id="muted" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+          Enter your email address to receive release notifications.
+        </p>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomMuted('Enter your email address to receive release notifications.')</code>
+      </div>
+    </section>
+
+    <!-- Code -->
+    <section id="code" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <code class="relative rounded bg-slate-200 dark:bg-slate-800 px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold text-purple-400">
+          @signals/signals_flutter
+        </code>
+      </div>
+      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>BloomKbd(text: '@signals/signals_flutter')</code>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/cli"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: CLI Reference</span>
+      </a>
+      <a
+        href="/docs/changelog"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Changelog</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

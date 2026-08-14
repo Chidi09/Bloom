@@ -1,0 +1,115 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
+---
+
+<DocsLayout
+  title="CLI Reference"
+  description="Command-line interface for managing Bloom UI components and design tokens."
+  currentSlug="cli"
+  category="Getting Started"
+  toc={[
+    { id: 'init', title: 'bloom ui init' },
+    { id: 'add', title: 'bloom ui add' },
+    { id: 'list', title: 'bloom ui list' },
+    { id: 'diff', title: 'bloom ui diff' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        CLI Reference
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Use the <code class="font-mono text-purple-400">bloom ui</code> CLI to initialize projects, install components, inspect local diffs, and configure design tokens.
+      </p>
+    </div>
+
+    <!-- Init -->
+    <section id="init" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-mono">
+        bloom ui init
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Initializes your Flutter project with the base design token system, color schemes, and configuration file.
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>bloom ui init [options]</code>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold uppercase text-slate-400 font-mono">Options</h3>
+        <ul class="space-y-2 text-xs text-slate-300 font-mono">
+          <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+            <span class="text-purple-400 font-bold">--style &lt;name&gt;</span>: Preferred style preset (nova, vega, maia, lyra, mira, luma, sera, rhea). Default is <code class="text-slate-400">nova</code>.
+          </li>
+          <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+            <span class="text-purple-400 font-bold">--yes / -y</span>: Skip interactive prompts and accept default configuration.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Add -->
+    <section id="add" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-mono">
+        bloom ui add
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Copies the specified component(s) and any required internal primitives into your <code class="font-mono text-purple-400">lib/bloom_ui/primitives/</code> directory.
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300 space-y-2">
+        <div><code># Add single or multiple components</code></div>
+        <div><code>bloom ui add button card dialog chart</code></div>
+        <div class="pt-2 border-t border-slate-800"><code># Add all 60+ primitives</code></div>
+        <div><code>bloom ui add all</code></div>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold uppercase text-slate-400 font-mono">Options</h3>
+        <ul class="space-y-2 text-xs text-slate-300 font-mono">
+          <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+            <span class="text-purple-400 font-bold">--overwrite / -o</span>: Overwrite existing local component files if they already exist.
+          </li>
+          <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+            <span class="text-purple-400 font-bold">--path &lt;custom-path&gt;</span>: Custom target directory for output files.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- List -->
+    <section id="list" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-mono">
+        bloom ui list
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Lists all available components in the Bloom UI registry and shows which ones are currently installed in your project.
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>bloom ui list</code>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/theming"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Theming</span>
+      </a>
+      <a
+        href="/docs/typography"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Typography</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
