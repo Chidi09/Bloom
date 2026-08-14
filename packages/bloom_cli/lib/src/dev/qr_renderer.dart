@@ -2,6 +2,7 @@
 import 'package:qr/qr.dart';
 
 /// Renders QR codes directly into ANSI terminal text using Unicode half-block characters.
+/// Uses standard black foreground on white background to produce an accurate positive QR code.
 class QrTerminalRenderer {
   /// Render [data] string into a multi-line ANSI terminal QR code.
   static String render(String data, {int errorCorrectLevel = QrErrorCorrectLevel.M}) {
@@ -14,7 +15,7 @@ class QrTerminalRenderer {
 
     final buffer = StringBuffer();
 
-    // Border quiet zone (2 modules)
+    // Border quiet zone (2 modules light/white border)
     const quietZone = 2;
     final totalSize = moduleCount + quietZone * 2;
 
@@ -23,17 +24,18 @@ class QrTerminalRenderer {
       final imgX = x - quietZone;
       final imgY = y - quietZone;
       if (imgX < 0 || imgX >= moduleCount || imgY < 0 || imgY >= moduleCount) {
-        return false;
+        return false; // Quiet zone is white/light
       }
       return qrImage.isDark(imgY, imgX);
     }
 
-    // ANSI White background with Black foreground for maximum contrast
+    // ANSI White background with Black foreground
     const whiteBg = '\x1B[47m';
     const blackFg = '\x1B[30m';
     const reset = '\x1B[0m';
 
-    // Group rows in pairs (each row rendered via half blocks ▀, ▄, █, ' ')
+    // Group rows in pairs:
+    // Upper pixel uses foreground black; lower pixel uses background white.
     for (int y = 0; y < totalSize; y += 2) {
       buffer.write('$whiteBg$blackFg');
       for (int x = 0; x < totalSize; x++) {
@@ -41,13 +43,13 @@ class QrTerminalRenderer {
         final bottomDark = (y + 1 < totalSize) ? isDark(x, y + 1) : false;
 
         if (topDark && bottomDark) {
-          buffer.write(' '); // inverted by whiteBg/blackFg
+          buffer.write('█'); // Both pixels dark (black foreground on white bg)
         } else if (topDark && !bottomDark) {
-          buffer.write('▄');
+          buffer.write('▀'); // Top pixel dark, bottom light (upper half block)
         } else if (!topDark && bottomDark) {
-          buffer.write('▀');
+          buffer.write('▄'); // Top pixel light, bottom dark (lower half block)
         } else {
-          buffer.write('█');
+          buffer.write(' '); // Both pixels light (white background)
         }
       }
       buffer.writeln(reset);

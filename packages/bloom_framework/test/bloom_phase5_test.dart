@@ -27,6 +27,14 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('throws on empty host in URI', () {
+      final uri = Uri.parse('bloom://dev-server?host=&port=8080');
+      expect(
+        () => BloomGoClient.parseDevServerUri(uri),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 
   group('Phase 5: BloomProjectManifest Model', () {
@@ -53,6 +61,14 @@ void main() {
       expect(manifest.routes.length, 2);
       expect(manifest.routes.first['path'], '/');
       expect(manifest.platforms['android']['min_sdk'], 26);
+    });
+  });
+
+  group('Phase 5: Discovery Listener', () {
+    test('instantiates discovery listener', () {
+      final listener = BloomDiscoveryListener();
+      expect(listener, isNotNull);
+      listener.stop();
     });
   });
 }
