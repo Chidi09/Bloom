@@ -58,18 +58,18 @@ native_modules:
       expect(file.readAsStringSync(), contains("const String kBloomRuntimeFingerprint = '$hash1';"));
     });
 
-    test('CLI update subcommands execute successfully with explicit project-dir', () async {
+    test('CLI update subcommands persist manifests, adjust rollouts with validation, and handle rollbacks', () async {
       final appDir = Directory(p.join(tempDir.path, 'cli_app'))..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: cli_app\n');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(UpdateCommand());
 
-      // 1. Check
-      final checkCode = await runner.run(['update', 'check', '--project-dir=${appDir.path}']);
-      expect(checkCode, 0);
+      // 1. Initial check (no updates yet)
+      final checkEmptyCode = await runner.run(['update', 'check', '--project-dir=${appDir.path}']);
+      expect(checkEmptyCode, 0);
 
-      // 2. Publish
+      // 2. Publish update with 50% rollout
       final pubCode = await runner.run([
         'update',
         'publish',
@@ -81,17 +81,45 @@ native_modules:
       ]);
       expect(pubCode, 0);
 
-      // 3. Rollout
-      final rolloutCode = await runner.run([
+      // Verify manifest persistence in .bloom/updates/manifests.json
+      final storageFile = File(p.join(appDir.path, '.bloom', 'updates', 'manifests.json'));
+      expect(storageFile.existsSync(), isTrue);
+      final content = storageFile.readAsStringSync();
+      expect(content, contains('Hotfix 1.0.1'));
+      expect(content, contains('"rollout_percentage": 50'));
+      expect(content, contains('"status": "active"'));
+
+      // Extract generated update ID
+      final match = RegExp(r'"id":\s*"(upd_[^"]+)"').firstMatch(content);
+      expect(match, isNotNull);
+      final updateId = match!.group(1)!;
+
+      // 3. Rollout range validation: reject invalid percentage > 100
+      final invalidRolloutCode = await runner.run([
         'update',
         'rollout',
-        '--id=upd_1234',
+        '--id=$updateId',
+        '--percentage=150',
+        '--project-dir=${appDir.path}',
+      ]);
+      expect(invalidRolloutCode, 1);
+
+      // 4. Valid rollout to 100%
+      final validRolloutCode = await runner.run([
+        'update',
+        'rollout',
+        '--id=$updateId',
         '--percentage=100',
         '--project-dir=${appDir.path}',
       ]);
-      expect(rolloutCode, 0);
+      expect(validRolloutCode, 0);
+      expect(storageFile.readAsStringSync(), contains('"rollout_percentage": 100'));
 
-      // 4. Rollback
+      // 5. Check reports available update
+      final checkCode = await runner.run(['update', 'check', '--project-dir=${appDir.path}']);
+      expect(checkCode, 0);
+
+      // 6. Rollback
       final rollbackCode = await runner.run([
         'update',
         'rollback',
@@ -99,8 +127,9 @@ native_modules:
         '--project-dir=${appDir.path}',
       ]);
       expect(rollbackCode, 0);
+      expect(storageFile.readAsStringSync(), contains('"status": "rolled_back"'));
 
-      // 5. Fingerprint
+      // 7. Fingerprint command
       final fpCode = await runner.run(['update', 'fingerprint', '--project-dir=${appDir.path}']);
       expect(fpCode, 0);
     });
