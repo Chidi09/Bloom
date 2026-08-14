@@ -38,8 +38,10 @@ class BloomAuth<U> implements BloomAuthBase {
         toJson = toJson ?? userSerializer {
     _currentUser = signal<U?>(null, debugLabel: 'auth.currentUser');
     _token = signal<String?>(null, debugLabel: 'auth.token');
-    _isAuthenticated = computed<bool>(() => _currentUser.value != null && _token.value != null,
-        debugLabel: 'auth.isAuthenticated');
+    _isAuthenticated = computed<bool>(
+      () => _currentUser.value != null && _token.value != null && _token.value!.isNotEmpty,
+      debugLabel: 'auth.isAuthenticated',
+    );
 
     if (autoProvide) {
       globalContainer.provideValue<BloomAuthBase>(this);

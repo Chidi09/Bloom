@@ -146,7 +146,7 @@ class Bloom {
     _config = const BloomConfig();
     _activeFlavor = null;
     BloomEnv.clear();
-    container.reset();
+    resetActiveContainer();
     BloomDeepLinks.dispose();
     BloomData.stopGarbageCollector();
     BloomOTA.reset();
