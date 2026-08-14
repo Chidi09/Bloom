@@ -57,5 +57,8 @@ export 'src/deployment/bloom_ota.dart';
 export 'src/adapters/supabase_adapter.dart';
 export 'src/adapters/serverpod_adapter.dart';
 
+// Native Module Platform & DSL (Phase 9)
+export 'bloom_modules.dart';
+
 // Widgets
 export 'src/widgets/app.dart';

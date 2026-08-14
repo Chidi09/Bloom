@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
+import 'create_module_command.dart';
 
 class CreateCommand extends Command<int> {
   @override
@@ -39,6 +40,22 @@ class CreateCommand extends Command<int> {
       print(Ansi.error('Please specify a project name.'));
       print('Usage: bloom create <app_name>');
       return 1;
+    }
+
+    if (rest.first == 'module') {
+      if (rest.length < 2) {
+        print(Ansi.error('Please specify a module name.'));
+        print('Usage: bloom create module <module_name>');
+        return 1;
+      }
+      final moduleName = rest[1].trim().toLowerCase().replaceAll('-', '_');
+      return CreateModuleCommand.executeScaffold(
+        moduleName: moduleName,
+        org: argResults?['org'] as String? ?? 'dev.bloom',
+        description: argResults?['description'] as String? ??
+            'A high-performance native module built with Bloom Module DSL',
+        frameworkPath: argResults?['framework-path'] as String?,
+      );
     }
 
     final appName = rest.first.trim().toLowerCase().replaceAll('-', '_');
