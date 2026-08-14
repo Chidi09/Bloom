@@ -25,7 +25,7 @@ class BloomAvatar extends StatelessWidget {
       height: size,
       decoration: ShapeDecoration(
         shape: shape,
-        color: colors.primary.withOpacity(0.12),
+        color: colors.primary.withValues(alpha: 0.12),
         image: imageUrl != null
             ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,

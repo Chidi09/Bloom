@@ -34,7 +34,7 @@ class BloomNavigationMenu extends StatelessWidget {
       selectedIndex: selectedIndex,
       onDestinationSelected: onDestinationSelected,
       backgroundColor: colors.surface1,
-      indicatorColor: colors.primary.withOpacity(0.15),
+      indicatorColor: colors.primary.withValues(alpha: 0.15),
       destinations: items.map((item) {
         return NavigationDestination(
           icon: item.icon,
