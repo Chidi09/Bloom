@@ -1,0 +1,152 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { Sparkles, Terminal, Layers, ShieldCheck, Zap, ArrowRight, ExternalLink } from 'lucide-preact';
+---
+
+<DocsLayout
+  title="Introduction"
+  description="Re-usable, accessible, token-driven Flutter UI primitives inspired by shadcn/ui."
+  currentSlug="introduction"
+  category="Getting Started"
+  toc={[
+    { id: 'philosophy', title: 'Philosophy' },
+    { id: 'why-not-component-lib', title: 'Why not a typical package?' },
+    { id: 'accessibility', title: 'Accessibility & Semantics' },
+    { id: 'faq', title: 'FAQ' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Introduction
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom UI is a collection of beautifully designed, accessible, token-driven Flutter primitives inspired by shadcn/ui. Zero runtime dependencies, 100% Flutter Impeller 60fps rendering, and complete source code ownership.
+      </p>
+    </div>
+
+    <!-- Philosophy -->
+    <section id="philosophy" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <span>Philosophy</span>
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Flutter is one of the most powerful multi-platform UI engines in the world, but developers are often forced to choose between rigid Material defaults or heavy third-party packages that drag in dozens of conflicting transitive dependencies.
+      </p>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Bloom UI brings the <strong>shadcn/ui design philosophy</strong> to Flutter:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center font-bold">
+            1
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">You Own the Code</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Use the <code class="text-purple-400">bloom ui add</code> CLI to copy source files directly into your repository. Modify padding, animations, colors, or structure however you like.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div class="w-8 h-8 rounded-lg bg-pink-500/10 text-pink-500 flex items-center justify-center font-bold">
+            2
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Zero Runtime Dependencies</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            All 60+ primitives (including our full chart suite) are written using pure Flutter foundational widgets, custom painters, and animation controllers. No third-party lock-in.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-500 flex items-center justify-center font-bold">
+            3
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Strict Design Token System</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Every component adheres to a calibrated 4px spacing scale, 5-petal color palette, 8 style themes (Nova, Vega, Maia, etc.), and fluid spring physics.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+            4
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Package or Copy-Paste</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Want simple zero-maintenance dependency updates? Add <code class="text-emerald-400">bloom_ui</code> from pub.dev. Want total customization? Copy components individually.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why not a component library? -->
+    <section id="why-not-component-lib" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Why not a typical component package?
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Typical component libraries distribute monolithic, closed packages via package managers. When you need to tweak an internal animation curve or adapt a slot for your design system, you're forced to fork the entire repository or hack around with overrides.
+      </p>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        With Bloom UI, the code belongs to you. It lives in your <code class="font-mono text-purple-400">lib/bloom_ui/</code> directory as readable, well-commented Dart files.
+      </p>
+    </section>
+
+    <!-- Accessibility -->
+    <section id="accessibility" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Accessibility & Semantics
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Every component is built with accessibility as a first-class citizen:
+      </p>
+      <ul class="list-disc list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+        <li><strong>Flutter Semantics</strong>: Full support for TalkBack (Android) and VoiceOver (iOS) screen readers.</li>
+        <li><strong>Focus Trapping & Keyboard Navigation</strong>: Modals, dialogs, drawers, and menus handle Esc keys, Tab traversals, and return focus on close.</li>
+        <li><strong>WCAG AA Contrast Ratios</strong>: Both light and dark theme palettes exceed accessibility contrast standards.</li>
+        <li><strong>Touch Targets</strong>: Minimum 44x44px touch targets on mobile viewports.</li>
+      </ul>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="space-y-6">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Frequently Asked Questions</h2>
+      
+      <div class="space-y-4">
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-1.5">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Is Bloom UI free and open source?</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Yes! Bloom UI is 100% free and licensed under MIT. You can use it in personal, open source, or enterprise commercial projects.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-1.5">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Does Bloom UI work on Web, macOS, Windows, and Linux?</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Yes! Bloom UI runs on iOS, Android, Web (WASM & HTML renderer), macOS, Windows, and Linux with full responsive support and desktop hover/right-click menus.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-1.5">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">How does it compare to shadcn/ui?</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Bloom UI is the official Flutter counterpart to shadcn/ui. It shares the exact same primitives, naming conventions, compound slot architecture, and style presets (Nova, Vega, Maia, Lyra, etc.).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+      <a
+        href="/docs/installation"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Installation</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

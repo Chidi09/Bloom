@@ -1,0 +1,220 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import { Terminal, Package, Sparkles, ArrowRight, Code2, Copy, Check } from 'lucide-preact';
+
+const mainDartCode = `import 'package:flutter/material.dart';
+import 'package:bloom_ui/bloom_ui.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'My Bloom App',
+      theme: ThemeData(
+        brightness: Brightness.light,
+        extensions: const [BloomTheme.light], // or BloomTheme.novaLight, vegaLight, etc.
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        extensions: const [BloomTheme.dark],
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}`;
+
+const bloomConfigCode = `{
+  "$schema": "https://bloom.dev/schema.json",
+  "style": "nova",
+  "rsc": false,
+  "aliases": {
+    "components": "lib/bloom_ui/primitives",
+    "theme": "lib/bloom_ui/theme",
+    "utils": "lib/bloom_ui/utils"
+  }
+}`;
+---
+
+<DocsLayout
+  title="Installation"
+  description="How to install and set up Bloom UI in your Flutter application."
+  currentSlug="installation"
+  category="Getting Started"
+  toc={[
+    { id: 'cli-workflow', title: 'Option 1: CLI Workflow (Recommended)' },
+    { id: 'pub-package', title: 'Option 2: Pub.dev Package' },
+    { id: 'setup-theme', title: 'Setup Theme & Extensions' },
+    { id: 'bloom-config', title: 'Configuration File' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Installation
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Get started with Bloom UI in less than 2 minutes. Choose between the shadcn-style CLI workflow (where you own the component code) or the standard pub.dev package.
+      </p>
+    </div>
+
+    <!-- Option 1: CLI Workflow -->
+    <section id="cli-workflow" class="space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+          1
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Option 1: CLI Workflow (Recommended)
+        </h2>
+      </div>
+
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The Bloom CLI manages design tokens, installs individual primitives directly into your <code class="font-mono text-purple-400">lib/bloom_ui/</code> folder, and ensures zero runtime dependencies.
+      </p>
+
+      <!-- Step 1: Install CLI -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">1. Activate the Bloom CLI globally:</h3>
+        <div class="relative rounded-2xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-purple-300 flex items-center justify-between">
+          <code>dart pub global activate bloom_cli</code>
+          <button
+            onclick="navigator.clipboard.writeText('dart pub global activate bloom_cli'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied', message: 'Ready to paste in terminal.', type: 'emerald' } }))"
+            class="p-1.5 text-slate-400 hover:text-white transition"
+          >
+            📋
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Init Project -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">2. Initialize Bloom UI in your Flutter project:</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400">
+          Run this command in the root of your Flutter project. It will prompt you for your preferred style theme (Nova, Vega, Maia, etc.) and write the base token system to <code class="text-purple-400">lib/bloom_ui/theme/</code>.
+        </p>
+        <div class="relative rounded-2xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-purple-300 flex items-center justify-between">
+          <code>bloom ui init</code>
+          <button
+            onclick="navigator.clipboard.writeText('bloom ui init'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied', message: 'Ready to paste in terminal.', type: 'emerald' } }))"
+            class="p-1.5 text-slate-400 hover:text-white transition"
+          >
+            📋
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Add Components -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">3. Add components as needed:</h3>
+        <div class="relative rounded-2xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-purple-300 space-y-2">
+          <div class="flex items-center justify-between">
+            <code># Add individual components</code>
+          </div>
+          <div class="flex items-center justify-between">
+            <code>bloom ui add button card dialog chart</code>
+            <button
+              onclick="navigator.clipboard.writeText('bloom ui add button card dialog chart'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied', message: 'Ready to paste in terminal.', type: 'emerald' } }))"
+              class="p-1.5 text-slate-400 hover:text-white transition"
+            >
+              📋
+            </button>
+          </div>
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+            <code># Or add all 60+ components at once</code>
+          </div>
+          <div class="flex items-center justify-between">
+            <code>bloom ui add all</code>
+            <button
+              onclick="navigator.clipboard.writeText('bloom ui add all'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied', message: 'Ready to paste in terminal.', type: 'emerald' } }))"
+              class="p-1.5 text-slate-400 hover:text-white transition"
+            >
+              📋
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Option 2: Pub.dev Package -->
+    <section id="pub-package" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center font-bold">
+          2
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Option 2: Pub.dev Package
+        </h2>
+      </div>
+
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        If you prefer managing Bloom UI as a standard pub.dev package:
+      </p>
+
+      <div class="space-y-3">
+        <div class="relative rounded-2xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-pink-300 flex items-center justify-between">
+          <code>flutter pub add bloom_ui</code>
+          <button
+            onclick="navigator.clipboard.writeText('flutter pub add bloom_ui'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied', message: 'Ready to paste in terminal.', type: 'emerald' } }))"
+            class="p-1.5 text-slate-400 hover:text-white transition"
+          >
+            📋
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup Theme -->
+    <section id="setup-theme" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Setup Theme & Extensions
+      </h2>
+
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Wrap your root <code class="font-mono text-purple-400">MaterialApp</code> with the <code class="font-mono text-purple-400">BloomTheme</code> extension in your <code class="font-mono text-purple-400">lib/main.dart</code>:
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{mainDartCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Configuration File -->
+    <section id="bloom-config" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        bloom.config.json
+      </h2>
+
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The <code class="font-mono text-purple-400">bloom.config.json</code> file at the root of your project defines your target directory, style preset, and custom aliases:
+      </p>
+
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{bloomConfigCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/introduction"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Introduction</span>
+      </a>
+      <a
+        href="/docs/theming"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Theming & Tokens</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
