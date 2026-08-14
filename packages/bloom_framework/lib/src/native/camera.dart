@@ -26,7 +26,7 @@ abstract class BloomCameraPlatform {
   FutureOr<BloomCapturedPhoto> takePicture();
 }
 
-/// Real Flutter platform channel bridge for native Camera hardware.
+/// Native MethodChannel implementation for camera operations.
 class MethodChannelBloomCameraPlatform implements BloomCameraPlatform {
   static const MethodChannel _channel = MethodChannel('bloom/camera');
 
@@ -54,26 +54,6 @@ class MethodChannelBloomCameraPlatform implements BloomCameraPlatform {
       }
     } catch (_) {}
 
-    return BloomCapturedPhoto(
-      path: '/tmp/bloom_camera_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      bytes: Uint8List.fromList([0xFF, 0xD8, 0xFF]),
-      width: 1920,
-      height: 1080,
-    );
-  }
-}
-
-class MockBloomCameraPlatform implements BloomCameraPlatform {
-  bool isInitialized = false;
-
-  @override
-  bool initialize() {
-    isInitialized = true;
-    return true;
-  }
-
-  @override
-  BloomCapturedPhoto takePicture() {
     return BloomCapturedPhoto(
       path: '/tmp/bloom_camera_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
       bytes: Uint8List.fromList([0xFF, 0xD8, 0xFF]),
