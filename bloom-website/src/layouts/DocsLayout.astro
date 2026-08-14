@@ -1,28 +1,24 @@
 ---
 import Layout from './Layout.astro';
-import { 
-  BookOpen, 
-  Layers, 
-  Terminal, 
-  Sliders, 
-  Palette, 
-  Sparkles, 
-  Box, 
-  ChevronRight, 
-  ArrowLeft, 
-  ArrowRight,
-  ExternalLink,
-  Code2,
-  Cpu,
-  Workflow,
-  ShieldCheck,
-  Zap,
-  Server,
-  Smartphone,
-  CheckCircle2,
-  Copy
-} from 'lucide-preact';
 import { UI_REGISTRY, UI_CATEGORIES } from '../lib/ui-registry';
+import { 
+  ChevronRight, 
+  Terminal, 
+  Layers, 
+  Code2, 
+  Sparkles, 
+  Cpu, 
+  Database, 
+  Workflow, 
+  ShieldCheck, 
+  Server, 
+  Sliders, 
+  Smartphone, 
+  FolderTree, 
+  Zap,
+  Boxes,
+  Palette
+} from 'lucide-preact';
 
 interface Props {
   title: string;
@@ -42,28 +38,46 @@ const {
 
 const currentPath = Astro.url.pathname;
 
-const docNavSections = [
+// Detect active scope
+const isUIMode =
+  currentPath.startsWith('/ui') ||
+  currentPath.startsWith('/blocks') ||
+  currentPath.startsWith('/themes') ||
+  ['introduction', 'installation', 'theming', 'typography', 'changelog'].includes(currentSlug);
+
+// UI Scope Navigation
+const uiGettingStarted = [
+  { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
+  { title: 'Installation', href: '/docs/installation', slug: 'installation' },
+  { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
+  { title: 'Typography', href: '/docs/typography', slug: 'typography' },
+  { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
+];
+
+const uiBlocksAndThemes = [
+  { title: 'Application Blocks', href: '/blocks', slug: 'blocks', icon: Boxes },
+  { title: 'Theme Generator', href: '/themes', slug: 'themes', icon: Palette },
+  { title: 'Components Gallery', href: '/ui', slug: 'ui', icon: Layers },
+];
+
+// Framework Scope Navigation
+const frameworkNavSections = [
   {
     title: 'Getting Started',
     items: [
-      { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
-      { title: 'Installation', href: '/docs/installation', slug: 'installation' },
       { title: '5-Minute Quickstart', href: '/docs/framework/quickstart', slug: 'framework-quickstart' },
       { title: 'Project Anatomy', href: '/docs/getting-started/project-anatomy', slug: 'getting-started-project-anatomy' },
       { title: 'bloom.yaml Reference', href: '/docs/getting-started/bloom-yaml-reference', slug: 'getting-started-bloom-yaml-reference' },
-      { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
-      { title: 'Typography', href: '/docs/typography', slug: 'typography' },
-      { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
     ],
   },
   {
     title: 'Runtime & Architecture',
     items: [
-      { title: 'Boot & Lifecycle', href: '/docs/framework/boot', slug: 'framework-boot' },
+      { title: 'Boot & Lifecycle', href: '/docs/runtime/boot-lifecycle', slug: 'framework-boot' },
       { title: 'Config & Environment', href: '/docs/runtime/config-and-env', slug: 'runtime-config-and-env' },
-      { title: 'Filesystem Routing', href: '/docs/framework/routing', slug: 'framework-routing' },
-      { title: 'Signals Reactivity', href: '/docs/framework/signals', slug: 'framework-signals' },
-      { title: 'Dependency Injection', href: '/docs/framework/di', slug: 'framework-di' },
+      { title: 'Filesystem Routing', href: '/docs/runtime/filesystem-routing', slug: 'framework-routing' },
+      { title: 'Signals Reactivity', href: '/docs/runtime/signals-and-controllers', slug: 'framework-signals' },
+      { title: 'Dependency Injection', href: '/docs/runtime/dependency-injection', slug: 'framework-di' },
       { title: 'Structured Logging', href: '/docs/runtime/logging', slug: 'runtime-logging' },
     ],
   },
@@ -84,7 +98,7 @@ const docNavSections = [
   {
     title: 'Native & Prebuild',
     items: [
-      { title: 'Prebuild & Native Sync', href: '/docs/framework/native', slug: 'framework-native' },
+      { title: 'Prebuild & Native Sync', href: '/docs/native/prebuild-engine', slug: 'framework-native' },
       { title: 'Permissions', href: '/docs/native/permissions', slug: 'native-permissions' },
       { title: 'Deep Links', href: '/docs/native/deep-links', slug: 'native-deep-links' },
       { title: 'Flavors & Schemes', href: '/docs/native/flavors', slug: 'native-flavors' },
@@ -147,14 +161,6 @@ const docNavSections = [
       { title: 'Platform Capabilities', href: '/docs/transparency/platform-capabilities', slug: 'transparency-platform-capabilities' },
     ],
   },
-  {
-    title: 'Studio & Templates',
-    items: [
-      { title: 'Theme Generator', href: '/themes', slug: 'themes' },
-      { title: 'Application Blocks', href: '/blocks', slug: 'blocks' },
-      { title: 'Component Gallery', href: '/ui', slug: 'ui' },
-    ],
-  },
 ];
 ---
 
@@ -170,7 +176,9 @@ const docNavSections = [
     <nav class="flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400 mb-8">
       <a href="/" class="hover:text-purple-400 transition">Hub</a>
       <ChevronRight className="w-3.5 h-3.5" />
-      <a href="/docs/introduction" class="hover:text-purple-400 transition">Docs</a>
+      <a href={isUIMode ? '/ui' : '/docs/framework/quickstart'} class="hover:text-purple-400 transition">
+        {isUIMode ? 'Bloom UI' : 'Framework'}
+      </a>
       <ChevronRight className="w-3.5 h-3.5" />
       <span class="text-slate-400">{category}</span>
       <ChevronRight className="w-3.5 h-3.5" />
@@ -181,51 +189,48 @@ const docNavSections = [
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
       
       <!-- Left Navigation Sidebar -->
-      <aside class="hidden lg:block lg:col-span-3 space-y-8 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-4 scrollbar-thin">
+      <aside class="hidden lg:block lg:col-span-3 space-y-6 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-4 scrollbar-thin">
         
-        <!-- Navigation Sections -->
-        {docNavSections.map((section) => (
-          <div class="space-y-2">
-            <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
-              {section.title}
-            </h3>
-            <ul class="space-y-1">
-              {section.items.map((item) => (
-                <li>
-                  <a
-                    href={item.href}
-                    class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      currentPath === item.href || currentSlug === item.slug
-                        ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/50'
-                    }`}
-                  >
-                    {item.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <!-- Context Scope Switcher -->
+        <div class="flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-xs font-semibold shadow-inner">
+          <a
+            href="/ui"
+            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
+              isUIMode
+                ? 'bg-purple-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>UI Primitives</span>
+          </a>
+          <a
+            href="/docs/framework/quickstart"
+            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
+              !isUIMode
+                ? 'bg-purple-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>Framework</span>
+          </a>
+        </div>
 
-        <hr class="border-slate-200 dark:border-slate-800" />
-
-        <!-- Primitives by Category -->
-        {UI_CATEGORIES.map((cat) => {
-          const items = UI_REGISTRY.filter((c) => c.category === cat);
-          return (
+        {isUIMode ? (
+          <div class="space-y-6">
+            <!-- Getting Started (UI) -->
             <div class="space-y-2">
-              <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-                <span>{cat}</span>
-                <span class="text-[10px] text-slate-400 font-normal">{items.length}</span>
+              <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
+                Getting Started
               </h3>
               <ul class="space-y-1">
-                {items.map((item) => (
+                {uiGettingStarted.map((item) => (
                   <li>
                     <a
-                      href={`/ui/${item.slug}`}
+                      href={item.href}
                       class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        currentSlug === item.slug
+                        currentPath === item.href || currentSlug === item.slug
                           ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/50'
                       }`}
@@ -236,8 +241,92 @@ const docNavSections = [
                 ))}
               </ul>
             </div>
-          );
-        })}
+
+            <!-- Blocks & Themes -->
+            <div class="space-y-2">
+              <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
+                Studio & Templates
+              </h3>
+              <ul class="space-y-1">
+                {uiBlocksAndThemes.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li>
+                      <a
+                        href={item.href}
+                        class={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          currentPath === item.href || currentSlug === item.slug
+                            ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/50'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 text-purple-400" />
+                        <span>{item.title}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <hr class="border-slate-200 dark:border-slate-800" />
+
+            <!-- Primitives by Category -->
+            {UI_CATEGORIES.map((cat) => {
+              const items = UI_REGISTRY.filter((c) => c.category === cat);
+              return (
+                <div class="space-y-2">
+                  <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                    <span>{cat}</span>
+                    <span class="text-[10px] text-slate-400 font-mono font-normal">{items.length}</span>
+                  </h3>
+                  <ul class="space-y-1">
+                    {items.map((item) => (
+                      <li>
+                        <a
+                          href={`/ui/${item.slug}`}
+                          class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            currentSlug === item.slug
+                              ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/50'
+                          }`}
+                        >
+                          {item.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div class="space-y-6">
+            {frameworkNavSections.map((section) => (
+              <div class="space-y-2">
+                <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
+                  {section.title}
+                </h3>
+                <ul class="space-y-1">
+                  {section.items.map((item) => (
+                    <li>
+                      <a
+                        href={item.href}
+                        class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          currentPath === item.href || currentSlug === item.slug
+                            ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/50'
+                        }`}
+                      >
+                        {item.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </aside>
 
       <!-- Center / Main Documentation Content Area -->
@@ -250,129 +339,129 @@ const docNavSections = [
         <div class="font-mono font-bold text-slate-900 dark:text-slate-300 uppercase tracking-wider">
           On This Page
         </div>
-        <ul id="tocList" class="space-y-1.5 text-slate-600 dark:text-slate-400">
-          <li>
-            <a
-              href="#overview"
-              data-toc-link="overview"
-              class="toc-item block py-1 -ml-4 pl-3.5 border-l-2 border-transparent transition-all hover:text-slate-900 dark:hover:text-white"
-            >
-              Overview
-            </a>
-          </li>
-          {toc.map((t) => (
-            <li>
-              <a
-                href={`#${t.id}`}
-                data-toc-link={t.id}
-                class="toc-item block py-1 -ml-4 pl-3.5 border-l-2 border-transparent transition-all hover:text-slate-900 dark:hover:text-white"
-              >
-                {t.title}
-              </a>
-            </li>
-          ))}
-        </ul>
+        
+        {toc.length > 0 ? (
+          <ul id="toc-nav" class="space-y-2 text-slate-500 dark:text-slate-400">
+            {toc.map((item) => (
+              <li>
+                <a
+                  href={`#${item.id}`}
+                  data-toc-target={item.id}
+                  class="toc-link block hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-150 py-0.5"
+                >
+                  {item.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="text-slate-400 text-xs italic">No sections on this page</p>
+        )}
 
-        <div class="pt-6 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-xs">
+        <hr class="border-slate-200/60 dark:border-slate-800/80 pt-2" />
+
+        <div class="space-y-3 pt-2">
           <a
             href="https://github.com/bloom-framework/bloom"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center gap-1.5 text-slate-500 hover:text-purple-400 transition"
+            class="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition"
           >
-            <span>Edit on GitHub</span>
-            <ExternalLink className="w-3 h-3" />
+            <Code2 className="w-3.5 h-3.5" />
+            <span>Edit this page on GitHub</span>
           </a>
           <a
-            href="https://pub.dev/packages/bloom_ui"
+            href="https://github.com/bloom-framework/bloom/issues/new"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center gap-1.5 text-slate-500 hover:text-purple-400 transition"
+            class="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition"
           >
-            <span>bloom_ui on pub.dev</span>
-            <ExternalLink className="w-3 h-3" />
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Report an issue</span>
           </a>
         </div>
       </aside>
-
     </div>
   </div>
+</Layout>
 
-  <!-- ScrollSpy Client Logic -->
-  <script is:inline>
-    (function initDocsScrollSpy() {
-      const tocLinks = document.querySelectorAll('.toc-item[data-toc-link]');
-      if (!tocLinks.length) return;
+<!-- Client-side High-Performance ScrollSpy Script -->
+<script is:inline>
+  function setupScrollSpy() {
+    const tocLinks = document.querySelectorAll('.toc-link');
+    if (!tocLinks.length) return;
 
-      const sectionIds = Array.from(tocLinks).map((link) => link.getAttribute('data-toc-link')).filter(Boolean);
-      const sectionElements = sectionIds
-        .map((id) => document.getElementById(id))
-        .filter((el) => el !== null);
-
-      if (!sectionElements.length) return;
-
-      let activeId = sectionIds[0];
-
-      function setActive(id) {
-        if (activeId === id) return;
-        activeId = id;
-
-        tocLinks.forEach((link) => {
-          const targetId = link.getAttribute('data-toc-link');
-          if (targetId === id) {
-            link.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'font-normal');
-            link.classList.add(
-              'text-purple-600',
-              'dark:text-purple-400',
-              'font-bold',
-              'border-purple-600',
-              'dark:border-purple-400',
-              'translate-x-1'
-            );
-          } else {
-            link.classList.remove(
-              'text-purple-600',
-              'dark:text-purple-400',
-              'font-bold',
-              'border-purple-600',
-              'dark:border-purple-400',
-              'translate-x-1'
-            );
-            link.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'font-normal');
-          }
-        });
-      }
-
-      setActive(activeId);
-
-      let ticking = false;
-      function onScroll() {
-        if (!ticking) {
-          window.requestAnimationFrame(() => {
-            const scrollPos = window.scrollY + 140;
-
-            let current = sectionElements[0]?.id || 'overview';
-            for (let i = 0; i < sectionElements.length; i++) {
-              const el = sectionElements[i];
-              if (el && el.offsetTop <= scrollPos) {
-                current = el.id;
-              }
-            }
-
-            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 50) {
-              const lastEl = sectionElements[sectionElements.length - 1];
-              if (lastEl) current = lastEl.id;
-            }
-
-            setActive(current);
-            ticking = false;
-          });
-          ticking = true;
+    const sections = [];
+    tocLinks.forEach((link) => {
+      const targetId = link.getAttribute('data-toc-target');
+      if (targetId) {
+        const el = document.getElementById(targetId);
+        if (el) {
+          sections.push({ id: targetId, el, link });
         }
       }
+    });
 
-      window.addEventListener('scroll', onScroll, { passive: true });
-      document.addEventListener('astro:page-load', initDocsScrollSpy);
-    })();
-  </script>
-</Layout>
+    if (!sections.length) return;
+
+    let ticking = false;
+
+    function onScroll() {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollPosition = window.scrollY + 120; // 120px offset for sticky header
+          let currentActive = sections[0];
+
+          for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+            const top = section.el.offsetTop;
+            if (scrollPosition >= top) {
+              currentActive = section;
+            }
+          }
+
+          sections.forEach((s) => {
+            if (s === currentActive) {
+              s.link.classList.add('text-purple-600', 'dark:text-purple-400', 'font-bold', 'translate-x-1', 'border-l-2', 'border-purple-500', 'pl-2');
+              s.link.classList.remove('text-slate-500', 'dark:text-slate-400');
+            } else {
+              s.link.classList.remove('text-purple-600', 'dark:text-purple-400', 'font-bold', 'translate-x-1', 'border-l-2', 'border-purple-500', 'pl-2');
+              s.link.classList.add('text-slate-500', 'dark:text-slate-400');
+            }
+          });
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // Run immediately on mount
+  }
+
+  // Setup on page load and on view transitions
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupScrollSpy);
+  } else {
+    setupScrollSpy();
+  }
+  document.addEventListener('astro:page-load', setupScrollSpy);
+</script>
+
+<style>
+  /* Custom scrollbar styling for navigation sidebars */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.4);
+  }
+</style>
