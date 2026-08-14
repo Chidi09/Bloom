@@ -146,7 +146,21 @@ class BloomContainer {
 }
 
 /// Global active container used by the framework.
-BloomContainer globalContainer = BloomContainer();
+BloomContainer _activeContainer = BloomContainer();
+
+/// Access the global active Bloom DI container.
+BloomContainer get globalContainer => _activeContainer;
+
+/// Set the currently active container (used by BloomTestScope for test isolation).
+void setActiveContainer(BloomContainer container) {
+  _activeContainer = container;
+}
+
+/// Reset active container to a fresh instance.
+void resetActiveContainer() {
+  _activeContainer.reset();
+  _activeContainer = BloomContainer();
+}
 
 /// Resolve a dependency from the global Bloom container.
 T inject<T>() => globalContainer.inject<T>();

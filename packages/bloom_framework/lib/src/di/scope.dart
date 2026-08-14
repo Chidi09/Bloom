@@ -9,25 +9,25 @@ class BloomTestOverride<T> {
 }
 
 /// A scoped DI harness for running unit and widget tests with isolated overrides.
-/// Does not mutate the global container; creates an isolated child scope.
+/// Activates an isolated child container as the active container during test execution.
 class BloomTestScope {
   final BloomContainer container;
-  final List<Type> _appliedOverrides = [];
+  final BloomContainer _previousContainer;
 
   BloomTestScope({BloomContainer? parent, List<BloomTestOverride<dynamic>>? overrides})
-      : container = BloomContainer(parent: parent ?? globalContainer) {
+      : _previousContainer = globalContainer,
+        container = BloomContainer(parent: parent ?? globalContainer) {
     if (overrides != null) {
       for (final o in overrides) {
         container.overrideType(o.type, o.instance);
-        _appliedOverrides.add(o.type);
       }
     }
+    setActiveContainer(container);
   }
 
   /// Inject an override into this isolated test scope.
   void override<T>(T mockInstance) {
     container.override<T>(mockInstance);
-    _appliedOverrides.add(T);
   }
 
   /// Resolve dependency within test scope.
@@ -36,12 +36,9 @@ class BloomTestScope {
   /// Resolve optional dependency within test scope.
   T? injectOrNull<T>() => container.injectOrNull<T>();
 
-  /// Dispose test scope and clean up local overrides.
+  /// Dispose test scope, restore previous container, and clean up local overrides.
   void dispose() {
-    for (final type in _appliedOverrides) {
-      container.removeOverride(type);
-    }
-    _appliedOverrides.clear();
     container.reset();
+    setActiveContainer(_previousContainer);
   }
 }
