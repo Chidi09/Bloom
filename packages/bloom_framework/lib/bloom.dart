@@ -60,5 +60,8 @@ export 'src/adapters/serverpod_adapter.dart';
 // Native Module Platform & DSL (Phase 9)
 export 'bloom_modules.dart';
 
+// Updates Platform & Runtime Fingerprinting (Phase 11)
+export 'bloom_updates.dart';
+
 // Widgets
 export 'src/widgets/app.dart';

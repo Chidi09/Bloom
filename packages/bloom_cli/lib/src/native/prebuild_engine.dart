@@ -1,6 +1,7 @@
 // lib/src/native/prebuild_engine.dart
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../generator/fingerprint_generator.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 import 'android_prebuild.dart';
@@ -62,6 +63,10 @@ class PrebuildEngine {
     // 4. Zero-Config Autolinking & bloom.lock generation
     final autolink = AutolinkEngine(project);
     await autolink.runAutolink();
+
+    // 5. Cryptographic Runtime Fingerprint generation
+    final fingerprintGen = FingerprintGenerator(project);
+    fingerprintGen.generateFingerprintDart();
 
     print('\n${Ansi.success('Native platform synchronization completed successfully!')}\n');
     return true;
