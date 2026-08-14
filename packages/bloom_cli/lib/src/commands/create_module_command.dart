@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../generator/module_generator.dart';
 import '../templates/module_templates.dart';
 import '../utils/ansi.dart';
 
@@ -132,7 +133,7 @@ class CreateModuleCommand extends Command<int> {
     );
 
     // 4. Generate native Swift & Kotlin bridges
-    print(Ansi.step('4/5 Generating native Android Kotlin and iOS Swift bridges...'));
+    print(Ansi.step('4/6 Generating native Android Kotlin and iOS Swift bridges...'));
     final kotlinFile = p.join(
       targetDir.path,
       'android/src/main/kotlin/${org.replaceAll('.', '/')}/$moduleName',
@@ -154,8 +155,12 @@ class CreateModuleCommand extends Command<int> {
       BloomModuleTemplates.iosPodspec(name: moduleName, description: description),
     );
 
-    // 5. Generate Unit Tests
-    print(Ansi.step('5/5 Generating module unit test suite...'));
+    // 5. Run Bloom Module Code Generator on DSL
+    print(Ansi.step('5/6 Compiling @BloomModule DSL to typed bridge bindings (.g.dart)...'));
+    BloomModuleCodeGenerator.generateForModule(targetDir);
+
+    // 6. Generate Unit Tests
+    print(Ansi.step('6/6 Generating module unit test suite...'));
     File(p.join(targetDir.path, 'test', '${moduleName}_test.dart')).writeAsStringSync(
       BloomModuleTemplates.moduleTest(name: moduleName),
     );
