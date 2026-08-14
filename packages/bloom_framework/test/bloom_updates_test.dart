@@ -1,6 +1,11 @@
 // test/bloom_updates_test.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:bloom_framework/bloom_updates.dart';
 
 void main() {
@@ -9,33 +14,36 @@ void main() {
   });
 
   group('Phase 11: Cryptographic Runtime Fingerprinting', () {
-    test('Computes deterministic SHA-256 fingerprint hash', () {
+    test('Computes deterministic canonical SHA-256 fingerprint hash and environment fallback', () {
       const fp1 = BloomRuntimeFingerprint(
         bloomVersion: '1.0.0',
-        flutterEngineRevision: '3.27.0-abc',
+        flutterEngineRevision: '3.27.0',
         dartSdkVersion: '3.6.0',
         nativeModuleFingerprints: {
           'camera': 'hash_cam_123',
           'secure_storage': 'hash_sec_456',
         },
-        permissions: ['CAMERA', 'STORAGE'],
+        permissions: ['camera', 'storage'],
       );
 
       const fp2 = BloomRuntimeFingerprint(
         bloomVersion: '1.0.0',
-        flutterEngineRevision: '3.27.0-abc',
+        flutterEngineRevision: '3.27.0',
         dartSdkVersion: '3.6.0',
         nativeModuleFingerprints: {
           'secure_storage': 'hash_sec_456',
           'camera': 'hash_cam_123',
         },
-        permissions: ['STORAGE', 'CAMERA'],
+        permissions: ['storage', 'camera'],
       );
 
       // Deterministic sorted output ensures hashes match regardless of map/list insertion order
       expect(fp1.computeHash(), fp2.computeHash());
       expect(fp1.isCompatibleWith(fp2.computeHash()), isTrue);
       expect(fp1.isCompatibleWith('incompatible_hash_xyz'), isFalse);
+
+      final envFp = BloomRuntimeFingerprint.current();
+      expect(envFp.computeHash().length, 64);
     });
   });
 
@@ -109,6 +117,118 @@ void main() {
     });
   });
 
+  group('Phase 11: Real HTTP / CDN Network Adapter (BloomHttpUpdateAdapter)', () {
+    test('Queries server, downloads patch bytes, verifies SHA-256 integrity, and stages to disk', () async {
+      final stageDir = Directory.systemTemp.createTempSync('bloom_http_stage_test_');
+      final patchBytes = utf8.encode('compiled_patch_binary_content_xyz');
+      final patchSha256 = sha256.convert(patchBytes).toString();
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/v1/updates/check') {
+          return http.Response(
+            jsonEncode({
+              'is_available': true,
+              'manifest': {
+                'id': 'upd_http_001',
+                'version': '1.1.0',
+                'runtime_fingerprint': 'matching_hash_123',
+                'rollout_percentage': 100,
+                'download_url': 'https://cdn.bloom.dev/patches/upd_http_001.patch',
+                'asset_hash': patchSha256,
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        if (request.url.path == '/patches/upd_http_001.patch') {
+          return http.Response.bytes(
+            patchBytes,
+            200,
+            headers: {'content-length': patchBytes.length.toString()},
+          );
+        }
+
+        return http.Response('Not Found', 404);
+      });
+
+      final adapter = BloomHttpUpdateAdapter(
+        baseUrl: 'https://updates.bloom.dev',
+        httpClient: mockClient,
+        stagingDir: stageDir,
+      );
+
+      await BloomUpdates.initialize(
+        channel: 'production',
+        runtimeFingerprint: 'matching_hash_123',
+        adapter: adapter,
+      );
+
+      // 1. Check
+      final check = await BloomUpdates.checkForUpdate();
+      expect(check.isAvailable, isTrue);
+      expect(check.manifest?.id, 'upd_http_001');
+
+      // 2. Fetch with real SHA-256 verification
+      final fetched = await BloomUpdates.fetchUpdate();
+      expect(fetched, isTrue);
+      expect(BloomUpdates.isReady.value, isTrue);
+
+      final stagedFile = File('${stageDir.path}/upd_http_001.patch');
+      expect(stagedFile.existsSync(), isTrue);
+      expect(stagedFile.readAsBytesSync(), patchBytes);
+
+      // 3. Purge
+      await BloomUpdates.rollback();
+      expect(stagedFile.existsSync(), isFalse);
+
+      if (stageDir.existsSync()) stageDir.deleteSync(recursive: true);
+    });
+
+    test('Fails download when cryptographic asset hash mismatch is detected', () async {
+      final stageDir = Directory.systemTemp.createTempSync('bloom_http_stage_corrupt_');
+      final patchBytes = utf8.encode('corrupted_content');
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/v1/updates/check') {
+          return http.Response(
+            jsonEncode({
+              'is_available': true,
+              'manifest': {
+                'id': 'upd_corrupt',
+                'version': '1.1.0',
+                'runtime_fingerprint': 'matching_hash_123',
+                'download_url': 'https://cdn.bloom.dev/patches/upd_corrupt.patch',
+                'asset_hash': 'expected_sha256_different_from_actual',
+              },
+            }),
+            200,
+          );
+        }
+        return http.Response.bytes(patchBytes, 200);
+      });
+
+      final adapter = BloomHttpUpdateAdapter(
+        baseUrl: 'https://updates.bloom.dev',
+        httpClient: mockClient,
+        stagingDir: stageDir,
+      );
+
+      await BloomUpdates.initialize(
+        runtimeFingerprint: 'matching_hash_123',
+        adapter: adapter,
+      );
+
+      await BloomUpdates.checkForUpdate();
+      final success = await BloomUpdates.fetchUpdate();
+      expect(success, isFalse);
+      expect(BloomUpdates.error.value, isNotNull);
+
+      if (stageDir.existsSync()) stageDir.deleteSync(recursive: true);
+    });
+  });
+
   group('Phase 11: BloomUpdates Client API & Reactive Signals', () {
     test('Rejects updates with incompatible native runtime fingerprints', () async {
       final mockAdapter = MockBloomUpdateClientAdapter(
@@ -133,7 +253,6 @@ void main() {
     });
 
     test('Rejects devices excluded from staged percentage rollout', () async {
-      // Find a device ID that falls in bucket >= 10
       String excludedDeviceId = 'dev_excluded';
       while (StagedRolloutEvaluator.getDeviceBucket(excludedDeviceId, 'upd_staged') < 10) {
         excludedDeviceId += '_';

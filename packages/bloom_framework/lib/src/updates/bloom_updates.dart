@@ -1,8 +1,10 @@
 // lib/src/updates/bloom_updates.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../core/logger.dart';
 import '../state/signals.dart';
 import 'crash_watchdog.dart';
+import 'runtime_fingerprint.dart';
 import 'staged_rollout.dart';
 import 'update_manifest.dart';
 
@@ -87,7 +89,7 @@ class BloomUpdates {
   static String _activeChannel = 'production';
   static String _activeBranch = 'main';
   static String _deviceId = 'device_anon';
-  static String _localRuntimeFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  static String _localRuntimeFingerprint = '';
   static BloomUpdateClientAdapter _adapter = MockBloomUpdateClientAdapter();
   static late StartupCrashWatchdog _watchdog;
   static UpdateManifest? _pendingStagedManifest;
@@ -106,11 +108,16 @@ class BloomUpdates {
     BloomUpdateClientAdapter? adapter,
     WatchdogStorage? watchdogStorage,
     String? currentPatchId,
+    bool autoHookErrorHandlers = true,
   }) async {
     _activeChannel = channel;
     _activeBranch = branch;
     _deviceId = deviceId ?? _deviceId;
-    _localRuntimeFingerprint = runtimeFingerprint ?? _localRuntimeFingerprint;
+    
+    // Automatically derive runtime fingerprint from environment if not explicitly provided
+    _localRuntimeFingerprint = runtimeFingerprint ??
+        BloomRuntimeFingerprint.current().computeHash();
+
     if (adapter != null) _adapter = adapter;
 
     _watchdog = StartupCrashWatchdog(
@@ -121,7 +128,26 @@ class BloomUpdates {
     );
 
     _watchdog.recordAppLaunch(currentPatchId);
-    logger.info('BloomUpdates: Initialized (Channel: "$_activeChannel", Fingerprint: "${_localRuntimeFingerprint.substring(0, 8)}...")');
+
+    // Auto-hook startup error handlers for crash detection
+    if (autoHookErrorHandlers) {
+      _hookStartupErrorHandlers();
+    }
+
+    logger.info('BloomUpdates: Initialized (Channel: "$_activeChannel", Fingerprint: "${_localRuntimeFingerprint.length >= 8 ? _localRuntimeFingerprint.substring(0, 8) : _localRuntimeFingerprint}...")');
+  }
+
+  static void _hookStartupErrorHandlers() {
+    final originalFlutterError = FlutterError.onError;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      _watchdog.recordStartupCrash();
+      originalFlutterError?.call(details);
+    };
+
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      _watchdog.recordStartupCrash();
+      return false; // let unhandled error propagate
+    };
   }
 
   /// Checks for compatible OTA updates on the active channel and branch.
@@ -152,7 +178,9 @@ class BloomUpdates {
       // 1. Verify Cryptographic Runtime Fingerprint Compatibility
       if (manifest.runtimeFingerprint.isNotEmpty &&
           manifest.runtimeFingerprint.toLowerCase() != _localRuntimeFingerprint.toLowerCase()) {
-        final reason = 'Incompatible native runtime fingerprint: remote requires "${manifest.runtimeFingerprint.substring(0, 8)}...", local binary is "${_localRuntimeFingerprint.substring(0, 8)}..."';
+        final remoteShort = manifest.runtimeFingerprint.length >= 8 ? manifest.runtimeFingerprint.substring(0, 8) : manifest.runtimeFingerprint;
+        final localShort = _localRuntimeFingerprint.length >= 8 ? _localRuntimeFingerprint.substring(0, 8) : _localRuntimeFingerprint;
+        final reason = 'Incompatible native runtime fingerprint: remote requires "$remoteShort...", local binary is "$localShort..."';
         logger.warn('BloomUpdates: OTA update "${manifest.id}" rejected! $reason');
         _isAvailable.value = false;
         _isChecking.value = false;
@@ -235,6 +263,7 @@ class BloomUpdates {
   static Future<void> reload() async {
     if (_pendingStagedManifest != null) {
       _currentPatch.value = _pendingStagedManifest;
+      _pendingStagedManifest = null;
     }
     _isReady.value = false;
     _isAvailable.value = false;
@@ -265,6 +294,7 @@ class BloomUpdates {
     _activeChannel = 'production';
     _activeBranch = 'main';
     _deviceId = 'device_anon';
+    _localRuntimeFingerprint = '';
     _adapter = MockBloomUpdateClientAdapter();
   }
 }
