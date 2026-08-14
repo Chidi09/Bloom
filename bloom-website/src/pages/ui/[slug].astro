@@ -1,5 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/common/CodeBlock.astro';
 import { ComponentViewer } from '../../components/interactive/ComponentViewer';
 import { UI_REGISTRY, type UIComponentDoc } from '../../lib/ui-registry';
 import { 
@@ -96,9 +97,7 @@ const nextComp = currentIndex < UI_REGISTRY.length - 1 ? UI_REGISTRY[currentInde
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
         Usage
       </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{component.usageCode}</code></pre>
-      </div>
+      <CodeBlock code={component.usageCode} lang="dart" filename={`${component.name}.dart`} />
     </section>
 
     <!-- Prev / Next Navigation Footer -->

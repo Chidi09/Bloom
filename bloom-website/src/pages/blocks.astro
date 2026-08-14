@@ -1,5 +1,6 @@
 ---
 import DocsLayout from '../layouts/DocsLayout.astro';
+import CodeBlock from '../components/common/CodeBlock.astro';
 import Section from '../components/common/Section.astro';
 import { BLOCKS_DATA } from '../lib/blocks-data';
 import { 
@@ -147,8 +148,8 @@ import {
                 <span>View Full Flutter Screen Code</span>
                 <span class="text-[10px] font-bold">CLICK TO EXPAND</span>
               </summary>
-              <div class="p-5 font-mono text-xs text-slate-300 overflow-x-auto border-t border-slate-800">
-                <pre class="leading-relaxed"><code>{block.flutterCode}</code></pre>
+              <div class="p-4 border-t border-slate-800">
+                <CodeBlock code={block.flutterCode} lang="dart" filename={`${block.id}_screen.dart`} />
               </div>
             </details>
           </div>
