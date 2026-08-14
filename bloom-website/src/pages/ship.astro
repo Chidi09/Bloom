@@ -1,0 +1,119 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/common/Section.astro';
+import GlassPanel from '../components/common/GlassPanel.astro';
+import { TerminalDeploy } from '../components/interactive/TerminalDeploy';
+import { VercelShipDashboard } from '../components/interactive/VercelShipDashboard';
+import { OTAReleasePlayground } from '../components/interactive/OTAReleasePlayground';
+import { WirelessQRVisualizer } from '../components/interactive/WirelessQRVisualizer';
+import { ProgrammaticUpdateExplorer } from '../components/interactive/ProgrammaticUpdateExplorer';
+import { EnterpriseOTATopology } from '../components/interactive/EnterpriseOTATopology';
+import HeroVideoBg from '../components/common/HeroVideoBg.astro';
+import { Box, ShieldCheck, Zap, ArrowRight, CheckCircle2, Globe, Lock, QrCode, Wifi } from 'lucide-preact';
+---
+
+<Layout
+  title="SHIP — Bloom Cloud OTA & Deploy Pipeline"
+  description="Integrated Shorebird over-the-air (OTA) updates, remote build farm, preview channels, and cryptographic patch signing for Flutter."
+  hue="ship"
+  petalHighlight="blue"
+  nextChapterTitle="BLOOM — UI Studio & Tokens"
+  nextChapterLink="/bloom"
+  nextChapterSubtitle="Customize design tokens, color swatches, radii, and preview production-ready Flutter components."
+  ogPage="ship"
+>
+  <!-- Hero Section (Vercel / Linear Aesthetic) -->
+  <Section reveal={false} className="pt-16 pb-16 lg:pt-24 lg:pb-20 relative">
+    <HeroVideoBg mode="ship" />
+    <div class="space-y-12 max-w-6xl mx-auto relative z-10">
+      
+      <div class="text-center max-w-3xl mx-auto space-y-6">
+        <!-- Vercel/Linear Style Status Badge -->
+        <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-black/90 border border-slate-700/60 dark:border-slate-700/60 text-xs font-mono text-slate-300 shadow-md">
+          <span class="flex h-2 w-2 relative shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+          </span>
+          <span class="font-semibold text-slate-200">CHAPTER 02</span>
+          <span class="text-slate-600 dark:text-slate-500">•</span>
+          <span class="text-slate-400 dark:text-slate-400 font-mono">OTA_DEPLOY_PIPELINE</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.05]">
+          Ship instantly.<br />
+          <span class="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent">Shorebird-Powered OTA.</span>
+        </h1>
+
+        <p class="text-slate-600 dark:text-slate-400 text-base sm:text-xl max-w-2xl mx-auto leading-relaxed">
+          Bloom Cloud compiles Dart AOT bytecode patches and deploys directly to physical iOS & Android devices in milliseconds—bypassing App Store queues completely.
+        </p>
+      </div>
+
+      <!-- High-End Interactive Vercel / Linear Deployment Dashboard Island -->
+      <div>
+        <VercelShipDashboard client:visible />
+      </div>
+
+    </div>
+  </Section>
+
+  <!-- Configuration & CLI Orchestration -->
+  <Section id="ship-cli">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Declarative Release Management
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Manage deployment environments, channel promotions, and rollout rules directly in config or via the CLI.
+      </p>
+    </div>
+
+    {/* Interactive OTA Release Playground */}
+    <OTAReleasePlayground client:visible />
+  </Section>
+
+  <!-- Wireless Dev & QR Install Workflows -->
+  <Section id="dev-workflows">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Wireless Development &amp; Instant QR Installs
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Eliminate tethering friction with wireless device pairing and instant QR build previews.
+      </p>
+    </div>
+
+    {/* Interactive Wireless Pairing & QR Visualizer */}
+    <WirelessQRVisualizer client:visible />
+  </Section>
+
+  <!-- Programmatic Update API -->
+  <Section id="ota-api">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Programmatic Update API
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Manage silent background downloads, force critical updates, and display custom download indicators.
+      </p>
+    </div>
+
+    {/* Interactive Programmatic Update API Explorer */}
+    <ProgrammaticUpdateExplorer client:visible />
+  </Section>
+
+  <!-- Enterprise Architecture Section -->
+  <Section id="ota-architecture">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Enterprise-Grade OTA Architecture
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        How Bloom updates reach millions of devices securely without app store resubmission.
+      </p>
+    </div>
+
+    {/* Interactive Enterprise OTA Topology Map */}
+    <EnterpriseOTATopology client:visible />
+  </Section>
+</Layout>

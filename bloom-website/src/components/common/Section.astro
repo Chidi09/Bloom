@@ -1,0 +1,15 @@
+---
+interface Props {
+  id?: string;
+  className?: string;
+  reveal?: boolean;
+}
+
+const { id, className = '', reveal = true } = Astro.props;
+---
+
+<section id={id} class={`py-20 lg:py-28 relative ${reveal ? 'scroll-reveal' : ''} ${className}`}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <slot />
+  </div>
+</section>

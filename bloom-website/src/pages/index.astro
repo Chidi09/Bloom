@@ -1,0 +1,314 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/common/Section.astro';
+import GlassPanel from '../components/common/GlassPanel.astro';
+import TechMarquee from '../components/common/TechMarquee.astro';
+import HeroVideoBg from '../components/common/HeroVideoBg.astro';
+import { CommunityShowcase } from '../components/interactive/CommunityShowcase';
+import { OrchestrationPipeline } from '../components/interactive/OrchestrationPipeline';
+import { ChapterCards } from '../components/interactive/ChapterCards';
+import { FeatureGridShowcase } from '../components/interactive/FeatureGridShowcase';
+import { CLIToolingExplorer } from '../components/interactive/CLIToolingExplorer';
+import { PriorityRoadmap } from '../components/interactive/PriorityRoadmap';
+import { FolderTree, RefreshCw, Send, Terminal, Code, Sliders, Box, ArrowRight, CheckCircle2, Sparkles, Cpu, Layers, ShieldCheck, Zap, Server, Globe, FileCode2 } from 'lucide-preact';
+
+const colors = ['#FF4B8B', '#FF884D', '#20C9B0', '#3B82F6', '#8B5CF6'];
+const fallingPetals = Array.from({ length: 25 }).map((_, i) => {
+  const size = Math.random() * 45 + 45; // 45px to 90px (former petal size range)
+  const left = Math.random() * 100; // 0% to 100%
+  const duration = Math.random() * 12 + 12; // 12s to 24s (slow & smooth)
+  const delay = Math.random() * -24; // negative delay to start immediately in loop
+  const startX = (Math.random() * 60 - 30) + 'px';
+  const endX = (Math.random() * 120 - 60) + 'px';
+  const maxOpacity = Math.random() * 0.4 + 0.2; // 0.2 to 0.6
+  const rot = (Math.random() * 720 - 360) + 'deg';
+  const color = colors[i % colors.length];
+  return { size, left, duration, delay, startX, endX, maxOpacity, rot, color };
+});
+---
+
+<Layout
+  title="Bloom — BUILD • SHIP • BLOOM | The Application Platform for Dart & Flutter"
+  description="Bloom is the opinionated application platform for Dart & Flutter. Architecture, CLI, Signals state, GoRouter generation, Shorebird OTA, and Bloom UI."
+  hue="hub"
+  petalHighlight="all"
+  nextChapterTitle="BUILD — Framework & DX"
+  nextChapterLink="/build"
+  nextChapterSubtitle="Explore opinionated file-based routing, reactive signals, and state controllers for Flutter."
+>
+  <!-- Hero Section with Hardware-Accelerated Petal Burst -->
+  <Section reveal={false} className="pt-16 pb-16 lg:pt-24 lg:pb-20 relative">
+    <!-- Falling Petals Background (Hardware Accelerated) -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none -z-10 select-none">
+      {fallingPetals.map((petal) => (
+        <div
+          class="falling-petal"
+          style={`
+            left: ${petal.left}%;
+            width: ${petal.size}px;
+            height: ${petal.size}px;
+            color: ${petal.color};
+            animation-duration: ${petal.duration}s;
+            animation-delay: ${petal.delay}s;
+            --start-x: ${petal.startX};
+            --end-x: ${petal.endX};
+            --max-opacity: ${petal.maxOpacity};
+            --rot: ${petal.rot};
+          `}
+        >
+          <svg viewBox="0 0 200 200" fill="none" class="w-full h-full opacity-70">
+            <path d="M100 20 C130 20 145 60 125 90 C110 100 90 100 75 90 C55 60 70 20 100 20 Z" fill="currentColor" />
+          </svg>
+        </div>
+      ))}
+    </div>
+
+    <div class="text-center max-w-4xl mx-auto space-y-6 relative z-10 min-h-[250px] flex flex-col items-center justify-center">
+      
+      <!-- Announcement Pill -->
+      <div class="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full glass-panel shadow-sm text-xs font-medium hover:scale-105 transition cursor-pointer group mb-2 max-w-[90vw] text-center">
+        <span class="flex h-2 w-2 relative shrink-0">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+        </span>
+        <span class="text-slate-600 dark:text-slate-300">Bloom Platform Architecture Specification v2.5.</span>
+        <span class="font-bold text-slate-700 dark:text-slate-200 group-hover:text-slate-500 flex items-center gap-1 shrink-0">
+          Read specification <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+        </span>
+      </div>
+
+      <!-- Typewriter Hero Header -->
+      <h1 class="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tighter leading-[1] text-slate-900 dark:text-white relative">
+        <span id="heroTypewriter" class="text-sweep typing-cursor"></span>
+      </h1>
+
+      <p id="heroSub" class="text-slate-600 dark:text-slate-400 text-base sm:text-xl max-w-2xl mx-auto font-normal leading-relaxed opacity-0 transition-opacity duration-1000 mt-6 px-2">
+        The opinionated application platform for Dart &amp; Flutter. Standardizing architecture, signals state, go_router generation, Shorebird OTA, and Bloom UI.
+      </p>
+
+      <!-- Install CLI Bar -->
+      <div id="heroCmd" class="pt-6 max-w-xl mx-auto opacity-0 transition-opacity duration-1000 delay-300 w-full px-2 sm:px-0">
+        <div
+          onclick="navigator.clipboard.writeText('dart pub global activate bloom_cli'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Command Copied', message: 'Run in terminal to install CLI.', type: 'emerald' } }))"
+          class="relative group cursor-pointer w-full"
+        >
+          <div class="absolute -inset-1 bg-slate-200/70 dark:bg-white/10 rounded-2xl blur opacity-40 group-hover:opacity-70 transition duration-500"></div>
+          <div class="relative glass-panel p-3 sm:p-4 rounded-2xl flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
+            <div class="flex items-center gap-2 sm:gap-3 font-mono text-xs sm:text-sm overflow-hidden text-left min-w-0">
+              <span class="text-slate-500 dark:text-slate-400 font-bold shrink-0">$</span>
+              <span class="text-slate-800 dark:text-slate-200 font-semibold truncate">dart pub global activate bloom_cli</span>
+            </div>
+            <button class="px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 group-hover:bg-slate-900 group-hover:text-white rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-200 dark:group-hover:text-white transition-colors flex items-center gap-1.5 shrink-0 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.75} />
+              <span class="hidden sm:inline">Copy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <!-- SVG Brand Logo Marquee -->
+  <TechMarquee />
+
+  <!-- Platform Metrics Band -->
+  <Section id="metrics" className="py-14 lg:py-16">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-0 divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 max-w-6xl mx-auto">
+      <div class="text-center space-y-1.5 px-4">
+        <div class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">142</div>
+        <div class="text-[11px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">Edge CDN nodes</div>
+      </div>
+      <div class="text-center space-y-1.5 px-4">
+        <div class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">1.2s</div>
+        <div class="text-[11px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">OTA patch broadcast</div>
+      </div>
+      <div class="text-center space-y-1.5 px-4">
+        <div class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">150KB</div>
+        <div class="text-[11px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">Avg delta patch</div>
+      </div>
+      <div class="text-center space-y-1.5 px-4">
+        <div class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">60fps</div>
+        <div class="text-[11px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">Impeller rendering</div>
+      </div>
+    </div>
+    <p class="text-center text-[11px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-10">
+      RSA-2048 Signed Patches &nbsp;·&nbsp; Deterministic Builds &nbsp;·&nbsp; Typed Route Safety
+    </p>
+  </Section>
+
+  <!-- Ecosystem Orchestration Section -->
+  <Section id="orchestration">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-panel text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+        <Sparkles className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" strokeWidth={2} />
+        Executive Strategy
+      </div>
+      <h2 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Make the good parts of Dart & Flutter<br />
+        <span class="text-gradient-silver">feel like one cohesive framework.</span>
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-lg leading-relaxed">
+        Bloom delegates mature low-level infrastructure (Flutter rendering, go_router, signals, Shorebird OTA) while owning the end-to-end developer experience.
+      </p>
+    </div>
+
+    {/* Interactive 5-Step Orchestration Pipeline */}
+    <OrchestrationPipeline client:visible />
+
+    {/* Interactive Chapter Spotlights (BUILD • SHIP • BLOOM) */}
+    <div class="mt-20">
+      <ChapterCards client:visible />
+    </div>
+  </Section>
+
+  <!-- Feature Showcase Grid -->
+  <Section id="feature-showcase">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+        Everything you need to ship Flutter apps
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        One cohesive platform across architecture, delivery, and UI — no glue code required.
+      </p>
+    </div>
+
+    {/* Interactive 6-Feature Micro-Interactive Showcase */}
+    <FeatureGridShowcase client:visible />
+  </Section>
+
+  <!-- CLI Command Matrix Section -->
+  <Section id="cli-matrix">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Bloom CLI Tooling Matrix
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        One unified CLI orchestrating Dart, Flutter, build generators, and deployment channels.
+      </p>
+    </div>
+
+    {/* Interactive CLI Terminal Explorer */}
+    <CLIToolingExplorer client:visible />
+  </Section>
+
+  <!-- Engineering Roadmap Matrix -->
+  <Section id="roadmap">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Engineering Priority Roadmap
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Phased strategy built around ecosystem orchestration rather than premature reimplementation.
+      </p>
+    </div>
+
+    {/* Interactive Priority Roadmap Table */}
+    <PriorityRoadmap client:visible />
+  </Section>
+
+  <!-- Community & Testimonials -->
+  <Section id="community">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+        Loved by Flutter developers
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Built by Flutter developers, for Flutter developers. Join the conversation.
+      </p>
+    </div>
+
+    <CommunityShowcase client:visible />
+  </Section>
+
+  <!-- Hero Typewriter Script with Safe Re-entrancy -->
+  <script is:inline>
+    let typewriterTimer = null;
+
+    function runTypewriter() {
+      const target = document.getElementById('heroTypewriter');
+      if (!target) return;
+
+      if (target.dataset.typing === 'true') return;
+      target.dataset.typing = 'true';
+
+      if (typewriterTimer) clearTimeout(typewriterTimer);
+      target.innerHTML = '';
+      target.classList.add('typing-cursor');
+
+      const heroSub = document.getElementById('heroSub');
+      const heroCmd = document.getElementById('heroCmd');
+
+      if (heroSub) heroSub.classList.add('opacity-0');
+      if (heroCmd) heroCmd.classList.add('opacity-0');
+
+      const words = ["Build.", "Ship.", "Bloom."];
+      let wordIdx = 0;
+      let charIdx = 0;
+
+      function type() {
+        if (wordIdx < words.length) {
+          if (charIdx < words[wordIdx].length) {
+            target.innerHTML += words[wordIdx].charAt(charIdx);
+            charIdx++;
+            typewriterTimer = setTimeout(type, 70);
+          } else {
+            if (wordIdx === words.length - 1) {
+              target.classList.remove('typing-cursor');
+              target.dataset.typing = 'false';
+              setTimeout(() => {
+                if (heroSub) heroSub.classList.remove('opacity-0');
+                if (heroCmd) heroCmd.classList.remove('opacity-0');
+              }, 300);
+            } else {
+              typewriterTimer = setTimeout(() => {
+                target.innerHTML += "&nbsp;";
+                wordIdx++;
+                charIdx = 0;
+                type();
+              }, 350);
+            }
+          }
+        }
+      }
+      typewriterTimer = setTimeout(type, 200);
+    }
+
+    document.addEventListener('DOMContentLoaded', runTypewriter);
+    document.addEventListener('astro:page-load', runTypewriter);
+  </script>
+</Layout>
+
+<style>
+  .falling-petal {
+    position: absolute;
+    top: -5%;
+    will-change: transform, opacity;
+    animation: fall-and-sway linear infinite;
+    pointer-events: none;
+  }
+  
+  @keyframes fall-and-sway {
+    0% {
+      transform: translate3d(var(--start-x), -5vh, 0) rotate(0deg);
+      opacity: 0;
+    }
+    10% {
+      opacity: var(--max-opacity);
+    }
+    90% {
+      opacity: var(--max-opacity);
+    }
+    100% {
+      transform: translate3d(var(--end-x), 105vh, 0) rotate(var(--rot));
+      opacity: 0;
+    }
+  }
+
+  /* Support reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .falling-petal {
+      animation: none !important;
+      display: none;
+    }
+  }
+</style>

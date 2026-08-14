@@ -1,0 +1,127 @@
+---
+import { ArrowRight, Layers, Box, Cpu, Zap, ShieldCheck } from 'lucide-preact';
+
+const steps = [
+  {
+    step: 'STEP 1',
+    title: 'STANDARDIZE',
+    subtitle: 'Conventions & Config',
+    desc: 'Opinionated project structure, bloom.yaml schema, and /routes directory conventions.',
+    color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
+    accent: 'bg-slate-600 dark:bg-slate-400',
+    icon: Layers,
+  },
+  {
+    step: 'STEP 2',
+    title: 'WRAP',
+    subtitle: 'Proven Ecosystem',
+    desc: 'Thin abstractions over go_router for navigation and signals for fine-grained reactivity.',
+    color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
+    accent: 'bg-slate-600 dark:bg-slate-400',
+    icon: Box,
+  },
+  {
+    step: 'STEP 3',
+    title: 'GENERATE',
+    subtitle: 'Deterministic AST',
+    desc: 'Automatic route table generation, typed parameters, and model serializers on file save.',
+    color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
+    accent: 'bg-slate-600 dark:bg-slate-400',
+    icon: Cpu,
+  },
+  {
+    step: 'STEP 4',
+    title: 'ORCHESTRATE',
+    subtitle: 'Unified Workflow',
+    desc: 'Single CLI for bloom create, bloom dev, doctor, testing, prebuild, and deploy.',
+    color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
+    accent: 'bg-slate-600 dark:bg-slate-400',
+    icon: Zap,
+  },
+  {
+    step: 'STEP 5',
+    title: 'REPLACE GAPS',
+    subtitle: 'Differentiated Core',
+    desc: 'Custom Bloom Data query caching and Bloom Go Dev Client where genuine ecosystem gaps exist.',
+    color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
+    accent: 'bg-slate-600 dark:bg-slate-400',
+    icon: ShieldCheck,
+  },
+];
+---
+
+<div class="w-full max-w-6xl mx-auto py-6">
+  <!-- Desktop Horizontal Pipeline Flow -->
+  <div class="hidden lg:grid grid-cols-5 gap-4 relative">
+    
+    <!-- Animated Connecting Background Beam -->
+    <div class="absolute top-[42px] left-[10%] right-[10%] h-1 bg-slate-200 dark:bg-slate-800 -z-10 rounded-full overflow-hidden">
+      <div class="w-full h-full bg-gradient-to-r from-slate-400 via-slate-500 to-slate-700 dark:from-slate-600 dark:via-slate-500 dark:to-slate-400 animate-pulse"></div>
+    </div>
+
+    {steps.map((item, idx) => {
+      const IconComp = item.icon;
+      return (
+        <div class="flex flex-col items-center text-center group relative">
+          <!-- Step Node Circle -->
+          <div class={`w-20 h-20 rounded-3xl border-2 ${item.color} backdrop-blur-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 shadow-lg relative`}>
+            <IconComp className="w-8 h-8" strokeWidth={1.75} />
+            <span class={`absolute -top-2 -right-2 w-6 h-6 rounded-full ${item.accent} text-white font-mono text-[10px] font-bold flex items-center justify-center shadow`}>
+              {idx + 1}
+            </span>
+          </div>
+
+          <!-- Step Info Card -->
+          <div class="glass-panel p-4 rounded-2xl w-full border border-slate-200/60 dark:border-white/10 dark:bg-black group-hover:border-slate-400 dark:group-hover:border-slate-500 transition-colors">
+            <span class="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest block mb-0.5">
+              {item.step}
+            </span>
+            <h4 class="font-black text-sm text-slate-900 dark:text-white tracking-tight mb-1">
+              {item.title}
+            </h4>
+            <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400 font-semibold block mb-2">
+              {item.subtitle}
+            </span>
+            <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
+              {item.desc}
+            </p>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  <!-- Mobile Vertical Pipeline Flow -->
+  <div class="grid grid-cols-1 gap-6 lg:hidden relative pl-6 border-l-2 border-slate-300 dark:border-slate-700 ml-4">
+    {steps.map((item, idx) => {
+      const IconComp = item.icon;
+      return (
+        <div class="relative group">
+          <!-- Bullet Node -->
+          <div class={`absolute -left-[35px] top-4 w-7 h-7 rounded-full ${item.accent} text-white font-mono text-xs font-bold flex items-center justify-center shadow`}>
+            {idx + 1}
+          </div>
+
+          <div class="glass-panel p-5 rounded-2xl border border-slate-200/60 dark:border-white/10 dark:bg-black">
+            <div class="flex items-center gap-3 mb-2">
+              <div class={`p-2 rounded-xl ${item.color}`}>
+                <IconComp className="w-5 h-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <span class="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest block">
+                  {item.step}
+                </span>
+                <h4 class="font-black text-base text-slate-900 dark:text-white leading-none">
+                  {item.title}
+                </h4>
+              </div>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mt-2 font-sans">
+              {item.desc}
+            </p>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
