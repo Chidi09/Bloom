@@ -1,7 +1,5 @@
 // lib/src/native/permissions.dart
-import 'dart:async';
-import 'dart:collection';
-import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import '../core/logger.dart';
 
 enum BloomPermission {
@@ -17,96 +15,82 @@ enum BloomPermissionStatus {
   denied,
   permanentlyDenied,
   restricted,
+  limited,
   unknown;
 
-  bool get isGranted => this == BloomPermissionStatus.granted;
+  bool get isGranted => this == BloomPermissionStatus.granted || this == BloomPermissionStatus.limited;
   bool get isDenied => this == BloomPermissionStatus.denied || this == BloomPermissionStatus.permanentlyDenied;
 }
 
-/// Abstract contract for runtime permissions handling.
-abstract class BloomPermissionsPlatform {
-  FutureOr<BloomPermissionStatus> check(BloomPermission permission);
-  FutureOr<BloomPermissionStatus> request(BloomPermission permission);
+extension _BloomPermissionMapper on BloomPermission {
+  ph.Permission toPermissionHandler() {
+    switch (this) {
+      case BloomPermission.camera:
+        return ph.Permission.camera;
+      case BloomPermission.notifications:
+        return ph.Permission.notification;
+      case BloomPermission.storage:
+        return ph.Permission.storage;
+      case BloomPermission.microphone:
+        return ph.Permission.microphone;
+      case BloomPermission.location:
+        return ph.Permission.location;
+    }
+  }
 }
 
-/// Real Flutter platform channel bridge for runtime permissions.
-class MethodChannelBloomPermissionsPlatform implements BloomPermissionsPlatform {
-  static const MethodChannel _channel = MethodChannel('bloom/permissions');
-
-  @override
-  Future<BloomPermissionStatus> check(BloomPermission permission) async {
-    try {
-      final res = await _channel.invokeMethod<String>('check', {'permission': permission.name});
-      return _parseStatus(res);
-    } catch (_) {
-      // Fallback for mock/test environments
-      return BloomPermissionStatus.granted;
-    }
-  }
-
-  @override
-  Future<BloomPermissionStatus> request(BloomPermission permission) async {
-    try {
-      final res = await _channel.invokeMethod<String>('request', {'permission': permission.name});
-      return _parseStatus(res);
-    } catch (_) {
-      return BloomPermissionStatus.granted;
-    }
-  }
-
-  BloomPermissionStatus _parseStatus(String? str) {
-    switch (str) {
-      case 'granted':
+extension _PermissionStatusMapper on ph.PermissionStatus {
+  BloomPermissionStatus toBloomStatus() {
+    switch (this) {
+      case ph.PermissionStatus.granted:
         return BloomPermissionStatus.granted;
-      case 'denied':
+      case ph.PermissionStatus.denied:
         return BloomPermissionStatus.denied;
-      case 'permanentlyDenied':
+      case ph.PermissionStatus.permanentlyDenied:
         return BloomPermissionStatus.permanentlyDenied;
-      case 'restricted':
+      case ph.PermissionStatus.restricted:
         return BloomPermissionStatus.restricted;
-      default:
+      case ph.PermissionStatus.limited:
+        return BloomPermissionStatus.limited;
+      case ph.PermissionStatus.provisional:
         return BloomPermissionStatus.granted;
     }
   }
 }
 
-/// In-memory permissions platform (used for testing, mock scopes, and headless environments).
-class MockBloomPermissionsPlatform implements BloomPermissionsPlatform {
-  final Map<BloomPermission, BloomPermissionStatus> _statuses =
-      HashMap<BloomPermission, BloomPermissionStatus>();
-
-  void setStatus(BloomPermission permission, BloomPermissionStatus status) {
-    _statuses[permission] = status;
-  }
-
-  @override
-  BloomPermissionStatus check(BloomPermission permission) {
-    return _statuses[permission] ?? BloomPermissionStatus.granted;
-  }
-
-  @override
-  BloomPermissionStatus request(BloomPermission permission) {
-    final current = _statuses[permission] ?? BloomPermissionStatus.granted;
-    return current;
-  }
-}
-
-/// Central permissions manager for Bloom applications.
+/// Central native permissions manager for Bloom applications wrapping `permission_handler`.
 class BloomPermissions {
-  static BloomPermissionsPlatform platform = MethodChannelBloomPermissionsPlatform();
-
   /// Check current permission status without prompting the user.
   static Future<BloomPermissionStatus> check(BloomPermission permission) async {
-    final status = await platform.check(permission);
-    logger.debug('BloomPermissions: Checked $permission -> $status');
-    return status;
+    try {
+      final phPermission = permission.toPermissionHandler();
+      final status = await phPermission.status;
+      final bloomStatus = status.toBloomStatus();
+      logger.debug('BloomPermissions: Checked $permission -> $bloomStatus');
+      return bloomStatus;
+    } catch (e) {
+      logger.warn('BloomPermissions: Failed to check permission $permission: $e');
+      return BloomPermissionStatus.granted;
+    }
   }
 
-  /// Request permission from the user if not already granted.
+  /// Request runtime permission from the user.
   static Future<BloomPermissionStatus> request(BloomPermission permission) async {
-    logger.info('BloomPermissions: Requesting runtime permission for $permission');
-    final status = await platform.request(permission);
-    logger.info('BloomPermissions: Permission result for $permission -> $status');
-    return status;
+    try {
+      logger.info('BloomPermissions: Requesting runtime permission for $permission');
+      final phPermission = permission.toPermissionHandler();
+      final status = await phPermission.request();
+      final bloomStatus = status.toBloomStatus();
+      logger.info('BloomPermissions: Permission result for $permission -> $bloomStatus');
+      return bloomStatus;
+    } catch (e) {
+      logger.warn('BloomPermissions: Failed to request permission $permission: $e');
+      return BloomPermissionStatus.granted;
+    }
+  }
+
+  /// Opens the device app settings screen so user can manually enable permissions.
+  static Future<bool> openAppSettings() async {
+    return ph.openAppSettings();
   }
 }
