@@ -1,6 +1,7 @@
 import * as React from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { Play, CheckCircle2, RefreshCw, Zap, Download, RotateCcw } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 export function ProgrammaticUpdateExplorer() {
   const [step, setStep] = useState<'IDLE' | 'CHECKING' | 'FOUND' | 'DOWNLOADING' | 'DOWNLOADED' | 'APPLIED'>('IDLE');
@@ -84,8 +85,10 @@ export function ProgrammaticUpdateExplorer() {
           </div>
 
           <div className="rounded-2xl overflow-hidden bg-black border border-zinc-800 font-mono text-xs">
-            <pre className="p-5 text-slate-300 leading-relaxed overflow-x-auto">
-              <code>{`class UpdateService {
+            <pre
+              className="p-5 text-slate-100 leading-relaxed overflow-x-auto font-mono text-xs"
+              dangerouslySetInnerHTML={{
+                __html: highlightDart(`class UpdateService {
   Future<void> checkForPatches() async {
     final update = await BloomCloud.checkForUpdate();
     if (update.hasPatch) {
@@ -93,8 +96,9 @@ export function ProgrammaticUpdateExplorer() {
       BloomCloud.restartApp();
     }
   }
-}`}</code>
-            </pre>
+}`),
+              }}
+            />
           </div>
         </div>
 
