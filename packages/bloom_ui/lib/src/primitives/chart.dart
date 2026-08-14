@@ -82,30 +82,35 @@ class _BloomChartState extends State<BloomChart> {
             padding: const EdgeInsets.only(bottom: 8),
             child: _ChartLegend(data: widget.data, config: widget.config),
           ),
-        SizedBox(
-          height: h,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: widget.showTooltip ? (d) => _updateActive(d, h) : null,
-            onTapUp: (_) => setState(() => _activeIndex = null),
-            onHorizontalDragStart: widget.showTooltip ? (d) => _updateActive(d, h) : null,
-            onHorizontalDragUpdate: widget.showTooltip ? (d) => _updateActive(d, h) : null,
-            onHorizontalDragEnd: (_) => setState(() => _activeIndex = null),
-            child: CustomPaint(
-              painter: _ChartPainter(
-                data: widget.data,
-                type: widget.type,
-                colors: context.bloomColors,
-                radius: context.bloomRadius,
-                activeIndex: widget.showTooltip ? _activeIndex : null,
-                showGrid: widget.showGrid,
-                showXAxis: widget.showXAxis,
-                showYAxis: widget.showYAxis,
-                radiusInPixels: widget.radiusInPixels,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final chartWidth = constraints.maxWidth;
+            return SizedBox(
+              height: h,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: widget.showTooltip ? (d) => _updateActive(d.localPosition.dx, chartWidth) : null,
+                onTapUp: (_) => setState(() => _activeIndex = null),
+                onHorizontalDragStart: widget.showTooltip ? (d) => _updateActive(d.localPosition.dx, chartWidth) : null,
+                onHorizontalDragUpdate: widget.showTooltip ? (d) => _updateActive(d.localPosition.dx, chartWidth) : null,
+                onHorizontalDragEnd: (_) => setState(() => _activeIndex = null),
+                child: CustomPaint(
+                  painter: _ChartPainter(
+                    data: widget.data,
+                    type: widget.type,
+                    colors: context.bloomColors,
+                    radius: context.bloomRadius,
+                    activeIndex: widget.showTooltip ? _activeIndex : null,
+                    showGrid: widget.showGrid,
+                    showXAxis: widget.showXAxis,
+                    showYAxis: widget.showYAxis,
+                    radiusInPixels: widget.radiusInPixels,
+                  ),
+                  size: Size.infinite,
+                ),
               ),
-              size: Size.infinite,
-            ),
-          ),
+            );
+          },
         ),
         if (showAxis && widget.showXAxis)
           Padding(
@@ -150,23 +155,13 @@ class _BloomChartState extends State<BloomChart> {
     );
   }
 
-  void _updateActive(dynamic details, double height) {
-    double local;
-    if (details is TapDownDetails) {
-      local = details.localPosition.dx;
-    } else if (details is DragStartDetails) {
-      local = details.localPosition.dx;
-    } else if (details is DragUpdateDetails) {
-      local = details.localPosition.dx;
-    } else {
-      return;
-    }
+  void _updateActive(double localX, double width) {
     final n = widget.data.labels.length;
-    if (n == 0) return;
-    final w = context.size?.width ?? 0;
-    if (w <= 0) return;
-    final actualWidth = widget.showXAxis || widget.showYAxis ? w - 34 - 8 : w;
-    final ratio = ((local / actualWidth).clamp(0.0, 1.0));
+    if (n == 0 || width <= 0) return;
+    final leftPadding = (widget.showXAxis || widget.showYAxis) ? 34.0 : 0.0;
+    final actualWidth = (width - leftPadding - 8.0).clamp(1.0, double.infinity);
+    final relativeX = (localX - leftPadding).clamp(0.0, actualWidth);
+    final ratio = relativeX / actualWidth;
     final index = (ratio * (n - 1)).round().clamp(0, n - 1);
     setState(() => _activeIndex = index);
   }

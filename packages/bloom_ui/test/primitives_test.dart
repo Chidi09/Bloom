@@ -126,6 +126,29 @@ void main() {
       await tester.tap(find.text('Option B'));
       expect(selected, 'b');
     });
+
+    testWidgets('BloomButtonGroup supports selection and horizontal/vertical orientation', (tester) async {
+      String selected = '1';
+      await tester.pumpWidget(
+        wrapWithTheme(
+          BloomButtonGroup<String>(
+            defaultValue: '1',
+            value: selected,
+            onChanged: (v) => selected = v,
+            orientation: Axis.vertical,
+            items: const [
+              BloomButtonGroupItem(value: '1', label: Text('First')),
+              BloomButtonGroupItem(value: '2', label: Text('Second')),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('First'), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+      await tester.tap(find.text('Second'));
+      expect(selected, '2');
+    });
   });
 
   group('Bloom UI: Layout & Feedback Primitives', () {
@@ -162,6 +185,26 @@ void main() {
 
       expect(find.text('Update Available'), findsOneWidget);
       expect(find.text('A new version of Bloom is ready to install.'), findsOneWidget);
+    });
+
+    testWidgets('BloomAlertDialog renders with title and action buttons', (tester) async {
+      var confirmed = false;
+      await tester.pumpWidget(
+        wrapWithTheme(
+          BloomAlertDialog(
+            title: 'Are you sure?',
+            description: 'This action cannot be undone.',
+            confirmText: 'Delete',
+            isDestructive: true,
+            onConfirm: () => confirmed = true,
+          ),
+        ),
+      );
+
+      expect(find.text('Are you sure?'), findsOneWidget);
+      expect(find.text('This action cannot be undone.'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
+      expect(confirmed, isTrue);
     });
 
     testWidgets('BloomAccordion expands and collapses on tap', (tester) async {
@@ -213,40 +256,50 @@ void main() {
     });
   });
 
-  group('Bloom UI: Chart', () {
+  group('Bloom UI: Charts & Advanced', () {
     testWidgets('BloomChart renders bar chart with legend and tooltip', (tester) async {
+      const data = BloomChartData(
+        labels: ['Jan', 'Feb', 'Mar'],
+        series: [
+          BloomChartSeries(name: 'Revenue', values: [100, 200, 300]),
+        ],
+      );
+
       await tester.pumpWidget(
         wrapWithTheme(
           const BloomChart(
-            data: BloomChartData(
-              labels: ['Jan', 'Feb', 'Mar'],
-              series: [
-                BloomChartSeries(name: 'Desktop', values: [100, 80, 95]),
-                BloomChartSeries(name: 'Mobile', values: [60, 90, 70]),
-              ],
-            ),
+            data: data,
+            type: BloomChartType.bar,
+          ),
+        ),
+      );
+
+      expect(find.text('Revenue'), findsOneWidget);
+      expect(find.text('Jan'), findsOneWidget);
+      expect(find.text('Feb'), findsOneWidget);
+      expect(find.text('Mar'), findsOneWidget);
+    });
+
+    testWidgets('BloomChart renders pie chart', (tester) async {
+      const data = BloomChartData(
+        labels: ['Desktop', 'Mobile', 'Tablet'],
+        series: [
+          BloomChartSeries(name: 'Values', values: [55, 35, 10]),
+        ],
+      );
+
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomChart(
+            data: data,
+            type: BloomChartType.pie,
           ),
         ),
       );
 
       expect(find.text('Desktop'), findsOneWidget);
       expect(find.text('Mobile'), findsOneWidget);
-      expect(find.text('Jan'), findsOneWidget);
-    });
-
-    testWidgets('BloomChart renders pie chart', (tester) async {
-      await tester.pumpWidget(
-        wrapWithTheme(
-          const BloomChart(
-            data: BloomChartData(
-              labels: ['A', 'B', 'C'],
-              series: [BloomChartSeries(name: 'Values', values: [30, 50, 20])],
-            ),
-            type: BloomChartType.pie,
-          ),
-        ),
-      );
-
+      expect(find.text('Tablet'), findsOneWidget);
       expect(find.text('Values'), findsOneWidget);
     });
   });
@@ -261,11 +314,12 @@ void main() {
         ),
       );
 
-      // Should show month/year header and day grid
       expect(find.byIcon(Icons.chevron_left), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     });
   });
+
+  group('Bloom UI: Additional Primitives', () {
     testWidgets('BloomAvatar renders fallback letter when no image', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
@@ -315,6 +369,7 @@ void main() {
             items: [
               BloomCommandItem(
                 title: 'Open Settings',
+                shortcut: '⌘,',
                 onSelected: () => triggered = true,
               ),
               BloomCommandItem(
@@ -328,6 +383,7 @@ void main() {
 
       expect(find.text('Open Settings'), findsOneWidget);
       expect(find.text('Go to Dashboard'), findsOneWidget);
+      expect(find.text('⌘,'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'Settings');
       await tester.pump();
@@ -338,4 +394,52 @@ void main() {
       await tester.tap(find.text('Open Settings'));
       expect(triggered, isTrue);
     });
+
+    testWidgets('BloomSonner displays success toast notification', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          Builder(
+            builder: (context) => BloomButton(
+              onPressed: () => BloomSonner.success(context, 'Saved successfully!'),
+              child: const Text('Save'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+
+      expect(find.text('Saved successfully!'), findsOneWidget);
+    });
+
+    testWidgets('BloomKbd and BloomMarker render styled tokens', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const Column(
+            children: [
+              BloomKbd(text: 'Ctrl+K'),
+              BloomMarker(text: 'Highlighted text'),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Ctrl+K'), findsOneWidget);
+      expect(find.text('Highlighted text'), findsOneWidget);
+    });
+
+    testWidgets('BloomDirection sets text direction context', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomDirection(
+            direction: TextDirection.rtl,
+            child: Text('مرحبا'),
+          ),
+        ),
+      );
+
+      expect(find.text('مرحبا'), findsOneWidget);
+    });
+  });
 }

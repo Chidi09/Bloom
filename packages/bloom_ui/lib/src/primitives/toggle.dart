@@ -197,7 +197,6 @@ class _BloomToggleGroupState<T> extends State<BloomToggleGroup<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.bloomTheme;
     final selected = _state.value;
 
     return Semantics(

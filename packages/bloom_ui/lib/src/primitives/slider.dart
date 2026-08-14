@@ -31,7 +31,7 @@ class BloomSlider extends StatelessWidget {
         activeTrackColor: colors.primary,
         inactiveTrackColor: colors.secondary,
         thumbColor: colors.primary,
-        overlayColor: colors.primary.withOpacity(0.15),
+        overlayColor: colors.primary.withValues(alpha: 0.15),
         trackHeight: 6,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
       ),

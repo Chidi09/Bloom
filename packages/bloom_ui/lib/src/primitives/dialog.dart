@@ -1,7 +1,6 @@
 // lib/src/primitives/dialog.dart
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
-import 'button.dart';
 
 class BloomDialog extends StatelessWidget {
   final String title;
@@ -87,66 +86,6 @@ class BloomDialog extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class BloomAlertDialog extends StatelessWidget {
-  final String title;
-  final String description;
-  final String cancelText;
-  final String confirmText;
-  final VoidCallback onConfirm;
-  final bool isDestructive;
-
-  const BloomAlertDialog({
-    super.key,
-    required this.title,
-    required this.description,
-    this.cancelText = 'Cancel',
-    this.confirmText = 'Continue',
-    required this.onConfirm,
-    this.isDestructive = false,
-  });
-
-  static Future<bool?> show({
-    required BuildContext context,
-    required String title,
-    required String description,
-    String cancelText = 'Cancel',
-    String confirmText = 'Continue',
-    bool isDestructive = false,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => BloomAlertDialog(
-        title: title,
-        description: description,
-        cancelText: cancelText,
-        confirmText: confirmText,
-        isDestructive: isDestructive,
-        onConfirm: () => Navigator.of(context).pop(true),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BloomDialog(
-      title: title,
-      description: description,
-      actions: [
-        BloomButton(
-          variant: BloomButtonVariant.outline,
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(cancelText),
-        ),
-        BloomButton(
-          variant: isDestructive ? BloomButtonVariant.destructive : BloomButtonVariant.defaultVariant,
-          onPressed: onConfirm,
-          child: Text(confirmText),
-        ),
-      ],
     );
   }
 }

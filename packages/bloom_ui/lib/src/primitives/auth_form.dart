@@ -81,9 +81,9 @@ class _BloomAuthFormState extends State<BloomAuthForm> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: colors.error.withOpacity(0.1),
+                    color: colors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                    border: Border.all(color: colors.error.withOpacity(0.3)),
+                    border: Border.all(color: colors.error.withValues(alpha: 0.3)),
                   ),
                   child: Text(_error!, style: TextStyle(color: colors.error, fontSize: 13)),
                 ),
