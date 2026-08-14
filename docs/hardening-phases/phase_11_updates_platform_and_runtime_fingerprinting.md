@@ -155,7 +155,28 @@ If a downloaded OTA patch crashes repeatedly during startup (e.g. 2 consecutive 
 
 ## 🧪 Verification & Acceptance Criteria
 
-1. Patch checks validate the native `kBloomRuntimeFingerprint`, rejecting updates compiled against differing native dependencies.
-2. Percentage rollouts distribute patches deterministically based on persistent device UUID hashing.
-3. Consecutive startup crashes trigger automatic self-healing rollback to the embedded base release.
-4. Background asset streaming reports fine-grained progress (`0.0` ➔ `1.0`) without blocking the UI thread.
+> See [Spec Conventions & Definition of Done](file:///root/dev/Bloom/docs/hardening-phases/00b_spec_conventions_and_definition_of_done.md). Anti-patterns A1–A6 apply.
+
+### C1. Runtime fingerprint parity (invariant A6)
+- **When** a patch's `kBloomRuntimeFingerprint` is compared against the running binary.
+- **Then** both are derived from **one** canonical source (build-time generated), byte-for-byte equal for a compatible build, and rejected otherwise.
+- **Must not** compute the fingerprint independently at runtime vs CLI with different inputs (modules, permissions source, Dart SDK), which silently breaks patch validation.
+- **Test** assert runtime `computeHash()` == CLI `computeFingerprint()` for a fixed fixture, and that a differing native module changes the hash.
+
+### C2. Percentage rollouts are deterministic
+- **When** a staged rollout targets N% of devices.
+- **Then** the same device UUID always lands in the same bucket (stable hash), and the rollout is monotonic.
+- **Must not** use a non-persistent or time-varying key (A5).
+- **Test** assert a fixed UUID maps to a stable bucket across repeated calls.
+
+### C3. Startup crashes trigger self-healing rollback
+- **When** a patch crashes ≥2 times within 5s of launch.
+- **Then** the watchdog purges the patch, restores the embedded base binary, and reports the failure.
+- **Must not** silently keep serving the corrupt patch (A4).
+- **Test** simulate repeated startup crashes → assert rollback + purge + report.
+
+### C4. Background streaming reports real progress
+- **When** a patch downloads in the background.
+- **Then** progress advances `0.0 → 1.0` and never blocks the UI thread.
+- **Must not** report progress without actual download progress (A1).
+- **Test** assert progress callback fires with monotonic values during a real download.

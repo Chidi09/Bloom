@@ -61,6 +61,10 @@ class BloomOTA {
   /// Currently active Shorebird patch number (null if running vanilla release).
   static int? get currentPatchNumber => _currentPatchNumber;
 
+  /// Active Shorebird patch identifier string (e.g. "patch_1", or null if base release).
+  static String? get activePatchId =>
+      _currentPatchNumber != null ? 'patch_$_currentPatchNumber' : null;
+
   /// Whether the app is currently running on the Shorebird engine with OTA support.
   static bool get isAvailable => _updater.isAvailable;
 

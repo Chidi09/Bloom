@@ -174,7 +174,39 @@ Every compiled production release embeds a cryptographically signed Build Proven
 
 ## 🧪 Verification & Acceptance Criteria
 
-1. `BloomEnv.validate()` catches missing environment variables during startup with clear error messages.
-2. `bloom assets optimize` converts assets to WebP and strips unused binary assets from output bundles.
-3. `bloom audit` flags vulnerable dependencies and unlicensed native libraries.
-4. Typed asset references (`Assets.images.*`) provide compile-time safety against typos.
+> See [Spec Conventions & Definition of Done](file:///root/dev/Bloom/docs/hardening-phases/00b_spec_conventions_and_definition_of_done.md). Anti-patterns A1–A6 apply.
+
+### C1. Environment schema validation is enforced, not just parsed
+- **When** `Bloom.boot()` runs and a required env var (e.g. `API_BASE_URL`) is missing.
+- **Then** boot fails with a clear error naming the missing key, before any network/DI work.
+- **Must not** silently continue with a null/empty value or defer to a later `Null check` crash.
+- **Test** boot with an empty env asserts the thrown/printed error names the key.
+
+### C2. `bloom audit` performs a real dependency scan
+- **When** run against a project whose `pubspec.lock` contains a known-vulnerable package.
+- **Then** lists the CVE/package/version and returns a non-zero exit code.
+- **Must not** print "0 vulnerabilities" without querying a data source, nor return 0 when a vuln exists (A1).
+- **Test** fixture lockfile with a seeded vulnerable package → assert output + exit code.
+
+### C3. `bloom security scan` actually detects secrets
+- **When** a file contains a hardcoded token matching known patterns (AWS key, private-key header, `sk-`/`api_key=`).
+- **Then** flags the file:line and returns non-zero.
+- **Must not** report "clean" when a seeded secret exists (A1).
+- **Test** fixture with a seeded secret string → assert detection + exit code.
+
+### C4. `bloom assets optimize` performs real asset conversion
+- **When** run on assets containing PNG/JPEG.
+- **Then** WebP variants are written, the bundle references them, and output size is recorded.
+- **Must not** print "optimized" while leaving the bundle unchanged (A1).
+- **Test** fixture asset → assert WebP files exist and are referenced.
+
+### C5. Build provenance is derived and deterministic
+- **When** two builds of identical source run (reproducible build).
+- **Then** the provenance manifest's toolchain fields equal the **actual** Flutter/Dart/Bloom versions used (A2), and `sourceHash` is byte-identical across runs.
+- **Must not** hardcode `3.27.0`/`1.0.0`, and `sourceHash` must not vary on identical input (A5).
+- **Test** build twice → compare manifests; assert toolchain ≠ hardcoded defaults.
+
+### C6. Typed asset references prevent typos at compile time
+- **When** code references `Assets.images.nonexistent`.
+- **Then** analysis/compilation fails.
+- **Test** analyzer test over generated `assets.g.dart`.

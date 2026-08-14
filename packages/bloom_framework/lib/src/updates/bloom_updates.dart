@@ -98,6 +98,7 @@ class BloomUpdates {
   static String get activeChannel => _activeChannel;
   static String get activeBranch => _activeBranch;
   static String get localRuntimeFingerprint => _localRuntimeFingerprint;
+  static String? get activePatchId => _currentPatch.value?.id;
 
   /// Initializes BloomUpdates runtime engine.
   static Future<void> initialize({

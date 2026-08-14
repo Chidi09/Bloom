@@ -6,6 +6,8 @@ With the completion of Bloom v1.0 (Phases 0 through 8), Bloom provides a complet
 
 The **Hardening Roadmap (Phases 9 through 16)** shifts focus from basic framework features to **ecosystem completeness, module extensibility, native autolinking, runtime versioning, full-stack web/SSR expansion, observability, professional tooling, and enterprise governance**.
 
+> ⚠️ **Every phase must satisfy the shared [Spec Conventions & Definition of Done](file:///root/dev/Bloom/docs/hardening-phases/00b_spec_conventions_and_definition_of_done.md)** (anti-patterns A1–A6, the Definition of Done checklist, and the acceptance-criteria format). That document is the contract; individual phase docs may only add to it, never weaken it.
+
 ---
 
 ## 🗺️ Hardening Phases Matrix

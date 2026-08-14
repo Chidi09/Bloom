@@ -146,7 +146,33 @@ During production builds (`bloom build` or `bloom deploy`), the CLI automaticall
 
 ## 🧪 Verification & Acceptance Criteria
 
-1. Unhandled Dart exceptions in asynchronous futures and Flutter widget render trees are captured with stack traces.
-2. Crash payloads include the complete breadcrumb timeline leading up to the failure.
-3. Errors are fingerprinted and grouped deterministically by root-cause call stacks.
-4. Native crashes (SIGSEGV / NullPointerException) are caught by platform handlers and reported on the next launch.
+> See [Spec Conventions & Definition of Done](file:///root/dev/Bloom/docs/hardening-phases/00b_spec_conventions_and_definition_of_done.md). Anti-patterns A1–A6 apply.
+
+### C1. Unhandled Dart exceptions are captured with stack traces
+- **When** an async future or Flutter render tree throws unhandled.
+- **Then** a telemetry event is produced with the exception type and a real stack trace.
+- **Must not** drop the stack or report `exceptionType: "String"` for `captureMessage` (use `'message'`).
+- **Test** widget/unit test asserting `FlutterError.onError` and `PlatformDispatcher.onError` produce events with non-empty stack.
+
+### C2. Crash payloads include the full breadcrumb timeline
+- **When** an exception is captured after prior breadcrumbs.
+- **Then** the event's `breadcrumbs` array contains all recorded breadcrumbs in chronological order.
+- **Test** assert breadcrumb order and completeness in the emitted event.
+
+### C3. Errors are fingerprinted deterministically
+- **When** two identical crashes occur.
+- **Then** they produce the same `fingerprint` tokens AND the same `fingerprintHash` (SHA-256 of tokens).
+- **Must not** let UUIDs/hex addresses/numeric IDs split one root cause into many groups (normalize them).
+- **Test** two identical stacks → identical `fingerprintHash`.
+
+### C4. Native crashes are actually caught and reported
+- **When** a native SIGSEGV/NullPointerException occurs.
+- **Then** it is persisted by a real platform handler and reported on the next launch.
+- **Must not** be a no-op: the `bloom/observability` channel must have an **actual** Android/iOS implementation; a missing plugin must fail loudly (A4), not silently log at debug.
+- **Test** platform integration test invoking `enableNativeCrashReporting`/`getPendingNativeCrashes`/`clearPendingNativeCrashes`.
+
+### C5. Runtime fingerprint parity (invariant A6)
+- **When** a crash event and a symbol manifest are produced for the same build.
+- **Then** the event's `runtimeFingerprint` byte-for-byte equals the manifest's `runtimeFingerprint`, both derived from **one** canonical source (not recomputed independently at runtime vs CLI).
+- **Must not** compute the fingerprint with different inputs (modules, permissions source, Dart SDK) in the framework vs the CLI.
+- **Test** assert framework `computeHash()` == CLI `computeFingerprint()` for a fixed fixture.

@@ -123,7 +123,34 @@ BloomPermissions.simulate(
 
 ## 🧪 Verification & Acceptance Criteria
 
-1. Bloom Dev Launcher discovers and connects to multiple development servers on the LAN.
-2. The Network Inspector allows inspecting HTTP traffic and replaying requests.
-3. `bloom module dev` launches a functional sandbox host application for standalone native modules.
-4. `bloom module test` runs Dart, Android, and iOS test suites in a single command.
+> See [Spec Conventions & Definition of Done](file:///root/dev/Bloom/docs/hardening-phases/00b_spec_conventions_and_definition_of_done.md). Anti-patterns A1–A6 apply.
+
+### C1. Dev Launcher performs real server discovery
+- **When** a `bloom dev` server broadcasts on the LAN.
+- **Then** the launcher lists it via UDP discovery (not a hardcoded list).
+- **Must not** show a static/hardcoded server list (A1).
+- **Test** integration test with a mock UDP broadcast.
+
+### C2. Network Inspector replays real requests
+- **When** the user taps "Replay Request" on a captured request.
+- **Then** the same request is re-executed with modified params and the new response recorded.
+- **Must not** merely re-display the old cached response (A1).
+- **Test** widget test asserting the underlying client is re-invoked with new params.
+
+### C3. `bloom module test` executes real native suites
+- **When** run in a module with Dart + Android + iOS tests.
+- **Then** all three suites run and results are aggregated; non-zero exit if any fail.
+- **Must not** print pass counts without invoking the test runners (A1).
+- **Test** fixture module → assert exit code reflects real pass/fail.
+
+### C4. `bloom module dev` boots a real sandbox host
+- **When** run in a module package.
+- **Then** a minimal host app is generated and boots containing only that module, with hot reload.
+- **Must not** print "launched" without starting a host process (A1).
+- **Test** smoke test asserting the host app is generated and buildable.
+
+### C5. Network/permission simulation affects runtime behavior
+- **When** `BloomDev.simulateNetwork(failureRate: 1.0)` is active.
+- **Then** 100% of requests fail deterministically.
+- **Must not** be a no-op that leaves real networking unchanged (A3).
+- **Test** unit test with `failureRate: 1.0` asserts all calls fail.

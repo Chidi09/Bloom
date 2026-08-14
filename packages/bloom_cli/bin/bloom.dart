@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../lib/src/commands/add_command.dart';
 import '../lib/src/commands/analyze_command.dart';
+import '../lib/src/commands/assets_command.dart';
+import '../lib/src/commands/audit_command.dart';
 import '../lib/src/commands/autolink_command.dart';
 import '../lib/src/commands/build_command.dart';
 import '../lib/src/commands/create_command.dart';
@@ -12,9 +14,12 @@ import '../lib/src/commands/deps_command.dart';
 import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/generate_command.dart';
+import '../lib/src/commands/module_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/remove_command.dart';
+import '../lib/src/commands/security_command.dart';
 import '../lib/src/commands/symbols_command.dart';
+import '../lib/src/commands/templates_command.dart';
 import '../lib/src/commands/test_command.dart';
 import '../lib/src/commands/update_command.dart';
 import '../lib/src/commands/why_command.dart';
@@ -30,12 +35,17 @@ Future<void> main(List<String> args) async {
   )
     ..addCommand(CreateCommand())
     ..addCommand(CreateModuleCommand())
+    ..addCommand(ModuleCommand())
+    ..addCommand(TemplatesCommand())
     ..addCommand(AutolinkCommand())
     ..addCommand(DepsCommand())
     ..addCommand(WhyCommand())
     ..addCommand(WorkspaceCommand())
     ..addCommand(UpdateCommand())
     ..addCommand(SymbolsCommand())
+    ..addCommand(AssetsCommand())
+    ..addCommand(AuditCommand())
+    ..addCommand(SecurityCommand())
     ..addCommand(DevCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(GenerateCommand())
