@@ -10,7 +10,7 @@ class GenerateCommand extends Command<int> {
   @override
   final String name = 'generate';
   @override
-  final String description = 'Generates deterministic routes, pages, controllers, models, and services.';
+  final String description = 'Generates deterministic routes, pages, controllers, models, services, and environments.';
 
   GenerateCommand() {
     addSubcommand(_GeneratePageCommand());
@@ -19,6 +19,42 @@ class GenerateCommand extends Command<int> {
     addSubcommand(_GenerateModelCommand());
     addSubcommand(_GenerateServiceCommand());
     addSubcommand(_GenerateRouterCommand());
+    addSubcommand(_GenerateEnvCommand());
+  }
+}
+
+class _GenerateEnvCommand extends Command<int> {
+  @override
+  final String name = 'env';
+  @override
+  final String description = 'Generates standard .env and .env.example environment templates.';
+
+  @override
+  Future<int> run() async {
+    final project = BloomProject.find();
+    if (project == null) {
+      print(Ansi.error('No Bloom project found.'));
+      return 1;
+    }
+
+    final envFile = File(p.join(project.rootDir.path, '.env'));
+    final envExampleFile = File(p.join(project.rootDir.path, '.env.example'));
+
+    if (!envFile.existsSync()) {
+      envFile.writeAsStringSync(BloomTemplates.dotEnv(name: project.projectName));
+      print(Ansi.success('Generated .env file.'));
+    } else {
+      print(Ansi.info('.env file already exists.'));
+    }
+
+    if (!envExampleFile.existsSync()) {
+      envExampleFile.writeAsStringSync(BloomTemplates.dotEnvExample());
+      print(Ansi.success('Generated .env.example file.'));
+    } else {
+      print(Ansi.info('.env.example file already exists.'));
+    }
+
+    return 0;
   }
 }
 

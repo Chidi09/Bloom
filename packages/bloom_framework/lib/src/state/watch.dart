@@ -2,14 +2,19 @@
 import 'package:flutter/widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart' as sf;
 
-/// A builder widget that rebuilds whenever any signal read inside [builder] changes.
-class SignalBuilder extends StatelessWidget {
-  final Widget Function(BuildContext context) builder;
+/// A typed builder widget that rebuilds whenever the targeted [signal] value changes.
+class SignalBuilder<T> extends StatelessWidget {
+  final sf.ReadonlySignal<T> signal;
+  final Widget Function(BuildContext context, T value) builder;
 
-  const SignalBuilder({super.key, required this.builder});
+  const SignalBuilder({
+    super.key,
+    required this.signal,
+    required this.builder,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return sf.Watch((ctx) => builder(ctx));
+    return sf.Watch((ctx) => builder(ctx, signal.value));
   }
 }

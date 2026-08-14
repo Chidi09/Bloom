@@ -1,6 +1,5 @@
 // lib/src/native/camera.dart
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../core/logger.dart';
 import 'permissions.dart';

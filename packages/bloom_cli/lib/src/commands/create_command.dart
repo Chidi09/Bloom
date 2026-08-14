@@ -85,16 +85,24 @@ class CreateCommand extends Command<int> {
     if (pubspecFile.existsSync()) {
       var pubspecContent = pubspecFile.readAsStringSync();
       
-      // Determine framework dependency specification
+      // Determine framework dependency specification dynamically
       String depSpec;
-      if (frameworkPath != null) {
-        depSpec = '  bloom_framework:\n    path: $frameworkPath';
+      if (frameworkPath != null && Directory(frameworkPath).existsSync()) {
+        depSpec = '  bloom_framework:\n    path: ${p.canonicalize(frameworkPath)}';
+      } else if (Platform.environment['BLOOM_FRAMEWORK_PATH'] != null &&
+          Directory(Platform.environment['BLOOM_FRAMEWORK_PATH']!).existsSync()) {
+        depSpec = '  bloom_framework:\n    path: ${Platform.environment['BLOOM_FRAMEWORK_PATH']}';
       } else {
-        // Check if we are inside the Bloom monorepo
-        final localMonoPath = '/root/dev/Bloom/packages/bloom_framework';
-        if (Directory(localMonoPath).existsSync()) {
-          depSpec = '  bloom_framework:\n    path: $localMonoPath';
-        } else {
+        // Check relative monorepo path from executing script
+        try {
+          final scriptDir = p.dirname(Platform.script.toFilePath());
+          final siblingFramework = p.normalize(p.join(scriptDir, '..', '..', 'bloom_framework'));
+          if (Directory(siblingFramework).existsSync()) {
+            depSpec = '  bloom_framework:\n    path: ${p.canonicalize(siblingFramework)}';
+          } else {
+            depSpec = '  bloom_framework: ^0.1.0';
+          }
+        } catch (_) {
           depSpec = '  bloom_framework: ^0.1.0';
         }
       }
