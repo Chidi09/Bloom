@@ -49,6 +49,7 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
   final String supabaseAnonKey;
   final BloomHttpClient _http;
   final sb.SupabaseClient? supabaseClient;
+  StreamSubscription<sb.AuthState>? _authStateSubscription;
 
   BloomSupabaseAuthAdapter({
     required this.supabaseUrl,
@@ -68,19 +69,27 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
     });
 
     // If a live SupabaseClient is provided, listen to auth state changes
-    supabaseClient?.auth.onAuthStateChange.listen((data) {
-      final session = data.session;
-      if (session != null) {
-        final user = BloomSupabaseUser(
-          id: session.user.id,
-          email: session.user.email ?? '',
-          accessToken: session.accessToken,
-          refreshToken: session.refreshToken,
-          userMetadata: session.user.userMetadata ?? const {},
-        );
-        setSession(user: user, token: session.accessToken);
-      }
-    });
+    if (supabaseClient != null) {
+      _authStateSubscription = supabaseClient!.auth.onAuthStateChange.listen((data) {
+        final session = data.session;
+        if (session != null) {
+          final user = BloomSupabaseUser(
+            id: session.user.id,
+            email: session.user.email ?? '',
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            userMetadata: session.user.userMetadata ?? const {},
+          );
+          setSession(user: user, token: session.accessToken);
+        }
+      });
+    }
+  }
+
+  /// Cancel auth state listeners and release resources.
+  Future<void> dispose() async {
+    await _authStateSubscription?.cancel();
+    _authStateSubscription = null;
   }
 
   /// Sign in with email and password via Supabase Auth API.
@@ -220,7 +229,12 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
         body: {'refresh_token': current!.refreshToken},
       );
 
-      final token = data['access_token']?.toString() ?? '';
+      final token = data['access_token']?.toString();
+      if (token == null || token.isEmpty) {
+        logger.error('BloomSupabaseAuth: Refresh response did not return an access token.');
+        return null;
+      }
+
       final userMap = data['user'] as Map<String, dynamic>? ?? {};
       final user = BloomSupabaseUser(
         id: userMap['id']?.toString() ?? current.id,

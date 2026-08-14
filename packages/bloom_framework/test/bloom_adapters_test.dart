@@ -68,9 +68,15 @@ void main() {
       expect(auth.currentUser.value?.id, 'user_999');
       expect(auth.token.value, 'access_jwt_1');
 
+      // Empty token should not be considered authenticated
+      await auth.setSession(user: user, token: '');
+      expect(auth.isAuthenticated.value, false);
+
       await auth.logout();
       expect(auth.isAuthenticated.value, false);
       expect(auth.currentUser.value, isNull);
+
+      await auth.dispose();
     });
   });
 
