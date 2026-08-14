@@ -1,0 +1,71 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Database, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const storageAdapterCode = `// lib/app/boot.dart
+import 'package:bloom_framework/bloom.dart';
+
+class AppBootstrapper implements BloomBootstrapper {
+  @override
+  Future<void> onBoot(BloomContainer container) async {
+    // 1. Choose SQLite / Hive / SharedPreferences storage driver
+    final storage = await BloomSqliteStorageAdapter.initialize(
+      databaseName: 'app_cache.db',
+    );
+
+    container.provideInstance<BloomStorageAdapter>(storage);
+  }
+}`;
+---
+
+<DocsLayout
+  title="Storage Adapters"
+  description="Pluggable persistent storage drivers for query caching and offline mutation persistence."
+  currentSlug="data-storage-adapters"
+  category="Data & Cache"
+  toc={[
+    { id: 'adapters', title: 'Pluggable Storage Drivers' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Database className="w-3.5 h-3.5" />
+        Persistence
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Storage Adapters
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Interchangeable persistence adapters for SQLite, Hive, and FlutterSecureStorage.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="adapters" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Pluggable Storage Drivers
+      </h2>
+      <CodeBlock code={storageAdapterCode} lang="dart" filename="lib/app/boot.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/offline-queue"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Offline Queue</span>
+      </a>
+      <a
+        href="/docs/data/authentication"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Authentication</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

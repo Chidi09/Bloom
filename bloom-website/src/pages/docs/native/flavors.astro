@@ -1,0 +1,81 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Layers, ArrowRight, Smartphone, Terminal } from 'lucide-preact';
+
+const flavorsYaml = `# bloom.yaml
+native:
+  flavors:
+    dev:
+      app_id_suffix: ".dev"
+      display_name: "Bloom (Dev)"
+    staging:
+      app_id_suffix: ".staging"
+      display_name: "Bloom (Staging)"
+    prod:
+      app_id_suffix: ""
+      display_name: "Bloom"`;
+
+const runFlavorCmd = `bloom dev --flavor dev
+bloom deploy release --flavor prod`;
+---
+
+<DocsLayout
+  title="Flavors & Environments"
+  description="Manage development, staging, and production app variants with unique bundle IDs."
+  currentSlug="native-flavors"
+  category="Native & Build"
+  toc={[
+    { id: 'yaml-config', title: 'Declaring Flavors in bloom.yaml' },
+    { id: 'cli-runs', title: 'Running Flavor Builds' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <Layers className="w-3.5 h-3.5" />
+        Flavors
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Flavors & Environments
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Build and deploy multiple app variants side-by-side on test devices without touching Gradle scripts or Xcode schemes.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="yaml-config" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Declaring Flavors in bloom.yaml
+      </h2>
+      <CodeBlock code={flavorsYaml} lang="yaml" filename="bloom.yaml" />
+    </section>
+
+    <!-- Section 2 -->
+    <section id="cli-runs" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Running Flavor Builds
+      </h2>
+      <CodeBlock code={runFlavorCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/native/deep-links"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Deep Links</span>
+      </a>
+      <a
+        href="/docs/native/plugins"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Native Plugins</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

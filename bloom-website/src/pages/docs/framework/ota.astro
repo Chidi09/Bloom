@@ -1,72 +1,116 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Box, CloudUpload, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Send, Zap, ArrowRight, ShieldCheck, Cpu, RefreshCw } from 'lucide-preact';
 
-const deployCode = `# 1. Deploy instantaneous Dart patch over the air (no app store review!)
-bloom deploy patch --channel production
-
-# 2. Release a new baseline store binary
-bloom deploy release --platform android
-bloom deploy release --platform ios`;
-
-const clientCode = `// In your app boot or background sync:
+const otaRuntimeCode = `// lib/app/boot.dart
 import 'package:bloom_framework/bloom.dart';
 
-void checkForUpdates() async {
-  final updater = inject<BloomUpdater>();
-  final updateAvailable = await updater.checkForUpdate();
-  
-  if (updateAvailable) {
-    await updater.downloadUpdate();
-    BloomSonner.success(context, 'Update downloaded! Restart to apply.');
+class AppBootstrapper implements BloomBootstrapper {
+  @override
+  Future<void> onBoot(BloomContainer container) async {
+    // Check for background OTA patches silently
+    final ota = BloomOTA();
+    final updateAvailable = await ota.checkForUpdate();
+    
+    if (updateAvailable) {
+      // Download patch asynchronously in the background
+      await ota.downloadUpdate();
+    }
   }
 }`;
+
+const deployReleaseCmd = `# 1. Deploy base app release to App Store / Google Play
+bloom deploy release --platform android
+bloom deploy release --platform ios
+
+# 2. Deploy instant OTA patch (bypasses app store review in seconds)
+bloom deploy patch --platform android --message "Fix checkout tax calculation"
+bloom deploy patch --platform ios --message "Fix checkout tax calculation"`;
+
+const otaPipelineSteps = [
+  { step: '01', title: 'Deterministic Hash Fingerprint', desc: 'Computes cryptographic AST hash of Dart code to ensure patch compatibility with the base engine.' },
+  { step: '02', title: 'Delta Bytecode Generation', desc: 'Compiles and generates minimal binary byte patch (typically < 100 KB).' },
+  { step: '03', title: 'Cloud Patch Distribution', desc: 'Distributes patch via global edge CDN directly to active devices.' },
+  { step: '04', title: 'Atomic Background Apply', desc: 'Applies patch on next app restart without interruption or user action.' },
+];
 ---
 
 <DocsLayout
   title="Cloud OTA Deployment"
-  description="Instantaneous Over-The-Air code push powered by Shorebird Cloud. Deploy Dart patches without app store review."
+  description="Instant Over-The-Air code push for Flutter apps, bypassing app store review cycles."
   currentSlug="framework-ota"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
-    { id: 'deploy-cli', title: 'Deploying Patches with CLI' },
-    { id: 'client-updater', title: 'Client-Side Update Handling' },
+    { id: 'cli-deploy', title: 'CLI Deployment Commands' },
+    { id: 'runtime-api', title: 'Runtime BloomOTA API' },
+    { id: 'pipeline', title: 'OTA Delivery Architecture' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Send className="w-3.5 h-3.5" />
+        Instant Code Push
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Cloud OTA Deployment
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Deploy instant bug fixes, UI improvements, and feature updates straight to user devices in seconds without waiting for Apple App Store or Google Play Store review cycles.
+        Deploy critical bug fixes and feature updates instantly to iOS and Android users without waiting days for App Store review approval.
       </p>
     </div>
 
-    <!-- Deploy CLI -->
-    <section id="deploy-cli" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Deploying Patches with CLI</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-purple-300 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{deployCode}</code></pre>
-      </div>
+    <!-- Section 1 -->
+    <section id="cli-deploy" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        CLI Deployment Commands
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Use <code class="font-mono text-purple-400">bloom deploy</code> to build store releases or push instant OTA delta patches:
+      </p>
+      <CodeBlock code={deployReleaseCmd} lang="bash" filename="Terminal" />
     </section>
 
-    <!-- Client Updater -->
-    <section id="client-updater" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Client-Side Update Handling</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{clientCode}</code></pre>
+    <!-- Section 2 -->
+    <section id="runtime-api" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Runtime BloomOTA API
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Check for patches and download updates gracefully in background tasks:
+      </p>
+      <CodeBlock code={otaRuntimeCode} lang="dart" filename="lib/app/boot.dart" />
+    </section>
+
+    <!-- Section 3 -->
+    <section id="pipeline" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        OTA Delivery Architecture
+      </h2>
+      <div class="grid grid-cols-1 gap-3 pt-2">
+        {otaPipelineSteps.map((step) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start gap-4">
+            <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-xs shrink-0">
+              {step.step}
+            </div>
+            <div class="space-y-1">
+              <h3 class="text-sm font-bold text-white font-mono">{step.title}</h3>
+              <p class="text-xs text-slate-400 leading-relaxed">{step.desc}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
 
     <!-- Next Page Footer -->
     <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
       <a
-        href="/docs/framework/prebuild"
+        href="/docs/framework/native"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: Prebuild</span>
+        <span>Previous: Prebuild & Native Sync</span>
       </a>
       <a
         href="/docs/framework/adapters"

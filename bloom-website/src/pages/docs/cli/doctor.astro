@@ -1,0 +1,54 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldCheck, ArrowRight, Terminal } from 'lucide-preact';
+
+const doctorCmd = `bloom doctor --verbose`;
+---
+
+<DocsLayout
+  title="bloom doctor"
+  description="Diagnostic tool verifying Flutter SDK, Dart toolchains, Xcode, Android SDK, and CocoaPods."
+  currentSlug="cli-doctor"
+  category="CLI Tooling"
+  toc={[
+    { id: 'usage', title: 'Doctor Diagnostics' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
+        bloom doctor
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Runs automatic health checks across your development toolchain to diagnose build issues and missing dependencies.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="usage" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Doctor Diagnostics
+      </h2>
+      <CodeBlock code={doctorCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/cli/deploy"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: bloom deploy</span>
+      </a>
+      <a
+        href="/docs/dev-experience/bloom-go"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Bloom Go Companion</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

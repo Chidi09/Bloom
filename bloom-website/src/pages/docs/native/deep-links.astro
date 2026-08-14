@@ -1,0 +1,65 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Workflow, ArrowRight, Smartphone, Terminal } from 'lucide-preact';
+
+const deepLinksYaml = `# bloom.yaml
+native:
+  deep_links:
+    schemes:
+      - "bloomapp"
+    hosts:
+      - "app.bloom.dev"
+      - "links.bloom.dev"`;
+---
+
+<DocsLayout
+  title="Deep Links & Universal Links"
+  description="Configure custom URL schemes and universal app links for seamless deep navigation."
+  currentSlug="native-deep-links"
+  category="Native & Build"
+  toc={[
+    { id: 'yaml-config', title: 'Declaring Schemes in bloom.yaml' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Workflow className="w-3.5 h-3.5" />
+        Deep Linking
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Deep Links & Universal Links
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Synchronize iOS Associated Domains and Android App Links into filesystem routes automatically.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="yaml-config" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Declaring Schemes in bloom.yaml
+      </h2>
+      <CodeBlock code={deepLinksYaml} lang="yaml" filename="bloom.yaml" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/native/permissions"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Native Permissions</span>
+      </a>
+      <a
+        href="/docs/native/flavors"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Flavors & Schemes</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

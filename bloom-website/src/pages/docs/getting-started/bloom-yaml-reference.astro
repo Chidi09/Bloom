@@ -1,0 +1,125 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { FileCode2, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const fullYamlSchema = `# bloom.yaml - Master Project Configuration
+name: my_app
+version: 1.0.0+1
+description: "A reactive Flutter application built with Bloom"
+
+# Native Platform Sync
+native:
+  app_id: com.bloom.myapp
+  display_name: "Bloom App"
+  
+  permissions:
+    camera: "Used to take profile photos"
+    photo_library: "Used to upload gallery images"
+    location_when_in_use: "Used to discover nearby places"
+    notifications: true
+
+  deep_links:
+    schemes:
+      - "bloomapp"
+    hosts:
+      - "app.bloom.dev"
+
+  flavors:
+    dev:
+      app_id_suffix: ".dev"
+      display_name: "Bloom (Dev)"
+    staging:
+      app_id_suffix: ".staging"
+      display_name: "Bloom (Staging)"
+    prod:
+      app_id_suffix: ""
+      display_name: "Bloom"
+
+# Bloom UI Registry Settings
+ui:
+  style: "nova"       # nova | vega | maia | lyra | mira | luma | sera | rhea
+  paths:
+    primitives: "lib/bloom_ui/primitives"
+    theme: "lib/bloom_ui/theme"
+
+# OTA Cloud Updates
+ota:
+  app_id: "bloom-app-uuid"
+  channel: "production"
+  auto_download: true`;
+---
+
+<DocsLayout
+  title="bloom.yaml Reference"
+  description="Complete schema reference for the master bloom.yaml configuration file."
+  currentSlug="getting-started-bloom-yaml-reference"
+  category="Getting Started"
+  toc={[
+    { id: 'schema', title: 'Complete Schema' },
+    { id: 'native-section', title: 'Native Permissions & Deep Links' },
+    { id: 'flavors-section', title: 'Flavors & Environments' },
+    { id: 'ui-section', title: 'UI Preset & Aliases' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <FileCode2 className="w-3.5 h-3.5" />
+        Config Schema
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        bloom.yaml Reference
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        The master configuration file that drives the Prebuild engine, AST code generation, UI preset styles, and OTA deployment channels.
+      </p>
+    </div>
+
+    <!-- Schema -->
+    <section id="schema" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Complete Schema
+      </h2>
+      <CodeBlock code={fullYamlSchema} lang="yaml" filename="bloom.yaml" />
+    </section>
+
+    <!-- Native Section -->
+    <section id="native-section" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Native Permissions &amp; Deep Links
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Declaring permissions in <code class="font-mono text-purple-400">native.permissions</code> prompts <code class="font-mono text-purple-400">bloom prebuild</code> to automatically inject description strings into iOS <code class="font-mono text-purple-400">Info.plist</code> and permission tags into Android <code class="font-mono text-purple-400">AndroidManifest.xml</code>.
+      </p>
+    </section>
+
+    <!-- Flavors Section -->
+    <section id="flavors-section" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Flavors &amp; Environments
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Define custom bundle ID suffixes and app titles for different deployment targets (dev, staging, prod) without managing multiple Xcode schemes manually.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/getting-started/project-anatomy"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Project Anatomy</span>
+      </a>
+      <a
+        href="/docs/framework/quickstart"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: 5-Minute Quickstart</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

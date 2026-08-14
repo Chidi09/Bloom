@@ -1,0 +1,59 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Box, ArrowRight, ShieldCheck, Terminal } from 'lucide-preact';
+
+const autolinkCmd = `flutter pub add camera geolocator
+bloom prebuild`;
+---
+
+<DocsLayout
+  title="Native Plugins & Autolinking"
+  description="Autolink Flutter third-party native plugins with prebuild compatibility checks."
+  currentSlug="native-plugins"
+  category="Native & Build"
+  toc={[
+    { id: 'autolink', title: 'Plugin Autolinking' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-mono font-bold">
+        <Box className="w-3.5 h-3.5" />
+        Plugins
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Native Plugins & Autolinking
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Add standard pub.dev Flutter plugins and run <code class="font-mono text-purple-400">bloom prebuild</code> to ensure all platform channels, CocoaPods, and Gradle dependencies link seamlessly.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="autolink" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Plugin Autolinking
+      </h2>
+      <CodeBlock code={autolinkCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/native/flavors"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Flavors & Schemes</span>
+      </a>
+      <a
+        href="/docs/cli/commands"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: CLI Master Commands</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

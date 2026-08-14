@@ -1,0 +1,76 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldCheck, ArrowRight, Smartphone, Terminal } from 'lucide-preact';
+
+const permissionYaml = `# bloom.yaml
+native:
+  permissions:
+    camera: "Allow capturing photos for your avatar"
+    photo_library: "Allow selecting pictures from gallery"
+    location_when_in_use: "Allow finding services nearby"
+    microphone: "Allow recording audio notes"
+    notifications: true`;
+
+const prebuildCmd = `bloom prebuild`;
+---
+
+<DocsLayout
+  title="Native Permissions"
+  description="Declare iOS and Android permissions once in bloom.yaml without manually modifying native XML or plist manifests."
+  currentSlug="native-permissions"
+  category="Native & Build"
+  toc={[
+    { id: 'yaml-config', title: 'Declaring Permissions in bloom.yaml' },
+    { id: 'prebuild', title: 'Generating Manifests with bloom prebuild' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        Permissions
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Native Permissions
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Manage camera, location, microphone, and notification permissions from a single declarative configuration file.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="yaml-config" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Declaring Permissions in bloom.yaml
+      </h2>
+      <CodeBlock code={permissionYaml} lang="yaml" filename="bloom.yaml" />
+    </section>
+
+    <!-- Section 2 -->
+    <section id="prebuild" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Generating Manifests with bloom prebuild
+      </h2>
+      <CodeBlock code={prebuildCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/repositories"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Repositories</span>
+      </a>
+      <a
+        href="/docs/native/deep-links"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Deep Links</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

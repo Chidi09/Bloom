@@ -1,0 +1,123 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Smartphone, Zap, ArrowRight, ShieldCheck, Cpu, Terminal } from 'lucide-preact';
+
+const bloomYamlCode = `# bloom.yaml
+name: my_app
+version: 1.0.0+1
+
+native:
+  app_id: com.bloom.myapp
+  display_name: "Bloom App"
+  
+  permissions:
+    camera: "Used for profile picture uploads"
+    location_when_in_use: "Used for map discovery"
+    notifications: true
+
+  deep_links:
+    schemes: ["bloomapp"]
+    hosts: ["app.bloom.dev"]
+
+  flavors:
+    dev:
+      app_id_suffix: ".dev"
+      display_name: "Bloom (Dev)"
+    prod:
+      app_id_suffix: ""
+      display_name: "Bloom"`;
+
+const prebuildCmd = `bloom prebuild`;
+
+const nativeSyncOverview = [
+  { platform: 'iOS', target: 'ios/Runner/Info.plist', desc: 'Syncs NSCameraUsageDescription, NSLocationWhenInUseUsageDescription, URL Types, and Associated Domains.' },
+  { platform: 'Android', target: 'android/app/src/main/AndroidManifest.xml', desc: 'Injects <uses-permission>, <intent-filter> for deep links, and package application ID overrides.' },
+  { platform: 'macOS', target: 'macos/Runner/Release.entitlements', desc: 'Syncs network server and camera sandbox capabilities automatically.' },
+];
+---
+
+<DocsLayout
+  title="Prebuild & Native Sync"
+  description="Manage native iOS and Android permissions, deep links, and flavors declaratively from bloom.yaml."
+  currentSlug="framework-native"
+  category="Framework Architecture"
+  toc={[
+    { id: 'config', title: 'Declarative bloom.yaml' },
+    { id: 'prebuild', title: 'Prebuild Engine' },
+    { id: 'targets', title: 'Native Target Manifests' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Smartphone className="w-3.5 h-3.5" />
+        Zero Native Boilerplate
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Prebuild & Native Sync
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Stop manually editing <code class="font-mono text-purple-400">AndroidManifest.xml</code> and <code class="font-mono text-purple-400">Info.plist</code> across Xcode and Gradle. Bloom's Prebuild Engine configures native permissions, deep link schemes, and flavors from a single declarative <code class="font-mono text-purple-400">bloom.yaml</code>.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="config" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Declarative bloom.yaml
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Define native configuration in the root configuration file:
+      </p>
+      <CodeBlock code={bloomYamlCode} lang="yaml" filename="bloom.yaml" />
+    </section>
+
+    <!-- Section 2 -->
+    <section id="prebuild" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Prebuild Engine
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Run <code class="font-mono text-purple-400">bloom prebuild</code> to synchronize the native projects idempotently:
+      </p>
+      <CodeBlock code={prebuildCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Section 3 -->
+    <section id="targets" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Native Target Manifests
+      </h2>
+      <div class="grid grid-cols-1 gap-3 pt-2">
+        {nativeSyncOverview.map((item) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white font-mono text-sm">{item.platform}</span>
+              <span class="text-xs font-mono text-purple-400">{item.target}</span>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/data"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Data Layer & Caching</span>
+      </a>
+      <a
+        href="/docs/framework/ota"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Cloud OTA Deployment</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

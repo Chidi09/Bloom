@@ -1,0 +1,109 @@
+---
+import { Copy, Terminal, FileCode, Check } from 'lucide-preact';
+
+interface Props {
+  code: string;
+  lang?: 'dart' | 'bash' | 'json' | 'yaml';
+  filename?: string;
+  className?: string;
+}
+
+const { code, lang = 'dart', filename, className = '' } = Astro.props;
+
+function highlightCode(rawCode: string, language: string): string {
+  // Escape HTML entities first
+  let escaped = rawCode
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  if (language === 'dart') {
+    // 1. Comments
+    escaped = escaped.replace(/(\/\/[^\n]*)/g, '<span class="text-slate-500 italic">$1</span>');
+
+    // 2. Strings ('...' or "...")
+    escaped = escaped.replace(/('([^'\\]|\\.)*'|"([^"\\]|\\.)*")/g, '<span class="text-emerald-400 font-medium">$1</span>');
+
+    // 3. Annotations (@override, etc.)
+    escaped = escaped.replace(/(@\w+)/g, '<span class="text-yellow-400 font-semibold">$1</span>');
+
+    // 4. Keywords
+    const keywords = '\\b(import|package|class|extends|implements|with|mixin|abstract|enum|void|return|final|late|const|var|static|super|this|new|await|async|yield|if|else|switch|case|default|break|continue|for|while|do|in|is|as|try|catch|finally|throw|rethrow|get|set|typedef|true|false|null)\\b';
+    escaped = escaped.replace(new RegExp(keywords, 'g'), '<span class="text-pink-400 font-bold">$1</span>');
+
+    // 5. Types & Classes (Capitalized identifiers)
+    escaped = escaped.replace(/\b([A-Z]\w+)\b/g, '<span class="text-cyan-400 font-semibold">$1</span>');
+
+    // 6. Common Framework Methods & Functions
+    const methods = '\\b(inject|createSignal|createComputed|createEffect|createQuery|createMutation|Watch|provideSingleton|provideLazySingleton|provideFactory|runApp|main|setState|toStringAsFixed|setData|invalidateQueries|onInit|onDispose|onBoot)\\b';
+    escaped = escaped.replace(new RegExp(methods, 'g'), '<span class="text-amber-300 font-medium">$1</span>');
+
+    // 7. Numbers
+    escaped = escaped.replace(/\b(\d+(\.\d+)?)\b/g, '<span class="text-orange-400">$1</span>');
+  } else if (language === 'bash') {
+    // Comments
+    escaped = escaped.replace(/(#[^\n]*)/g, '<span class="text-slate-500 italic">$1</span>');
+    // Commands
+    escaped = escaped.replace(/\b(bloom|flutter|dart|pub|git|cd|mkdir|npm|bun|npx)\b/g, '<span class="text-pink-400 font-bold">$1</span>');
+    // Subcommands
+    escaped = escaped.replace(/\b(create|dev|generate|prebuild|deploy|doctor|test|analyze|init|add|list|diff|global|activate|run)\b/g, '<span class="text-cyan-400 font-bold">$1</span>');
+    // Flags
+    escaped = escaped.replace(/(--[\w-]+|-[\w]+)/g, '<span class="text-amber-300">$1</span>');
+    // Strings
+    escaped = escaped.replace(/('([^'\\]|\\.)*'|"([^"\\]|\\.)*")/g, '<span class="text-emerald-400">$1</span>');
+  } else if (language === 'json') {
+    // Keys
+    escaped = escaped.replace(/("[\w$-]+")\s*:/g, '<span class="text-cyan-400 font-bold">$1</span>:');
+    // Strings
+    escaped = escaped.replace(/:\s*("([^"\\]|\\.)*")/g, ': <span class="text-emerald-400">$1</span>');
+    // Booleans / null
+    escaped = escaped.replace(/\b(true|false|null)\b/g, '<span class="text-pink-400 font-bold">$1</span>');
+    // Numbers
+    escaped = escaped.replace(/\b(\d+)\b/g, '<span class="text-orange-400">$1</span>');
+  } else if (language === 'yaml') {
+    // Keys
+    escaped = escaped.replace(/^(\s*[\w-]+):/gm, '$1<span class="text-cyan-400 font-bold">$2</span>:');
+    // Comments
+    escaped = escaped.replace(/(#[^\n]*)/g, '<span class="text-slate-500 italic">$1</span>');
+    // Strings
+    escaped = escaped.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, '<span class="text-emerald-400">$1</span>');
+  }
+
+  return escaped;
+}
+
+const highlightedHtml = highlightCode(code.trim(), lang);
+---
+
+<div class={`rounded-2xl border border-slate-800 bg-[#090D16] overflow-hidden shadow-2xl transition-all ${className}`}>
+  <!-- Header Bar -->
+  <div class="px-4 py-2.5 bg-[#0D1322] border-b border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+    <div class="flex items-center gap-2 font-mono text-slate-400">
+      {lang === 'bash' ? (
+        <Terminal className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+      ) : (
+        <FileCode className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+      )}
+      <span class="font-bold text-slate-300 truncate">{filename || (lang === 'bash' ? 'Terminal' : `${lang.toUpperCase()} snippet`)}</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-800 text-slate-400">
+        {lang}
+      </span>
+      <button
+        onclick={`navigator.clipboard.writeText(\`${code.trim()}\`); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Code Copied', message: 'Ready to paste.', type: 'emerald' } }))`}
+        class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition font-mono text-[11px] font-medium"
+        title="Copy Code"
+      >
+        <Copy className="w-3 h-3 text-purple-400" />
+        <span>Copy</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Code Body -->
+  <div class="p-5 font-mono text-xs text-slate-200 overflow-x-auto leading-relaxed scrollbar-thin">
+    <pre class="whitespace-pre font-mono"><code set:html={highlightedHtml} /></pre>
+  </div>
+</div>

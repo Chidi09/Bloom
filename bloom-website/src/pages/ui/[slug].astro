@@ -9,7 +9,8 @@ import {
   ArrowLeft, 
   ArrowRight,
   Layers,
-  ExternalLink
+  ExternalLink,
+  Copy
 } from 'lucide-preact';
 
 export function getStaticPaths() {
@@ -66,10 +67,10 @@ const nextComp = currentIndex < UI_REGISTRY.length - 1 ? UI_REGISTRY[currentInde
           <code>{component.cliCommand}</code>
           <button
             onclick={`navigator.clipboard.writeText('${component.cliCommand}'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Command Copied', message: 'Ready to run in terminal.', type: 'emerald' } }))`}
-            class="ml-2 text-slate-400 hover:text-white"
+            class="ml-2 text-slate-400 hover:text-white p-1 rounded-md transition"
             title="Copy Command"
           >
-            📋
+            <Copy className="w-3.5 h-3.5" />
           </button>
         </div>
 

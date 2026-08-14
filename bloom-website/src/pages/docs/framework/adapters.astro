@@ -1,42 +1,57 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { Database, Server, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Server, Zap, ArrowRight, ShieldCheck, Database, Layers } from 'lucide-preact';
 
-const supabaseCode = `// lib/app/boot.dart
+const supabaseCode = `// lib/adapters/supabase_adapter.dart
 import 'package:bloom_framework/bloom.dart';
-import 'package:bloom_adapter_supabase/bloom_adapter_supabase.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class AppBootstrapper implements BloomBootstrapper {
+class SupabaseAuthAdapter extends BloomAuthBase<User> {
+  final SupabaseClient client;
+  SupabaseAuthAdapter(this.client);
+
   @override
-  Future<void> onBoot(BloomContainer container) async {
-    // Initialize Supabase adapter
-    await container.useSupabase(
-      url: 'https://xyzcompany.supabase.co',
-      anonKey: 'public-anon-key',
+  Future<void> signInWithEmailPassword(String email, String password) async {
+    final response = await client.auth.signInWithPassword(
+      email: email,
+      password: password,
     );
+    // Syncs reactive signals in BloomAuth
+    setUser(response.user);
+  }
+
+  @override
+  Future<void> signOut() async {
+    await client.auth.signOut();
+    setUser(null);
   }
 }`;
 
-const serverpodCode = `// lib/app/boot.dart
+const serverpodCode = `// lib/adapters/serverpod_adapter.dart
 import 'package:bloom_framework/bloom.dart';
-import 'package:bloom_adapter_serverpod/bloom_adapter_serverpod.dart';
+import 'package:my_serverpod_client/my_serverpod_client.dart';
 
-class AppBootstrapper implements BloomBootstrapper {
-  @override
-  Future<void> onBoot(BloomContainer container) async {
-    // Full-stack Dart Serverpod client
-    await container.useServerpod(
-      host: 'https://api.mybloomserver.com',
-    );
+class ServerpodFeedAdapter {
+  final Client client;
+  ServerpodFeedAdapter(this.client);
+
+  // Exposes live Serverpod stream as fine-grained reactive Bloom Signal
+  late final liveMessages = createSignal<List<ChatMessage>>([]);
+
+  void startListening() {
+    client.chat.messagesStream.listen((msg) {
+      liveMessages.value = [...liveMessages.value, msg];
+    });
   }
 }`;
 ---
 
 <DocsLayout
   title="Backend Adapters"
-  description="Pre-configured full-stack backend integrations for Supabase and Serverpod."
+  description="Turnkey adapters and integrations for Supabase, Serverpod, and custom REST/GraphQL backends."
   currentSlug="framework-adapters"
-  category="Framework & DX"
+  category="Framework Architecture"
   toc={[
     { id: 'supabase', title: 'Supabase Adapter' },
     { id: 'serverpod', title: 'Serverpod Adapter' },
@@ -45,34 +60,38 @@ class AppBootstrapper implements BloomBootstrapper {
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <Server className="w-3.5 h-3.5" />
+        Turnkey Backends
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Backend Adapters
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom connects out of the box with popular backend ecosystems. Auth, real-time database listeners, and storage are automatically bound to Bloom's Signals and Dependency Injection container.
+        Bloom connects seamlessly with your favorite backend providers. Pre-built adapters translate authentication sessions and live database streams directly into reactive Bloom signals.
       </p>
     </div>
 
-    <!-- Supabase -->
+    <!-- Section 1 -->
     <section id="supabase" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-        <Database className="w-5 h-5 text-emerald-400" />
-        <span>Supabase Adapter</span>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Supabase Adapter
       </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{supabaseCode}</code></pre>
-      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Connect Supabase Auth to <code class="font-mono text-purple-400">BloomAuthBase</code> to power route guards and profile subscriptions:
+      </p>
+      <CodeBlock code={supabaseCode} lang="dart" filename="lib/adapters/supabase_adapter.dart" />
     </section>
 
-    <!-- Serverpod -->
-    <section id="serverpod" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-        <Server className="w-5 h-5 text-purple-400" />
-        <span>Serverpod Adapter</span>
+    <!-- Section 2 -->
+    <section id="serverpod" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Serverpod Adapter
       </h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{serverpodCode}</code></pre>
-      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Stream typed Serverpod updates directly into reactive Bloom signals with zero boilerplate:
+      </p>
+      <CodeBlock code={serverpodCode} lang="dart" filename="lib/adapters/serverpod_adapter.dart" />
     </section>
 
     <!-- Next Page Footer -->
@@ -81,13 +100,13 @@ class AppBootstrapper implements BloomBootstrapper {
         href="/docs/framework/ota"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: Cloud OTA</span>
+        <span>Previous: Cloud OTA Deployment</span>
       </a>
       <a
-        href="/ui"
+        href="/docs/guides/cookbook"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
       >
-        <span>Explore UI Components</span>
+        <span>Next: Cookbook & Recipes</span>
         <ArrowRight className="w-4 h-4" />
       </a>
     </div>

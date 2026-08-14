@@ -1,0 +1,69 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Layers, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const repoCode = `// lib/features/users/user_repository.dart
+import 'package:bloom_framework/bloom.dart';
+
+class UserRepository extends BloomRepository<User, String> {
+  UserRepository({required super.client, required super.cache});
+
+  @override
+  String get endpoint => '/users';
+
+  @override
+  User fromJson(Map<String, dynamic> json) => User.fromJson(json);
+}`;
+---
+
+<DocsLayout
+  title="Typed Repositories"
+  description="Encapsulate REST/GraphQL API access, serialization, and caching in reusable repository classes."
+  currentSlug="data-repositories"
+  category="Data & Cache"
+  toc={[
+    { id: 'repo-pattern', title: 'BloomRepository Base Class' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Layers className="w-3.5 h-3.5" />
+        Data Access
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Typed Repositories
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Standardize CRUD operations and caching strategies across entities.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="repo-pattern" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomRepository Base Class
+      </h2>
+      <CodeBlock code={repoCode} lang="dart" filename="lib/features/users/user_repository.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/authentication"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Authentication</span>
+      </a>
+      <a
+        href="/docs/native/permissions"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Native Permissions</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

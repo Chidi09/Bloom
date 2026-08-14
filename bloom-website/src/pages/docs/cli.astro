@@ -1,6 +1,19 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/common/CodeBlock.astro';
 import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
+
+const initCmd = `bloom ui init --style nova --yes`;
+
+const addCmd = `# Add single or multiple components
+bloom ui add button card dialog chart
+
+# Or install all 60+ components at once
+bloom ui add all`;
+
+const listCmd = `bloom ui list`;
+
+const diffCmd = `bloom ui diff button`;
 ---
 
 <DocsLayout
@@ -17,7 +30,7 @@ import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         CLI Reference
       </h1>
@@ -35,9 +48,7 @@ import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
         Initializes your Flutter project with the base design token system, color schemes, and configuration file.
       </p>
 
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom ui init [options]</code>
-      </div>
+      <CodeBlock code={initCmd} lang="bash" filename="Terminal" />
 
       <div class="space-y-2">
         <h3 class="text-xs font-bold uppercase text-slate-400 font-mono">Options</h3>
@@ -61,12 +72,7 @@ import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
         Copies the specified component(s) and any required internal primitives into your <code class="font-mono text-purple-400">lib/bloom_ui/primitives/</code> directory.
       </p>
 
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300 space-y-2">
-        <div><code># Add single or multiple components</code></div>
-        <div><code>bloom ui add button card dialog chart</code></div>
-        <div class="pt-2 border-t border-slate-800"><code># Add all 60+ primitives</code></div>
-        <div><code>bloom ui add all</code></div>
-      </div>
+      <CodeBlock code={addCmd} lang="bash" filename="Terminal" />
 
       <div class="space-y-2">
         <h3 class="text-xs font-bold uppercase text-slate-400 font-mono">Options</h3>
@@ -75,7 +81,7 @@ import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
             <span class="text-purple-400 font-bold">--overwrite / -o</span>: Overwrite existing local component files if they already exist.
           </li>
           <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
-            <span class="text-purple-400 font-bold">--path &lt;custom-path&gt;</span>: Custom target directory for output files.
+            <span class="text-purple-400 font-bold">--path &lt;custom-dir&gt;</span>: Custom destination directory for the component files.
           </li>
         </ul>
       </div>
@@ -87,21 +93,29 @@ import { Terminal, Code2, ArrowRight, Copy } from 'lucide-preact';
         bloom ui list
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Lists all available components in the Bloom UI registry and shows which ones are currently installed in your project.
+        Lists all available primitives in the Bloom registry along with their installation status in your current project.
       </p>
-
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom ui list</code>
-      </div>
+      <CodeBlock code={listCmd} lang="bash" filename="Terminal" />
     </section>
 
-    <!-- Next Page Footer -->
+    <!-- Diff -->
+    <section id="diff" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-mono">
+        bloom ui diff
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Compares your local component implementation against the upstream registry to view improvements and updates.
+      </p>
+      <CodeBlock code={diffCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Footer -->
     <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
       <a
         href="/docs/theming"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: Theming</span>
+        <span>Previous: Theming & Tokens</span>
       </a>
       <a
         href="/docs/typography"
