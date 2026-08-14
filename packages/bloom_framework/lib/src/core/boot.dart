@@ -1,5 +1,6 @@
 // lib/src/core/boot.dart
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../config/config.dart';
 import '../di/container.dart';
@@ -47,12 +48,23 @@ class Bloom {
     if (configYaml != null) {
       _config = BloomConfig.fromYaml(configYaml);
     } else {
-      _config = const BloomConfig();
+      try {
+        final assetConfig = await rootBundle.loadString('bloom.yaml');
+        _config = BloomConfig.fromYaml(assetConfig);
+      } catch (_) {
+        _config = const BloomConfig();
+      }
     }
 
     // 3. Load environment variables
     if (envContent != null) {
       BloomEnv.loadContent(envContent);
+    } else {
+      // Auto-load from assets if bundled
+      try {
+        final assetEnv = await rootBundle.loadString('.env');
+        BloomEnv.loadContent(assetEnv);
+      } catch (_) {}
     }
 
     // 4. Configure logger
