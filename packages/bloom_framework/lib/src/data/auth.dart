@@ -33,6 +33,7 @@ class BloomAuth<U> implements BloomAuthBase {
     Map<String, dynamic> Function(U user)? toJson,
     Map<String, dynamic> Function(U user)? userSerializer,
     this.sessionKey = 'bloom_auth_session',
+    bool autoProvide = false,
   })  : fromJson = fromJson ?? userDeserializer,
         toJson = toJson ?? userSerializer {
     _currentUser = signal<U?>(null, debugLabel: 'auth.currentUser');
@@ -40,8 +41,9 @@ class BloomAuth<U> implements BloomAuthBase {
     _isAuthenticated = computed<bool>(() => _currentUser.value != null && _token.value != null,
         debugLabel: 'auth.isAuthenticated');
 
-    // Register as BloomAuthBase in DI container
-    globalContainer.provideValue<BloomAuthBase>(this);
+    if (autoProvide) {
+      globalContainer.provideValue<BloomAuthBase>(this);
+    }
   }
 
   ReadonlySignal<U?> get currentUser => _currentUser.readonly();

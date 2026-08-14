@@ -34,9 +34,12 @@ class BloomHttpClient {
     if (path.startsWith('http://') || path.startsWith('https://')) {
       fullUrl = path;
     } else {
-      final base = (baseUrl != null && baseUrl!.isNotEmpty)
-          ? (baseUrl!.endsWith('/') ? baseUrl!.substring(0, baseUrl!.length - 1) : baseUrl!)
-          : 'http://localhost:8080';
+      if (baseUrl == null || baseUrl!.isEmpty) {
+        throw StateError(
+          'BloomHttpClient: Cannot resolve relative endpoint "$path" because no baseUrl or API_BASE_URL environment variable was configured.',
+        );
+      }
+      final base = baseUrl!.endsWith('/') ? baseUrl!.substring(0, baseUrl!.length - 1) : baseUrl!;
       final cleanPath = path.startsWith('/') ? path : '/$path';
       fullUrl = '$base$cleanPath';
     }

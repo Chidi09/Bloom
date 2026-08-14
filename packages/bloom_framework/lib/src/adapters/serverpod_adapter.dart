@@ -10,6 +10,27 @@ enum BloomServerpodConnectionStatus {
   connected,
 }
 
+/// A reactive signal bound to a real-time stream subscription with explicit lifecycle disposal.
+class BloomStreamSignal<T> {
+  final Signal<T> signal;
+  final StreamSubscription<T> subscription;
+
+  BloomStreamSignal({
+    required this.signal,
+    required this.subscription,
+  });
+
+  T get value => signal.value;
+  set value(T val) => signal.value = val;
+
+  ReadonlySignal<T> readonly() => signal.readonly();
+
+  /// Cancel stream subscription and release resources.
+  Future<void> dispose() async {
+    await subscription.cancel();
+  }
+}
+
 /// Official Bloom client adapter for Serverpod backend connections.
 class BloomServerpodClient {
   final String serverUrl;
@@ -28,6 +49,11 @@ class BloomServerpodClient {
   /// Connection status.
   BloomServerpodConnectionStatus get status => _status;
 
+  /// Update connection status.
+  void setStatus(BloomServerpodConnectionStatus newStatus) {
+    _status = newStatus;
+  }
+
   /// Active authentication key.
   String? get authKey => _authKey;
 
@@ -37,17 +63,17 @@ class BloomServerpodClient {
     logger.debug('BloomServerpodClient: Updated authentication key.');
   }
 
-  /// Creates a reactive [Signal<T>] whose value updates automatically from a Serverpod streaming subscription.
-  Signal<T> signalFromStream<T>({
+  /// Creates a reactive [BloomStreamSignal<T>] whose value updates automatically from a Serverpod streaming subscription.
+  BloomStreamSignal<T> signalFromStream<T>({
     required Stream<T> stream,
     required T initialValue,
   }) {
     final sig = signal<T>(initialValue);
-    stream.listen(
+    final sub = stream.listen(
       (data) => sig.value = data,
       onError: (err) => logger.error('BloomServerpodClient: Stream error: $err'),
     );
-    return sig;
+    return BloomStreamSignal<T>(signal: sig, subscription: sub);
   }
 }
 
@@ -56,7 +82,7 @@ class BloomServerpodRepository<T> implements BloomCrudRepository<T, int> {
   final Future<List<T>> Function() getAllDelegate;
   final Future<T?> Function(int id) getByIdDelegate;
   final Future<T> Function(T item) insertDelegate;
-  final Future<T> Function(T item) updateDelegate;
+  final Future<T> Function(int id, T item) updateDelegate;
   final Future<bool> Function(int id) deleteDelegate;
 
   const BloomServerpodRepository({
@@ -77,7 +103,7 @@ class BloomServerpodRepository<T> implements BloomCrudRepository<T, int> {
   Future<T> create(T item) => insertDelegate(item);
 
   @override
-  Future<T> update(int id, T item) => updateDelegate(item);
+  Future<T> update(int id, T item) => updateDelegate(id, item);
 
   @override
   Future<bool> delete(int id) => deleteDelegate(id);

@@ -107,7 +107,7 @@ class DoctorCommand extends Command<int> {
       if (envFile.existsSync()) {
         print('  ${Ansi.green}✔ .env file present${Ansi.reset}');
       } else {
-        print('  ${Ansi.yellow}⚠ .env file missing (run `bloom generate env`)${Ansi.reset}');
+        print('  ${Ansi.yellow}⚠ .env file missing (create a .env file in project root)${Ansi.reset}');
       }
 
       // routes
