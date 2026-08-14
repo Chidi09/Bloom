@@ -9,6 +9,7 @@ interface RoadmapItem {
   priority: 'P0 (v0.1)' | 'P1 (v0.2)' | 'P2 (v0.5)' | 'P2 (v0.7)';
   status: 'Complete' | 'In Progress' | 'Planned';
   description: string;
+  badgeExtra?: string;
 }
 
 const items: RoadmapItem[] = [
@@ -18,7 +19,7 @@ const items: RoadmapItem[] = [
     ecosystemProvider: 'Flutter CLI',
     priority: 'P0 (v0.1)',
     status: 'Complete',
-    description: 'Unified project scaffolding, environment config, and diagnostic doctor tool.',
+    description: 'Unified project scaffolding, environment config, bloom ui add commands, and diagnostic doctor tool.',
   },
   {
     capability: 'Signals Reactive State API',
@@ -34,7 +35,16 @@ const items: RoadmapItem[] = [
     ecosystemProvider: 'go_router',
     priority: 'P0 (v0.1)',
     status: 'Complete',
-    description: 'Next.js-style directory router compiling to type-safe go_router definitions.',
+    description: 'Next.js-style directory router compiling to type-safe go_router definitions and route guards.',
+  },
+  {
+    capability: 'Bloom UI Primitives Suite (shadcn)',
+    bloomOwnership: '100% Parity (60+ Primitives)',
+    ecosystemProvider: 'Pure Dart / Impeller',
+    priority: 'P0 (v0.1)',
+    status: 'Complete',
+    description: '60+ shadcn-parity primitives with 8 style presets, charts, and zero runtime dependencies. Published on pub.dev.',
+    badgeExtra: 'bloom_ui v0.1.0',
   },
   {
     capability: 'Data & Bloom Query Engine',
@@ -42,7 +52,7 @@ const items: RoadmapItem[] = [
     ecosystemProvider: 'HTTP / SQLite',
     priority: 'P1 (v0.2)',
     status: 'In Progress',
-    description: 'Declarative server-state caching, background refetching, and optimistic mutations.',
+    description: 'Declarative server-state caching, background refetching, offline queueing, and optimistic mutations.',
   },
   {
     capability: 'Bloom Go Dev Client App',
@@ -50,7 +60,7 @@ const items: RoadmapItem[] = [
     ecosystemProvider: 'Flutter Engine',
     priority: 'P2 (v0.5)',
     status: 'Planned',
-    description: 'Expo-style wireless development shell for instant mobile test device pairing.',
+    description: 'Expo-style wireless development shell for instant mobile test device pairing via QR code.',
   },
   {
     capability: 'OTA Code Push Orchestration',
@@ -58,7 +68,7 @@ const items: RoadmapItem[] = [
     ecosystemProvider: 'Shorebird OTA',
     priority: 'P2 (v0.7)',
     status: 'Planned',
-    description: 'Cryptographically signed over-the-air byte-patch distribution pipeline.',
+    description: 'Cryptographically signed over-the-air byte-patch distribution pipeline bypassing store review cycles.',
   },
 ];
 
@@ -75,10 +85,10 @@ export function PriorityRoadmap() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950/90 dark:bg-black backdrop-blur border border-slate-800 dark:border-white/10">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           {[
-            { id: 'all', label: 'All Priorities (P0 - P2)' },
-            { id: 'P0', label: 'P0 Core Platform' },
+            { id: 'all', label: `All Capabilities (${items.length})` },
+            { id: 'P0', label: 'P0 Core & UI (Complete)' },
             { id: 'P1', label: 'P1 Data Engine' },
-            { id: 'P2', label: 'P2 Ecosystem Shell' },
+            { id: 'P2', label: 'P2 Mobile & OTA' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -115,8 +125,15 @@ export function PriorityRoadmap() {
               {filteredItems.map((item, idx) => (
                 <tr key={idx} className="hover:bg-zinc-900/60 transition-colors">
                   <td className="py-4 px-6">
-                    <div className="font-bold text-white text-sm">
-                      {item.capability}
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-sm">
+                        {item.capability}
+                      </span>
+                      {item.badgeExtra && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
+                          {item.badgeExtra}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5 font-normal">
                       {item.description}
