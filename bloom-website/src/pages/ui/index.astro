@@ -1,0 +1,125 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Section from '../../components/common/Section.astro';
+import GlassPanel from '../../components/common/GlassPanel.astro';
+import { UI_REGISTRY, UI_CATEGORIES } from '../../lib/ui-registry';
+import { 
+  Sparkles, 
+  Terminal, 
+  Layers, 
+  ArrowRight, 
+  CheckCircle2, 
+  Code2, 
+  Smartphone, 
+  Monitor, 
+  Sliders,
+  ExternalLink
+} from 'lucide-preact';
+---
+
+<Layout
+  title="Bloom UI — 100% shadcn/ui Primitives for Flutter"
+  description="Explore all 60+ zero-dependency, accessible Flutter UI primitives inspired by shadcn/ui. Copy-paste source code or install via pub.dev."
+  hue="bloom"
+  petalHighlight="all"
+  nextChapterTitle="BUILD — Framework & DX"
+  nextChapterLink="/build"
+  nextChapterSubtitle="Explore opinionated file-based routing and reactive signals."
+  ogPage="bloom"
+>
+  <!-- Hero Section -->
+  <Section reveal={false} className="pt-16 pb-12 lg:pt-24 lg:pb-16 relative">
+    <div class="text-center max-w-4xl mx-auto space-y-6 relative z-10">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-mono font-bold tracking-wide">
+        <Sparkles className="w-3.5 h-3.5" />
+        Official Release: bloom_ui v0.1.0 on pub.dev
+      </div>
+
+      <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+        Components for Flutter.<br />
+        <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">
+          Zero Runtime Dependencies.
+        </span>
+      </h1>
+
+      <p class="text-slate-600 dark:text-slate-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
+        Accessible, customizable UI primitives styled to match shadcn base-nova specifications. Copy-paste directly into your project or install via pub.dev.
+      </p>
+
+      <!-- Quick Install Box -->
+      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">
+        <div class="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 font-mono text-xs text-slate-200 shadow-2xl backdrop-blur-xl">
+          <Terminal className="w-4 h-4 text-purple-400" />
+          <span>bloom ui add all</span>
+          <button
+            onclick="navigator.clipboard.writeText('bloom ui add all'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Copied CLI Command', message: 'Run in terminal to copy all components.', type: 'emerald' } }))"
+            class="p-1 text-slate-400 hover:text-white transition"
+            title="Copy Command"
+          >
+            📋
+          </button>
+        </div>
+
+        <a
+          href="https://pub.dev/packages/bloom_ui"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-lg"
+        >
+          <span>View on pub.dev</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </div>
+  </Section>
+
+  <!-- Component Category Groups -->
+  <Section className="pt-4 pb-20">
+    <div class="max-w-7xl mx-auto space-y-16">
+      {UI_CATEGORIES.map((category) => {
+        const categoryComponents = UI_REGISTRY.filter((c) => c.category === category);
+        return (
+          <div class="space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div>
+                <h2 class="text-2xl font-black text-slate-900 dark:text-white">{category}</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {categoryComponents.length} calibrated Flutter primitives
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {categoryComponents.map((comp) => (
+                <a
+                  href={`/ui/${comp.slug}`}
+                  class="group block p-6 rounded-2xl bg-slate-50/50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-purple-500/50 dark:hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl relative overflow-hidden backdrop-blur-md"
+                >
+                  <div class="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-bl-full group-hover:scale-125 transition-transform duration-500"></div>
+                  
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-400 transition-colors">
+                      {comp.title}
+                    </span>
+                    <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      {comp.name}
+                    </span>
+                  </div>
+
+                  <p class="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed mb-4">
+                    {comp.description}
+                  </p>
+
+                  <div class="flex items-center justify-between pt-3 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                    <code>{comp.cliCommand}</code>
+                    <ArrowRight className="w-3.5 h-3.5 text-purple-400 transform group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </Section>
+</Layout>
