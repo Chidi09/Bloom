@@ -14,6 +14,7 @@ abstract class BloomNativeModule {
   MethodChannel? _methodChannel;
   EventChannel? _eventChannel;
   final Map<String, StreamController<dynamic>> _streamControllers = {};
+  final Map<String, StreamSubscription<dynamic>> _nativeSubscriptions = {};
   final Map<String, dynamic> _constants = {};
   bool _isInitialized = false;
 
@@ -52,6 +53,11 @@ abstract class BloomNativeModule {
 
   /// Invoked when the module is unregistered or disposed.
   Future<void> onDispose() async {
+    for (final sub in _nativeSubscriptions.values) {
+      await sub.cancel();
+    }
+    _nativeSubscriptions.clear();
+
     for (final controller in _streamControllers.values) {
       await controller.close();
     }
@@ -59,7 +65,7 @@ abstract class BloomNativeModule {
     _isInitialized = false;
   }
 
-  /// Invocates an asynchronous native method across the platform boundary.
+  /// Invokes an asynchronous native method across the platform boundary.
   Future<T?> invokeAsync<T>(
     String method, [
     Map<String, dynamic>? args,
@@ -68,10 +74,7 @@ abstract class BloomNativeModule {
     try {
       final result = await _methodChannel?.invokeMethod<T>(
         method,
-        {
-          ...?args,
-          '_bloom_thread': thread.name,
-        },
+        args,
       );
       return result;
     } on PlatformException catch (e, stack) {
@@ -96,10 +99,41 @@ abstract class BloomNativeModule {
     _constants[key] = value;
   }
 
-  /// Subscribes to a long-running native hardware stream or event.
+  /// Subscribes to a long-running native hardware stream or event channel.
   Stream<T> subscribeStream<T>(String streamName, [Map<String, dynamic>? args]) {
     if (!_streamControllers.containsKey(streamName)) {
-      _streamControllers[streamName] = StreamController<dynamic>.broadcast();
+      final controller = StreamController<dynamic>.broadcast();
+      _streamControllers[streamName] = controller;
+
+      // Wire real native EventChannel if available
+      if (_eventChannel != null) {
+        try {
+          final nativeStream = _eventChannel!.receiveBroadcastStream({
+            'stream': streamName,
+            if (args != null) ...args,
+          });
+
+          final sub = nativeStream.listen(
+            (event) {
+              if (!controller.isClosed) {
+                controller.add(event);
+              }
+            },
+            onError: (err, stack) {
+              if (!controller.isClosed) {
+                if (err is PlatformException) {
+                  controller.addError(_mapPlatformException(err, stack));
+                } else {
+                  controller.addError(err, stack);
+                }
+              }
+            },
+          );
+          _nativeSubscriptions[streamName] = sub;
+        } catch (_) {
+          // Native channel unavailable (e.g. test harness / mock mode)
+        }
+      }
     }
 
     final controller = _streamControllers[streamName]!;

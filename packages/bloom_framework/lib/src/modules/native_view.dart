@@ -39,6 +39,7 @@ class BloomNativeView extends StatefulWidget {
 
 class _BloomNativeViewState extends State<BloomNativeView> {
   MethodChannel? _channel;
+  Map<String, dynamic>? _pendingProps;
 
   @override
   void didUpdateWidget(covariant BloomNativeView oldWidget) {
@@ -49,7 +50,12 @@ class _BloomNativeViewState extends State<BloomNativeView> {
   }
 
   void _updateNativeProps() {
-    _channel?.invokeMethod('updateProps', widget.props);
+    if (_channel != null) {
+      _channel?.invokeMethod('updateProps', widget.props);
+      _pendingProps = null;
+    } else {
+      _pendingProps = Map<String, dynamic>.from(widget.props);
+    }
   }
 
   void _onPlatformViewCreated(int id) {
@@ -58,6 +64,11 @@ class _BloomNativeViewState extends State<BloomNativeView> {
     _channel?.setMethodCallHandler((call) async {
       widget.onEvent?.call(call.method, call.arguments);
     });
+
+    if (_pendingProps != null) {
+      _channel?.invokeMethod('updateProps', _pendingProps);
+      _pendingProps = null;
+    }
   }
 
   @override
