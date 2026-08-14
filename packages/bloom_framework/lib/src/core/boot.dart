@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../config/config.dart';
 import '../data/cache.dart';
+import '../deployment/bloom_ota.dart';
 import '../devtools/devtools_service.dart';
 import '../di/container.dart';
 import '../di/scope.dart';
@@ -117,7 +118,15 @@ class Bloom {
     BloomDevToolsService.register();
     BloomData.startGarbageCollector();
 
-    // 9. Execute user bootstrapper if provided
+    // 9. Initialize OTA Code-Push if enabled
+    if (_config.deployment.shorebird.enabled) {
+      await BloomOTA.initialize();
+      if (_config.deployment.shorebird.autoCheckUpdate) {
+        unawaited(BloomOTA.checkForUpdate());
+      }
+    }
+
+    // 10. Execute user bootstrapper if provided
     if (bootstrapper != null) {
       await bootstrapper.onBoot(container);
     }
@@ -140,5 +149,6 @@ class Bloom {
     container.reset();
     BloomDeepLinks.dispose();
     BloomData.stopGarbageCollector();
+    BloomOTA.reset();
   }
 }

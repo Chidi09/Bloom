@@ -10,6 +10,27 @@ void main() {
     BloomOTA.reset();
   });
 
+  group('Phase 7: BloomConfig Deployment Model', () {
+    test('parses typed deployment.shorebird configuration', () {
+      const yaml = '''
+name: sample_ota
+deployment:
+  shorebird:
+    enabled: true
+    app_id: "app-uuid-1234"
+    auto_check_update: true
+    flavors:
+      production: "prod-uuid-5678"
+''';
+
+      final config = BloomConfig.fromYaml(yaml);
+      expect(config.deployment.shorebird.enabled, true);
+      expect(config.deployment.shorebird.appId, 'app-uuid-1234');
+      expect(config.deployment.shorebird.autoCheckUpdate, true);
+      expect(config.deployment.shorebird.flavors['production'], 'prod-uuid-5678');
+    });
+  });
+
   group('Phase 7: BloomOTA Updates & Lifecycle', () {
     test('initializes with channel and current patch number', () async {
       await BloomOTA.initialize(channel: 'staging', currentPatch: 3);
@@ -62,6 +83,19 @@ void main() {
 
       expect(hasUpdate, false);
       expect(BloomOTA.currentStatus, BloomOtaStatus.upToDate);
+    });
+
+    test('omits null releaseNotes in patch serialization', () {
+      final patch = BloomOtaPatch(
+        patchNumber: 10,
+        channel: 'beta',
+        releasedAt: DateTime(2026, 1, 1),
+      );
+
+      final json = patch.toJson();
+      expect(json.containsKey('releaseNotes'), false);
+      expect(json['patchNumber'], 10);
+      expect(json['channel'], 'beta');
     });
   });
 }
