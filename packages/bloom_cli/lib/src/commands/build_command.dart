@@ -1,10 +1,11 @@
-// lib/src/commands/build_command.dart
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
+import '../web/ssg_engine.dart';
+import '../web/ssr_engine.dart';
 
 class BuildCommand extends Command<int> {
   @override
@@ -29,9 +30,23 @@ class BuildCommand extends Command<int> {
         abbr: 'f',
         help: 'Build flavor to use (defined in bloom.yaml).',
       )
+      ..addFlag(
+        'static',
+        help: 'Build static pre-rendered HTML site (SSG) with sitemap and PWA assets.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'server',
+        help: 'Build full-stack Server-Side Rendering (SSR) bundle with API routes.',
+        defaultsTo: false,
+      )
       ..addOption(
         'env-file',
         help: 'Explicit environment file to inject during build.',
+      )
+      ..addOption(
+        'project-dir',
+        help: 'Explicit path to the Bloom project directory.',
       );
   }
 
@@ -44,7 +59,11 @@ class BuildCommand extends Command<int> {
     }
 
     final target = rest.first.toLowerCase();
-    final project = BloomProject.find();
+    final explicitDir = argResults?['project-dir'] != null
+        ? Directory(argResults!['project-dir'] as String)
+        : null;
+
+    final project = BloomProject.find(explicitDir);
     if (project == null) {
       print(Ansi.error('No Bloom project found.'));
       return 1;
@@ -52,6 +71,8 @@ class BuildCommand extends Command<int> {
 
     final flavor = argResults?['flavor'] as String?;
     final explicitEnv = argResults?['env-file'] as String?;
+    final isStatic = argResults?['static'] == true;
+    final isServer = argResults?['server'] == true;
 
     print(Ansi.boldText('\n🏗  Building Bloom target: ${Ansi.cyan}$target${Ansi.reset}${flavor != null ? ' [Flavor: $flavor]' : ''}\n'));
 
@@ -65,7 +86,19 @@ class BuildCommand extends Command<int> {
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
 
-    // 2. Determine environment file injection
+    // 2. Handle Web SSG and SSR targets
+    if (target == 'web' && (isStatic || isServer)) {
+      final ssg = BloomSsgEngine(project: project);
+      await ssg.generate();
+
+      if (isServer) {
+        final ssr = BloomSsrEngine(project: project);
+        await ssr.generate();
+      }
+      return 0;
+    }
+
+    // 3. Determine environment file injection
     String? envToInject = explicitEnv;
     if (envToInject == null && flavor != null) {
       final config = project.loadBloomConfig();
@@ -76,7 +109,7 @@ class BuildCommand extends Command<int> {
       envToInject ??= '.env.$flavor';
     }
 
-    // 3. Assemble flutter build arguments
+    // 4. Assemble flutter build arguments
     final buildArgs = ['build', target];
 
     if (argResults?['profile'] == true) {
