@@ -1,6 +1,4 @@
 // test/bloom_framework_test.dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:bloom_framework/bloom.dart';
 import 'package:bloom_framework/bloom_testing.dart';
 import 'package:flutter/material.dart';
 

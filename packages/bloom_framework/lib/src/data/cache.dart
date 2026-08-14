@@ -27,7 +27,7 @@ class QueryCacheEntry<T> {
       isStale || DateTime.now().difference(updatedAt) > staleTime;
 }
 
-/// Global query cache manager for Bloom Data.
+/// Global query cache manager for Bloom Data with automated TTL garbage collection.
 class BloomData {
   static final Map<String, QueryCacheEntry<dynamic>> _cache =
       HashMap<String, QueryCacheEntry<dynamic>>();
@@ -82,7 +82,7 @@ class BloomData {
   }
 
   /// Set cache data directly for a given key.
-  static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) {
+  static void setQueryData<T>(List<dynamic> key, T? Function(T? oldData) updater) {
     final keyStr = normalizeKey(key);
     final existing = _cache[keyStr] as QueryCacheEntry<T>?;
     final newData = updater(existing?.data);
@@ -99,11 +99,15 @@ class BloomData {
     _invalidationControllers[keyStr]?.add(null);
   }
 
-  /// Get cached query data if available.
+  /// Get cached query data if available and not expired.
   static T? getQueryData<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     final entry = _cache[keyStr];
-    if (entry != null && !entry.isExpired) {
+    if (entry != null) {
+      if (entry.isExpired) {
+        _cache.remove(keyStr);
+        return null;
+      }
       return entry.data as T?;
     }
     return null;
@@ -112,13 +116,35 @@ class BloomData {
   /// Get full cache entry for internal query lifecycle management.
   static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
-    return _cache[keyStr] as QueryCacheEntry<T>?;
+    final entry = _cache[keyStr];
+    if (entry != null && entry.isExpired) {
+      _cache.remove(keyStr);
+      return null;
+    }
+    return entry as QueryCacheEntry<T>?;
   }
 
   /// Store or update a cache entry.
   static void putEntry<T>(QueryCacheEntry<T> entry) {
     final keyStr = normalizeKey(entry.key);
     _cache[keyStr] = entry;
+  }
+
+  /// Removes all expired entries from cache memory to free up resources.
+  static int garbageCollect() {
+    final expiredKeys = <String>[];
+    for (final entryKey in _cache.keys) {
+      if (_cache[entryKey]!.isExpired) {
+        expiredKeys.add(entryKey);
+      }
+    }
+    for (final k in expiredKeys) {
+      _cache.remove(k);
+    }
+    if (expiredKeys.isNotEmpty) {
+      logger.debug('BloomData: Evicted ${expiredKeys.length} expired query cache entries.');
+    }
+    return expiredKeys.length;
   }
 
   /// Listen for invalidation events on a specific query key.

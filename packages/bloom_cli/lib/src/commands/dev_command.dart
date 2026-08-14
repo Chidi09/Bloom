@@ -37,10 +37,36 @@ class DevCommand extends Command<int> {
       return 1;
     }
 
-    final targetDevice = argResults?['device'] as String?;
+    var targetDevice = argResults?['device'] as String?;
+    final wireless = argResults?['wireless'] as bool? ?? false;
 
     printBloomBanner();
     print('${Ansi.cyan}${Ansi.bold}🌸 Starting Bloom Development Engine for "${project.projectName}"...${Ansi.reset}\n');
+
+    // 0. Wireless device discovery
+    if (wireless && targetDevice == null) {
+      print(Ansi.step('Scanning local network for paired wireless devices (ADB / mDNS)...'));
+      try {
+        final adbResult = await Process.run('adb', ['devices', '-l']);
+        if (adbResult.exitCode == 0) {
+          final lines = (adbResult.stdout as String).split('\n');
+          for (final line in lines) {
+            if (line.contains(':5555') || line.contains('product:')) {
+              final parts = line.split(RegExp(r'\s+'));
+              if (parts.isNotEmpty && parts.first.contains(':')) {
+                targetDevice = parts.first;
+                print(Ansi.success('Connected to wireless target device: $targetDevice'));
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (targetDevice == null) {
+        print(Ansi.info('No wireless device discovered. Defaulting to available targets.'));
+      }
+    }
 
     // 1. Ensure routes are freshly synced
     final routes = project.scanRoutes();

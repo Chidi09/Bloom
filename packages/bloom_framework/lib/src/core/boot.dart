@@ -56,15 +56,23 @@ class Bloom {
       }
     }
 
-    // 3. Load environment variables
+    // 3. Load environment variables (.env, .env.local, and declared envFiles in order)
     if (envContent != null) {
       BloomEnv.loadContent(envContent);
     } else {
-      // Auto-load from assets if bundled
-      try {
-        final assetEnv = await rootBundle.loadString('.env');
-        BloomEnv.loadContent(assetEnv);
-      } catch (_) {}
+      final envFilesToLoad = _config.envFiles.isNotEmpty
+          ? _config.envFiles
+          : const ['.env', '.env.local'];
+
+      for (final envFile in envFilesToLoad) {
+        try {
+          final assetEnv = await rootBundle.loadString(envFile);
+          if (assetEnv.isNotEmpty) {
+            BloomEnv.loadContent(assetEnv, overwrite: true);
+            logger.debug('BloomEnv: Loaded environment file: $envFile');
+          }
+        } catch (_) {}
+      }
     }
 
     // 4. Configure logger
@@ -82,10 +90,9 @@ class Bloom {
     logger.info('Bloom boot completed successfully.');
   }
 
-  /// Create an isolated test scope for unit and widget testing.
-  static BloomTestScope createTestScope({List<dynamic>? overrides}) {
-    final scope = BloomTestScope(parent: container);
-    return scope;
+  /// Create an isolated test scope for unit and widget testing with optional dependency overrides.
+  static BloomTestScope createTestScope({List<BloomTestOverride<dynamic>>? overrides}) {
+    return BloomTestScope(parent: container, overrides: overrides);
   }
 
   /// Reset Bloom runtime state (useful between tests).

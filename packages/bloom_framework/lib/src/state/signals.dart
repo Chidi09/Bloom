@@ -1,7 +1,7 @@
 // lib/src/state/signals.dart
 import 'package:signals_flutter/signals_flutter.dart' as sf;
 
-// Re-export core signal types & extensions
+// Re-export core signal types & valid extensions
 export 'package:signals_flutter/signals_flutter.dart'
     show
         Signal,
@@ -9,9 +9,7 @@ export 'package:signals_flutter/signals_flutter.dart'
         ReadonlySignal,
         Effect,
         Watch,
-        WatchArgs,
-        SignalsMixin,
-        SignalsSignalUtils;
+        SignalsMixin;
 
 /// Create a fine-grained reactive state signal.
 sf.Signal<T> signal<T>(T initialValue, {String? debugLabel}) {

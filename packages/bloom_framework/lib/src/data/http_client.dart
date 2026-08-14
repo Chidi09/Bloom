@@ -5,199 +5,150 @@ import 'package:http/http.dart' as http;
 import '../core/env.dart';
 import '../core/logger.dart';
 
-class BloomHttpResponse {
-  final int statusCode;
-  final dynamic data;
-  final Map<String, String> headers;
-  final Uri requestUri;
+typedef RequestInterceptor = FutureOr<http.BaseRequest> Function(http.BaseRequest request);
+typedef ResponseInterceptor = FutureOr<http.Response> Function(http.Response response);
 
-  const BloomHttpResponse({
-    required this.statusCode,
-    required this.data,
-    required this.headers,
-    required this.requestUri,
-  });
-
-  bool get isSuccess => statusCode >= 200 && statusCode < 300;
-}
-
-class BloomHttpException implements Exception {
-  final String message;
-  final int? statusCode;
-  final dynamic data;
-  final Uri? requestUri;
-
-  BloomHttpException(this.message, {this.statusCode, this.data, this.requestUri});
-
-  @override
-  String toString() =>
-      'BloomHttpException: $message (status: $statusCode, uri: $requestUri)';
-}
-
-abstract class BloomHttpInterceptor {
-  FutureOr<void> onRequest(http.BaseRequest request) {}
-  FutureOr<void> onResponse(BloomHttpResponse response) {}
-  FutureOr<void> onError(BloomHttpException error) {}
-}
-
-/// High-level HTTP client with base URL resolution, JSON serialization, auth injection, and interceptors.
+/// HTTP client with environment base URL resolution, JSON codecs, Bearer auth token injection, and interceptors.
 class BloomHttpClient {
-  String? baseUrl;
-  final Map<String, String> defaultHeaders;
+  final String? baseUrl;
+  final http.Client _innerClient;
   final Duration timeout;
-  final List<BloomHttpInterceptor> interceptors = [];
-  final http.Client _client;
+  final List<RequestInterceptor> requestInterceptors = [];
+  final List<ResponseInterceptor> responseInterceptors = [];
+
+  String? authToken;
+  String? Function()? authTokenProvider;
 
   BloomHttpClient({
     String? baseUrl,
-    Map<String, String>? defaultHeaders,
+    http.Client? innerClient,
     this.timeout = const Duration(seconds: 15),
-    http.Client? client,
-  })  : baseUrl = baseUrl ?? BloomEnv.get('API_URL'),
-        defaultHeaders = defaultHeaders ??
-            {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-        _client = client ?? http.Client();
+    this.authToken,
+    this.authTokenProvider,
+  })  : baseUrl = baseUrl ?? BloomEnv.getOrNull('API_BASE_URL') ?? BloomEnv.getOrNull('API_URL'),
+        _innerClient = innerClient ?? http.Client();
 
+  /// Resolve URI supporting full URLs or relative path endpoints.
   Uri _resolveUri(String path, [Map<String, dynamic>? queryParameters]) {
-    String resolvedPath = path;
-    if (baseUrl != null && !path.startsWith('http://') && !path.startsWith('https://')) {
-      final cleanBase = baseUrl!.endsWith('/') ? baseUrl!.substring(0, baseUrl!.length - 1) : baseUrl!;
+    String fullUrl;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      fullUrl = path;
+    } else {
+      final base = (baseUrl != null && baseUrl!.isNotEmpty)
+          ? (baseUrl!.endsWith('/') ? baseUrl!.substring(0, baseUrl!.length - 1) : baseUrl!)
+          : 'http://localhost:8080';
       final cleanPath = path.startsWith('/') ? path : '/$path';
-      resolvedPath = '$cleanBase$cleanPath';
+      fullUrl = '$base$cleanPath';
     }
 
-    final uri = Uri.parse(resolvedPath);
+    final parsed = Uri.parse(fullUrl);
     if (queryParameters != null && queryParameters.isNotEmpty) {
-      final queryMap = Map<String, String>.from(uri.queryParameters);
-      queryParameters.forEach((k, v) => queryMap[k] = v.toString());
-      return uri.replace(queryParameters: queryMap);
+      final stringParams = queryParameters.map((k, v) => MapEntry(k, v.toString()));
+      return parsed.replace(queryParameters: {...parsed.queryParameters, ...stringParams});
     }
-    return uri;
+    return parsed;
   }
 
-  Future<BloomHttpResponse> get(
-    String path, {
-    Map<String, dynamic>? queryParameters,
-    Map<String, String>? headers,
-  }) async {
-    return _send('GET', path, queryParameters: queryParameters, headers: headers);
-  }
-
-  Future<BloomHttpResponse> post(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Map<String, String>? headers,
-  }) async {
-    return _send('POST', path, data: data, queryParameters: queryParameters, headers: headers);
-  }
-
-  Future<BloomHttpResponse> put(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Map<String, String>? headers,
-  }) async {
-    return _send('PUT', path, data: data, queryParameters: queryParameters, headers: headers);
-  }
-
-  Future<BloomHttpResponse> patch(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Map<String, String>? headers,
-  }) async {
-    return _send('PATCH', path, data: data, queryParameters: queryParameters, headers: headers);
-  }
-
-  Future<BloomHttpResponse> delete(
-    String path, {
-    Map<String, dynamic>? queryParameters,
-    Map<String, String>? headers,
-  }) async {
-    return _send('DELETE', path, queryParameters: queryParameters, headers: headers);
-  }
-
-  Future<BloomHttpResponse> _send(
+  Future<dynamic> _send(
     String method,
     String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    dynamic body,
   }) async {
     final uri = _resolveUri(path, queryParameters);
-    final requestHeaders = Map<String, String>.from(defaultHeaders);
-    if (headers != null) requestHeaders.addAll(headers);
-
     final request = http.Request(method, uri);
-    request.headers.addAll(requestHeaders);
 
-    if (data != null) {
-      if (data is String) {
-        request.body = data;
+    // 1. Apply default headers
+    request.headers['Content-Type'] = 'application/json';
+    request.headers['Accept'] = 'application/json';
+
+    // 2. Inject Authorization Token
+    final token = authTokenProvider != null ? authTokenProvider!() : authToken;
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    if (headers != null) {
+      request.headers.addAll(headers);
+    }
+
+    if (body != null) {
+      if (body is String) {
+        request.body = body;
       } else {
-        request.body = jsonEncode(data);
+        request.body = jsonEncode(body);
       }
     }
 
-    // Run interceptors onRequest
-    for (final interceptor in interceptors) {
-      await interceptor.onRequest(request);
+    // 3. Request Interceptors
+    http.BaseRequest finalReq = request;
+    for (final interceptor in requestInterceptors) {
+      finalReq = await interceptor(finalReq);
     }
 
-    try {
-      final streamedResponse = await _client.send(request).timeout(timeout);
-      final response = await http.Response.fromStream(streamedResponse);
+    final streamedResponse = await _innerClient.send(finalReq).timeout(timeout);
+    http.Response response = await http.Response.fromStream(streamedResponse);
 
-      dynamic parsedData;
-      if (response.body.isNotEmpty) {
-        try {
-          parsedData = jsonDecode(response.body);
-        } catch (_) {
-          parsedData = response.body;
-        }
+    // 4. Response Interceptors
+    for (final interceptor in responseInterceptors) {
+      response = await interceptor(response);
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      try {
+        return jsonDecode(response.body);
+      } catch (_) {
+        return response.body;
       }
-
-      final bloomResponse = BloomHttpResponse(
-        statusCode: response.statusCode,
-        data: parsedData,
-        headers: response.headers,
-        requestUri: uri,
+    } else {
+      logger.error('BloomHttpClient: Request failed with status ${response.statusCode} for $uri');
+      throw http.ClientException(
+        'HTTP ${response.statusCode}: ${response.body}',
+        uri,
       );
-
-      // Run interceptors onResponse
-      for (final interceptor in interceptors) {
-        await interceptor.onResponse(bloomResponse);
-      }
-
-      if (!bloomResponse.isSuccess) {
-        final err = BloomHttpException(
-          'HTTP request failed with status ${response.statusCode}',
-          statusCode: response.statusCode,
-          data: parsedData,
-          requestUri: uri,
-        );
-        for (final interceptor in interceptors) {
-          await interceptor.onError(err);
-        }
-        throw err;
-      }
-
-      return bloomResponse;
-    } catch (e) {
-      if (e is! BloomHttpException) {
-        final err = BloomHttpException('Network error: $e', requestUri: uri);
-        for (final interceptor in interceptors) {
-          await interceptor.onError(err);
-        }
-        throw err;
-      }
-      rethrow;
     }
   }
 
-  void close() => _client.close();
+  Future<T> get<T>(
+    String path, {
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final res = await _send('GET', path, headers: headers, queryParameters: queryParameters);
+    return res as T;
+  }
+
+  Future<T> post<T>(
+    String path, {
+    dynamic body,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final res = await _send('POST', path, body: body, headers: headers, queryParameters: queryParameters);
+    return res as T;
+  }
+
+  Future<T> put<T>(
+    String path, {
+    dynamic body,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final res = await _send('PUT', path, body: body, headers: headers, queryParameters: queryParameters);
+    return res as T;
+  }
+
+  Future<T> delete<T>(
+    String path, {
+    dynamic body,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final res = await _send('DELETE', path, body: body, headers: headers, queryParameters: queryParameters);
+    return res as T;
+  }
+
+  void close() => _innerClient.close();
 }
