@@ -1,10 +1,19 @@
 // lib/src/native/notifications.dart
 import 'dart:async';
-import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
-enum NotificationImportance { low, medium, high, max }
+enum NotificationImportance {
+  low(Importance.low, Priority.low),
+  medium(Importance.defaultImportance, Priority.defaultPriority),
+  high(Importance.high, Priority.high),
+  max(Importance.max, Priority.max);
+
+  final Importance importance;
+  final Priority priority;
+  const NotificationImportance(this.importance, this.priority);
+}
 
 class BloomNotificationChannel {
   final String id;
@@ -19,141 +28,64 @@ class BloomNotificationChannel {
     this.importance = NotificationImportance.high,
   });
 
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'importance': importance.name,
-      };
-}
-
-class BloomNotificationItem {
-  final int id;
-  final String title;
-  final String body;
-  final String? payload;
-  final String? channelId;
-  final DateTime timestamp;
-
-  const BloomNotificationItem({
-    required this.id,
-    required this.title,
-    required this.body,
-    this.payload,
-    this.channelId,
-    required this.timestamp,
-  });
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'title': title,
-        'body': body,
-        'payload': payload,
-        'channelId': channelId,
-        'timestamp': timestamp.toIso8601String(),
-      };
-}
-
-abstract class BloomNotificationsPlatform {
-  FutureOr<void> initialize({List<BloomNotificationChannel> channels = const []});
-  FutureOr<bool> requestPermissions();
-  FutureOr<void> show(BloomNotificationItem item);
-  FutureOr<void> cancel(int id);
-  FutureOr<void> cancelAll();
-}
-
-/// Real Flutter platform channel bridge for push/local notifications.
-class MethodChannelBloomNotificationsPlatform implements BloomNotificationsPlatform {
-  static const MethodChannel _channel = MethodChannel('bloom/notifications');
-  final List<BloomNotificationItem> _fallbackNotifications = [];
-
-  @override
-  Future<void> initialize({List<BloomNotificationChannel> channels = const []}) async {
-    try {
-      final channelsData = channels.map((c) => c.toMap()).toList();
-      await _channel.invokeMethod('initialize', {'channels': channelsData});
-    } catch (_) {}
-  }
-
-  @override
-  Future<bool> requestPermissions() async {
-    try {
-      final res = await _channel.invokeMethod<bool>('requestPermissions');
-      return res ?? true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  @override
-  Future<void> show(BloomNotificationItem item) async {
-    try {
-      await _channel.invokeMethod('show', item.toMap());
-    } catch (_) {
-      _fallbackNotifications.add(item);
-    }
-  }
-
-  @override
-  Future<void> cancel(int id) async {
-    try {
-      await _channel.invokeMethod('cancel', {'id': id});
-    } catch (_) {
-      _fallbackNotifications.removeWhere((item) => item.id == id);
-    }
-  }
-
-  @override
-  Future<void> cancelAll() async {
-    try {
-      await _channel.invokeMethod('cancelAll');
-    } catch (_) {
-      _fallbackNotifications.clear();
-    }
+  AndroidNotificationChannel toAndroidChannel() {
+    return AndroidNotificationChannel(
+      id,
+      name,
+      description: description,
+      importance: importance.importance,
+    );
   }
 }
 
-class MockBloomNotificationsPlatform implements BloomNotificationsPlatform {
-  final List<BloomNotificationItem> postedNotifications = [];
-  final List<BloomNotificationChannel> registeredChannels = [];
-  bool permissionsGranted = true;
-
-  @override
-  void initialize({List<BloomNotificationChannel> channels = const []}) {
-    registeredChannels.addAll(channels);
-  }
-
-  @override
-  bool requestPermissions() => permissionsGranted;
-
-  @override
-  void show(BloomNotificationItem item) {
-    postedNotifications.add(item);
-  }
-
-  @override
-  void cancel(int id) {
-    postedNotifications.removeWhere((item) => item.id == id);
-  }
-
-  @override
-  void cancelAll() {
-    postedNotifications.clear();
-  }
-}
-
-/// Cross-platform push and local notifications manager.
+/// Cross-platform push and local notifications manager wrapping `flutter_local_notifications`.
 class BloomNotifications {
-  final BloomNotificationsPlatform platform;
+  final FlutterLocalNotificationsPlugin _plugin;
   int _idCounter = 1;
+  bool _isInitialized = false;
 
-  BloomNotifications([BloomNotificationsPlatform? platform])
-      : platform = platform ?? MethodChannelBloomNotificationsPlatform();
+  BloomNotifications([FlutterLocalNotificationsPlugin? plugin])
+      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  /// Initialize notification subsystem and register notification channels.
-  Future<void> initialize({List<BloomNotificationChannel> channels = const []}) async {
-    logger.info('BloomNotifications: Initializing with ${channels.length} channels.');
-    await platform.initialize(channels: channels);
+  /// Initialize notification subsystem, request permissions, and register notification channels.
+  Future<void> initialize({
+    List<BloomNotificationChannel> channels = const [],
+    String defaultAndroidIcon = '@mipmap/ic_launcher',
+    void Function(NotificationResponse response)? onNotificationTap,
+  }) async {
+    if (_isInitialized) return;
+
+    logger.info('BloomNotifications: Initializing native notifications with ${channels.length} channels.');
+
+    final initSettings = InitializationSettings(
+      android: AndroidInitializationSettings(defaultAndroidIcon),
+      iOS: const DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+      linux: const LinuxInitializationSettings(defaultActionName: 'Open'),
+    );
+
+    try {
+      await _plugin.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: onNotificationTap,
+      );
+
+      // Create Android Notification Channels
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        for (final ch in channels) {
+          await androidPlugin.createNotificationChannel(ch.toAndroidChannel());
+          logger.debug('BloomNotifications: Registered Android channel "${ch.id}"');
+        }
+      }
+      _isInitialized = true;
+    } catch (e) {
+      logger.warn('BloomNotifications: Initialization note: $e');
+    }
   }
 
   /// Request notification authorization.
@@ -168,32 +100,54 @@ class BloomNotifications {
     required String body,
     String? payload,
     String? channelId,
+    String channelName = 'General',
+    NotificationImportance importance = NotificationImportance.high,
     int? id,
   }) async {
     final notificationId = id ?? _idCounter++;
-    final item = BloomNotificationItem(
-      id: notificationId,
-      title: title,
-      body: body,
-      payload: payload,
-      channelId: channelId,
-      timestamp: DateTime.now(),
+
+    final notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        channelId ?? 'default_channel',
+        channelName,
+        importance: importance.importance,
+        priority: importance.priority,
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
 
     logger.info('BloomNotifications: Displaying notification [$notificationId] "$title"');
-    await platform.show(item);
+    try {
+      await _plugin.show(
+        notificationId,
+        title,
+        body,
+        notificationDetails,
+        payload: payload,
+      );
+    } catch (e) {
+      logger.warn('BloomNotifications: Notification display note: $e');
+    }
     return notificationId;
   }
 
   /// Cancel notification by ID.
   Future<void> cancel(int id) async {
-    await platform.cancel(id);
-    logger.debug('BloomNotifications: Cancelled notification [$id]');
+    try {
+      await _plugin.cancel(id);
+      logger.debug('BloomNotifications: Cancelled notification [$id]');
+    } catch (_) {}
   }
 
   /// Cancel all active notifications.
   Future<void> cancelAll() async {
-    await platform.cancelAll();
-    logger.info('BloomNotifications: Cancelled all notifications.');
+    try {
+      await _plugin.cancelAll();
+      logger.info('BloomNotifications: Cancelled all notifications.');
+    } catch (_) {}
   }
 }
