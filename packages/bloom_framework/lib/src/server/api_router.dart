@@ -117,6 +117,9 @@ class BloomApiRouter {
   }
 
   /// Dispatches and processes an incoming [BloomRequest].
+  Future<BloomResponse> handle(BloomRequest request) => handleRequest(request);
+
+  /// Dispatches and processes an incoming [BloomRequest].
   Future<BloomResponse> handleRequest(BloomRequest request) async {
     return _executePipeline(_globalMiddlewares, request, () async {
       final method = request.method.toUpperCase();

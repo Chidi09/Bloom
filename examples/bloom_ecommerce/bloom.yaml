@@ -1,0 +1,17 @@
+name: bloom_ecommerce
+version: 1.0.0
+schema: 2
+mode: managed
+
+platforms:
+  - android
+  - ios
+  - web
+
+plugins:
+  storage:
+    type: secure
+  notifications:
+    channels:
+      - id: orders
+        name: Order Updates

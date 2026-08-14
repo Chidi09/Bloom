@@ -1,0 +1,16 @@
+name: bloom_fullstack_api
+version: 1.0.0
+schema: 2
+mode: managed
+
+platforms:
+  - web
+  - android
+  - ios
+
+web:
+  ssr: true
+  pwa:
+    name: Bloom FullStack API
+    short_name: BloomAPI
+    theme_color: '#4F46E5'

@@ -32,7 +32,7 @@ export 'src/router/route_context.dart';
 export 'src/router/metadata.dart';
 export 'src/router/loader_annotations.dart';
 export 'package:go_router/go_router.dart'
-    show GoRouter, GoRoute, RouteBase, ShellRoute, GoRouterState;
+    show GoRouter, GoRoute, RouteBase, ShellRoute, GoRouterState, GoRouterHelper;
 
 // Full-Stack Server & API Routes (Phase 12)
 export 'bloom_server.dart';

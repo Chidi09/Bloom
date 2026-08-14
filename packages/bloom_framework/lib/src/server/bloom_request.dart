@@ -15,8 +15,18 @@ class BloomRequest {
     required this.uri,
     this.headers = const {},
     this.params = const {},
+    dynamic body,
     Uint8List? rawBody,
-  }) : rawBody = rawBody ?? Uint8List(0);
+  }) : rawBody = rawBody ?? _convertBody(body);
+
+  static Uint8List _convertBody(dynamic body) {
+    if (body == null) return Uint8List(0);
+    if (body is Uint8List) return body;
+    if (body is List<int>) return Uint8List.fromList(body);
+    if (body is String) return Uint8List.fromList(utf8.encode(body));
+    if (body is Map || body is List) return Uint8List.fromList(utf8.encode(jsonEncode(body)));
+    return Uint8List(0);
+  }
 
   String get path => uri.path;
   Map<String, String> get queryParams => uri.queryParameters;
@@ -30,6 +40,9 @@ class BloomRequest {
     if (str.trim().isEmpty) return null;
     return jsonDecode(str);
   }
+
+  /// Convenient getter for JSON body.
+  dynamic get bodyJson => json();
 
   /// Parses URL-encoded form data.
   Map<String, String> formData() {

@@ -1,7 +1,15 @@
 name: bloom_framework
 description: An opinionated application framework and developer platform built on Dart and Flutter.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - framework
+  - state-management
+  - full-stack
+  - mobile
+  - flutter
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -10,6 +18,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_test:
+    sdk: flutter
+  crypto: ^3.0.3
+  path: ^1.9.0
   signals: ^5.5.0
   signals_flutter: ^5.5.0
   go_router: ^14.8.0
@@ -24,6 +36,4 @@ dependencies:
   supabase_flutter: ^2.17.1
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
   flutter_lints: ^5.0.0
