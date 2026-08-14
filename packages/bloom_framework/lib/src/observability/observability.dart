@@ -1,3 +1,4 @@
+// lib/src/observability/observability.dart
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
@@ -24,18 +25,20 @@ class BloomObservabilityConfig {
   final BeforeSendCallback? beforeSend;
   final Map<String, dynamic> appInfo;
   final Map<String, dynamic> tags;
+  final String? runtimeFingerprint;
 
   BloomObservabilityConfig({
     this.enabled = true,
     double sampleRate = 1.0,
     this.autoCaptureFlutterErrors = true,
     this.autoCaptureZoneErrors = true,
-    this.autoCaptureNativeCrashes = true,
+    this.autoCaptureNativeCrashes = false,
     this.maxBreadcrumbs = 100,
     BloomTelemetryTransport? transport,
     this.beforeSend,
     this.appInfo = const {},
     this.tags = const {},
+    this.runtimeFingerprint,
   })  : sampleRate = sampleRate.clamp(0.0, 1.0),
         transport = transport ?? BloomMemoryTelemetryTransport();
 }
@@ -118,6 +121,12 @@ class BloomObservability {
       };
     }
 
+    // 3. Native platform crash handler hook
+    if (config.autoCaptureNativeCrashes) {
+      // TODO(native): Register platform-channel signal handler for native Android/iOS crashes.
+      logger.debug('BloomObservability: Native crash capture requested (platform channel bridge).');
+    }
+
     logger.info('BloomObservability: Initialized (Sampling: ${(config.sampleRate * 100).toInt()}%, Ring Buffer: ${config.maxBreadcrumbs})');
   }
 
@@ -147,6 +156,7 @@ class BloomObservability {
     dynamic stackTrace,
     Map<String, dynamic>? context,
     List<String>? fingerprint,
+    String? exceptionType,
     BloomErrorLevel level = BloomErrorLevel.error,
   }) async {
     if (!_isInitialized || !_config.enabled) return null;
@@ -156,13 +166,13 @@ class BloomObservability {
       return null;
     }
 
-    final exceptionType = exception.runtimeType.toString();
+    final effectiveType = exceptionType ?? exception.runtimeType.toString();
     final message = exception.toString();
     final stackStr = stackTrace?.toString() ?? StackTrace.current.toString();
 
     // Compute deterministic crash fingerprint
     final computedFingerprint = BloomCrashFingerprint.compute(
-      exceptionType: exceptionType,
+      exceptionType: effectiveType,
       message: message,
       stackTrace: stackStr,
       customFingerprint: fingerprint,
@@ -180,11 +190,14 @@ class BloomObservability {
     };
 
     final runtimePayload = {
-      'bloomVersion': '1.0.0',
+      'bloomVersion': _config.appInfo['bloomVersion'] ?? _config.appInfo['version'] ?? '1.0.0',
       'dartVersion': kIsWeb ? 'web' : Platform.version.split(' ').first,
-      'flutterVersion': '3.27.0',
-      'runtimeFingerprint': BloomRuntimeFingerprint.current().computeHash(),
-      'channel': 'production',
+      'flutterVersion': _config.appInfo['flutterVersion'] ?? '3.27.0',
+      'runtimeFingerprint': _config.runtimeFingerprint ??
+          BloomRuntimeFingerprint.current().computeHash(),
+      'channel': _config.appInfo['channel'] ?? 'production',
+      if (_config.appInfo['activePatchId'] != null)
+        'activePatchId': _config.appInfo['activePatchId'],
     };
 
     final devicePayload = {
@@ -202,7 +215,7 @@ class BloomObservability {
       eventId: eventId,
       timestamp: DateTime.now().toUtc(),
       level: level,
-      exceptionType: exceptionType,
+      exceptionType: effectiveType,
       message: message,
       stackTrace: stackStr,
       fingerprint: computedFingerprint,
@@ -226,7 +239,7 @@ class BloomObservability {
     // Transmit via configured transport
     try {
       await _config.transport.send(event);
-      logger.info('BloomObservability: Captured $exceptionType [$eventId] (${event.breadcrumbs.length} breadcrumbs)');
+      logger.info('BloomObservability: Captured $effectiveType [$eventId] (${event.breadcrumbs.length} breadcrumbs)');
     } catch (e, stack) {
       logger.error('BloomObservability: Failed to transmit event: $e', stack);
     }
@@ -245,6 +258,7 @@ class BloomObservability {
       message,
       context: context,
       fingerprint: fingerprint,
+      exceptionType: 'message',
       level: level,
     );
   }

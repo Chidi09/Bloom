@@ -92,7 +92,8 @@ class BloomSymbolPackager {
       final dsymEntities = iosBuildDir.listSync(recursive: true).where((e) => e.path.endsWith('.dSYM'));
       for (final entity in dsymEntities) {
         if (entity is Directory) {
-          final files = entity.listSync(recursive: true).whereType<File>();
+          final files = entity.listSync(recursive: true).whereType<File>().toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
           var totalSize = 0;
           final hashBuffer = StringBuffer();
           for (final f in files) {
