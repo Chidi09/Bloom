@@ -43,7 +43,11 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
-				</dict>
+					<key>NSCameraUsageDescription</key>
+	<string>This application requires camera access to take photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This application requires microphone access to record audio.</string>
+</dict>
 			</array>
 		</dict>
 	</dict>
