@@ -186,6 +186,26 @@ class BloomData {
     }
   }
 
+  /// Count of cached query entries.
+  static int get entryCount => _cache.length;
+
+  /// Returns a snapshot summary of all active cache entries for DevTools visual inspection.
+  static List<Map<String, dynamic>> dumpCache() {
+    final list = <Map<String, dynamic>>[];
+    for (final entry in _cache.values) {
+      list.add({
+        'key': normalizeKey(entry.key),
+        'updatedAt': entry.updatedAt.toIso8601String(),
+        'isStale': entry.isStale,
+        'isExpired': entry.isExpired,
+        'staleTimeMs': entry.staleTime.inMilliseconds,
+        'cacheTimeMs': entry.cacheTime.inMilliseconds,
+        'hasData': entry.data != null,
+      });
+    }
+    return list;
+  }
+
   /// Clear all query cache entries.
   static void clear() {
     _cache.clear();
