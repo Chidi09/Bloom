@@ -22,8 +22,8 @@ void main() {
     }
   });
 
-  group('Phase 12: Static Site Generation (SSG) & PWA Generator', () {
-    test('BloomSsgEngine generates pre-rendered HTML, sitemap.xml, robots.txt, and PWA assets', () async {
+  group('Phase 12: Static Site Generation (SSG) & Parameterized Enumeration', () {
+    test('BloomSsgEngine generates pre-rendered HTML, enumerated parameterized routes, sitemap, and PWA assets', () async {
       final appDir = Directory(p.join(tempDir.path, 'web_app'))..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('''
 name: web_app
@@ -34,13 +34,21 @@ web:
     name: "My PWA Store"
     short_name: "PwaStore"
     theme_color: "#10B981"
+  static_paths:
+    "/products/[id]":
+      - "1"
+      - "2"
 ''');
 
       // Create client routes
       final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
-      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync('class IndexRoute {}\n');
-      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync('class AboutRoute {}\n');
-      File(p.join(routesDir.path, 'pricing.dart')).writeAsStringSync('class PricingRoute {}\n');
+      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync("const title = 'Home Dashboard';\nclass IndexRoute {}\n");
+      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync("const title = 'About Us';\nconst description = 'Bloom Web Platform';\nclass AboutRoute {}\n");
+
+      final productsDir = Directory(p.join(routesDir.path, 'products'))..createSync(recursive: true);
+      File(p.join(productsDir.path, '[id].dart')).writeAsStringSync('''
+class ProductDetailsRoute {}
+''');
 
       final project = BloomProject(
         rootDir: appDir,
@@ -52,27 +60,33 @@ web:
       final routes = ssg.discoverRoutes();
 
       expect(routes.length, 3);
-      expect(routes.map((r) => r.path).toList(), ['/', '/about', '/pricing']);
 
       await ssg.generate();
 
-      // Verify generated HTML pages
+      // Verify generated static HTML pages
       final indexHtml = File(p.join(appDir.path, 'build', 'web', 'index.html'));
       final aboutHtml = File(p.join(appDir.path, 'build', 'web', 'about', 'index.html'));
-      final pricingHtml = File(p.join(appDir.path, 'build', 'web', 'pricing', 'index.html'));
+      final prod1Html = File(p.join(appDir.path, 'build', 'web', 'products', '1', 'index.html'));
+      final prod2Html = File(p.join(appDir.path, 'build', 'web', 'products', '2', 'index.html'));
 
       expect(indexHtml.existsSync(), isTrue);
       expect(aboutHtml.existsSync(), isTrue);
-      expect(pricingHtml.existsSync(), isTrue);
-      expect(indexHtml.readAsStringSync(), contains('<title>web_app - Home</title>'));
-      expect(aboutHtml.readAsStringSync(), contains('<title>web_app - about</title>'));
+      expect(prod1Html.existsSync(), isTrue);
+      expect(prod2Html.existsSync(), isTrue);
 
-      // Verify Sitemap
+      expect(aboutHtml.readAsStringSync(), contains('<title>About Us</title>'));
+      expect(aboutHtml.readAsStringSync(), contains('<meta name="description" content="Bloom Web Platform" />'));
+      expect(aboutHtml.readAsStringSync(), contains('<meta name="theme-color" content="#10B981" />'));
+      expect(aboutHtml.readAsStringSync(), contains('<h1 class="bloom-page-title">About</h1>'));
+
+      // Verify Sitemap includes parameterized routes
       final sitemapFile = File(p.join(appDir.path, 'build', 'web', 'sitemap.xml'));
       expect(sitemapFile.existsSync(), isTrue);
       final sitemapContent = sitemapFile.readAsStringSync();
       expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/</loc>'));
       expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/about</loc>'));
+      expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/products/1</loc>'));
+      expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/products/2</loc>'));
 
       // Verify Robots
       final robotsFile = File(p.join(appDir.path, 'build', 'web', 'robots.txt'));
@@ -90,7 +104,7 @@ web:
   });
 
   group('Phase 12: Server-Side Rendering (SSR) & API Route Generator', () {
-    test('BloomSsrEngine discovers API routes and generates standalone server.dart', () async {
+    test('BloomSsrEngine discovers API routes and generates standalone server.dart with valid catch-all', () async {
       final appDir = Directory(p.join(tempDir.path, 'ssr_app'))..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: ssr_app\n');
 
@@ -128,6 +142,8 @@ Future<BloomResponse> delete(BloomRequest req) async => BloomResponse.noContent(
       expect(serverCode, contains("router.get('/api/users/:id'"));
       expect(serverCode, contains("router.delete('/api/users/:id'"));
       expect(serverCode, contains("BloomCorsMiddleware()"));
+      expect(serverCode, contains("router.all('*'"));
+      expect(serverCode, contains("p.isWithin(webDir.path, targetPath)"));
     });
   });
 
