@@ -298,7 +298,10 @@ class BloomModuleCodeGenerator {
   static List<ModuleMethodParam> _parseParams(String rawParams) {
     if (rawParams.isEmpty) return [];
     final params = <ModuleMethodParam>[];
-    final cleaned = rawParams.replaceAll('{', '').replaceAll('}', '').trim();
+    var cleaned = rawParams.trim();
+    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+      cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+    }
     final parts = _splitTopLevel(cleaned, ',');
 
     for (var p in parts) {
@@ -332,6 +335,42 @@ class BloomModuleCodeGenerator {
       }
     }
     return params;
+  }
+
+  static String _toSwiftType(String dartType) {
+    final clean = dartType.replaceAll('?', '').trim();
+    final isNullable = dartType.endsWith('?');
+    String base;
+    if (clean == 'String') base = 'String';
+    else if (clean == 'int') base = 'Int';
+    else if (clean == 'double') base = 'Double';
+    else if (clean == 'bool') base = 'Bool';
+    else if (clean == 'Uint8List') base = 'Data';
+    else if (clean == 'Map<String, dynamic>') base = '[String: Any]';
+    else if (clean == 'List<String>') base = '[String]';
+    else if (clean.startsWith('List<')) base = '[Any]';
+    else if (clean.startsWith('Map<')) base = '[String: Any]';
+    else base = 'Any';
+
+    return isNullable ? '$base?' : base;
+  }
+
+  static String _toKotlinType(String dartType) {
+    final clean = dartType.replaceAll('?', '').trim();
+    final isNullable = dartType.endsWith('?');
+    String base;
+    if (clean == 'String') base = 'String';
+    else if (clean == 'int') base = 'Int';
+    else if (clean == 'double') base = 'Double';
+    else if (clean == 'bool') base = 'Boolean';
+    else if (clean == 'Uint8List') base = 'ByteArray';
+    else if (clean == 'Map<String, dynamic>') base = 'Map<String, Any?>';
+    else if (clean == 'List<String>') base = 'List<String>';
+    else if (clean.startsWith('List<')) base = 'List<Any?>';
+    else if (clean.startsWith('Map<')) base = 'Map<String, Any?>';
+    else base = 'Any';
+
+    return isNullable ? '$base?' : base;
   }
 
   /// Emits typed Dart bridge (lib/src/<name>.g.dart).
@@ -478,10 +517,11 @@ class BloomModuleCodeGenerator {
     buffer.writeln('/// Swift protocol for $name Module native operations.');
     buffer.writeln('public protocol ${name}ModuleBridge: AnyObject {');
     for (final c in def.constants) {
-      buffer.writeln('    var ${c.name}: String { get }');
+      final swiftType = _toSwiftType(c.type);
+      buffer.writeln('    var ${c.name}: $swiftType { get }');
     }
     for (final m in def.methods) {
-      final swiftParams = m.parameters.map((p) => '${p.name}: ${p.type == "String" ? "String" : "Any?"}').join(', ');
+      final swiftParams = m.parameters.map((p) => '${p.name}: ${_toSwiftType(p.type)}').join(', ');
       buffer.writeln('    func ${m.name}($swiftParams) async throws -> Any?');
     }
     buffer.writeln('}');
@@ -502,7 +542,10 @@ class BloomModuleCodeGenerator {
     buffer.writeln('                switch call.method {');
     for (final m in def.methods) {
       buffer.writeln('                case "${m.name}":');
-      final swiftArgs = m.parameters.map((p) => '${p.name}: args["${p.name}"] as? ${p.type == "String" ? "String" : "Any"}').join(', ');
+      final swiftArgs = m.parameters.map((p) {
+        final t = _toSwiftType(p.type);
+        return '${p.name}: args["${p.name}"] as? $t';
+      }).join(', ');
       buffer.writeln('                    if let res = try await bridge?.${m.name}($swiftArgs) {');
       buffer.writeln('                        result(res)');
       buffer.writeln('                    } else {');
@@ -557,10 +600,11 @@ class BloomModuleCodeGenerator {
     buffer.writeln('/// Kotlin interface for $name Module native operations.');
     buffer.writeln('interface ${name}ModuleBridge {');
     for (final c in def.constants) {
-      buffer.writeln('    val ${c.name}: String');
+      final ktType = _toKotlinType(c.type);
+      buffer.writeln('    val ${c.name}: $ktType');
     }
     for (final m in def.methods) {
-      final ktParams = m.parameters.map((p) => '${p.name}: Any?').join(', ');
+      final ktParams = m.parameters.map((p) => '${p.name}: ${_toKotlinType(p.type)}').join(', ');
       buffer.writeln('    suspend fun ${m.name}($ktParams): Any?');
     }
     buffer.writeln('}');
@@ -579,7 +623,10 @@ class BloomModuleCodeGenerator {
     buffer.writeln('                when (call.method) {');
     for (final m in def.methods) {
       buffer.writeln('                    "${m.name}" -> {');
-      final ktArgs = m.parameters.map((p) => 'args["${p.name}"]').join(', ');
+      final ktArgs = m.parameters.map((p) {
+        final t = _toKotlinType(p.type);
+        return 'args["${p.name}"] as? $t';
+      }).join(', ');
       buffer.writeln('                        val res = bridge.${m.name}($ktArgs)');
       buffer.writeln('                        result.success(res)');
       buffer.writeln('                    }');
