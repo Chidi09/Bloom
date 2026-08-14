@@ -69,5 +69,8 @@ export 'bloom_modules.dart';
 // Updates Platform & Runtime Fingerprinting (Phase 11)
 export 'bloom_updates.dart';
 
+// Error Observability, Crash SDK & Telemetry (Phase 13)
+export 'bloom_observability.dart';
+
 // Widgets
 export 'src/widgets/app.dart';

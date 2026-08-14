@@ -14,6 +14,7 @@ import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/remove_command.dart';
+import '../lib/src/commands/symbols_command.dart';
 import '../lib/src/commands/test_command.dart';
 import '../lib/src/commands/update_command.dart';
 import '../lib/src/commands/why_command.dart';
@@ -34,6 +35,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(WhyCommand())
     ..addCommand(WorkspaceCommand())
     ..addCommand(UpdateCommand())
+    ..addCommand(SymbolsCommand())
     ..addCommand(DevCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(GenerateCommand())

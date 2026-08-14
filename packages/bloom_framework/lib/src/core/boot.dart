@@ -10,6 +10,8 @@ import '../di/container.dart';
 import '../di/scope.dart';
 import '../native/deep_links.dart';
 import '../modules/module_registry.dart';
+import '../observability/models.dart';
+import '../observability/observability.dart';
 import 'env.dart';
 import 'logger.dart';
 
@@ -39,12 +41,60 @@ class Bloom {
   /// Global dependency injection container.
   static BloomContainer get container => globalContainer;
 
+  /// Records a chronological breadcrumb in the observability buffer.
+  static void addBreadcrumb({
+    required String category,
+    required String message,
+    BloomBreadcrumbLevel level = BloomBreadcrumbLevel.info,
+    Map<String, dynamic>? data,
+  }) {
+    BloomObservability.addBreadcrumb(
+      category: category,
+      message: message,
+      level: level,
+      data: data,
+    );
+  }
+
+  /// Manually captures an exception with structured context and stack trace.
+  static Future<BloomTelemetryEvent?> captureException(
+    dynamic exception, {
+    dynamic stackTrace,
+    Map<String, dynamic>? context,
+    List<String>? fingerprint,
+    BloomErrorLevel level = BloomErrorLevel.error,
+  }) {
+    return BloomObservability.captureException(
+      exception,
+      stackTrace: stackTrace,
+      context: context,
+      fingerprint: fingerprint,
+      level: level,
+    );
+  }
+
+  /// Manually captures a message telemetry event.
+  static Future<BloomTelemetryEvent?> captureMessage(
+    String message, {
+    BloomErrorLevel level = BloomErrorLevel.info,
+    Map<String, dynamic>? context,
+    List<String>? fingerprint,
+  }) {
+    return BloomObservability.captureMessage(
+      message,
+      level: level,
+      context: context,
+      fingerprint: fingerprint,
+    );
+  }
+
   /// Main boot pipeline for Bloom applications.
   static Future<void> boot({
     String? flavor,
     BloomBootstrapper? bootstrapper,
     String? envContent,
     String? configYaml,
+    BloomObservabilityConfig? observability,
   }) async {
     if (_isBooted) {
       logger.warn('Bloom.boot() was called multiple times. Skipping duplicate initialization.');
@@ -127,7 +177,18 @@ class Bloom {
       }
     }
 
-    // 10. Execute user bootstrapper if provided
+    // 10. Initialize Error Observability & Telemetry SDK
+    final obsConfig = observability ??
+        BloomObservabilityConfig(
+          enabled: true,
+          appInfo: {
+            'name': _config.name,
+            'version': _config.version,
+          },
+        );
+    BloomObservability.initialize(obsConfig);
+
+    // 11. Execute user bootstrapper if provided
     if (bootstrapper != null) {
       await bootstrapper.onBoot(container);
     }
@@ -152,5 +213,6 @@ class Bloom {
     BloomData.stopGarbageCollector();
     BloomOTA.reset();
     BloomModuleRegistry().resetSync();
+    BloomObservability.reset();
   }
 }
