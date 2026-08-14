@@ -9,6 +9,7 @@ import '../devtools/devtools_service.dart';
 import '../di/container.dart';
 import '../di/scope.dart';
 import '../native/deep_links.dart';
+import '../modules/module_registry.dart';
 import 'env.dart';
 import 'logger.dart';
 
@@ -150,5 +151,6 @@ class Bloom {
     BloomDeepLinks.dispose();
     BloomData.stopGarbageCollector();
     BloomOTA.reset();
+    BloomModuleRegistry().reset();
   }
 }

@@ -5,6 +5,7 @@ import '../lib/src/commands/add_command.dart';
 import '../lib/src/commands/analyze_command.dart';
 import '../lib/src/commands/build_command.dart';
 import '../lib/src/commands/create_command.dart';
+import '../lib/src/commands/create_module_command.dart';
 import '../lib/src/commands/deploy_command.dart';
 import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
@@ -22,6 +23,7 @@ Future<void> main(List<String> args) async {
     'Bloom: The Opinionated Application Framework & Developer Platform for Flutter.',
   )
     ..addCommand(CreateCommand())
+    ..addCommand(CreateModuleCommand())
     ..addCommand(DevCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(GenerateCommand())
