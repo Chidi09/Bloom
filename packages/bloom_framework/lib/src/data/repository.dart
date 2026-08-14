@@ -11,3 +11,12 @@ abstract class BloomRepository {
     http = client ?? (c.injectOrNull<BloomHttpClient>() ?? BloomHttpClient());
   }
 }
+
+/// Generic CRUD repository interface for typed entities.
+abstract class BloomCrudRepository<T, ID> {
+  Future<List<T>> findAll();
+  Future<T?> findById(ID id);
+  Future<T> create(T item);
+  Future<T> update(ID id, T item);
+  Future<bool> delete(ID id);
+}

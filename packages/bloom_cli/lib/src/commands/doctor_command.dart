@@ -1,6 +1,7 @@
 // lib/src/commands/doctor_command.dart
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../dev/mdns_discovery.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
@@ -64,7 +65,30 @@ class DoctorCommand extends Command<int> {
       }
     }
 
-    // 5. Project-level diagnostic (if executed inside a Bloom app)
+    // 5. Shorebird OTA CLI Check
+    stdout.write('  Checking Shorebird CLI (OTA)... ');
+    try {
+      final shorebirdRes = await Process.run('shorebird', ['--version']);
+      if (shorebirdRes.exitCode == 0) {
+        final versionLine = shorebirdRes.stdout.toString().trim().split('\n').first;
+        print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}($versionLine)${Ansi.reset}');
+      } else {
+        print('${Ansi.dim}ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)${Ansi.reset}');
+      }
+    } catch (_) {
+      print('${Ansi.dim}ℹ Optional (run curl -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash)${Ansi.reset}');
+    }
+
+    // 6. Network Interface & Bloom Discovery Check
+    stdout.write('  Checking Local Network Interfaces... ');
+    final localIpResult = await MdnsDiscovery.getLocalIp();
+    if (localIpResult.isLoopback) {
+      print('${Ansi.yellow}⚠ Loopback only (${localIpResult.ip})${Ansi.reset}');
+    } else {
+      print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dim}(LAN IP: ${localIpResult.ip})${Ansi.reset}');
+    }
+
+    // 7. Project-level diagnostic (if executed inside a Bloom app)
     final project = BloomProject.find();
     if (project != null) {
       print(Ansi.boldText('\n📁 Project Configuration (${project.projectName})'));

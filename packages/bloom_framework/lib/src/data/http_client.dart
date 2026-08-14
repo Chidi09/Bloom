@@ -140,6 +140,16 @@ class BloomHttpClient {
     return res as T;
   }
 
+  Future<T> patch<T>(
+    String path, {
+    dynamic body,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final res = await _send('PATCH', path, body: body, headers: headers, queryParameters: queryParameters);
+    return res as T;
+  }
+
   Future<T> delete<T>(
     String path, {
     dynamic body,
