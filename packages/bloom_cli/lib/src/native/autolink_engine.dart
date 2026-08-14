@@ -7,19 +7,25 @@ import 'package:yaml/yaml.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
-/// Represents a discovered native Bloom module in the dependency graph.
-class DiscoveredNativeModule {
-  final String name;
-  final String version;
+/// Represents a single native module requirement from a package in the dependency tree.
+class ModuleRequirement {
+  final String moduleName;
+  final String versionConstraint;
+  final String resolvedVersion;
+  final String requesterName;
+  final String requesterPath;
   final String packagePath;
-  final String sourceType; // 'path', 'hosted', 'git'
+  final String sourceType; // 'path', 'hosted', 'git', 'builtin'
   final bool isDirect;
   final Map<String, dynamic> manifest;
   final String fingerprint;
 
-  const DiscoveredNativeModule({
-    required this.name,
-    required this.version,
+  const ModuleRequirement({
+    required this.moduleName,
+    required this.versionConstraint,
+    required this.resolvedVersion,
+    required this.requesterName,
+    required this.requesterPath,
     required this.packagePath,
     required this.sourceType,
     required this.isDirect,
@@ -42,16 +48,53 @@ class DiscoveredNativeModule {
       manifest['platforms']?['ios'] as Map<String, dynamic>?;
 }
 
+/// Represents a discovered native Bloom module in the dependency graph.
+class DiscoveredNativeModule {
+  final String name;
+  final String version;
+  final String packagePath;
+  final String sourceType; // 'path', 'hosted', 'git', 'builtin'
+  final bool isDirect;
+  final Map<String, dynamic> manifest;
+  final String fingerprint;
+  final List<ModuleRequirement> requirements;
+
+  const DiscoveredNativeModule({
+    required this.name,
+    required this.version,
+    required this.packagePath,
+    required this.sourceType,
+    required this.isDirect,
+    required this.manifest,
+    required this.fingerprint,
+    this.requirements = const [],
+  });
+
+  bool get hasAndroid =>
+      Directory(p.join(packagePath, 'android')).existsSync() ||
+      manifest['platforms']?['android'] != null;
+
+  bool get hasIos =>
+      Directory(p.join(packagePath, 'ios')).existsSync() ||
+      manifest['platforms']?['ios'] != null;
+
+  Map<String, dynamic>? get androidSpec =>
+      manifest['platforms']?['android'] as Map<String, dynamic>?;
+
+  Map<String, dynamic>? get iosSpec =>
+      manifest['platforms']?['ios'] as Map<String, dynamic>?;
+}
+
 /// Autolinking conflict information.
 class AutolinkConflict {
   final String moduleName;
   final List<String> conflictingVersions;
-  final Map<String, String> requestedBy;
+  final List<ModuleRequirement> requirements;
 
   const AutolinkConflict({
     required this.moduleName,
     required this.conflictingVersions,
-    required this.requestedBy,
+    required this.requirements,
   });
 }
 
@@ -61,12 +104,67 @@ class AutolinkEngine {
 
   AutolinkEngine(this.project);
 
-  /// Discovers all direct and transitive Bloom native modules.
-  List<DiscoveredNativeModule> discoverModules() {
-    final modules = <String, DiscoveredNativeModule>{};
-    final directDeps = _getDirectDependencies();
+  /// Discovers all direct and transitive module requirements across the dependency tree.
+  List<ModuleRequirement> discoverAllRequirements() {
+    final requirements = <ModuleRequirement>[];
+    final visitedPackages = <String>{};
 
-    // 1. Inspect package_config.json if available
+    // 1. Recursive traversal starting from root project
+    void traversePackage(Directory pkgDir, String requesterName, bool isRoot) {
+      final normalizedPath = p.normalize(pkgDir.path);
+      if (visitedPackages.contains(normalizedPath)) return;
+      visitedPackages.add(normalizedPath);
+
+      final pubspecFile = File(p.join(normalizedPath, 'pubspec.yaml'));
+      final manifestFile = File(p.join(normalizedPath, 'bloom.module.yaml'));
+
+      if (!pubspecFile.existsSync()) return;
+      final pubspec = _loadYamlMap(pubspecFile);
+      final currentPkgName = pubspec['name']?.toString() ?? p.basename(normalizedPath);
+      final currentVersion = pubspec['version']?.toString() ?? '0.1.0';
+
+      // If current package is a native module, record requirement
+      if (manifestFile.existsSync()) {
+        final manifest = _loadYamlMap(manifestFile);
+        final fingerprint = _calculateFingerprint(normalizedPath, manifestFile);
+        final sourceType = _resolveSourceType(normalizedPath);
+
+        requirements.add(ModuleRequirement(
+          moduleName: manifest['name']?.toString() ?? currentPkgName,
+          versionConstraint: currentVersion,
+          resolvedVersion: currentVersion,
+          requesterName: requesterName,
+          requesterPath: pkgDir.path,
+          packagePath: normalizedPath,
+          sourceType: sourceType,
+          isDirect: isRoot,
+          manifest: manifest,
+          fingerprint: fingerprint,
+        ));
+      }
+
+      // Traverse dependencies declared in pubspec.yaml
+      final deps = pubspec['dependencies'];
+      if (deps is Map) {
+        for (final entry in deps.entries) {
+          final depName = entry.key.toString();
+          if (depName == 'flutter' || depName == 'bloom_framework') continue;
+
+          final val = entry.value;
+          if (val is Map && val.containsKey('path')) {
+            final relPath = val['path'].toString();
+            final targetDir = Directory(p.normalize(p.join(normalizedPath, relPath)));
+            if (targetDir.existsSync()) {
+              traversePackage(targetDir, currentPkgName, false);
+            }
+          }
+        }
+      }
+    }
+
+    traversePackage(project.rootDir, project.projectName, true);
+
+    // 2. Inspect package_config.json if available
     final packageConfigFile = File(
       p.join(project.rootDir.path, '.dart_tool', 'package_config.json'),
     );
@@ -78,13 +176,13 @@ class AutolinkEngine {
 
         for (final pkg in packages) {
           final pkgName = pkg['name'] as String;
-          final rootUri = pkg['rootUri'] as String;
+          if (pkgName == project.projectName) continue;
 
+          final rootUri = pkg['rootUri'] as String;
           String pkgPath;
           if (rootUri.startsWith('file://')) {
             pkgPath = Uri.parse(rootUri).toFilePath();
           } else {
-            // Relative URI relative to .dart_tool/
             pkgPath = p.normalize(p.join(project.rootDir.path, '.dart_tool', rootUri));
           }
 
@@ -95,21 +193,24 @@ class AutolinkEngine {
             final sourceType = _resolveSourceType(pkgPath);
             final fingerprint = _calculateFingerprint(pkgPath, manifestFile);
 
-            modules[pkgName] = DiscoveredNativeModule(
-              name: pkgName,
-              version: version,
+            requirements.add(ModuleRequirement(
+              moduleName: manifest['name']?.toString() ?? pkgName,
+              versionConstraint: version,
+              resolvedVersion: version,
+              requesterName: project.projectName,
+              requesterPath: project.rootDir.path,
               packagePath: pkgPath,
               sourceType: sourceType,
-              isDirect: directDeps.contains(pkgName),
+              isDirect: _getDirectDependencies().contains(pkgName),
               manifest: manifest,
               fingerprint: fingerprint,
-            );
+            ));
           }
         }
       } catch (_) {}
     }
 
-    // 2. Inspect workspace packages or sibling packages/modules directory
+    // 3. Inspect workspace packages or sibling packages/modules directories
     final searchDirs = [
       Directory(p.join(project.rootDir.path, 'packages')),
       Directory(p.join(project.rootDir.path, 'modules')),
@@ -127,37 +228,39 @@ class AutolinkEngine {
           if (manifestFile.existsSync() && pubspecFile.existsSync()) {
             final manifest = _loadYamlMap(manifestFile);
             final pubspec = _loadYamlMap(pubspecFile);
-            final pkgName = pubspec['name']?.toString() ?? p.basename(entity.path);
+            final pkgName = manifest['name']?.toString() ?? pubspec['name']?.toString() ?? p.basename(entity.path);
+            final version = pubspec['version']?.toString() ?? '0.1.0';
+            final fingerprint = _calculateFingerprint(entity.path, manifestFile);
 
-            if (!modules.containsKey(pkgName)) {
-              final version = pubspec['version']?.toString() ?? '0.1.0';
-              final fingerprint = _calculateFingerprint(entity.path, manifestFile);
-
-              modules[pkgName] = DiscoveredNativeModule(
-                name: pkgName,
-                version: version,
-                packagePath: entity.path,
-                sourceType: 'path',
-                isDirect: directDeps.contains(pkgName),
-                manifest: manifest,
-                fingerprint: fingerprint,
-              );
-            }
+            requirements.add(ModuleRequirement(
+              moduleName: pkgName,
+              versionConstraint: version,
+              resolvedVersion: version,
+              requesterName: 'workspace',
+              requesterPath: dir.path,
+              packagePath: entity.path,
+              sourceType: 'path',
+              isDirect: _getDirectDependencies().contains(pkgName),
+              manifest: manifest,
+              fingerprint: fingerprint,
+            ));
           }
         }
       }
     }
 
-    // 3. Inspect plugins declared in bloom.yaml
+    // 4. Builtin plugins from bloom.yaml
     final config = project.loadBloomConfig();
     final plugins = config['plugins'] is List ? (config['plugins'] as List) : [];
     for (final plugin in plugins) {
       final pluginName = plugin is String ? plugin : (plugin is Map ? plugin.keys.first.toString() : '');
-      if (pluginName.isNotEmpty && !modules.containsKey(pluginName)) {
-        // Built-in or synthetic module
-        modules[pluginName] = DiscoveredNativeModule(
-          name: pluginName,
-          version: '1.0.0',
+      if (pluginName.isNotEmpty) {
+        requirements.add(ModuleRequirement(
+          moduleName: pluginName,
+          versionConstraint: '1.0.0',
+          resolvedVersion: '1.0.0',
+          requesterName: project.projectName,
+          requesterPath: project.rootDir.path,
           packagePath: project.rootDir.path,
           sourceType: 'builtin',
           isDirect: true,
@@ -169,32 +272,61 @@ class AutolinkEngine {
             },
           },
           fingerprint: 'builtin-$pluginName',
-        );
+        ));
       }
     }
 
-    return modules.values.toList();
+    return requirements;
   }
 
-  /// Detects version collisions among discovered native modules.
-  List<AutolinkConflict> detectConflicts() {
-    final conflicts = <AutolinkConflict>[];
-    // In a multi-package tree, check if multiple versions of the same native binary are requested
-    final Map<String, Set<String>> versionsByModule = {};
-    final Map<String, Map<String, String>> requestedBy = {};
+  /// Discovers all unique direct and transitive Bloom native modules.
+  List<DiscoveredNativeModule> discoverModules() {
+    final allReqs = discoverAllRequirements();
+    final moduleMap = <String, List<ModuleRequirement>>{};
 
-    final modules = discoverModules();
-    for (final mod in modules) {
-      versionsByModule.putIfAbsent(mod.name, () => {}).add(mod.version);
-      requestedBy.putIfAbsent(mod.name, () => {})[mod.packagePath] = mod.version;
+    for (final req in allReqs) {
+      moduleMap.putIfAbsent(req.moduleName, () => []).add(req);
     }
 
-    for (final entry in versionsByModule.entries) {
-      if (entry.value.length > 1) {
+    final modules = <DiscoveredNativeModule>[];
+    for (final entry in moduleMap.entries) {
+      final reqs = entry.value;
+      final first = reqs.first;
+      modules.add(DiscoveredNativeModule(
+        name: entry.key,
+        version: first.resolvedVersion,
+        packagePath: first.packagePath,
+        sourceType: first.sourceType,
+        isDirect: reqs.any((r) => r.isDirect),
+        manifest: first.manifest,
+        fingerprint: first.fingerprint,
+        requirements: reqs,
+      ));
+    }
+
+    return modules;
+  }
+
+  /// Detects version collisions among discovered native modules across the dependency graph.
+  List<AutolinkConflict> detectConflicts() {
+    final conflicts = <AutolinkConflict>[];
+    final allReqs = discoverAllRequirements();
+    final Map<String, List<ModuleRequirement>> reqsByModule = {};
+
+    for (final req in allReqs) {
+      reqsByModule.putIfAbsent(req.moduleName, () => []).add(req);
+    }
+
+    for (final entry in reqsByModule.entries) {
+      final moduleName = entry.key;
+      final reqs = entry.value;
+      final distinctVersions = reqs.map((r) => r.resolvedVersion).toSet().toList();
+
+      if (distinctVersions.length > 1) {
         conflicts.add(AutolinkConflict(
-          moduleName: entry.key,
-          conflictingVersions: entry.value.toList(),
-          requestedBy: requestedBy[entry.key] ?? {},
+          moduleName: moduleName,
+          conflictingVersions: distinctVersions,
+          requirements: reqs,
         ));
       }
     }
@@ -213,18 +345,18 @@ class AutolinkEngine {
         print('  ${Ansi.boldText(c.moduleName)}:');
         print('    Conflicting versions: ${c.conflictingVersions.join(', ')}');
         print('    Requested by:');
-        c.requestedBy.forEach((path, ver) {
-          print('      • $path ➔ $ver');
-        });
+        for (final req in c.requirements) {
+          print('      • ${req.requesterName} (at ${req.requesterPath}) ➔ requires ${req.resolvedVersion}');
+        }
       }
       print('\nSuggested Action: Run `bloom why <module>` to inspect dependency chains.\n');
       return false;
     }
 
-    // 1. Generate android/bloom_autolinking.gradle
+    // 1. Generate & Apply android/bloom_autolinking.gradle
     _generateAndroidAutolinking(modules);
 
-    // 2. Generate ios/BloomAutolinking.podspec.json
+    // 2. Generate & Apply ios/BloomAutolinking.podspec.json + BloomAutolinking.rb
     _generateIosAutolinking(modules);
 
     // 3. Generate deterministic bloom.lock
@@ -241,36 +373,41 @@ class AutolinkEngine {
     final buffer = StringBuffer();
 
     buffer.writeln('// AUTO-GENERATED BY BLOOM CLI AUTOLINKING ENGINE. DO NOT EDIT.');
-    buffer.writeln('// Discovered native modules for Android build.');
+    buffer.writeln('// Native module subproject bindings for Android.');
     buffer.writeln();
-    buffer.writeln('gradle.projectsLoaded {');
 
     for (final mod in modules.where((m) => m.hasAndroid && m.sourceType != 'builtin')) {
       final moduleAndroidDir = p.join(mod.packagePath, 'android');
       if (Directory(moduleAndroidDir).existsSync()) {
         final projName = ':${mod.name}';
-        buffer.writeln("    include '$projName'");
-        buffer.writeln("    project('$projName').projectDir = new File('${p.normalize(moduleAndroidDir)}')");
+        buffer.writeln("include '$projName'");
+        buffer.writeln("project('$projName').projectDir = new File('${p.normalize(moduleAndroidDir)}')");
       }
     }
 
-    buffer.writeln('}');
-    buffer.writeln();
-    buffer.writeln('subprojects {');
-    buffer.writeln('    afterEvaluate { project ->');
-    buffer.writeln('        if (project.hasProperty("android")) {');
-    buffer.writeln('            project.android {');
-    buffer.writeln('                compileSdkVersion 34');
-    buffer.writeln('                defaultConfig {');
-    buffer.writeln('                    minSdkVersion 24');
-    buffer.writeln('                    targetSdkVersion 34');
-    buffer.writeln('                }');
-    buffer.writeln('            }');
-    buffer.writeln('        }');
-    buffer.writeln('    }');
-    buffer.writeln('}');
-
     gradleFile.writeAsStringSync(buffer.toString());
+
+    // Inject into settings.gradle or settings.gradle.kts if missing
+    _injectGradleSettingsInclude(androidDir);
+  }
+
+  void _injectGradleSettingsInclude(Directory androidDir) {
+    final settingsKts = File(p.join(androidDir.path, 'settings.gradle.kts'));
+    final settingsGroovy = File(p.join(androidDir.path, 'settings.gradle'));
+
+    if (settingsKts.existsSync()) {
+      var content = settingsKts.readAsStringSync();
+      if (!content.contains('bloom_autolinking.gradle')) {
+        content += '\n// Bloom Native Autolinking\napply(from = "bloom_autolinking.gradle")\n';
+        settingsKts.writeAsStringSync(content);
+      }
+    } else if (settingsGroovy.existsSync()) {
+      var content = settingsGroovy.readAsStringSync();
+      if (!content.contains('bloom_autolinking.gradle')) {
+        content += '\n// Bloom Native Autolinking\napply from: "bloom_autolinking.gradle"\n';
+        settingsGroovy.writeAsStringSync(content);
+      }
+    }
   }
 
   void _generateIosAutolinking(List<DiscoveredNativeModule> modules) {
@@ -298,6 +435,39 @@ class AutolinkEngine {
     };
 
     jsonFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(output));
+
+    // Generate BloomAutolinking.rb
+    final rbFile = File(p.join(iosDir.path, 'BloomAutolinking.rb'));
+    final rbBuffer = StringBuffer();
+    rbBuffer.writeln('# AUTO-GENERATED BY BLOOM CLI AUTOLINKING ENGINE. DO NOT EDIT.');
+    rbBuffer.writeln("require 'json'");
+    rbBuffer.writeln();
+    rbBuffer.writeln('def use_bloom_modules!(target_installer = nil)');
+    rbBuffer.writeln("  json_path = File.join(__dir__, 'BloomAutolinking.podspec.json')");
+    rbBuffer.writeln('  return unless File.exist?(json_path)');
+    rbBuffer.writeln('  data = JSON.parse(File.read(json_path))');
+    rbBuffer.writeln("  (data['modules'] || []).each do |mod|");
+    rbBuffer.writeln("    pod mod['name'], :path => mod['path']");
+    rbBuffer.writeln('  end');
+    rbBuffer.writeln('end');
+    rbFile.writeAsStringSync(rbBuffer.toString());
+
+    // Inject into Podfile if missing
+    _injectPodfileAutolink(iosDir);
+  }
+
+  void _injectPodfileAutolink(Directory iosDir) {
+    final podfile = File(p.join(iosDir.path, 'Podfile'));
+    if (podfile.existsSync()) {
+      var content = podfile.readAsStringSync();
+      if (!content.contains('BloomAutolinking.rb')) {
+        content = "require_relative 'BloomAutolinking.rb'\n" + content;
+        if (!content.contains('use_bloom_modules!')) {
+          content = content.replaceFirst('target \'Runner\' do', "target 'Runner' do\n  use_bloom_modules!");
+        }
+        podfile.writeAsStringSync(content);
+      }
+    }
   }
 
   void _generateBloomLock(List<DiscoveredNativeModule> modules) {
@@ -307,11 +477,14 @@ class AutolinkEngine {
     buffer.writeln('# AUTO-GENERATED BY BLOOM CLI. DO NOT EDIT.');
     buffer.writeln('lockfile_version: 1');
     buffer.writeln('bloom_version: 1.0.0');
-    buffer.writeln('generated_at: ${DateTime.now().toUtc().toIso8601String()}');
     buffer.writeln();
     buffer.writeln('native_modules:');
 
-    for (final mod in modules) {
+    // Sort modules deterministically by name
+    final sorted = List<DiscoveredNativeModule>.from(modules)
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    for (final mod in sorted) {
       buffer.writeln('  ${mod.name}:');
       buffer.writeln('    version: ${mod.version}');
       buffer.writeln('    source: ${mod.sourceType}');
@@ -424,7 +597,10 @@ class AutolinkEngine {
         final files = d.listSync(recursive: true).whereType<File>().toList()
           ..sort((a, b) => a.path.compareTo(b.path));
         for (final f in files) {
-          hashInput.writeln('${p.basename(f.path)}:${f.lengthSync()}');
+          // Strong SHA-256 content hashing of all native source files
+          final bytes = f.readAsBytesSync();
+          final fileSha = sha256.convert(bytes).toString();
+          hashInput.writeln('${p.relative(f.path, from: pkgPath)}:$fileSha');
         }
       }
     }
