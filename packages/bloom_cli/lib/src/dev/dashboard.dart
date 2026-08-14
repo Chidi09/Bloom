@@ -30,6 +30,10 @@ class DevDashboard {
     print('  ${Ansi.boldText('Pairing URI:')}  ${Ansi.cyan}${devServer.devServerUri}${Ansi.reset}');
     print('  ${Ansi.boldText('Connected:')}    ${devServer.pairedDevices.isEmpty ? '0 wireless devices' : '${devServer.pairedDevices.length} device(s)'}');
 
+    if (devServer.isLoopback) {
+      print(Ansi.warn('\n  Notice: No active LAN interface detected. Running on localhost (127.0.0.1).\n  Physical mobile devices will not be able to connect over Wi-Fi.\n'));
+    }
+
     if (showQrCode) {
       print('\n  ${Ansi.boldText('Scan with Bloom Go to launch wirelessly on physical device:')}\n');
       final qr = QrTerminalRenderer.render(devServer.devServerUri);

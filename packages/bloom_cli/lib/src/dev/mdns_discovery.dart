@@ -4,6 +4,13 @@ import 'dart:convert';
 import 'dart:io';
 import '../utils/ansi.dart';
 
+class LocalIpResult {
+  final String ip;
+  final bool isLoopback;
+
+  const LocalIpResult(this.ip, {this.isLoopback = false});
+}
+
 /// Discovers local network LAN IPv4 addresses and advertises development service beacons on the local subnet.
 class MdnsDiscovery {
   static const int broadcastPort = 5354;
@@ -11,7 +18,7 @@ class MdnsDiscovery {
   Timer? _beaconTimer;
 
   /// Find preferred local network IPv4 address (Wi-Fi or Ethernet).
-  static Future<String> getLocalIp() async {
+  static Future<LocalIpResult> getLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
@@ -22,15 +29,15 @@ class MdnsDiscovery {
         for (final addr in interface.addresses) {
           final ip = addr.address;
           if (!ip.startsWith('127.') && !ip.startsWith('169.254.')) {
-            return ip;
+            return LocalIpResult(ip, isLoopback: false);
           }
         }
       }
     } catch (_) {}
-    return '127.0.0.1';
+    return const LocalIpResult('127.0.0.1', isLoopback: true);
   }
 
-  /// Start broadcasting Bloom Go discovery beacons over UDP multicast.
+  /// Start broadcasting Bloom Go discovery beacons over UDP multicast/broadcast.
   Future<void> startBroadcasting({
     required String projectName,
     required int devPort,

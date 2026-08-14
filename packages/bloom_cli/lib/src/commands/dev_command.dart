@@ -37,8 +37,13 @@ class DevCommand extends Command<int> {
       ..addFlag(
         'wireless',
         abbr: 'w',
-        help: 'Enable wireless network discovery and pairing.',
+        help: 'Enable wireless ADB network discovery and pairing.',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'discovery',
+        help: 'Broadcast development server presence over local network UDP beacons.',
+        defaultsTo: true,
       );
   }
 
@@ -53,6 +58,7 @@ class DevCommand extends Command<int> {
     var targetDevice = argResults?['device'] as String?;
     final flavor = argResults?['flavor'] as String?;
     final wireless = argResults?['wireless'] as bool? ?? false;
+    final enableDiscovery = argResults?['discovery'] as bool? ?? true;
     final port = int.tryParse(argResults?['port']?.toString() ?? '8080') ?? 8080;
 
     printBloomBanner();
@@ -67,8 +73,12 @@ class DevCommand extends Command<int> {
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
 
-    // 2. Start DevServer & mDNS Broadcaster
-    final devServer = BloomDevServer(project, preferredPort: port);
+    // 2. Start DevServer & Discovery Broadcaster
+    final devServer = BloomDevServer(
+      project,
+      preferredPort: port,
+      enableDiscovery: enableDiscovery,
+    );
     await devServer.start();
 
     // 3. Render Dashboard
@@ -79,17 +89,19 @@ class DevCommand extends Command<int> {
     );
     dashboard.render();
 
-    // 4. Wireless ADB device discovery if requested
+    // 4. Wireless ADB device discovery with robust line parser
     if (wireless && targetDevice == null) {
       try {
         final adbResult = await Process.run('adb', ['devices', '-l']);
         if (adbResult.exitCode == 0) {
           final lines = (adbResult.stdout as String).split('\n');
+          final adbRegex = RegExp(r'^([^\s]+)\s+device\b');
           for (final line in lines) {
-            if (line.contains(':5555') || line.contains('product:')) {
-              final parts = line.split(RegExp(r'\s+'));
-              if (parts.isNotEmpty && parts.first.contains(':')) {
-                targetDevice = parts.first;
+            final match = adbRegex.firstMatch(line.trim());
+            if (match != null) {
+              final candidate = match.group(1)!;
+              if (candidate.contains(':5555') || candidate.contains('.')) {
+                targetDevice = candidate;
                 print(Ansi.success('📱 Connected to wireless target device: $targetDevice'));
                 break;
               }
@@ -131,8 +143,10 @@ class DevCommand extends Command<int> {
         return;
       }
       if (line.contains('Performing hot reload') || line.contains('Reloaded')) {
+        devServer.recordHotReload();
         print('${Ansi.green}⚡ $line${Ansi.reset}');
       } else if (line.contains('Performing hot restart') || line.contains('Restarted')) {
+        devServer.recordHotRestart();
         print('${Ansi.magenta}🔄 $line${Ansi.reset}');
       } else if (line.toLowerCase().contains('error') || line.toLowerCase().contains('exception')) {
         print('${Ansi.red}$line${Ansi.reset}');

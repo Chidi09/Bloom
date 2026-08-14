@@ -11,19 +11,26 @@ import '../lib/src/utils/project.dart';
 
 void main() {
   group('Phase 5: QR Terminal Renderer', () {
-    test('renders high-contrast ANSI string with Unicode half blocks', () {
+    test('renders accurate positive ANSI QR code with dark modules as foreground blocks', () {
       final qrText = QrTerminalRenderer.render('bloom://dev-server?host=127.0.0.1&port=8080&id=test');
       expect(qrText, isNotEmpty);
-      expect(qrText.contains('\x1B['), true); // Has ANSI escape codes
-      expect(qrText.contains('█') || qrText.contains('▀') || qrText.contains('▄'), true);
+      expect(qrText.contains('\x1B[47m'), true); // White background
+      expect(qrText.contains('\x1B[30m'), true); // Black foreground
+
+      final lines = qrText.split('\n').where((l) => l.isNotEmpty).toList();
+      expect(lines.isNotEmpty, true);
+
+      // Line 2 (which contains the top edge of the 7x7 finder pattern) must contain dark block chars (█, ▀, or ▄)
+      final finderLine = lines[1];
+      expect(finderLine.contains('█') || finderLine.contains('▀') || finderLine.contains('▄'), true);
     });
   });
 
   group('Phase 5: Local Network Discovery', () {
-    test('resolves local IPv4 network address', () async {
-      final ip = await MdnsDiscovery.getLocalIp();
-      expect(ip, isNotEmpty);
-      expect(RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(ip), true);
+    test('resolves local IPv4 network address and flags loopback', () async {
+      final result = await MdnsDiscovery.getLocalIp();
+      expect(result.ip, isNotEmpty);
+      expect(RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(result.ip), true);
     });
   });
 
@@ -43,7 +50,7 @@ void main() {
       File(p.join(routesDir.path, 'profile.dart')).writeAsStringSync('class ProfileRoute {}');
 
       final project = BloomProject.fromDirectory(tempDir);
-      devServer = BloomDevServer(project, preferredPort: 9190);
+      devServer = BloomDevServer(project, preferredPort: 9190, enableDiscovery: false);
       await devServer.start();
     });
 
@@ -52,14 +59,17 @@ void main() {
       tempDir.deleteSync(recursive: true);
     });
 
-    test('serves health status on /health', () async {
+    test('serves health status on /health with dynamic reload counters', () async {
+      devServer.recordHotReload();
+      devServer.recordHotReload();
+
       final res = await http.get(Uri.parse('${devServer.httpUrl}/health'));
       expect(res.statusCode, 200);
 
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       expect(json['status'], 'ok');
       expect(json['project'], 'dev_test_app');
-      expect(json['hotReloadActive'], true);
+      expect(json['hotReloadCount'], 2);
     });
 
     test('serves project manifest on /manifest.json', () async {
@@ -73,6 +83,17 @@ void main() {
 
       final routes = json['routes'] as List;
       expect(routes.length, 2);
+    });
+
+    test('serves QR code in JSON and ANSI format', () async {
+      final resJson = await http.get(Uri.parse('${devServer.httpUrl}/qr'));
+      expect(resJson.statusCode, 200);
+      final json = jsonDecode(resJson.body) as Map<String, dynamic>;
+      expect(json['uri'], devServer.devServerUri);
+
+      final resAnsi = await http.get(Uri.parse('${devServer.httpUrl}/qr?format=ansi'));
+      expect(resAnsi.statusCode, 200);
+      expect(resAnsi.body.contains('\x1B['), true);
     });
 
     test('registers paired device on POST /devices/pair', () async {
