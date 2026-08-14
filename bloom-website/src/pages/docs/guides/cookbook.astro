@@ -1,0 +1,134 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { BookOpen, Sparkles, ArrowRight, Code2 } from 'lucide-preact';
+
+const recipe1Code = `// lib/features/notes/notes_controller.dart
+import 'package:bloom_framework/bloom.dart';
+import '../../models/note.dart';
+
+class NotesController extends BloomController {
+  final BloomHttpClient http;
+
+  // Stale-while-revalidate Query
+  late final notesQuery = createQuery<List<Note>>(
+    key: ['notes', 'list'],
+    fetcher: () async {
+      final res = await http.get<List<dynamic>>('/rest/v1/notes?select=*');
+      return res.map((e) => Note.fromJson(e as Map<String, dynamic>)).toList();
+    },
+    staleTime: const Duration(minutes: 5),
+  );
+
+  // Optimistic Mutation with Rollback
+  late final addNoteMutation = createMutation<Note, String>(
+    mutationFn: (text) async {
+      final res = await http.post<Map<String, dynamic>>('/rest/v1/notes', body: {'content': text});
+      return Note.fromJson(res);
+    },
+    onMutate: (text) {
+      final prev = notesQuery.data.value ?? [];
+      final temp = Note(id: 'temp_\${DateTime.now().millisecondsSinceEpoch}', content: text);
+      notesQuery.setData([...prev, temp]);
+      return prev;
+    },
+    onError: (err, text, rollback) {
+      notesQuery.setData(rollback as List<Note>);
+    },
+    onSettled: (data, err, text, rollback) {
+      BloomData.invalidateQueries(['notes']);
+    },
+  );
+
+  NotesController(this.http);
+}`;
+
+const recipe2Code = `# 1. Deploy instantaneous patch to staging channel
+bloom deploy patch --channel staging --flavor staging
+
+# 2. Promote patch to production fleet
+bloom deploy patch --channel production --flavor production`;
+
+const recipe3Code = `# bloom.yaml
+plugins:
+  - secure-storage
+  - camera
+  - notifications:
+      android_channel_id: updates
+
+# Run prebuild to inject permissions into AndroidManifest.xml & Info.plist
+bloom prebuild`;
+---
+
+<DocsLayout
+  title="Cookbook & Recipes"
+  description="End-to-end, production-ready recipes for building full-stack applications with Bloom."
+  currentSlug="guides-cookbook"
+  category="Guides & Recipes"
+  toc={[
+    { id: 'recipe-crud', title: '1. CRUD with Offline Persistence' },
+    { id: 'recipe-ota', title: '2. Rolling out an OTA Patch' },
+    { id: 'recipe-native', title: '3. Adding Native Plugins' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Cookbook & Recipes
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Step-by-step recipes for solving common real-world mobile and desktop engineering challenges with Bloom.
+      </p>
+    </div>
+
+    <!-- Recipe 1 -->
+    <section id="recipe-crud" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Recipe 1: Authenticated CRUD with Offline Persistence
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        A complete notes feature with automated SWR caching, background synchronization, and instant optimistic UI updates:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{recipe1Code}</code></pre>
+      </div>
+    </section>
+
+    <!-- Recipe 2 -->
+    <section id="recipe-ota" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Recipe 2: Rolling Out an Over-The-Air (OTA) Patch
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Fix production bugs instantaneously across your entire user base without going through app store review:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-purple-300 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{recipe2Code}</code></pre>
+      </div>
+    </section>
+
+    <!-- Recipe 3 -->
+    <section id="recipe-native" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Recipe 3: Adding Native Plugins with Prebuild
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Declare native capabilities in <code class="font-mono text-purple-400">bloom.yaml</code> and synchronize with one command:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-purple-300 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{recipe3Code}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+      <a
+        href="/docs/guides/best-practices"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Best Practices</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
