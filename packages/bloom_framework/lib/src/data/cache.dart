@@ -27,7 +27,7 @@ class QueryCacheEntry<T> {
       isStale || DateTime.now().difference(updatedAt) > staleTime;
 }
 
-/// Global query cache manager for Bloom Data with automated TTL garbage collection.
+/// Global query cache manager for Bloom Data with automated periodic TTL garbage collection.
 class BloomData {
   static final Map<String, QueryCacheEntry<dynamic>> _cache =
       HashMap<String, QueryCacheEntry<dynamic>>();
@@ -35,6 +35,20 @@ class BloomData {
       HashMap<String, StreamController<void>>();
   static final Map<String, Completer<dynamic>> _inFlightRequests =
       HashMap<String, Completer<dynamic>>();
+
+  static Timer? _gcTimer;
+
+  /// Start automated periodic garbage collection.
+  static void startGarbageCollector({Duration interval = const Duration(minutes: 5)}) {
+    _gcTimer?.cancel();
+    _gcTimer = Timer.periodic(interval, (_) => garbageCollect());
+  }
+
+  /// Stop automated garbage collection.
+  static void stopGarbageCollector() {
+    _gcTimer?.cancel();
+    _gcTimer = null;
+  }
 
   /// Converts a key list like `['users', 42, 'posts']` to a normalized string key.
   static String normalizeKey(List<dynamic> key) {
@@ -106,6 +120,7 @@ class BloomData {
     if (entry != null) {
       if (entry.isExpired) {
         _cache.remove(keyStr);
+        _invalidationControllers.remove(keyStr)?.close();
         return null;
       }
       return entry.data as T?;
@@ -119,6 +134,7 @@ class BloomData {
     final entry = _cache[keyStr];
     if (entry != null && entry.isExpired) {
       _cache.remove(keyStr);
+      _invalidationControllers.remove(keyStr)?.close();
       return null;
     }
     return entry as QueryCacheEntry<T>?;
@@ -140,6 +156,7 @@ class BloomData {
     }
     for (final k in expiredKeys) {
       _cache.remove(k);
+      _invalidationControllers.remove(k)?.close();
     }
     if (expiredKeys.isNotEmpty) {
       logger.debug('BloomData: Evicted ${expiredKeys.length} expired query cache entries.');

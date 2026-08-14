@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 import 'mdns_discovery.dart';
@@ -173,6 +174,44 @@ class BloomDevServer {
           request.response.statusCode = HttpStatus.badRequest;
           request.response.write(jsonEncode({'error': e.toString()}));
         }
+      } else if (path == '/inspect/config') {
+        final config = project.loadBloomConfig();
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(config));
+      } else if (path == '/inspect/env') {
+        final envFile = File(p.join(project.rootDir.path, '.env'));
+        final envMap = <String, String>{};
+        if (envFile.existsSync()) {
+          final lines = envFile.readAsLinesSync();
+          for (final line in lines) {
+            final trimmed = line.trim();
+            if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+            final eq = trimmed.indexOf('=');
+            if (eq != -1) {
+              envMap[trimmed.substring(0, eq).trim()] = trimmed.substring(eq + 1).trim();
+            }
+          }
+        }
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(envMap));
+      } else if (path == '/bundle.json') {
+        final routes = project.scanRoutes();
+        final config = project.loadBloomConfig();
+        final bundle = {
+          'project': project.projectName,
+          'version': config['version'] ?? '0.1.0',
+          'entrypoint': 'lib/main.dart',
+          'routes': routes.map((r) => {
+            'routePath': r.routePath,
+            'file': r.relativeFilePath,
+            'component': r.componentClassName,
+            'isIndex': r.isIndex,
+            'parameters': r.parameters,
+          }).toList(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(bundle));
       } else {
         request.response.statusCode = HttpStatus.notFound;
         request.response.write('Not Found');
