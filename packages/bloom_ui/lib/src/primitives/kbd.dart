@@ -2,39 +2,46 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// Styled keyboard shortcut indicator matching shadcn base-nova.
 class BloomKbd extends StatelessWidget {
   final String text;
+  final Widget? child;
 
-  const BloomKbd({super.key, required this.text});
+  const BloomKbd({super.key, this.text = '', this.child});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
-    final theme = context.bloomTheme;
 
     return Semantics(
       label: text,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        height: 20, // h-5
+        constraints: const BoxConstraints(minWidth: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: colors.surface2,
-          borderRadius: BorderRadius.circular(theme.radius.sm),
-          border: Border.all(color: colors.border),
+          color: colors.surface0, // bg-muted
+          borderRadius: BorderRadius.circular(4), // rounded-sm
+          border: Border.all(color: colors.border.withValues(alpha: 0.6)),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            fontFamily: theme.typography.mono,
-          ),
-        ),
+        child: child ??
+            Text(
+              text,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                fontFamily: context.bloomTypography.sans,
+                letterSpacing: -0.1,
+              ),
+            ),
       ),
     );
   }
 }
 
+/// Group of keyboard shortcuts (e.g. ⌘ + K)
 class BloomKbdGroup extends StatelessWidget {
   final List<String> keys;
   final double spacing;

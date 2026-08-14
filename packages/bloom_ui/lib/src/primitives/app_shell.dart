@@ -1,8 +1,19 @@
 // lib/src/primitives/app_shell.dart
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
-import 'navigation_menu.dart';
 import 'sidebar.dart';
+
+class BloomNavigationItem {
+  final Widget icon;
+  final Widget label;
+  final Widget? trailing;
+
+  const BloomNavigationItem({
+    required this.icon,
+    required this.label,
+    this.trailing,
+  });
+}
 
 class BloomAppShell extends StatelessWidget {
   final Widget? appBar;
@@ -57,11 +68,20 @@ class BloomDashboardShell extends StatelessWidget {
       body: Row(
         children: [
           BloomSidebar(
-            selectedIndex: selectedIndex,
-            items: navigationItems,
-            onDestinationSelected: onDestinationSelected,
             header: sidebarHeader,
             footer: sidebarFooter,
+            content: Column(
+              children: List.generate(navigationItems.length, (i) {
+                final item = navigationItems[i];
+                return BloomSidebarMenuButton(
+                  icon: item.icon,
+                  label: item.label,
+                  trailing: item.trailing,
+                  isCurrent: selectedIndex == i,
+                  onTap: () => onDestinationSelected(i),
+                );
+              }),
+            ),
           ),
           Expanded(
             child: Column(
