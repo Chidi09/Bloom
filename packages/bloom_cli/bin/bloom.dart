@@ -13,15 +13,19 @@ import '../lib/src/commands/deploy_command.dart';
 import '../lib/src/commands/deps_command.dart';
 import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
+import '../lib/src/commands/explain_command.dart';
 import '../lib/src/commands/generate_command.dart';
+import '../lib/src/commands/graph_command.dart';
 import '../lib/src/commands/module_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
+import '../lib/src/commands/registry_command.dart';
 import '../lib/src/commands/remove_command.dart';
 import '../lib/src/commands/security_command.dart';
 import '../lib/src/commands/symbols_command.dart';
 import '../lib/src/commands/templates_command.dart';
 import '../lib/src/commands/test_command.dart';
 import '../lib/src/commands/update_command.dart';
+import '../lib/src/commands/upgrade_command.dart';
 import '../lib/src/commands/why_command.dart';
 import '../lib/src/commands/workspace_command.dart';
 import '../lib/src/utils/ansi.dart';
@@ -37,6 +41,10 @@ Future<void> main(List<String> args) async {
     ..addCommand(CreateModuleCommand())
     ..addCommand(ModuleCommand())
     ..addCommand(TemplatesCommand())
+    ..addCommand(RegistryCommand())
+    ..addCommand(UpgradeCommand())
+    ..addCommand(ExplainCommand())
+    ..addCommand(GraphCommand())
     ..addCommand(AutolinkCommand())
     ..addCommand(DepsCommand())
     ..addCommand(WhyCommand())
