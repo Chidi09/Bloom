@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../core/env.dart';
 import '../core/logger.dart';
+import '../observability/models.dart';
+import '../observability/observability.dart';
 
 typedef RequestInterceptor = FutureOr<http.BaseRequest> Function(http.BaseRequest request);
 typedef ResponseInterceptor = FutureOr<http.Response> Function(http.Response response);
@@ -97,6 +99,18 @@ class BloomHttpClient {
     for (final interceptor in responseInterceptors) {
       response = await interceptor(response);
     }
+
+    // Record network breadcrumb
+    BloomObservability.addBreadcrumb(
+      category: 'http',
+      message: '$method ${uri.path} (${response.statusCode})',
+      level: response.statusCode >= 400 ? BloomBreadcrumbLevel.warning : BloomBreadcrumbLevel.info,
+      data: {
+        'url': uri.toString(),
+        'method': method,
+        'statusCode': response.statusCode,
+      },
+    );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
