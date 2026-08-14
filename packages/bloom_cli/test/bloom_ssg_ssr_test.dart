@@ -1,4 +1,3 @@
-// test/bloom_ssg_ssr_test.dart
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -103,10 +102,15 @@ class ProductDetailsRoute {}
     });
   });
 
-  group('Phase 12: Server-Side Rendering (SSR) & API Route Generator', () {
-    test('BloomSsrEngine discovers API routes and generates standalone server.dart with valid catch-all', () async {
+  group('Phase 12: Server-Side Rendering (SSR), Loaders & XSS Hardening', () {
+    test('BloomSsrEngine discovers API routes, loader functions, and escapes XSS payloads', () async {
       final appDir = Directory(p.join(tempDir.path, 'ssr_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: ssr_app\n');
+      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('''
+name: ssr_app
+web:
+  pwa:
+    theme_color: "#6366F1"
+''');
 
       final apiDir = Directory(p.join(appDir.path, 'lib', 'routes', 'api', 'users'))..createSync(recursive: true);
       File(p.join(apiDir.path, 'index.dart')).writeAsStringSync('''
@@ -120,6 +124,22 @@ Future<BloomResponse> get(BloomRequest req) async => BloomResponse.json({'id': r
 Future<BloomResponse> delete(BloomRequest req) async => BloomResponse.noContent();
 ''');
 
+      // Page with route loader
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
+      File(p.join(routesDir.path, 'products.dart')).writeAsStringSync('''
+import 'package:bloom_framework/bloom.dart';
+
+@BloomLoader()
+Future<Map<String, dynamic>> loadProducts(BloomRouteContext context) async {
+  return {'category': 'tech', 'items': ['laptop', 'phone']};
+}
+
+@BloomAction()
+Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynamic> form) async {
+  return ActionResult.success({'orderId': '123'});
+}
+''');
+
       final project = BloomProject(
         rootDir: appDir,
         bloomYamlFile: File(p.join(appDir.path, 'bloom.yaml')),
@@ -128,10 +148,11 @@ Future<BloomResponse> delete(BloomRequest req) async => BloomResponse.noContent(
 
       final ssr = BloomSsrEngine(project: project);
       final apiRoutes = ssr.discoverApiRoutes();
+      final pageRoutes = ssr.discoverPageRoutes();
 
       expect(apiRoutes.length, 2);
-      expect(apiRoutes.any((r) => r.path == '/api/users'), isTrue);
-      expect(apiRoutes.any((r) => r.path == '/api/users/:id'), isTrue);
+      expect(pageRoutes.any((p) => p.hasLoader && p.loaderFunctionName == 'loadProducts'), isTrue);
+      expect(pageRoutes.any((p) => p.hasAction && p.actionFunctionName == 'handleCheckout'), isTrue);
 
       final serverFile = await ssr.generate();
       expect(serverFile.existsSync(), isTrue);
@@ -141,9 +162,13 @@ Future<BloomResponse> delete(BloomRequest req) async => BloomResponse.noContent(
       expect(serverCode, contains("router.post('/api/users'"));
       expect(serverCode, contains("router.get('/api/users/:id'"));
       expect(serverCode, contains("router.delete('/api/users/:id'"));
+      expect(serverCode, contains("loadProducts(ctx)"));
+      expect(serverCode, contains("handleCheckout(ctx, form)"));
+      expect(serverCode, contains("themeColor: '#6366F1'"));
       expect(serverCode, contains("BloomCorsMiddleware()"));
       expect(serverCode, contains("router.all('*'"));
       expect(serverCode, contains("p.isWithin(webDir.path, targetPath)"));
+      expect(serverCode, contains("window.__BLOOM_LOADER_DATA__ ="));
     });
   });
 
