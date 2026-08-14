@@ -15,6 +15,7 @@ class _RouteEntry {
   final List<String> paramNames;
   final List<BloomMiddleware> middlewares;
   final BloomRouteHandler handler;
+  final int specificity;
 
   _RouteEntry({
     required this.method,
@@ -23,6 +24,7 @@ class _RouteEntry {
     required this.paramNames,
     required this.middlewares,
     required this.handler,
+    required this.specificity,
   });
 }
 
@@ -71,8 +73,11 @@ class BloomApiRouter {
     var regexPattern = pattern;
 
     RegExp regex;
+    int specificity = 100;
+
     if (pattern == '*' || pattern == '/*') {
       regex = RegExp(r'^.*$');
+      specificity = 0;
     } else {
       // Replace :param with regex capture group
       final paramRegex = RegExp(r':([a-zA-Z0-9_]+)');
@@ -88,6 +93,14 @@ class BloomApiRouter {
       }
 
       regex = RegExp('^$regexPattern/?\$');
+
+      if (pattern.contains('*')) {
+        specificity = 10 + pattern.length;
+      } else if (paramNames.isNotEmpty) {
+        specificity = 50 + pattern.length;
+      } else {
+        specificity = 100 + pattern.length;
+      }
     }
 
     _routes.add(_RouteEntry(
@@ -97,7 +110,10 @@ class BloomApiRouter {
       paramNames: paramNames,
       middlewares: middlewares,
       handler: handler,
+      specificity: specificity,
     ));
+
+    _routes.sort((a, b) => b.specificity.compareTo(a.specificity));
   }
 
   /// Dispatches and processes an incoming [BloomRequest].

@@ -289,7 +289,8 @@ class BloomSsrEngine {
       if (page.hasAction && page.actionFunctionName != null) {
         buffer.writeln("  router.post('${page.path}', (req) async {");
         buffer.writeln("    final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
-        buffer.writeln("    final form = req.json() is Map ? req.json() as Map<String, dynamic> : req.formData();");
+        buffer.writeln("    final body = req.json();");
+        buffer.writeln("    final form = body is Map<String, dynamic> ? body : req.formData();");
         buffer.writeln("    final result = await page_route_$i.${page.actionFunctionName}(ctx, form);");
         buffer.writeln("    return BloomResponse.json({");
         buffer.writeln("      'isSuccess': result.isSuccess,");

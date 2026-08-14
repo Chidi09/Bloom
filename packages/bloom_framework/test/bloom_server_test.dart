@@ -147,6 +147,24 @@ void main() {
       final getRes = await router.handleRequest(getReq);
       expect(getRes.headers['access-control-allow-origin'], 'https://bloom.dev');
     });
+
+    test('Catch-all and wildcard patterns compile and match any path', () async {
+      final router = BloomApiRouter();
+      router.all('*', (req) => BloomResponse.text('catchall'));
+      router.get('/files/*', (req) => BloomResponse.text('file'));
+
+      final catchAllRes = await router.handleRequest(
+        BloomRequest(method: 'GET', uri: Uri.parse('http://localhost/a/b/c')),
+      );
+      expect(catchAllRes.statusCode, 200);
+      expect(catchAllRes.bodyText, 'catchall');
+
+      final fileRes = await router.handleRequest(
+        BloomRequest(method: 'GET', uri: Uri.parse('http://localhost/files/x/y.png')),
+      );
+      expect(fileRes.statusCode, 200);
+      expect(fileRes.bodyText, 'file');
+    });
   });
 
   group('Phase 12: Route Loaders, Actions & Declarative SEO Metadata', () {
