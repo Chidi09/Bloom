@@ -1,0 +1,112 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Zap, Activity, ArrowRight, Code2 } from 'lucide-preact';
+
+const signalsCode = `import 'package:bloom_framework/bloom.dart';
+
+class CartController extends BloomController {
+  // Reactive Signal
+  late final items = createSignal<List<CartItem>>([], debugLabel: 'cart.items');
+
+  // Computed Signal (auto-tracks dependencies)
+  late final totalPrice = createComputed<double>(() {
+    return items.value.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+  }, debugLabel: 'cart.totalPrice');
+
+  late final itemCount = createComputed<int>(() {
+    return items.value.fold(0, (count, item) => count + item.quantity);
+  });
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Side effect runs whenever items change
+    createEffect(() {
+      print('Cart updated: \${items.value.length} distinct products.');
+    });
+  }
+
+  void addItem(CartItem item) {
+    items.value = [...items.value, item];
+  }
+
+  void clearCart() {
+    items.value = [];
+  }
+}`;
+
+const widgetCode = `class CartTotalWidget extends StatelessWidget {
+  const CartTotalWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = inject<CartController>();
+
+    // Watch widget ONLY rebuilds this small text node when price changes!
+    return Watch((context) => Text(
+      'Total: \\\$\${cart.totalPrice.value.toStringAsFixed(2)}',
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    ));
+  }
+}`;
+---
+
+<DocsLayout
+  title="Signals & Reactivity"
+  description="Fine-grained reactive state management built on Preact Signals for 60fps Flutter Impeller rendering."
+  currentSlug="framework-signals"
+  category="Framework & DX"
+  toc={[
+    { id: 'controller', title: 'BloomController & Signals' },
+    { id: 'computed', title: 'Computed Values & Effects' },
+    { id: 'watch', title: 'Watch Widget & Granular Rebuilds' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Signals & State
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom replaces complex boilerplate like Bloc or ChangeNotifier with <strong>Signals</strong>. Signals automatically track reactive dependencies and re-render only the precise widgets that read their values.
+      </p>
+    </div>
+
+    <!-- BloomController -->
+    <section id="controller" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">BloomController & Signals</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{signalsCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Watch Widget -->
+    <section id="watch" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Watch Widget & Granular Rebuilds</h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Wrap widgets in <code class="font-mono text-purple-400">Watch</code> so only the inner widget rebuilds when a signal changes, avoiding expensive whole-screen rebuilds:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{widgetCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/routing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Routing</span>
+      </a>
+      <a
+        href="/docs/framework/di"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Dependency Injection</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

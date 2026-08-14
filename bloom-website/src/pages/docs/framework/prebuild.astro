@@ -1,0 +1,81 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Smartphone, Layers, ArrowRight, Code2 } from 'lucide-preact';
+
+const bloomYamlCode = `name: my_app
+version: 1.0.0+1
+
+native:
+  app_id: com.example.myapp
+  app_name: "My App"
+  permissions:
+    - camera
+    - location_when_in_use
+    - photo_library
+  deep_links:
+    scheme: myapp
+    hosts:
+      - app.bloom.dev
+  flavors:
+    - dev
+    - staging
+    - prod`;
+
+const prebuildCmd = `bloom prebuild`;
+---
+
+<DocsLayout
+  title="Prebuild & Native Sync"
+  description="Expo Prebuild-style native code generation for iOS Info.plist and Android AndroidManifest.xml from bloom.yaml."
+  currentSlug="framework-prebuild"
+  category="Framework & DX"
+  toc={[
+    { id: 'bloom-yaml', title: 'Configuring bloom.yaml' },
+    { id: 'prebuild', title: 'Running bloom prebuild' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Prebuild & Native Sync
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Never manually edit Xcode project files or XML manifests again. Bloom's <strong>Prebuild Engine</strong> generates and synchronizes native iOS and Android configuration from a single declarative <code class="font-mono text-purple-400">bloom.yaml</code> file.
+      </p>
+    </div>
+
+    <!-- bloom.yaml -->
+    <section id="bloom-yaml" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Configuring bloom.yaml</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{bloomYamlCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Prebuild Command -->
+    <section id="prebuild" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Running bloom prebuild</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
+        <code>{prebuildCmd}</code>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/data"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Data Layer</span>
+      </a>
+      <a
+        href="/docs/framework/ota"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Cloud OTA Deployment</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

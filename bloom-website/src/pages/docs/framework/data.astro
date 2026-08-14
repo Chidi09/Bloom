@@ -1,0 +1,96 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Database, RefreshCw, ArrowRight, Code2 } from 'lucide-preact';
+
+const queryCode = `// Fetching data with automatic caching and stale-while-revalidate
+final userQuery = createQuery<User>(
+  key: ['users', userId],
+  fetcher: () => api.fetchUser(userId),
+  staleTime: const Duration(minutes: 5),
+  cacheTime: const Duration(hours: 1),
+);
+
+// Inside UI:
+Watch((context) {
+  if (userQuery.isLoading.value) return const BloomSkeleton();
+  if (userQuery.hasError.value) return Text('Error: \${userQuery.error.value}');
+  final user = userQuery.data.value!;
+  return Text('Welcome, \${user.name}!');
+});`;
+
+const mutationCode = `// Optimistic mutation with automated rollback
+final updateTodoMutation = createMutation<Todo, String>(
+  mutationFn: (newTitle) => api.updateTodoTitle(todoId, newTitle),
+  onMutate: (newTitle) {
+    // Snapshot current state for rollback
+    final prev = currentTodo.value;
+    // Apply optimistic update immediately
+    currentTodo.value = currentTodo.value.copyWith(title: newTitle);
+    return prev;
+  },
+  onError: (err, newTitle, rollbackSnapshot) {
+    // Rollback to previous state on failure
+    currentTodo.value = rollbackSnapshot;
+    BloomSonner.error(context, 'Failed to save changes. Reverted.');
+  },
+  onSuccess: (data, variables, context) {
+    BloomSonner.success(context, 'Saved successfully!');
+  },
+);`;
+---
+
+<DocsLayout
+  title="Data Layer & Queries"
+  description="TanStack Query-style asynchronous data fetching, stale-while-revalidate caching, and optimistic mutations."
+  currentSlug="framework-data"
+  category="Framework & DX"
+  toc={[
+    { id: 'queries', title: 'Queries & SWR Caching' },
+    { id: 'mutations', title: 'Optimistic Mutations & Rollback' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Data Layer & Queries
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom includes a built-in reactive asynchronous data engine inspired by TanStack Query. It manages stale-while-revalidate caching, automated retries, offline queueing, and optimistic mutations.
+      </p>
+    </div>
+
+    <!-- Queries -->
+    <section id="queries" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Queries & SWR Caching</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{queryCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Mutations -->
+    <section id="mutations" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Optimistic Mutations & Rollback</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{mutationCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/di"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Dependency Injection</span>
+      </a>
+      <a
+        href="/docs/framework/prebuild"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Prebuild & Native Sync</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
