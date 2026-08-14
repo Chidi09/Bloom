@@ -53,5 +53,9 @@ export 'src/devtools/bloom_overlay.dart';
 // Deployment & Over-The-Air Updates (Phase 7)
 export 'src/deployment/bloom_ota.dart';
 
+// Full-Stack Adapters (Phase 8)
+export 'src/adapters/supabase_adapter.dart';
+export 'src/adapters/serverpod_adapter.dart';
+
 // Widgets
 export 'src/widgets/app.dart';
