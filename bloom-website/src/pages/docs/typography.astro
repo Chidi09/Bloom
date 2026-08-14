@@ -1,11 +1,12 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
-import { ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../components/common/CodeBlock.astro';
+import { ArrowRight, Type } from 'lucide-preact';
 ---
 
 <DocsLayout
   title="Typography"
-  description="Styles for headings, paragraphs, lists, and inline text elements."
+  description="Styles for headings, paragraphs, lists, and inline text elements matching shadcn guidelines."
   currentSlug="typography"
   category="Getting Started"
   toc={[
@@ -15,12 +16,11 @@ import { ArrowRight, Code2 } from 'lucide-preact';
     { id: 'p', title: 'p — Paragraph' },
     { id: 'lead', title: 'lead — Lead text' },
     { id: 'muted', title: 'muted — Muted text' },
-    { id: 'code', title: 'code — Inline code' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Typography
       </h1>
@@ -36,9 +36,7 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           The Joke Tax Chronicles
         </h1>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomHeading.h1('The Joke Tax Chronicles')</code>
-      </div>
+      <CodeBlock code={`BloomHeading.h1('The Joke Tax Chronicles')`} lang="dart" filename="Heading 1" />
     </section>
 
     <!-- H2 -->
@@ -48,9 +46,7 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           The People of the Kingdom
         </h2>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomHeading.h2('The People of the Kingdom')</code>
-      </div>
+      <CodeBlock code={`BloomHeading.h2('The People of the Kingdom')`} lang="dart" filename="Heading 2" />
     </section>
 
     <!-- H3 -->
@@ -60,9 +56,7 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           The Joke Tax
         </h3>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomHeading.h3('The Joke Tax')</code>
-      </div>
+      <CodeBlock code={`BloomHeading.h3('The Joke Tax')`} lang="dart" filename="Heading 3" />
     </section>
 
     <!-- P -->
@@ -72,9 +66,7 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           The king, thought to be sane by all who knew him, began to tax the telling of jokes. Citizens who laughed too loudly were fined two gold pieces.
         </p>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomText.p('The king, thought to be sane by all who knew him...')</code>
-      </div>
+      <CodeBlock code={`BloomText.p('The king, thought to be sane by all who knew him...')`} lang="dart" filename="Paragraph" />
     </section>
 
     <!-- Lead -->
@@ -84,9 +76,7 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           A modern and modal design system built for reactive Flutter applications.
         </p>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomLead('A modern and modal design system built for reactive Flutter applications.')</code>
-      </div>
+      <CodeBlock code={`BloomLead('A modern and modal design system built for reactive Flutter applications.')`} lang="dart" filename="Lead Text" />
     </section>
 
     <!-- Muted -->
@@ -96,30 +86,16 @@ import { ArrowRight, Code2 } from 'lucide-preact';
           Enter your email address to receive release notifications.
         </p>
       </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomMuted('Enter your email address to receive release notifications.')</code>
-      </div>
+      <CodeBlock code={`BloomMuted('Enter your email address to receive release notifications.')`} lang="dart" filename="Muted Text" />
     </section>
 
-    <!-- Code -->
-    <section id="code" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <div class="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
-        <code class="relative rounded bg-slate-200 dark:bg-slate-800 px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold text-purple-400">
-          @signals/signals_flutter
-        </code>
-      </div>
-      <div class="relative rounded-xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>BloomKbd(text: '@signals/signals_flutter')</code>
-      </div>
-    </section>
-
-    <!-- Next Page Footer -->
+    <!-- Footer -->
     <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
       <a
         href="/docs/cli"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
       >
-        <span>Previous: CLI Reference</span>
+        <span>Previous: CLI Tooling</span>
       </a>
       <a
         href="/docs/changelog"

@@ -15,10 +15,14 @@ import {
   Code2,
   Cpu,
   Workflow,
-  BookMarked
+  ShieldCheck,
+  Zap,
+  Server,
+  Smartphone,
+  CheckCircle2,
+  Copy
 } from 'lucide-preact';
 import { UI_REGISTRY, UI_CATEGORIES } from '../lib/ui-registry';
-import { getDocsNav } from '../lib/framework-docs';
 
 interface Props {
   title: string;
@@ -38,40 +42,124 @@ const {
 
 const currentPath = Astro.url.pathname;
 
-const uiGettingStartedSection = {
-  title: 'Bloom UI (shadcn)',
-  section: 'ui-getting-started',
-  items: [
-    { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
-    { title: 'Installation', href: '/docs/installation', slug: 'installation' },
-    { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
-    { title: 'CLI Tooling', href: '/docs/cli', slug: 'cli' },
-    { title: 'Typography', href: '/docs/typography', slug: 'typography' },
-    { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
-  ],
-};
-
-const frameworkDocSections = getDocsNav();
-
-const themesAndBlocksSection = {
-  title: 'Studio & Templates',
-  section: 'studio-blocks',
-  items: [
-    { title: 'Theme Generator', href: '/themes', slug: 'themes' },
-    { title: 'Application Blocks', href: '/blocks', slug: 'blocks' },
-    { title: 'Component Gallery', href: '/ui', slug: 'ui' },
-  ],
-};
-
-const allNavSections = [
-  uiGettingStartedSection,
-  ...frameworkDocSections,
-  themesAndBlocksSection,
+const docNavSections = [
+  {
+    title: 'Getting Started',
+    items: [
+      { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
+      { title: 'Installation', href: '/docs/installation', slug: 'installation' },
+      { title: '5-Minute Quickstart', href: '/docs/framework/quickstart', slug: 'framework-quickstart' },
+      { title: 'Project Anatomy', href: '/docs/getting-started/project-anatomy', slug: 'getting-started-project-anatomy' },
+      { title: 'bloom.yaml Reference', href: '/docs/getting-started/bloom-yaml-reference', slug: 'getting-started-bloom-yaml-reference' },
+      { title: 'Theming & Tokens', href: '/docs/theming', slug: 'theming' },
+      { title: 'Typography', href: '/docs/typography', slug: 'typography' },
+      { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
+    ],
+  },
+  {
+    title: 'Runtime & Architecture',
+    items: [
+      { title: 'Boot & Lifecycle', href: '/docs/framework/boot', slug: 'framework-boot' },
+      { title: 'Config & Environment', href: '/docs/runtime/config-and-env', slug: 'runtime-config-and-env' },
+      { title: 'Filesystem Routing', href: '/docs/framework/routing', slug: 'framework-routing' },
+      { title: 'Signals Reactivity', href: '/docs/framework/signals', slug: 'framework-signals' },
+      { title: 'Dependency Injection', href: '/docs/framework/di', slug: 'framework-di' },
+      { title: 'Structured Logging', href: '/docs/runtime/logging', slug: 'runtime-logging' },
+    ],
+  },
+  {
+    title: 'Data Layer & Caching',
+    items: [
+      { title: 'Data Architecture', href: '/docs/framework/data', slug: 'framework-data' },
+      { title: 'Queries & SWR Cache', href: '/docs/data/queries', slug: 'data-queries' },
+      { title: 'Mutations & Rollback', href: '/docs/data/mutations', slug: 'data-mutations' },
+      { title: 'Cache & Garbage Collection', href: '/docs/data/cache-and-garbage-collection', slug: 'data-cache-and-garbage-collection' },
+      { title: 'HTTP Client', href: '/docs/data/http-client', slug: 'data-http-client' },
+      { title: 'Offline Queue', href: '/docs/data/offline-queue', slug: 'data-offline-queue' },
+      { title: 'Storage Adapters', href: '/docs/data/storage-adapters', slug: 'data-storage-adapters' },
+      { title: 'Authentication', href: '/docs/data/authentication', slug: 'data-authentication' },
+      { title: 'Typed Repositories', href: '/docs/data/repositories', slug: 'data-repositories' },
+    ],
+  },
+  {
+    title: 'Native & Prebuild',
+    items: [
+      { title: 'Prebuild & Native Sync', href: '/docs/framework/native', slug: 'framework-native' },
+      { title: 'Permissions', href: '/docs/native/permissions', slug: 'native-permissions' },
+      { title: 'Deep Links', href: '/docs/native/deep-links', slug: 'native-deep-links' },
+      { title: 'Flavors & Schemes', href: '/docs/native/flavors', slug: 'native-flavors' },
+      { title: 'Native Plugins', href: '/docs/native/plugins', slug: 'native-plugins' },
+    ],
+  },
+  {
+    title: 'CLI Tooling',
+    items: [
+      { title: 'CLI Overview', href: '/docs/cli', slug: 'cli' },
+      { title: 'Master Commands', href: '/docs/cli/commands', slug: 'cli-commands' },
+      { title: 'bloom create', href: '/docs/cli/create', slug: 'cli-create' },
+      { title: 'bloom dev', href: '/docs/cli/dev', slug: 'cli-dev' },
+      { title: 'bloom generate', href: '/docs/cli/generate', slug: 'cli-generate' },
+      { title: 'bloom prebuild', href: '/docs/cli/prebuild', slug: 'cli-prebuild' },
+      { title: 'bloom deploy', href: '/docs/cli/deploy', slug: 'cli-deploy' },
+      { title: 'bloom doctor', href: '/docs/cli/doctor', slug: 'cli-doctor' },
+    ],
+  },
+  {
+    title: 'Developer Experience',
+    items: [
+      { title: 'Bloom Go Companion', href: '/docs/dev-experience/bloom-go', slug: 'dev-bloom-go' },
+      { title: 'Dev Server', href: '/docs/dev-experience/dev-server', slug: 'dev-server' },
+      { title: 'DevTools Extensions', href: '/docs/dev-experience/devtools-extensions', slug: 'dev-devtools-extensions' },
+      { title: 'Cloud OTA Deployment', href: '/docs/framework/ota', slug: 'framework-ota' },
+      { title: 'OTA Code Push', href: '/docs/dev-experience/ota-deployments', slug: 'dev-ota-deployments' },
+    ],
+  },
+  {
+    title: 'Backend Adapters',
+    items: [
+      { title: 'Adapters Overview', href: '/docs/framework/adapters', slug: 'framework-adapters' },
+      { title: 'Supabase Adapter', href: '/docs/adapters/supabase', slug: 'adapters-supabase' },
+      { title: 'Serverpod Adapter', href: '/docs/adapters/serverpod', slug: 'adapters-serverpod' },
+    ],
+  },
+  {
+    title: 'Testing & Diagnostics',
+    items: [
+      { title: 'Testing Overview', href: '/docs/guides/testing', slug: 'guides-testing' },
+      { title: 'Bloom Testing Harness', href: '/docs/testing/harness', slug: 'testing-harness' },
+      { title: 'Testing Recipes', href: '/docs/testing/recipes', slug: 'testing-recipes' },
+    ],
+  },
+  {
+    title: 'Engineering Guides',
+    items: [
+      { title: 'Cookbook & Recipes', href: '/docs/guides/cookbook', slug: 'guides-cookbook' },
+      { title: 'Architectural Best Practices', href: '/docs/guides/best-practices', slug: 'guides-best-practices' },
+      { title: 'Migration Guide', href: '/docs/guides/migration', slug: 'guides-migration' },
+      { title: 'Contributing Guide', href: '/docs/guides/contributing', slug: 'guides-contributing' },
+      { title: 'Troubleshooting & FAQ', href: '/docs/guides/troubleshooting', slug: 'guides-troubleshooting' },
+      { title: 'API Reference', href: '/docs/guides/api-reference', slug: 'guides-api-reference' },
+    ],
+  },
+  {
+    title: 'Transparency',
+    items: [
+      { title: 'Platform Capabilities', href: '/docs/transparency/platform-capabilities', slug: 'transparency-platform-capabilities' },
+    ],
+  },
+  {
+    title: 'Studio & Templates',
+    items: [
+      { title: 'Theme Generator', href: '/themes', slug: 'themes' },
+      { title: 'Application Blocks', href: '/blocks', slug: 'blocks' },
+      { title: 'Component Gallery', href: '/ui', slug: 'ui' },
+    ],
+  },
 ];
 ---
 
 <Layout
-  title={`${title} — Bloom Platform`}
+  title={`${title} — Bloom Documentation`}
   description={description}
   hue="bloom"
   petalHighlight="all"
@@ -96,7 +184,7 @@ const allNavSections = [
       <aside class="hidden lg:block lg:col-span-3 space-y-8 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-4 scrollbar-thin">
         
         <!-- Navigation Sections -->
-        {allNavSections.map((section) => (
+        {docNavSections.map((section) => (
           <div class="space-y-2">
             <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
               {section.title}
@@ -162,13 +250,25 @@ const allNavSections = [
         <div class="font-mono font-bold text-slate-900 dark:text-slate-300 uppercase tracking-wider">
           On This Page
         </div>
-        <ul class="space-y-2 text-slate-600 dark:text-slate-400">
+        <ul id="tocList" class="space-y-1.5 text-slate-600 dark:text-slate-400">
           <li>
-            <a href="#overview" class="hover:text-purple-400 transition block">Overview</a>
+            <a
+              href="#overview"
+              data-toc-link="overview"
+              class="toc-item block py-1 -ml-4 pl-3.5 border-l-2 border-transparent transition-all hover:text-slate-900 dark:hover:text-white"
+            >
+              Overview
+            </a>
           </li>
           {toc.map((t) => (
             <li>
-              <a href={`#${t.id}`} class="hover:text-purple-400 transition block">{t.title}</a>
+              <a
+                href={`#${t.id}`}
+                data-toc-link={t.id}
+                class="toc-item block py-1 -ml-4 pl-3.5 border-l-2 border-transparent transition-all hover:text-slate-900 dark:hover:text-white"
+              >
+                {t.title}
+              </a>
             </li>
           ))}
         </ul>
@@ -180,7 +280,7 @@ const allNavSections = [
             rel="noopener noreferrer"
             class="flex items-center gap-1.5 text-slate-500 hover:text-purple-400 transition"
           >
-            <span>Edit this page on GitHub</span>
+            <span>Edit on GitHub</span>
             <ExternalLink className="w-3 h-3" />
           </a>
           <a
@@ -197,4 +297,82 @@ const allNavSections = [
 
     </div>
   </div>
+
+  <!-- ScrollSpy Client Logic -->
+  <script is:inline>
+    (function initDocsScrollSpy() {
+      const tocLinks = document.querySelectorAll('.toc-item[data-toc-link]');
+      if (!tocLinks.length) return;
+
+      const sectionIds = Array.from(tocLinks).map((link) => link.getAttribute('data-toc-link')).filter(Boolean);
+      const sectionElements = sectionIds
+        .map((id) => document.getElementById(id))
+        .filter((el) => el !== null);
+
+      if (!sectionElements.length) return;
+
+      let activeId = sectionIds[0];
+
+      function setActive(id) {
+        if (activeId === id) return;
+        activeId = id;
+
+        tocLinks.forEach((link) => {
+          const targetId = link.getAttribute('data-toc-link');
+          if (targetId === id) {
+            link.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'font-normal');
+            link.classList.add(
+              'text-purple-600',
+              'dark:text-purple-400',
+              'font-bold',
+              'border-purple-600',
+              'dark:border-purple-400',
+              'translate-x-1'
+            );
+          } else {
+            link.classList.remove(
+              'text-purple-600',
+              'dark:text-purple-400',
+              'font-bold',
+              'border-purple-600',
+              'dark:border-purple-400',
+              'translate-x-1'
+            );
+            link.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'font-normal');
+          }
+        });
+      }
+
+      setActive(activeId);
+
+      let ticking = false;
+      function onScroll() {
+        if (!ticking) {
+          window.requestAnimationFrame(() => {
+            const scrollPos = window.scrollY + 140;
+
+            let current = sectionElements[0]?.id || 'overview';
+            for (let i = 0; i < sectionElements.length; i++) {
+              const el = sectionElements[i];
+              if (el && el.offsetTop <= scrollPos) {
+                current = el.id;
+              }
+            }
+
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 50) {
+              const lastEl = sectionElements[sectionElements.length - 1];
+              if (lastEl) current = lastEl.id;
+            }
+
+            setActive(current);
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      document.addEventListener('astro:page-load', initDocsScrollSpy);
+    })();
+  </script>
 </Layout>

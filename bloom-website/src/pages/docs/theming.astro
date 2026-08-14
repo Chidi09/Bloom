@@ -1,11 +1,12 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/common/CodeBlock.astro';
 import { Palette, Sparkles, Sliders, ArrowRight, Code2 } from 'lucide-preact';
 
-const contextExtCode = `// Access colors
+const contextExtCode = `// Access colors directly on BuildContext
 final colors = context.bloomColors;
 colors.primary;        // Active brand color
-colors.surface0;       // Canvas background (bg-muted/50)
+colors.surface0;       // Canvas background
 colors.surface1;       // Card / Popover background
 colors.border;         // Border stroke
 colors.destructive;    // Soft destructive tint
@@ -15,7 +16,7 @@ final typography = context.bloomTypography;
 typography.sans;       // Inter / system sans font family
 typography.mono;       // JetBrains Mono font family
 
-// Access radius
+// Access radius scale
 final radius = context.bloomRadius;
 radius.sm;  // 4.0
 radius.md;  // 6.0
@@ -45,7 +46,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
 ---
 
 <DocsLayout
-  title="Theming & Design Tokens"
+  title="Theming & Tokens"
   description="Master the 5-petal color palette, 8 style presets, modular spacing, and Flutter ThemeExtensions."
   currentSlug="theming"
   category="Getting Started"
@@ -58,7 +59,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Theming & Tokens
       </h1>
@@ -78,14 +79,14 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { name: 'Nova', desc: 'Neutral, crisp, high contrast (Default)', bg: 'bg-zinc-900', ring: 'ring-zinc-400' },
-          { name: 'Vega', desc: 'Warm amber tones, golden accents', bg: 'bg-amber-600', ring: 'ring-amber-400' },
-          { name: 'Maia', desc: 'Emerald forest, clean enterprise tech', bg: 'bg-emerald-600', ring: 'ring-emerald-400' },
-          { name: 'Lyra', desc: 'Tech violet, cyber aesthetics', bg: 'bg-violet-600', ring: 'ring-violet-400' },
-          { name: 'Mira', desc: 'Deep royal blue, oceanic contrast', bg: 'bg-blue-600', ring: 'ring-blue-400' },
-          { name: 'Luma', desc: 'Vibrant neon pink, modern consumer', bg: 'bg-pink-600', ring: 'ring-pink-400' },
-          { name: 'Sera', desc: 'Teal & cyan, fintech precision', bg: 'bg-cyan-600', ring: 'ring-cyan-400' },
-          { name: 'Rhea', desc: 'Sunset orange, dynamic energy', bg: 'bg-orange-600', ring: 'ring-orange-400' },
+          { name: 'Nova', desc: 'Neutral, crisp, high contrast (Default)', bg: 'bg-zinc-900' },
+          { name: 'Vega', desc: 'Warm amber tones, golden accents', bg: 'bg-amber-600' },
+          { name: 'Maia', desc: 'Emerald forest, clean enterprise tech', bg: 'bg-emerald-600' },
+          { name: 'Lyra', desc: 'Tech violet, cyber aesthetics', bg: 'bg-violet-600' },
+          { name: 'Mira', desc: 'Deep royal blue, oceanic contrast', bg: 'bg-blue-600' },
+          { name: 'Luma', desc: 'Vibrant neon pink, modern consumer', bg: 'bg-pink-600' },
+          { name: 'Sera', desc: 'Teal & cyan, fintech precision', bg: 'bg-cyan-600' },
+          { name: 'Rhea', desc: 'Sunset orange, dynamic energy', bg: 'bg-orange-600' },
         ].map((s) => (
           <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
             <div class="flex items-center gap-2">
@@ -137,12 +138,9 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
         BuildContext Extensions
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Instead of verbose calls, Bloom provides concise extensions:
+        Instead of verbose lookups, Bloom provides concise extensions:
       </p>
-
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{contextExtCode}</code></pre>
-      </div>
+      <CodeBlock code={contextExtCode} lang="dart" filename="BuildContext Tokens Extension" />
     </section>
 
     <!-- Creating Custom Themes -->
@@ -151,12 +149,9 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
         Creating Custom Themes
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        You can create custom themes by defining a <code class="font-mono text-purple-400">BloomColorScheme</code> and bundling it with your own typography and corner radii:
+        Define a custom <code class="font-mono text-purple-400">BloomColorScheme</code>:
       </p>
-
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{customThemeCode}</code></pre>
-      </div>
+      <CodeBlock code={customThemeCode} lang="dart" filename="Custom BloomTheme Setup" />
     </section>
 
     <!-- Next Page Footer -->

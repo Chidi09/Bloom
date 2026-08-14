@@ -1,0 +1,65 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { RefreshCw, ArrowRight, ShieldCheck, Zap } from 'lucide-preact';
+
+const offlineQueueCode = `// Enable persistent offline queue in Bootstrapper
+final queue = BloomOfflineQueue(
+  storageAdapter: inject<BloomStorageAdapter>(),
+  retryPolicy: ExponentialBackoffRetry(maxRetries: 5),
+  onSyncComplete: (syncedCount) {
+    BloomLogger.info('Synced \$syncedCount offline mutations');
+  },
+);`;
+---
+
+<DocsLayout
+  title="Offline Queue & Synchronization"
+  description="Persistent mutation queues that execute automatically when internet connectivity is restored."
+  currentSlug="data-offline-queue"
+  category="Data & Cache"
+  toc={[
+    { id: 'queue-setup', title: 'Offline Queue Configuration' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <RefreshCw className="w-3.5 h-3.5" />
+        Offline-First
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Offline Queue & Sync
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Allow users to create, update, and delete data without an active internet connection. Mutations are serialized to disk and flushed in order upon reconnect.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="queue-setup" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Offline Queue Configuration
+      </h2>
+      <CodeBlock code={offlineQueueCode} lang="dart" filename="lib/app/boot.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/http-client"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: HTTP Client</span>
+      </a>
+      <a
+        href="/docs/data/storage-adapters"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Storage Adapters</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,80 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Database, Zap, ArrowRight, RefreshCw, ShieldCheck } from 'lucide-preact';
+
+const mutationDetailsCode = `// lib/features/posts/posts_controller.dart
+import 'package:bloom_framework/bloom.dart';
+import '../services/api_service.dart';
+
+class PostsController extends BloomController {
+  late final deletePostMutation = createMutation<void, String>(
+    mutationFn: (postId) => inject<ApiService>().deletePost(postId),
+    onMutate: (postId) async {
+      final prev = postsQuery.data.value;
+      // Optimistically remove from UI
+      postsQuery.setData((prev ?? []).where((p) => p.id != postId).toList());
+      return {'snapshot': prev};
+    },
+    onError: (err, postId, ctx) {
+      if (ctx?['snapshot'] != null) {
+        postsQuery.setData(ctx!['snapshot'] as List<Post>);
+      }
+    },
+    onSettled: (data, err, postId, ctx) {
+      postsQuery.invalidate();
+    },
+  );
+}`;
+---
+
+<DocsLayout
+  title="Mutations & Optimistic Updates"
+  description="Mutate server state with instant optimistic UI feedback, error rollback, and automatic cache invalidation."
+  currentSlug="data-mutations"
+  category="Data & Cache"
+  toc={[
+    { id: 'definition', title: 'Optimistic Mutation Pattern' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Database className="w-3.5 h-3.5" />
+        Mutations
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Mutations & Optimistic Updates
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Execute asynchronous mutations against backend APIs with automatic rollback mechanisms and offline queue persistence.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="definition" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Optimistic Mutation Pattern
+      </h2>
+      <CodeBlock code={mutationDetailsCode} lang="dart" filename="lib/features/posts/posts_controller.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/queries"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Queries & Caching</span>
+      </a>
+      <a
+        href="/docs/data/cache-and-garbage-collection"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Cache & GC</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

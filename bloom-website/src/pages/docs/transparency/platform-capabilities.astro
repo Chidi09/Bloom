@@ -1,0 +1,70 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Cpu, ArrowRight, ShieldCheck, Zap, Layers } from 'lucide-preact';
+
+const capabilities = [
+  { title: 'Zero Reflection DI', desc: 'No mirrors or runtime reflection used; container resolution is 100% type-safe and AOT compilable.' },
+  { title: 'Deterministic Reactivity', desc: 'Signals use topological dependency sorting to eliminate glitching and duplicate frame re-renders.' },
+  { title: 'Native Manifest Idempotency', desc: 'Prebuild runs produce identical, clean diffs in iOS Info.plist and Android AndroidManifest.xml.' },
+  { title: 'Standalone UI Primitives', desc: 'Bloom UI primitives have zero external package dependencies and can be used in any vanilla Flutter project.' },
+];
+---
+
+<DocsLayout
+  title="Platform Capabilities"
+  description="Technical design choices, zero-cost abstractions, and architectural guarantees of Bloom."
+  currentSlug="transparency-platform-capabilities"
+  category="Transparency"
+  toc={[
+    { id: 'guarantees', title: 'Architectural Guarantees' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <Cpu className="w-3.5 h-3.5" />
+        Architecture
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Platform Capabilities
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Transparency into the engineering decisions and zero-cost abstractions powering Bloom.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="guarantees" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Architectural Guarantees
+      </h2>
+      <div class="grid grid-cols-1 gap-4 pt-2">
+        {capabilities.map((item) => (
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+            <h3 class="text-sm font-bold text-white font-mono text-purple-300">{item.title}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/testing/recipes"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Testing Recipes</span>
+      </a>
+      <a
+        href="/docs/guides/contributing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Contributing Guide</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

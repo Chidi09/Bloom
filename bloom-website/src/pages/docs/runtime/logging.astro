@@ -1,0 +1,85 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Terminal, ArrowRight, ShieldCheck, Cpu } from 'lucide-preact';
+
+const loggingCode = `// Structured BloomLogger API
+BloomLogger.debug('Fetching posts from cache...');
+BloomLogger.info('User authentication succeeded', context: {'userId': '42'});
+BloomLogger.warning('Offline cache TTL expiring in 60s');
+BloomLogger.error(
+  'Payment intent processing failed',
+  error: paymentException,
+  stackTrace: stack,
+);`;
+
+const customSinkCode = `// Connecting Custom Log Sinks (e.g. Sentry / Datadog)
+BloomLogger.addSink((record) => {
+  if (record.level >= BloomLogLevel.error) {
+    Sentry.captureException(record.error, stackTrace: record.stackTrace);
+  }
+});`;
+---
+
+<DocsLayout
+  title="Structured Logging"
+  description="High-performance structured console and remote logging with log levels, metadata context, and sink exporters."
+  currentSlug="runtime-logging"
+  category="Framework Architecture"
+  toc={[
+    { id: 'logger-api', title: 'BloomLogger API' },
+    { id: 'sinks', title: 'Connecting Custom Log Sinks' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Terminal className="w-3.5 h-3.5" />
+        Observability
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Structured Logging
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom includes <code class="font-mono text-purple-400">BloomLogger</code> with structured JSON/console formatting, contextual dictionary metadata, and custom crash sinks.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="logger-api" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomLogger API
+      </h2>
+      <CodeBlock code={loggingCode} lang="dart" filename="Logging API" />
+    </section>
+
+    <!-- Section 2 -->
+    <section id="sinks" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Connecting Custom Log Sinks
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Attach third-party crash reporting providers in your bootstrapper:
+      </p>
+      <CodeBlock code={customSinkCode} lang="dart" filename="lib/app/boot.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/runtime/config-and-env"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Config & Environment</span>
+      </a>
+      <a
+        href="/docs/framework/routing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Filesystem Routing</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

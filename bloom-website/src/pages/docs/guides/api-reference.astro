@@ -1,0 +1,75 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Code2, ArrowRight, ShieldCheck, Layers } from 'lucide-preact';
+
+const apiOverview = [
+  { signature: 'Bloom.boot({required BloomBootstrapper bootstrapper, required Widget app})', desc: 'Main runtime entrypoint orchestrating deterministic 10-step initialization.' },
+  { signature: 'BloomController', desc: 'Base controller managing reactive Signal lifecycles, automatic effect cleanup, and DI injection.' },
+  { signature: 'createSignal<T>(T initialValue, {String? debugLabel})', desc: 'Creates a fine-grained reactive mutable signal.' },
+  { signature: 'createComputed<T>(T Function() compute)', desc: 'Creates a lazy, memoized reactive derivation from one or more signals.' },
+  { signature: 'createEffect(void Function() effect)', desc: 'Schedules a synchronous reactive side effect that runs whenever dependencies change.' },
+  { signature: 'Watch(Widget Function(BuildContext) builder)', desc: 'Granular widget subscriber rebuilding only the enclosing subtree on signal mutation.' },
+  { signature: 'inject<T>()', desc: 'Resolves typed dependencies from the root BloomContainer.' },
+  { signature: 'createQuery<T>({required List<Object> queryKey, required Future<T> Function() queryFn, Duration? staleTime, Duration? gcTime})', desc: 'Declarative async query with SWR caching.' },
+  { signature: 'createMutation<TData, TVariables>({required Future<TData> Function(TVariables) mutationFn, Future<dynamic> Function(TVariables)? onMutate, void Function(Object, TVariables, dynamic)? onError})', desc: 'Optimistic server mutation with rollback support.' },
+];
+---
+
+<DocsLayout
+  title="API Reference"
+  description="Comprehensive API reference and signatures for core Bloom Framework classes and functions."
+  currentSlug="guides-api-reference"
+  category="Engineering Guides"
+  toc={[
+    { id: 'core-signatures', title: 'Core Framework Signatures' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Code2 className="w-3.5 h-3.5" />
+        API Index
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        API Reference
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Complete reference of core framework classes, top-level functions, and signature types.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="core-signatures" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Core Framework Signatures
+      </h2>
+      <div class="grid grid-cols-1 gap-4 pt-2">
+        {apiOverview.map((item) => (
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+            <code class="text-purple-400 font-bold font-mono text-xs sm:text-sm block overflow-x-auto whitespace-pre-wrap">{item.signature}</code>
+            <p class="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/guides/contributing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Contributing Guide</span>
+      </a>
+      <a
+        href="/ui"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Explore UI Components</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,77 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Server, ArrowRight, ShieldCheck, Zap } from 'lucide-preact';
+
+const httpCode = `// lib/services/api_service.dart
+import 'package:bloom_framework/bloom.dart';
+
+class ApiService {
+  final client = BloomHttpClient(
+    baseUrl: 'https://api.bloom.dev/v1',
+    timeout: const Duration(seconds: 15),
+    interceptors: [
+      BloomAuthInterceptor(
+        tokenProvider: () => inject<AuthService>().token.value,
+      ),
+      BloomLoggingInterceptor(),
+    ],
+  );
+
+  Future<List<Post>> fetchPosts() async {
+    final response = await client.get('/posts');
+    return (response.data as List).map((json) => Post.fromJson(json)).toList();
+  }
+}`;
+---
+
+<DocsLayout
+  title="HTTP Client & Interceptors"
+  description="Resilient HTTP client with automatic auth token injection, structured request logging, and retry policies."
+  currentSlug="data-http-client"
+  category="Data & Cache"
+  toc={[
+    { id: 'client-setup', title: 'BloomHttpClient Setup' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Server className="w-3.5 h-3.5" />
+        Networking
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        HTTP Client & Interceptors
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Lightweight HTTP client with interceptor pipelines, automatic JWT refresh, and retry mechanisms.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <section id="client-setup" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomHttpClient Setup
+      </h2>
+      <CodeBlock code={httpCode} lang="dart" filename="lib/services/api_service.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/data/cache-and-garbage-collection"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Cache & GC</span>
+      </a>
+      <a
+        href="/docs/data/offline-queue"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Offline Queue</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

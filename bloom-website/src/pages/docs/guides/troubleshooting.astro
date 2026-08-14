@@ -1,76 +1,79 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
-import { HelpCircle, AlertTriangle, ArrowRight, Code2 } from 'lucide-preact';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { HelpCircle, Zap, ArrowRight, ShieldCheck, Terminal } from 'lucide-preact';
+
+const doctorCmd = `bloom doctor`;
+
+const faqs = [
+  {
+    q: 'Why is my new route in lib/routes/ not resolving?',
+    a: 'Run bloom dev or bloom generate to trigger AST route generation. Bloom will compile the new route into lib/app/routes.g.dart automatically.',
+  },
+  {
+    q: 'How do I pass parameters to modal dialogs?',
+    a: 'Use BloomDialog.show(context, builder: (ctx) => MyDialog(param: value)) or pass route query parameters in the URL scheme.',
+  },
+  {
+    q: 'Can I use Bloom UI components in a non-Bloom Flutter app?',
+    a: 'Yes! Install bloom_ui from pub.dev and import the components directly. Bloom UI has zero framework runtime dependencies and works in any standard Flutter project.',
+  },
+  {
+    q: 'What should I do if native permissions fail on iOS?',
+    a: 'Ensure your permission string in bloom.yaml is declared with a descriptive message, then run bloom prebuild to re-sync ios/Runner/Info.plist.',
+  },
+];
 ---
 
 <DocsLayout
   title="Troubleshooting & FAQ"
-  description="Common questions, diagnostic commands, and debugging tips for the Bloom platform."
+  description="Common issues, troubleshooting diagnostics, and frequently asked questions for Bloom developers."
   currentSlug="guides-troubleshooting"
-  category="Guides & Recipes"
+  category="Engineering Guides"
   toc={[
-    { id: 'doctor', title: '1. Running bloom doctor' },
-    { id: 'routing-issues', title: '2. Filesystem Route Not Updating' },
-    { id: 'signals-issues', title: '3. Signal Rebuilds Not Firing' },
-    { id: 'ota-issues', title: '4. OTA Patch Not Downloading' },
+    { id: 'doctor', title: 'Running Diagnostics (bloom doctor)' },
+    { id: 'faqs', title: 'Frequently Asked Questions' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <HelpCircle className="w-3.5 h-3.5" />
+        Diagnostics & Solutions
+      </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Troubleshooting & FAQ
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Quick diagnostic solutions for common environment, routing, state management, and build issues.
+        Quick answers and diagnostic tooling to resolve environment, routing, and build issues.
       </p>
     </div>
 
-    <!-- Doctor -->
+    <!-- Section 1 -->
     <section id="doctor" class="space-y-4">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        1. Running bloom doctor
+        Running Diagnostics (bloom doctor)
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Run <code class="font-mono text-purple-400">bloom doctor</code> to perform an automated diagnostic check of Flutter, Dart SDK, Android Studio, Xcode, and Shorebird CLI:
+        Run <code class="font-mono text-purple-400">bloom doctor</code> to verify Dart SDK, Flutter toolchains, Android SDK, and Xcode setups:
       </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom doctor</code>
+      <CodeBlock code={doctorCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Section 2 -->
+    <section id="faqs" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Frequently Asked Questions
+      </h2>
+      <div class="space-y-4 pt-2">
+        {faqs.map((faq) => (
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+            <h3 class="font-bold text-white font-mono text-sm text-purple-300">{faq.q}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">{faq.a}</p>
+          </div>
+        ))}
       </div>
-    </section>
-
-    <!-- Routing issues -->
-    <section id="routing-issues" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        2. Filesystem Route Not Updating
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        If you created a new file in <code class="font-mono text-purple-400">lib/routes/</code> while the dev server was offline, force a route regeneration:
-      </p>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>bloom generate routes</code>
-      </div>
-    </section>
-
-    <!-- Signals issues -->
-    <section id="signals-issues" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        3. Signal Rebuilds Not Firing
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Make sure you are reading <code class="font-mono text-purple-400">signal.value</code> inside a <code class="font-mono text-purple-400">Watch((context) => ...)</code> builder or a <code class="font-mono text-purple-400">WatchMixin</code> widget.
-      </p>
-    </section>
-
-    <!-- OTA issues -->
-    <section id="ota-issues" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        4. OTA Patch Not Downloading
-      </h2>
-      <ul class="list-disc list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-        <li>Verify that the release version numbers match: A patch built for <code class="font-mono text-purple-400">1.0.0+1</code> can only be applied to a baseline binary built for <code class="font-mono text-purple-400">1.0.0+1</code>.</li>
-        <li>Ensure the target channel (<code class="font-mono text-purple-400">staging</code> or <code class="font-mono text-purple-400">production</code>) matches between the client app and the deploy command.</li>
-      </ul>
     </section>
 
     <!-- Next Page Footer -->
@@ -85,7 +88,7 @@ import { HelpCircle, AlertTriangle, ArrowRight, Code2 } from 'lucide-preact';
         href="/ui"
         class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
       >
-        <span>Explore UI Components</span>
+        <span>Next: Component Gallery</span>
         <ArrowRight className="w-4 h-4" />
       </a>
     </div>
