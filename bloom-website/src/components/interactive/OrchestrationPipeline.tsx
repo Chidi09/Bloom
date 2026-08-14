@@ -1,6 +1,7 @@
 import * as React from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { ArrowRight, CheckCircle2, Cpu, Layers, Sparkles, Code2, Terminal, ShieldCheck } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 interface Step {
   id: number;
@@ -184,9 +185,10 @@ export function OrchestrationPipeline() {
                 </div>
                 <span className="text-[11px] text-slate-400 font-bold">{activeStep.num} — {activeStep.title}</span>
               </div>
-              <pre className="p-5 text-slate-300 leading-relaxed overflow-x-auto">
-                <code>{activeStep.codeSnippet}</code>
-              </pre>
+              <pre
+                className="p-5 text-slate-100 leading-relaxed overflow-x-auto font-mono text-xs"
+                dangerouslySetInnerHTML={{ __html: highlightDart(activeStep.codeSnippet) }}
+              />
             </div>
           </div>
         </div>

@@ -94,7 +94,7 @@ export function PhoneSimulator({ initialRevenue = 24500 }: PhoneSimulatorProps) 
 <span className="text-purple-600 dark:text-purple-400 font-semibold">import</span> <span className="text-teal-600 dark:text-teal-400">'package:bloom_ui/bloom_ui.dart'</span>;{'\n\n'}
 <span className="text-amber-600 dark:text-amber-400">@Route</span>(<span className="text-teal-600 dark:text-teal-400">'/dashboard'</span>){'\n'}
 <span className="text-purple-600 dark:text-purple-400 font-semibold">class</span> <span className="text-pink-600 dark:text-pink-400 font-bold">DashboardPage</span> <span className="text-purple-600 dark:text-purple-400 font-semibold">extends</span> BloomPage {'{'}{'\n'}
-{'  '}<span className="text-slate-400 italic">// ⚡️ Zero-boilerplate reactive signal</span>{'\n'}
+{'  '}<span className="text-slate-400 italic">// Zero-boilerplate reactive signal</span>{'\n'}
 {'  '}<span className="text-purple-600 dark:text-purple-400 font-semibold">final</span> revenue = signal(<span className="text-orange-600 dark:text-orange-400 font-bold">{revenue}</span>);{'\n'}
 {'  '}<span className="text-purple-600 dark:text-purple-400 font-semibold">final</span> sales = signal(<span className="text-orange-600 dark:text-orange-400 font-bold">{salesCount}</span>);{'\n'}
 {'  '}<span className="text-purple-600 dark:text-purple-400 font-semibold">late final</span> formatted = computed(() =&gt; <span className="text-teal-600 dark:text-teal-400">'\${'{'}revenue.value{'}'}'</span>);{'\n\n'}

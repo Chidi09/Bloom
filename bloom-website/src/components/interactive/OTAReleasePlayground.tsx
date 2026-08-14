@@ -1,6 +1,7 @@
 import * as React from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { Play, RotateCcw, ShieldCheck, Zap, ArrowRight, CheckCircle2, Terminal, Server } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 interface CommandMode {
   id: string;
@@ -120,9 +121,10 @@ export function OTAReleasePlayground() {
           </div>
 
           <div className="rounded-2xl overflow-hidden bg-black border border-zinc-800 font-mono text-xs">
-            <pre className="p-5 text-slate-300 leading-relaxed overflow-x-auto">
-              <code>{activeMode.configSnippet}</code>
-            </pre>
+            <pre
+              className="p-5 text-slate-100 leading-relaxed overflow-x-auto font-mono text-xs"
+              dangerouslySetInnerHTML={{ __html: highlightDart(activeMode.configSnippet) }}
+            />
           </div>
         </div>
 

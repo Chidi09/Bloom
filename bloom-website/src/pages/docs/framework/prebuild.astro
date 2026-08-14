@@ -1,5 +1,6 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
 import { Smartphone, Layers, ArrowRight, Code2 } from 'lucide-preact';
 
 const bloomYamlCode = `name: my_app
@@ -48,17 +49,13 @@ const prebuildCmd = `bloom prebuild`;
     <!-- bloom.yaml -->
     <section id="bloom-yaml" class="space-y-4">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Configuring bloom.yaml</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{bloomYamlCode}</code></pre>
-      </div>
+      <CodeBlock code={bloomYamlCode} lang="yaml" filename="bloom.yaml" />
     </section>
 
     <!-- Prebuild Command -->
     <section id="prebuild" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Running bloom prebuild</h2>
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-4 font-mono text-xs text-purple-300">
-        <code>{prebuildCmd}</code>
-      </div>
+      <CodeBlock code={prebuildCmd} lang="bash" filename="Terminal" />
     </section>
 
     <!-- Next Page Footer -->

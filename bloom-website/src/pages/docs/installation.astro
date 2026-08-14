@@ -1,5 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/common/CodeBlock.astro';
 import { Terminal, Package, Sparkles, ArrowRight, Code2, Copy, Check } from 'lucide-preact';
 
 const mainDartCode = `import 'package:flutter/material.dart';
@@ -185,9 +186,7 @@ const bloomConfigCode = `{
         Wrap your root <code class="font-mono text-purple-400">MaterialApp</code> with the <code class="font-mono text-purple-400">BloomTheme</code> extension in your <code class="font-mono text-purple-400">lib/main.dart</code>:
       </p>
 
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{mainDartCode}</code></pre>
-      </div>
+      <CodeBlock code={mainDartCode} lang="dart" filename="lib/main.dart" />
     </section>
 
     <!-- Configuration File -->
@@ -200,9 +199,7 @@ const bloomConfigCode = `{
         The <code class="font-mono text-purple-400">bloom.config.json</code> file at the root of your project defines your target directory, style preset, and custom aliases:
       </p>
 
-      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-        <pre class="leading-relaxed"><code>{bloomConfigCode}</code></pre>
-      </div>
+      <CodeBlock code={bloomConfigCode} lang="json" filename="bloom.config.json" />
     </section>
 
     <!-- Next Page Footer -->

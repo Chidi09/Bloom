@@ -1,6 +1,7 @@
 import * as React from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { FolderTree, CheckCircle2, ShieldCheck, Code2, ArrowRight, Sparkles } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 interface RouteFile {
   id: string;
@@ -124,9 +125,10 @@ export function FileSystemTreeExplorer() {
               <span className="text-slate-300 font-bold">{activeRoute.path}</span>
               <span className="text-emerald-400 font-bold">TYPE_SAFE</span>
             </div>
-            <pre className="p-5 text-slate-300 leading-relaxed overflow-x-auto">
-              <code>{activeRoute.codeSnippet}</code>
-            </pre>
+            <pre
+              className="p-5 text-slate-100 leading-relaxed overflow-x-auto font-mono text-xs"
+              dangerouslySetInnerHTML={{ __html: highlightDart(activeRoute.codeSnippet) }}
+            />
           </div>
         </div>
       </div>

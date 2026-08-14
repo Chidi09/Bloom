@@ -13,6 +13,7 @@ import {
   Info
 } from 'lucide-preact';
 import type { UIComponentDoc } from '../../lib/ui-registry';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 interface ComponentViewerProps {
   component: UIComponentDoc;
@@ -404,8 +405,11 @@ export function ComponentViewer({ component }: ComponentViewerProps) {
 
           {activeTab === 'code' && (
             <div className="space-y-4">
-              <div className="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-                <pre className="leading-relaxed">{component.usageCode}</pre>
+              <div className="relative rounded-2xl bg-[#090D16] border border-slate-800 p-5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <pre
+                  className="leading-relaxed font-mono"
+                  dangerouslySetInnerHTML={{ __html: highlightDart(component.usageCode) }}
+                />
               </div>
             </div>
           )}

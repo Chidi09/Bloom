@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { Palette, Copy, Check, Sparkles, Sliders, RefreshCw, Sun, Moon } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 export function ThemeGenerator() {
   const [selectedStyle, setSelectedStyle] = useState<'nova' | 'vega' | 'maia' | 'lyra' | 'mira' | 'luma' | 'sera' | 'rhea'>('nova');
@@ -293,8 +294,11 @@ final customBloomTheme = BloomTheme(
             <span>Copy to Clipboard</span>
           </button>
         </div>
-        <div className="rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
-          <pre className="leading-relaxed">{generatedDartCode}</pre>
+        <div className="rounded-2xl bg-[#090D16] border border-slate-800 p-5 font-mono text-xs text-slate-100 overflow-x-auto">
+          <pre
+            className="leading-relaxed font-mono"
+            dangerouslySetInnerHTML={{ __html: highlightDart(generatedDartCode) }}
+          />
         </div>
       </div>
     </div>

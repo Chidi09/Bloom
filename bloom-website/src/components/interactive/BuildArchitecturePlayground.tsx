@@ -1,6 +1,7 @@
 import * as React from 'preact/compat';
 import { useState } from 'preact/hooks';
 import { FolderTree, RefreshCw, Zap, Cpu, CheckCircle2, ArrowRight, Code2, Play, Sparkles } from 'lucide-preact';
+import { highlightDart } from '../../lib/dart-highlighter';
 
 interface ArchitectureTab {
   id: string;
@@ -138,9 +139,10 @@ export function BuildArchitecturePlayground() {
               </div>
               <span className="text-[10px] text-purple-400 font-bold">AOT_SAFE</span>
             </div>
-            <pre className="p-5 text-slate-300 leading-relaxed overflow-x-auto">
-              <code>{activeTab.code}</code>
-            </pre>
+            <pre
+              className="p-5 text-slate-100 leading-relaxed overflow-x-auto font-mono text-xs"
+              dangerouslySetInnerHTML={{ __html: highlightDart(activeTab.code) }}
+            />
           </div>
         </div>
       </div>
