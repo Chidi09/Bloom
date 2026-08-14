@@ -1,51 +1,69 @@
 // lib/src/primitives/textarea.dart
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
-import 'input.dart';
 
+/// Multi-line expanded text area matching shadcn base-nova.
 class BloomTextarea extends StatelessWidget {
   final TextEditingController? controller;
-  final String? initialValue;
-  final String? hintText;
-  final String? labelText;
+  final String? placeholder;
   final int minLines;
-  final int maxLines;
+  final int? maxLines;
   final ValueChanged<String>? onChanged;
-  final FormFieldValidator<String>? validator;
   final bool enabled;
+  final FocusNode? focusNode;
 
   const BloomTextarea({
     super.key,
     this.controller,
-    this.initialValue,
-    this.hintText,
-    this.labelText,
+    this.placeholder,
     this.minLines = 3,
-    this.maxLines = 6,
+    this.maxLines = 8,
     this.onChanged,
-    this.validator,
     this.enabled = true,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    final colors = context.bloomColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextField(
       controller: controller,
-      initialValue: initialValue,
+      focusNode: focusNode,
       minLines: minLines,
       maxLines: maxLines,
-      enabled: enabled,
       onChanged: onChanged,
-      validator: validator,
+      enabled: enabled,
       style: TextStyle(
-        color: context.bloomColors.textPrimary,
+        color: colors.textPrimary,
         fontSize: 14,
         fontFamily: context.bloomTypography.sans,
       ),
-      decoration: bloomInputDecoration(
-        context,
-        hintText: hintText,
-        labelText: labelText,
+      cursorColor: colors.primary,
+      cursorWidth: 1.5,
+      decoration: InputDecoration(
+        hintText: placeholder,
+        hintStyle: TextStyle(
+          color: colors.textTertiary,
+          fontSize: 14,
+          fontFamily: context.bloomTypography.sans,
+        ),
+        filled: isDark,
+        fillColor: isDark ? colors.border.withValues(alpha: 0.15) : Colors.transparent,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
+          borderSide: BorderSide(color: colors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
+          borderSide: BorderSide(color: colors.ring, width: 1.5),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
+          borderSide: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+        ),
       ),
     );
   }

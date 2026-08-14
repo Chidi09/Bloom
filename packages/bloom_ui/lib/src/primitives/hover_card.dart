@@ -3,18 +3,17 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// Hover / tap preview card popup matching shadcn base-nova.
 class BloomHoverCard extends StatefulWidget {
   final Widget trigger;
   final Widget content;
-  final Duration openDelay;
-  final Duration closeDelay;
+  final double width;
 
   const BloomHoverCard({
     super.key,
     required this.trigger,
     required this.content,
-    this.openDelay = const Duration(milliseconds: 300),
-    this.closeDelay = const Duration(milliseconds: 200),
+    this.width = 280, // w-64 to w-72
   });
 
   @override
@@ -22,42 +21,55 @@ class BloomHoverCard extends StatefulWidget {
 }
 
 class _BloomHoverCardState extends State<BloomHoverCard> {
-  final _layerLink = LayerLink();
+  final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
-  bool _isOpen = false;
-  bool _isHovering = false;
-  bool _isInPopup = false;
 
-  void _showCard() {
-    if (_isOpen) return;
-    _overlayEntry = OverlayEntry(
-      builder: (context) => _HoverCardPopup(
-        layerLink: _layerLink,
-        content: widget.content,
-        onEnter: () {
-          _isInPopup = true;
-        },
-        onLeave: () {
-          _isInPopup = false;
-          Future.delayed(widget.closeDelay, () {
-            if (!_isHovering && !_isInPopup && mounted) _hideCard();
-          });
-        },
-      ),
-    );
+  void _show() {
+    _overlayEntry?.remove();
+    _overlayEntry = _createOverlayEntry();
     Overlay.of(context).insert(_overlayEntry!);
-    setState(() => _isOpen = true);
   }
 
-  void _hideCard() {
+  void _hide() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() => _isOpen = false);
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    return OverlayEntry(
+      builder: (ctx) => Positioned(
+        width: widget.width,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(0, 6),
+          child: MouseRegion(
+            onEnter: (_) {},
+            onExit: (_) => _hide(),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(10), // p-2.5
+                decoration: BoxDecoration(
+                  color: context.bloomColors.surface1,
+                  borderRadius: BorderRadius.circular(context.bloomRadius.lg),
+                  border: Border.all(color: context.bloomColors.border),
+                  boxShadow: const [BloomShadows.s2],
+                ),
+                child: widget.content,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _hideCard();
+    _overlayEntry?.remove();
     super.dispose();
   }
 
@@ -66,83 +78,18 @@ class _BloomHoverCardState extends State<BloomHoverCard> {
     return CompositedTransformTarget(
       link: _layerLink,
       child: MouseRegion(
-        onEnter: (_) {
-          _isHovering = true;
-          Future.delayed(widget.openDelay, () {
-            if (_isHovering && mounted) _showCard();
-          });
-        },
-        onExit: (_) {
-          _isHovering = false;
-          Future.delayed(widget.closeDelay, () {
-            if (!_isHovering && !_isInPopup && mounted) _hideCard();
-          });
-        },
+        onEnter: (_) => _show(),
+        onExit: (_) => _hide(),
         child: GestureDetector(
-          onLongPress: _showCard,
+          onTap: () {
+            if (_overlayEntry == null) {
+              _show();
+            } else {
+              _hide();
+            }
+          },
           child: widget.trigger,
         ),
-      ),
-    );
-  }
-}
-
-class BloomHoverCardContent extends StatelessWidget {
-  final Widget child;
-
-  const BloomHoverCardContent({
-    super.key,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface1,
-        borderRadius: BorderRadius.circular(context.bloomRadius.md),
-        border: Border.all(color: colors.border),
-        boxShadow: const [BloomShadows.s2],
-      ),
-      child: DefaultTextStyle(
-        style: TextStyle(
-          color: colors.textPrimary,
-          fontSize: 14,
-          fontFamily: context.bloomTypography.sans,
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _HoverCardPopup extends StatelessWidget {
-  final LayerLink layerLink;
-  final Widget content;
-  final VoidCallback onEnter;
-  final VoidCallback onLeave;
-
-  const _HoverCardPopup({
-    required this.layerLink,
-    required this.content,
-    required this.onEnter,
-    required this.onLeave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CompositedTransformFollower(
-      link: layerLink,
-      targetAnchor: Alignment.bottomCenter,
-      followerAnchor: Alignment.topCenter,
-      offset: const Offset(0, 8),
-      child: MouseRegion(
-        onEnter: (_) => onEnter(),
-        onExit: (_) => onLeave(),
-        child: content,
       ),
     );
   }

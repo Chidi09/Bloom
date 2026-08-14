@@ -24,34 +24,42 @@ class BloomMultiSelect<T> extends StatelessWidget {
   void _showSelector(BuildContext context) {
     BloomSheet.show(
       context: context,
-      title: 'Select Options',
-      child: StatefulBuilder(
-        builder: (context, setModalState) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: allValues.map((item) {
-              final isChecked = selectedValues.contains(item);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6.0),
-                child: BloomCheckbox(
-                  checked: isChecked,
-                  label: Text(labelBuilder(item)),
-                  onChanged: (val) {
-                    final next = List<T>.from(selectedValues);
-                    if (val) {
-                      next.add(item);
-                    } else {
-                      next.remove(item);
-                    }
-                    onChanged(next);
-                    setModalState(() {});
-                  },
-                ),
+      side: BloomSheetSide.bottom,
+      builder: (context) {
+        return BloomSheet(
+          side: BloomSheetSide.bottom,
+          header: const BloomSheetHeader(
+            title: BloomSheetTitle('Select Options'),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: allValues.map((item) {
+                  final isChecked = selectedValues.contains(item);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: BloomCheckbox(
+                      checked: isChecked,
+                      label: Text(labelBuilder(item)),
+                      onChanged: (val) {
+                        final next = List<T>.from(selectedValues);
+                        if (val == true) {
+                          next.add(item);
+                        } else {
+                          next.remove(item);
+                        }
+                        onChanged(next);
+                        setModalState(() {});
+                      },
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
-          );
-        },
-      ),
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -62,9 +70,9 @@ class BloomMultiSelect<T> extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showSelector(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: colors.surface2,
+          color: colors.surface1,
           borderRadius: BorderRadius.circular(context.bloomRadius.md),
           border: Border.all(color: colors.border),
         ),
