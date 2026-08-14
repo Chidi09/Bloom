@@ -8,13 +8,14 @@ class IosPrebuild {
 
   IosPrebuild(this.iosDir);
 
-  /// Synchronize iOS configuration from `bloom.yaml` platforms & plugins.
+  /// Synchronize iOS configuration from `bloom.yaml` platforms, plugins, and deep links.
   Future<bool> synchronize({
     required Map<dynamic, dynamic> platforms,
     required List<dynamic> plugins,
+    Map<dynamic, dynamic>? deepLinks,
   }) async {
     if (!iosDir.existsSync()) {
-      return true; // No ios platform in this project
+      return true;
     }
 
     print(Ansi.step('  iOS: Synchronizing Info.plist & project permissions...'));
@@ -45,6 +46,29 @@ class IosPrebuild {
           final xmlBlock = '	<key>${entry.key}</key>\n	<string>${entry.value}</string>\n</dict>';
           content = content.replaceFirst('</dict>', xmlBlock);
           print('    ${Ansi.dim}+ Injected iOS Info.plist key: ${entry.key}${Ansi.reset}');
+        }
+      }
+
+      // Inject Deep Link URL Schemes
+      if (deepLinks != null && deepLinks['enabled'] == true) {
+        final schemes = deepLinks['schemes'] is List ? List<String>.from(deepLinks['schemes']) : <String>[];
+        for (final scheme in schemes) {
+          if (!content.contains('<string>$scheme</string>')) {
+            final urlTypesBlock = '''	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$scheme</string>
+			</array>
+		</dict>
+	</array>
+</dict>''';
+            content = content.replaceFirst('</dict>', urlTypesBlock);
+            print('    ${Ansi.dim}+ Injected iOS custom URL scheme: $scheme${Ansi.reset}');
+          }
         }
       }
 

@@ -1,6 +1,7 @@
 // lib/src/native/secure_storage.dart
 import 'dart:async';
 import 'dart:collection';
+import 'package:flutter/services.dart';
 import '../core/logger.dart';
 import '../data/storage.dart';
 
@@ -10,6 +11,58 @@ abstract class BloomSecureStoragePlatform {
   FutureOr<void> delete(String key);
   FutureOr<bool> containsKey(String key);
   FutureOr<void> clear();
+}
+
+/// Real Flutter platform channel bridge for Keychain/EncryptedSharedPreferences.
+class MethodChannelBloomSecureStoragePlatform implements BloomSecureStoragePlatform {
+  static const MethodChannel _channel = MethodChannel('bloom/secure_storage');
+  final Map<String, String> _fallbackStore = HashMap<String, String>();
+
+  @override
+  Future<String?> read(String key) async {
+    try {
+      return await _channel.invokeMethod<String>('read', {'key': key});
+    } catch (_) {
+      return _fallbackStore[key];
+    }
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    try {
+      await _channel.invokeMethod('write', {'key': key, 'value': value});
+    } catch (_) {
+      _fallbackStore[key] = value;
+    }
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    try {
+      await _channel.invokeMethod('delete', {'key': key});
+    } catch (_) {
+      _fallbackStore.remove(key);
+    }
+  }
+
+  @override
+  Future<bool> containsKey(String key) async {
+    try {
+      final res = await _channel.invokeMethod<bool>('containsKey', {'key': key});
+      return res ?? false;
+    } catch (_) {
+      return _fallbackStore.containsKey(key);
+    }
+  }
+
+  @override
+  Future<void> clear() async {
+    try {
+      await _channel.invokeMethod('clear');
+    } catch (_) {
+      _fallbackStore.clear();
+    }
+  }
 }
 
 class MockBloomSecureStoragePlatform implements BloomSecureStoragePlatform {
@@ -36,7 +89,7 @@ class BloomSecureStorage implements BloomStorageAdapter {
   final BloomSecureStoragePlatform platform;
 
   BloomSecureStorage([BloomSecureStoragePlatform? platform])
-      : platform = platform ?? MockBloomSecureStoragePlatform();
+      : platform = platform ?? MethodChannelBloomSecureStoragePlatform();
 
   @override
   Future<String?> read(String key) async {

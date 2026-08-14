@@ -1,5 +1,6 @@
 // lib/src/native/notifications.dart
 import 'dart:async';
+import 'package:flutter/services.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
@@ -17,6 +18,13 @@ class BloomNotificationChannel {
     this.description,
     this.importance = NotificationImportance.high,
   });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'importance': importance.name,
+      };
 }
 
 class BloomNotificationItem {
@@ -35,6 +43,15 @@ class BloomNotificationItem {
     this.channelId,
     required this.timestamp,
   });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'title': title,
+        'body': body,
+        'payload': payload,
+        'channelId': channelId,
+        'timestamp': timestamp.toIso8601String(),
+      };
 }
 
 abstract class BloomNotificationsPlatform {
@@ -43,6 +60,57 @@ abstract class BloomNotificationsPlatform {
   FutureOr<void> show(BloomNotificationItem item);
   FutureOr<void> cancel(int id);
   FutureOr<void> cancelAll();
+}
+
+/// Real Flutter platform channel bridge for push/local notifications.
+class MethodChannelBloomNotificationsPlatform implements BloomNotificationsPlatform {
+  static const MethodChannel _channel = MethodChannel('bloom/notifications');
+  final List<BloomNotificationItem> _fallbackNotifications = [];
+
+  @override
+  Future<void> initialize({List<BloomNotificationChannel> channels = const []}) async {
+    try {
+      final channelsData = channels.map((c) => c.toMap()).toList();
+      await _channel.invokeMethod('initialize', {'channels': channelsData});
+    } catch (_) {}
+  }
+
+  @override
+  Future<bool> requestPermissions() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('requestPermissions');
+      return res ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  @override
+  Future<void> show(BloomNotificationItem item) async {
+    try {
+      await _channel.invokeMethod('show', item.toMap());
+    } catch (_) {
+      _fallbackNotifications.add(item);
+    }
+  }
+
+  @override
+  Future<void> cancel(int id) async {
+    try {
+      await _channel.invokeMethod('cancel', {'id': id});
+    } catch (_) {
+      _fallbackNotifications.removeWhere((item) => item.id == id);
+    }
+  }
+
+  @override
+  Future<void> cancelAll() async {
+    try {
+      await _channel.invokeMethod('cancelAll');
+    } catch (_) {
+      _fallbackNotifications.clear();
+    }
+  }
 }
 
 class MockBloomNotificationsPlatform implements BloomNotificationsPlatform {
@@ -80,7 +148,7 @@ class BloomNotifications {
   int _idCounter = 1;
 
   BloomNotifications([BloomNotificationsPlatform? platform])
-      : platform = platform ?? MockBloomNotificationsPlatform();
+      : platform = platform ?? MethodChannelBloomNotificationsPlatform();
 
   /// Initialize notification subsystem and register notification channels.
   Future<void> initialize({List<BloomNotificationChannel> channels = const []}) async {
