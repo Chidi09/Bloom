@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../dev/dashboard.dart';
+import '../dev/dev_server.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -12,7 +14,7 @@ class DevCommand extends Command<int> {
   @override
   final String name = 'dev';
   @override
-  final String description = 'Starts the interactive development server with hot reload and diagnostics.';
+  final String description = 'Starts the interactive development server with hot reload, QR pairing, and diagnostics.';
 
   DevCommand() {
     argParser
@@ -20,6 +22,17 @@ class DevCommand extends Command<int> {
         'device',
         abbr: 'd',
         help: 'Target device ID to run the application on.',
+      )
+      ..addOption(
+        'flavor',
+        abbr: 'f',
+        help: 'Build flavor profile to run (e.g. development, staging, production).',
+      )
+      ..addOption(
+        'port',
+        abbr: 'p',
+        help: 'Development server HTTP port.',
+        defaultsTo: '8080',
       )
       ..addFlag(
         'wireless',
@@ -38,35 +51,11 @@ class DevCommand extends Command<int> {
     }
 
     var targetDevice = argResults?['device'] as String?;
+    final flavor = argResults?['flavor'] as String?;
     final wireless = argResults?['wireless'] as bool? ?? false;
+    final port = int.tryParse(argResults?['port']?.toString() ?? '8080') ?? 8080;
 
     printBloomBanner();
-    print('${Ansi.cyan}${Ansi.bold}🌸 Starting Bloom Development Engine for "${project.projectName}"...${Ansi.reset}\n');
-
-    // 0. Wireless device discovery
-    if (wireless && targetDevice == null) {
-      print(Ansi.step('Scanning local network for paired wireless devices (ADB / mDNS)...'));
-      try {
-        final adbResult = await Process.run('adb', ['devices', '-l']);
-        if (adbResult.exitCode == 0) {
-          final lines = (adbResult.stdout as String).split('\n');
-          for (final line in lines) {
-            if (line.contains(':5555') || line.contains('product:')) {
-              final parts = line.split(RegExp(r'\s+'));
-              if (parts.isNotEmpty && parts.first.contains(':')) {
-                targetDevice = parts.first;
-                print(Ansi.success('Connected to wireless target device: $targetDevice'));
-                break;
-              }
-            }
-          }
-        }
-      } catch (_) {}
-
-      if (targetDevice == null) {
-        print(Ansi.info('No wireless device discovered. Defaulting to available targets.'));
-      }
-    }
 
     // 1. Ensure routes are freshly synced
     final routes = project.scanRoutes();
@@ -77,15 +66,57 @@ class DevCommand extends Command<int> {
     final routerFile = File(p.join(project.rootDir.path, 'lib', 'app', 'routes.g.dart'));
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
-    print(Ansi.step('Synchronized ${routes.length} filesystem route(s).'));
 
-    // 2. Launch flutter run process
+    // 2. Start DevServer & mDNS Broadcaster
+    final devServer = BloomDevServer(project, preferredPort: port);
+    await devServer.start();
+
+    // 3. Render Dashboard
+    final dashboard = DevDashboard(
+      project: project,
+      devServer: devServer,
+      flavor: flavor,
+    );
+    dashboard.render();
+
+    // 4. Wireless ADB device discovery if requested
+    if (wireless && targetDevice == null) {
+      try {
+        final adbResult = await Process.run('adb', ['devices', '-l']);
+        if (adbResult.exitCode == 0) {
+          final lines = (adbResult.stdout as String).split('\n');
+          for (final line in lines) {
+            if (line.contains(':5555') || line.contains('product:')) {
+              final parts = line.split(RegExp(r'\s+'));
+              if (parts.isNotEmpty && parts.first.contains(':')) {
+                targetDevice = parts.first;
+                print(Ansi.success('📱 Connected to wireless target device: $targetDevice'));
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 5. Assemble flutter run arguments
     final flutterArgs = ['run'];
     if (targetDevice != null) {
       flutterArgs.addAll(['-d', targetDevice]);
     }
+    if (flavor != null) {
+      flutterArgs.addAll(['--flavor', flavor]);
+      final config = project.loadBloomConfig();
+      if (config['flavors'] is Map && config['flavors'][flavor] is Map) {
+        final flavorConfig = config['flavors'][flavor] as Map;
+        final envFile = flavorConfig['env_file']?.toString() ?? flavorConfig['envFile']?.toString() ?? '.env.$flavor';
+        if (File(p.join(project.rootDir.path, envFile)).existsSync()) {
+          flutterArgs.add('--dart-define-from-file=$envFile');
+        }
+      }
+    }
 
-    print(Ansi.step('Launching runtime orchestrator...\n'));
+    print(Ansi.step('Launching Flutter runtime orchestrator...\n'));
 
     final process = await Process.start(
       'flutter',
@@ -97,7 +128,6 @@ class DevCommand extends Command<int> {
     // Stream process stdout with clean filtering
     final stdoutSub = process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
       if (line.contains('Flutter run key commands') || line.contains('An Observatory debugger')) {
-        // Suppress noisy internal flutter banner in favor of Bloom dashboard
         return;
       }
       if (line.contains('Performing hot reload') || line.contains('Reloaded')) {
@@ -132,8 +162,14 @@ class DevCommand extends Command<int> {
             process.stdin.writeln('R'); // Hot restart
           } else if (char == 'o' || char == 'v') {
             process.stdin.writeln('v'); // Open DevTools
+          } else if (char == 'w') {
+            dashboard.showQrCode = !dashboard.showQrCode;
+            dashboard.render();
           } else if (char == 'd') {
-            process.stdin.writeln('d'); // Toggle devices
+            dashboard.printDevices();
+          } else if (char == 'c') {
+            print('\x1B[2J\x1B[0;0H'); // Clear terminal
+            dashboard.render();
           } else if (char == 'q' || char == '\x03') {
             process.stdin.writeln('q'); // Quit
           } else {
@@ -148,6 +184,7 @@ class DevCommand extends Command<int> {
     await stdoutSub.cancel();
     await stderrSub.cancel();
     await stdinSub?.cancel();
+    await devServer.stop();
 
     if (stdin.hasTerminal) {
       try {
