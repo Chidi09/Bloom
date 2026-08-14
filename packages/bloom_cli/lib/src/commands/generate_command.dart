@@ -22,6 +22,7 @@ class GenerateCommand extends Command<int> {
     addSubcommand(_GenerateRouterCommand());
     addSubcommand(_GenerateEnvCommand());
     addSubcommand(_GenerateModuleCommand());
+    addSubcommand(_GenerateApiCommand());
   }
 }
 
@@ -303,5 +304,88 @@ class _GenerateModuleCommand extends Command<int> {
       print(Ansi.warn('No .module.dart DSL files found in ${dir.path}/lib/src'));
       return 1;
     }
+  }
+}
+
+class _GenerateApiCommand extends Command<int> {
+  @override
+  final String name = 'api';
+  @override
+  final String description = 'Generates a backend REST API route handler under lib/routes/api/.';
+
+  _GenerateApiCommand() {
+    argParser.addOption('project-dir', help: 'Explicit path to the Bloom project directory.');
+  }
+
+  @override
+  Future<int> run() async {
+    final rest = argResults?.rest ?? [];
+    if (rest.isEmpty) {
+      print(Ansi.error('Please specify an API route name or path (e.g., "users" or "users/[id]").'));
+      return 1;
+    }
+
+    final apiPath = rest.first.trim();
+    final explicitDir = argResults?['project-dir'] != null
+        ? Directory(argResults!['project-dir'] as String)
+        : null;
+
+    final project = BloomProject.find(explicitDir);
+    if (project == null) {
+      print(Ansi.error('No Bloom project found. Run this command inside a Bloom project directory.'));
+      return 1;
+    }
+
+    String relativeFilePath = apiPath;
+    if (!relativeFilePath.endsWith('.dart')) {
+      if (relativeFilePath.endsWith('/')) {
+        relativeFilePath = '${relativeFilePath}index.dart';
+      } else {
+        relativeFilePath = '$relativeFilePath.dart';
+      }
+    }
+
+    final targetFile = File(p.join(project.rootDir.path, 'lib', 'routes', 'api', relativeFilePath));
+    if (targetFile.existsSync()) {
+      print(Ansi.error('API route file already exists: ${targetFile.path}'));
+      return 1;
+    }
+
+    targetFile.createSync(recursive: true);
+    final endpointName = p.basenameWithoutExtension(relativeFilePath);
+
+    final content = '''
+// lib/routes/api/$relativeFilePath
+import 'package:bloom_framework/bloom_server.dart';
+
+/// GET /api/${apiPath.replaceAll(RegExp(r'/?index(\.dart)?$'), '')}
+Future<BloomResponse> get(BloomRequest request) async {
+  final id = request.params['id'];
+  return BloomResponse.json({
+    'status': 'ok',
+    'endpoint': '$endpointName',
+    if (id != null) 'id': id,
+    'timestamp': DateTime.now().toIso8601String(),
+  });
+}
+
+/// POST /api/${apiPath.replaceAll(RegExp(r'/?index(\.dart)?$'), '')}
+Future<BloomResponse> post(BloomRequest request) async {
+  final body = request.json();
+  return BloomResponse.json({
+    'message': 'Created successfully',
+    'data': body,
+  }, statusCode: 201);
+}
+
+/// DELETE /api/${apiPath.replaceAll(RegExp(r'/?index(\.dart)?$'), '')}
+Future<BloomResponse> delete(BloomRequest request) async {
+  return BloomResponse.noContent();
+}
+''';
+
+    targetFile.writeAsStringSync(content.trim());
+    print(Ansi.success('Generated API route handler at ${targetFile.path}'));
+    return 0;
   }
 }
