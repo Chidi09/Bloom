@@ -6,8 +6,12 @@ export 'src/core/boot.dart';
 export 'src/core/env.dart';
 export 'src/core/logger.dart';
 
-// Config
+// Config & Environment
 export 'src/config/config.dart';
+export 'src/config/typed_config.dart';
+export 'src/config/env_schema.dart';
+export 'src/features/feature_flags.dart';
+export 'bloom_config.dart';
 
 // Dependency Injection
 export 'src/di/container.dart';
@@ -51,10 +55,14 @@ export 'src/native/camera.dart';
 export 'src/native/deep_links.dart';
 export 'src/native/background.dart';
 
-// Developer Experience & Bloom Go (Phase 5 & 6)
+// Developer Experience & Bloom Go (Phase 5, 6 & 15)
 export 'src/dev/bloom_go_client.dart';
+export 'src/dev/bloom_dev.dart';
 export 'src/devtools/devtools_service.dart';
 export 'src/devtools/bloom_overlay.dart';
+export 'src/devtools/network_inspector.dart';
+export 'src/devtools/signals_inspector.dart';
+export 'src/devtools/query_cache_inspector.dart';
 
 // Deployment & Over-The-Air Updates (Phase 7)
 export 'src/deployment/bloom_ota.dart';

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../provenance/provenance_generator.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -86,7 +87,13 @@ class BuildCommand extends Command<int> {
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
 
-    // 2. Handle Web SSG and SSR targets
+    // 2. Handle Provenance, Web SSG, and SSR targets
+    if (target == 'provenance') {
+      final provenanceGen = ProvenanceGenerator(project);
+      provenanceGen.generateProvenance();
+      return 0;
+    }
+
     if (target == 'web' && (isStatic || isServer)) {
       final ssg = BloomSsgEngine(project: project);
       await ssg.generate();
@@ -95,6 +102,7 @@ class BuildCommand extends Command<int> {
         final ssr = BloomSsrEngine(project: project);
         await ssr.generate();
       }
+      ProvenanceGenerator(project).generateProvenance();
       return 0;
     }
 
