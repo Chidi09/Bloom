@@ -4,6 +4,22 @@ import 'package:crypto/crypto.dart';
 
 /// Utilities for calculating deterministic crash grouping fingerprints.
 class BloomCrashFingerprint {
+  static final RegExp _vmFramePattern = RegExp(r'#\d+\s+([^\s(]+)');
+  static final RegExp _webFramePattern = RegExp(r'^\s*at\s+([^\s(]+)');
+  static final RegExp _uuidPattern = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
+  static final RegExp _hexPattern = RegExp(r'0x[0-9a-fA-F]+');
+  static final RegExp _digitsPattern = RegExp(r'\b\d+\b');
+
+  /// Normalizes dynamic tokens (UUIDs, hex addresses, integers) in error messages.
+  static String sanitizeMessage(String message) {
+    if (message.isEmpty) return '';
+    final firstLine = message.split('\n').first.trim();
+    return firstLine
+        .replaceAll(_uuidPattern, '<UUID>')
+        .replaceAll(_hexPattern, '<HEX>')
+        .replaceAll(_digitsPattern, '#');
+  }
+
   /// Computes a deterministic list of fingerprint tokens and SHA-256 hash.
   static List<String> compute({
     required String exceptionType,
@@ -27,14 +43,21 @@ class BloomCrashFingerprint {
         if (trimmed.contains('package:flutter/') ||
             trimmed.contains('dart:async') ||
             trimmed.contains('dart:isolate') ||
+            trimmed.contains('dart:core') ||
+            trimmed.contains('dart_sdk.js') ||
             trimmed.contains('package:bloom_framework/src/observability')) {
           continue;
         }
 
-        // Match frame symbol (e.g. #0 CartController.addItem)
-        final match = RegExp(r'#\d+\s+([^\s]+)').firstMatch(trimmed);
-        if (match != null) {
-          tokens.add(match.group(1)!);
+        // Match frame symbol (e.g. #0 CartController.addItem or at CartController.addItem)
+        final vmMatch = _vmFramePattern.firstMatch(trimmed);
+        if (vmMatch != null) {
+          tokens.add(vmMatch.group(1)!);
+        } else {
+          final webMatch = _webFramePattern.firstMatch(trimmed);
+          if (webMatch != null) {
+            tokens.add(webMatch.group(1)!);
+          }
         }
         if (tokens.length >= 4) break; // Take up to top 3 user frames
       }
@@ -42,8 +65,7 @@ class BloomCrashFingerprint {
 
     if (tokens.length == 1 && message.isNotEmpty) {
       // If no stack frames could be parsed, use sanitized message prefix
-      final sanitizedMsg = message.split('\n').first.replaceAll(RegExp(r'\d+'), '#');
-      tokens.add(sanitizedMsg);
+      tokens.add(sanitizeMessage(message));
     }
 
     return tokens;

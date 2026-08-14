@@ -1,7 +1,7 @@
 // lib/src/updates/runtime_fingerprint.dart
 import 'dart:convert';
-import 'dart:io';
 import 'package:crypto/crypto.dart';
+import '../core/platform_info.dart';
 
 /// Cryptographic Runtime Fingerprint generator and validator.
 ///
@@ -29,7 +29,7 @@ class BloomRuntimeFingerprint {
     Map<String, String> moduleFingerprints = const {},
     List<String> permissions = const [],
   }) {
-    final dartVer = Platform.version.split(' ').first;
+    final dartVer = getDartSdkVersion();
     return BloomRuntimeFingerprint(
       bloomVersion: bloomVersion,
       flutterEngineRevision: flutterRevision ?? '3.27.0',
@@ -45,7 +45,7 @@ class BloomRuntimeFingerprint {
     Map<String, String> moduleFingerprints = const {},
     String? flutterRevision,
   }) {
-    final dartVer = Platform.version.split(' ').first;
+    final dartVer = getDartSdkVersion();
     var version = '1.0.0';
     final perms = <String>[];
 

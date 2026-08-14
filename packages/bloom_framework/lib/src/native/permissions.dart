@@ -60,8 +60,30 @@ extension _PermissionStatusMapper on ph.PermissionStatus {
 
 /// Central native permissions manager for Bloom applications wrapping `permission_handler`.
 class BloomPermissions {
+  static final Map<BloomPermission, BloomPermissionStatus> _simulatedPermissions = {};
+
+  /// Simulates a permission status response without invoking platform channels.
+  static void simulate({
+    required BloomPermission permission,
+    required BloomPermissionStatus status,
+  }) {
+    _simulatedPermissions[permission] = status;
+    logger.debug('BloomPermissions: Simulated $permission -> $status');
+  }
+
+  /// Clears all simulated permission overrides.
+  static void resetSimulation() {
+    _simulatedPermissions.clear();
+  }
+
   /// Check current permission status without prompting the user.
   static Future<BloomPermissionStatus> check(BloomPermission permission) async {
+    if (_simulatedPermissions.containsKey(permission)) {
+      final sim = _simulatedPermissions[permission]!;
+      logger.debug('BloomPermissions: [SIMULATED] Checked $permission -> $sim');
+      return sim;
+    }
+
     try {
       final phPermission = permission.toPermissionHandler();
       final status = await phPermission.status;
@@ -76,6 +98,12 @@ class BloomPermissions {
 
   /// Request runtime permission from the user.
   static Future<BloomPermissionStatus> request(BloomPermission permission) async {
+    if (_simulatedPermissions.containsKey(permission)) {
+      final sim = _simulatedPermissions[permission]!;
+      logger.info('BloomPermissions: [SIMULATED] Permission result for $permission -> $sim');
+      return sim;
+    }
+
     try {
       logger.info('BloomPermissions: Requesting runtime permission for $permission');
       final phPermission = permission.toPermissionHandler();

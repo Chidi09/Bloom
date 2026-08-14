@@ -1,10 +1,11 @@
 // lib/src/observability/observability.dart
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'dart:math';
 import 'dart:ui' show ErrorCallback;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../core/logger.dart';
+import '../core/platform_info.dart';
 import '../updates/runtime_fingerprint.dart';
 import 'breadcrumbs.dart';
 import 'fingerprint.dart';
@@ -26,6 +27,11 @@ class BloomObservabilityConfig {
   final Map<String, dynamic> appInfo;
   final Map<String, dynamic> tags;
   final String? runtimeFingerprint;
+  final String? bloomVersion;
+  final String? flutterVersion;
+  final String? channel;
+  final String? activePatchId;
+  final String? buildNumber;
 
   BloomObservabilityConfig({
     this.enabled = true,
@@ -39,6 +45,11 @@ class BloomObservabilityConfig {
     this.appInfo = const {},
     this.tags = const {},
     this.runtimeFingerprint,
+    this.bloomVersion,
+    this.flutterVersion,
+    this.channel,
+    this.activePatchId,
+    this.buildNumber,
   })  : sampleRate = sampleRate.clamp(0.0, 1.0),
         transport = transport ?? BloomMemoryTelemetryTransport();
 }
@@ -49,8 +60,12 @@ class BloomObservability {
   static late BloomBreadcrumbRingBuffer _ringBuffer;
   static bool _isInitialized = false;
 
+  static const MethodChannel _nativeChannel = MethodChannel('bloom/observability');
+
   static FlutterExceptionHandler? _originalFlutterOnError;
   static ErrorCallback? _originalPlatformOnError;
+  static bool _flutterHookInstalled = false;
+  static bool _platformHookInstalled = false;
 
   static final Random _random = Random();
   static int _eventCounter = 0;
@@ -64,10 +79,14 @@ class BloomObservability {
   /// Current chronological list of recorded breadcrumbs.
   static List<BloomBreadcrumb> get breadcrumbs => _ringBuffer.toList();
 
+  /// Method channel for native crash bridge (used for testing or custom native hooks).
+  @visibleForTesting
+  static MethodChannel get nativeChannel => _nativeChannel;
+
   /// Initializes the observability pipeline and attaches automated error hooks.
-  static void initialize(BloomObservabilityConfig config) {
+  static Future<void> initialize(BloomObservabilityConfig config) async {
     if (_isInitialized) {
-      reset();
+      await reset();
     }
 
     _config = config;
@@ -82,6 +101,7 @@ class BloomObservability {
     // 1. Hook Flutter widget error pipeline
     if (config.autoCaptureFlutterErrors) {
       _originalFlutterOnError = FlutterError.onError;
+      _flutterHookInstalled = true;
       FlutterError.onError = (FlutterErrorDetails details) {
         captureException(
           details.exception,
@@ -103,6 +123,7 @@ class BloomObservability {
     // 2. Hook PlatformDispatcher asynchronous unhandled errors
     if (config.autoCaptureZoneErrors) {
       _originalPlatformOnError = PlatformDispatcher.instance.onError;
+      _platformHookInstalled = true;
       PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
         captureException(
           error,
@@ -121,13 +142,39 @@ class BloomObservability {
       };
     }
 
-    // 3. Native platform crash handler hook
-    if (config.autoCaptureNativeCrashes) {
-      // TODO(native): Register platform-channel signal handler for native Android/iOS crashes.
-      logger.debug('BloomObservability: Native crash capture requested (platform channel bridge).');
+    // 3. Native platform crash handler hook (Android/iOS)
+    if (config.autoCaptureNativeCrashes && !kIsWeb) {
+      try {
+        await _nativeChannel.invokeMethod<void>('enableNativeCrashReporting');
+        final pendingCrashes =
+            await _nativeChannel.invokeListMethod<dynamic>('getPendingNativeCrashes');
+        if (pendingCrashes != null && pendingCrashes.isNotEmpty) {
+          for (final crash in pendingCrashes) {
+            if (crash is Map) {
+              await captureException(
+                crash['message'] ?? 'Native Crash',
+                exceptionType: crash['exceptionType']?.toString() ?? 'NativeCrash',
+                stackTrace: crash['stackTrace']?.toString(),
+                context: {
+                  'native': true,
+                  if (crash['signal'] != null) 'signal': crash['signal'],
+                  if (crash['context'] is Map)
+                    ...Map<String, dynamic>.from(crash['context'] as Map),
+                  ..._config.tags,
+                },
+                level: BloomErrorLevel.fatal,
+              );
+            }
+          }
+          await _nativeChannel.invokeMethod<void>('clearPendingNativeCrashes');
+        }
+      } catch (e) {
+        logger.debug('BloomObservability: Native crash bridge unhandled or stubbed: $e');
+      }
     }
 
-    logger.info('BloomObservability: Initialized (Sampling: ${(config.sampleRate * 100).toInt()}%, Ring Buffer: ${config.maxBreadcrumbs})');
+    logger.info(
+        'BloomObservability: Initialized (Sampling: ${(config.sampleRate * 100).toInt()}%, Ring Buffer: ${config.maxBreadcrumbs})');
   }
 
   /// Records a new breadcrumb in the in-memory timeline.
@@ -177,6 +224,7 @@ class BloomObservability {
       stackTrace: stackStr,
       customFingerprint: fingerprint,
     );
+    final fingerprintHash = BloomCrashFingerprint.hashTokens(computedFingerprint);
 
     _eventCounter++;
     final eventId = 'err_${DateTime.now().millisecondsSinceEpoch}_$_eventCounter';
@@ -184,26 +232,29 @@ class BloomObservability {
     // Assemble metadata payloads
     final appPayload = {
       'name': _config.appInfo['name'] ?? 'bloom_app',
-      'version': _config.appInfo['version'] ?? '1.0.0',
-      'buildNumber': _config.appInfo['buildNumber'] ?? '1',
+      'version': _config.bloomVersion ?? _config.appInfo['version'] ?? '1.0.0',
+      'buildNumber': _config.buildNumber ?? _config.appInfo['buildNumber'] ?? '1',
       ..._config.appInfo,
     };
 
     final runtimePayload = {
-      'bloomVersion': _config.appInfo['bloomVersion'] ?? _config.appInfo['version'] ?? '1.0.0',
-      'dartVersion': kIsWeb ? 'web' : Platform.version.split(' ').first,
-      'flutterVersion': _config.appInfo['flutterVersion'] ?? '3.27.0',
+      'bloomVersion': _config.bloomVersion ??
+          _config.appInfo['bloomVersion'] ??
+          _config.appInfo['version'] ??
+          '1.0.0',
+      'dartVersion': kIsWeb ? 'web' : getDartSdkVersion(),
+      'flutterVersion': _config.flutterVersion ?? _config.appInfo['flutterVersion'] ?? '3.27.0',
       'runtimeFingerprint': _config.runtimeFingerprint ??
           BloomRuntimeFingerprint.current().computeHash(),
-      'channel': _config.appInfo['channel'] ?? 'production',
-      if (_config.appInfo['activePatchId'] != null)
-        'activePatchId': _config.appInfo['activePatchId'],
+      'channel': _config.channel ?? _config.appInfo['channel'] ?? 'production',
+      if (_config.activePatchId != null || _config.appInfo['activePatchId'] != null)
+        'activePatchId': _config.activePatchId ?? _config.appInfo['activePatchId'],
     };
 
     final devicePayload = {
       'isWeb': kIsWeb,
-      'platform': kIsWeb ? 'web' : Platform.operatingSystem,
-      'osVersion': kIsWeb ? 'browser' : Platform.operatingSystemVersion,
+      'platform': kIsWeb ? 'web' : getOperatingSystem(),
+      'osVersion': kIsWeb ? 'browser' : getOperatingSystemVersion(),
     };
 
     final eventContext = {
@@ -219,6 +270,7 @@ class BloomObservability {
       message: message,
       stackTrace: stackStr,
       fingerprint: computedFingerprint,
+      fingerprintHash: fingerprintHash,
       context: eventContext,
       breadcrumbs: _ringBuffer.toList(),
       app: appPayload,
@@ -239,7 +291,8 @@ class BloomObservability {
     // Transmit via configured transport
     try {
       await _config.transport.send(event);
-      logger.info('BloomObservability: Captured $effectiveType [$eventId] (${event.breadcrumbs.length} breadcrumbs)');
+      logger.info(
+          'BloomObservability: Captured $effectiveType [$eventId] (${event.breadcrumbs.length} breadcrumbs)');
     } catch (e, stack) {
       logger.error('BloomObservability: Failed to transmit event: $e', stack);
     }
@@ -271,17 +324,19 @@ class BloomObservability {
   }
 
   /// Resets the observability subsystem and restores original error handlers.
-  static void reset() {
-    if (_originalFlutterOnError != null) {
+  static Future<void> reset() async {
+    if (_flutterHookInstalled) {
       FlutterError.onError = _originalFlutterOnError;
       _originalFlutterOnError = null;
+      _flutterHookInstalled = false;
     }
-    if (_originalPlatformOnError != null) {
+    if (_platformHookInstalled) {
       PlatformDispatcher.instance.onError = _originalPlatformOnError;
       _originalPlatformOnError = null;
+      _platformHookInstalled = false;
     }
 
-    _config.transport.close();
+    await _config.transport.close();
     _config = BloomObservabilityConfig();
     _ringBuffer = BloomBreadcrumbRingBuffer(maxCapacity: 100);
     _isInitialized = false;

@@ -1,22 +1,27 @@
 // lib/src/data/http_client.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../core/env.dart';
 import '../core/logger.dart';
+import '../dev/bloom_dev.dart';
+import '../devtools/network_inspector.dart';
 import '../observability/models.dart';
 import '../observability/observability.dart';
 
 typedef RequestInterceptor = FutureOr<http.BaseRequest> Function(http.BaseRequest request);
 typedef ResponseInterceptor = FutureOr<http.Response> Function(http.Response response);
 
-/// HTTP client with environment base URL resolution, JSON codecs, Bearer auth token injection, and interceptors.
+/// HTTP client with environment base URL resolution, JSON codecs, Bearer auth token injection, DevTools tracing, and simulation hooks.
 class BloomHttpClient {
   final String? baseUrl;
   final http.Client _innerClient;
   final Duration timeout;
   final List<RequestInterceptor> requestInterceptors = [];
   final List<ResponseInterceptor> responseInterceptors = [];
+  static final Random _random = Random();
+  static int _reqTraceCounter = 0;
 
   String? authToken;
   String? Function()? authTokenProvider;
@@ -62,6 +67,51 @@ class BloomHttpClient {
     dynamic body,
   }) async {
     final uri = _resolveUri(path, queryParameters);
+    final traceId = 'req_${++_reqTraceCounter}_${DateTime.now().millisecondsSinceEpoch}';
+    final stopwatch = Stopwatch()..start();
+
+    // 0a. Check BloomDev offline simulation
+    if (BloomDev.isOffline) {
+      final trace = BloomNetworkTrace(
+        id: traceId,
+        method: method,
+        url: uri.toString(),
+        headers: headers ?? {},
+        body: body,
+        timestamp: DateTime.now(),
+        statusCode: 0,
+        error: 'Device is offline (simulated).',
+        latency: Duration.zero,
+      );
+      BloomNetworkInspector.recordTrace(trace);
+      throw BloomOfflineException('Device is currently offline (simulated).', uri);
+    }
+
+    // 0b. Check BloomDev latency simulation
+    if (BloomDev.latency != null) {
+      await Future.delayed(BloomDev.latency!);
+    }
+
+    // 0c. Check BloomDev failure rate simulation
+    if (BloomDev.failureRate > 0.0) {
+      if (BloomDev.failureRate >= 1.0 || _random.nextDouble() < BloomDev.failureRate) {
+        final status = BloomDev.failureStatusCode;
+        final trace = BloomNetworkTrace(
+          id: traceId,
+          method: method,
+          url: uri.toString(),
+          headers: headers ?? {},
+          body: body,
+          timestamp: DateTime.now(),
+          statusCode: status,
+          error: 'Simulated network failure ($status)',
+          latency: stopwatch.elapsed,
+        );
+        BloomNetworkInspector.recordTrace(trace);
+        throw http.ClientException('HTTP $status: Simulated network failure', uri);
+      }
+    }
+
     final request = http.Request(method, uri);
 
     // 1. Apply default headers
@@ -92,13 +142,45 @@ class BloomHttpClient {
       finalReq = await interceptor(finalReq);
     }
 
-    final streamedResponse = await _innerClient.send(finalReq).timeout(timeout);
-    http.Response response = await http.Response.fromStream(streamedResponse);
+    http.Response response;
+    try {
+      final streamedResponse = await _innerClient.send(finalReq).timeout(timeout);
+      response = await http.Response.fromStream(streamedResponse);
+    } catch (e) {
+      stopwatch.stop();
+      final trace = BloomNetworkTrace(
+        id: traceId,
+        method: method,
+        url: uri.toString(),
+        headers: headers ?? {},
+        body: body,
+        timestamp: DateTime.now(),
+        error: e.toString(),
+        latency: stopwatch.elapsed,
+      );
+      BloomNetworkInspector.recordTrace(trace);
+      rethrow;
+    }
+    stopwatch.stop();
 
     // 4. Response Interceptors
     for (final interceptor in responseInterceptors) {
       response = await interceptor(response);
     }
+
+    // Record network trace
+    final trace = BloomNetworkTrace(
+      id: traceId,
+      method: method,
+      url: uri.toString(),
+      headers: headers ?? {},
+      body: body,
+      timestamp: DateTime.now(),
+      statusCode: response.statusCode,
+      responseBody: response.body,
+      latency: stopwatch.elapsed,
+    );
+    BloomNetworkInspector.recordTrace(trace);
 
     // Record network breadcrumb
     BloomObservability.addBreadcrumb(

@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6,12 +8,14 @@ import 'package:http/testing.dart';
 import 'package:bloom_framework/bloom.dart';
 
 void main() {
-  setUp(() {
-    BloomObservability.reset();
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await BloomObservability.reset();
   });
 
-  tearDown(() {
-    BloomObservability.reset();
+  tearDown(() async {
+    await BloomObservability.reset();
   });
 
   group('Phase 13: Breadcrumb Ring Buffer & Models', () {
@@ -53,6 +57,7 @@ void main() {
         message: 'Null check operator failed',
         stackTrace: '#0 main (file:///test.dart:10:5)',
         fingerprint: ['StateError', 'main'],
+        fingerprintHash: 'abc123hash',
         context: {'tag': 'checkout'},
         breadcrumbs: [breadcrumb],
         app: {'name': 'shop', 'version': '1.2.0'},
@@ -64,6 +69,7 @@ void main() {
       expect(restoredEvent.level, BloomErrorLevel.fatal);
       expect(restoredEvent.exceptionType, 'StateError');
       expect(restoredEvent.fingerprint, ['StateError', 'main']);
+      expect(restoredEvent.fingerprintHash, 'abc123hash');
       expect(restoredEvent.breadcrumbs.length, 1);
       expect(restoredEvent.breadcrumbs.first.message, 'User logged in');
       expect(restoredEvent.app['name'], 'shop');
@@ -94,6 +100,36 @@ void main() {
       expect(hash.length, 64); // SHA-256 length
     });
 
+    test('Parses Web JS stack frames correctly', () {
+      const mockWebStack = '''
+    at CartController.checkout (http://localhost:8080/main.dart.js:1234:56)
+    at CheckoutButton._onTap (http://localhost:8080/main.dart.js:7890:12)
+    at Object.runZoned (http://localhost:8080/dart_sdk.js:500:10)
+''';
+
+      final fp = BloomCrashFingerprint.compute(
+        exceptionType: 'PaymentException',
+        message: 'Insufficient funds',
+        stackTrace: mockWebStack,
+      );
+
+      expect(fp.length, 3);
+      expect(fp[0], 'PaymentException');
+      expect(fp[1], 'CartController.checkout');
+      expect(fp[2], 'CheckoutButton._onTap');
+    });
+
+    test('Sanitizes UUIDs, hex addresses, and numeric IDs in fallback message', () {
+      final fp = BloomCrashFingerprint.compute(
+        exceptionType: 'DatabaseError',
+        message: 'Record 12345 not found for session 123e4567-e89b-12d3-a456-426614174000 at pointer 0x7ffd12ab',
+      );
+
+      expect(fp.length, 2);
+      expect(fp[0], 'DatabaseError');
+      expect(fp[1], 'Record # not found for session <UUID> at pointer <HEX>');
+    });
+
     test('Honors custom explicit fingerprint override', () {
       final customFp = BloomCrashFingerprint.compute(
         exceptionType: 'CustomException',
@@ -106,12 +142,17 @@ void main() {
   });
 
   group('Phase 13: Observability Engine, Sampling & beforeSend Filter', () {
-    test('Captures exceptions, attaches breadcrumbs, and delivers to transport', () async {
+    test('Captures exceptions, attaches breadcrumbs, fingerprintHash, and delivers to transport', () async {
       final memoryTransport = BloomMemoryTelemetryTransport();
-      BloomObservability.initialize(BloomObservabilityConfig(
+      await BloomObservability.initialize(BloomObservabilityConfig(
         enabled: true,
         transport: memoryTransport,
-        appInfo: {'name': 'bloom_store', 'version': '2.0.0'},
+        bloomVersion: '2.1.0',
+        flutterVersion: '3.27.0',
+        channel: 'beta',
+        activePatchId: 'patch_7',
+        buildNumber: '88',
+        appInfo: {'name': 'bloom_store'},
       ));
 
       Bloom.addBreadcrumb(category: 'nav', message: 'Mounted /cart');
@@ -129,14 +170,20 @@ void main() {
       expect(event.exceptionType, 'FormatException');
       expect(event.message, contains('Invalid card number'));
       expect(event.context['cart_total'], 120);
+      expect(event.fingerprintHash, isNotNull);
+      expect(event.fingerprintHash!.length, 64);
       expect(event.breadcrumbs.length, 2);
       expect(event.breadcrumbs.map((b) => b.message).toList(), ['Mounted /cart', 'Tapped checkout']);
       expect(event.app['name'], 'bloom_store');
+      expect(event.app['version'], '2.1.0');
+      expect(event.app['buildNumber'], '88');
+      expect(event.runtime['channel'], 'beta');
+      expect(event.runtime['activePatchId'], 'patch_7');
     });
 
     test('beforeSend filter can modify event or drop it by returning null', () async {
       final memoryTransport = BloomMemoryTelemetryTransport();
-      BloomObservability.initialize(BloomObservabilityConfig(
+      await BloomObservability.initialize(BloomObservabilityConfig(
         enabled: true,
         transport: memoryTransport,
         beforeSend: (event) {
@@ -155,6 +202,7 @@ void main() {
             message: event.message,
             stackTrace: event.stackTrace,
             fingerprint: event.fingerprint,
+            fingerprintHash: event.fingerprintHash,
             context: newContext,
             breadcrumbs: event.breadcrumbs,
             app: event.app,
@@ -183,7 +231,7 @@ void main() {
 
     test('Sample rate of 0.0 drops all captured exceptions', () async {
       final memoryTransport = BloomMemoryTelemetryTransport();
-      BloomObservability.initialize(BloomObservabilityConfig(
+      await BloomObservability.initialize(BloomObservabilityConfig(
         enabled: true,
         sampleRate: 0.0,
         transport: memoryTransport,
@@ -193,11 +241,33 @@ void main() {
       expect(captured, isNull);
       expect(memoryTransport.events.isEmpty, isTrue);
     });
+
+    test('reset() restores handlers cleanly even when original was null and closes transport', () async {
+      FlutterError.onError = null;
+      PlatformDispatcher.instance.onError = null;
+
+      final transport = BloomMemoryTelemetryTransport();
+      await BloomObservability.initialize(BloomObservabilityConfig(
+        enabled: true,
+        transport: transport,
+        autoCaptureFlutterErrors: true,
+        autoCaptureZoneErrors: true,
+      ));
+
+      expect(FlutterError.onError, isNotNull);
+      expect(PlatformDispatcher.instance.onError, isNotNull);
+
+      await BloomObservability.reset();
+
+      expect(FlutterError.onError, isNull);
+      expect(PlatformDispatcher.instance.onError, isNull);
+      expect(BloomObservability.isInitialized, isFalse);
+    });
   });
 
   group('Phase 13: Navigation Observer & HTTP Telemetry Transport', () {
     testWidgets('BloomObservabilityNavigatorObserver records navigation breadcrumbs', (tester) async {
-      BloomObservability.initialize(BloomObservabilityConfig(enabled: true));
+      await BloomObservability.initialize(BloomObservabilityConfig(enabled: true));
       final observer = BloomObservabilityNavigatorObserver();
 
       await tester.pumpWidget(
@@ -219,17 +289,20 @@ void main() {
       expect(breadcrumbs.any((b) => b.category == 'navigation' && b.message.contains('/home')), isTrue);
     });
 
-    test('BloomHttpTelemetryTransport transmits JSON payload via HTTP client', () async {
+    test('BloomHttpTelemetryTransport transmits JSON payload and rethrows on failure', () async {
       late String capturedPayload;
       late Map<String, String> capturedHeaders;
 
       final mockClient = MockClient((request) async {
+        if (request.url.path.contains('error')) {
+          return http.Response('{"error": "Forbidden"}', 403);
+        }
         capturedPayload = request.body;
         capturedHeaders = request.headers;
         return http.Response('{"status": "ok"}', 200);
       });
 
-      final transport = BloomHttpTelemetryTransport(
+      final successTransport = BloomHttpTelemetryTransport(
         endpoint: Uri.parse('https://telemetry.bloom.dev/events'),
         headers: {'x-api-key': 'secret_bloom_key'},
         client: mockClient,
@@ -241,7 +314,7 @@ void main() {
         message: 'Gateway Timeout',
       );
 
-      await transport.send(event);
+      await successTransport.send(event);
 
       expect(capturedHeaders['x-api-key'], 'secret_bloom_key');
       expect(capturedHeaders['content-type'], 'application/json');
@@ -250,18 +323,36 @@ void main() {
       expect(decoded['eventId'], 'err_http_1');
       expect(decoded['exceptionType'], 'NetworkException');
       expect(decoded['message'], 'Gateway Timeout');
+
+      // Test error transport rethrows
+      var errorCallbackCalled = false;
+      final errorTransport = BloomHttpTelemetryTransport(
+        endpoint: Uri.parse('https://telemetry.bloom.dev/events/error'),
+        client: mockClient,
+        onError: (evt, err, st) {
+          errorCallbackCalled = true;
+        },
+      );
+
+      await expectLater(
+        errorTransport.send(event),
+        throwsA(isA<BloomHttpException>()),
+      );
+      expect(errorCallbackCalled, isTrue);
     });
 
-    test('captureMessage sets exceptionType to "message" and attaches metadata', () async {
+    test('captureMessage sets exceptionType to "message" and not "String"', () async {
       final memoryTransport = BloomMemoryTelemetryTransport();
-      BloomObservability.initialize(BloomObservabilityConfig(
+      await BloomObservability.initialize(BloomObservabilityConfig(
         enabled: true,
         transport: memoryTransport,
         runtimeFingerprint: 'custom_fp_hash_123',
+        bloomVersion: '1.2.3',
+        channel: 'staging',
+        activePatchId: 'patch_42',
+        buildNumber: '99',
         appInfo: {
           'name': 'my_app',
-          'channel': 'staging',
-          'activePatchId': 'patch_42',
         },
       ));
 
@@ -269,11 +360,60 @@ void main() {
 
       expect(event, isNotNull);
       expect(event!.exceptionType, 'message');
+      expect(event.exceptionType, isNot('String'));
       expect(event.message, 'User performed manual sync');
       expect(event.level, BloomErrorLevel.info);
+      expect(event.fingerprintHash, isNotNull);
       expect(event.runtime['runtimeFingerprint'], 'custom_fp_hash_123');
+      expect(event.runtime['bloomVersion'], '1.2.3');
       expect(event.runtime['channel'], 'staging');
       expect(event.runtime['activePatchId'], 'patch_42');
+      expect(event.app['buildNumber'], '99');
+    });
+
+    test('Native crash reporting registers handler and processes persisted crash logs', () async {
+      final memoryTransport = BloomMemoryTelemetryTransport();
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+      final mockMethodCalls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(BloomObservability.nativeChannel, (MethodCall call) async {
+        mockMethodCalls.add(call);
+        if (call.method == 'enableNativeCrashReporting') {
+          return null;
+        } else if (call.method == 'getPendingNativeCrashes') {
+          return [
+            {
+              'exceptionType': 'SIGSEGV',
+              'message': 'Fatal signal 11 (SIGSEGV) in native library',
+              'stackTrace': '#0 0x1234 libbloom_native.so\n#1 0x5678 libflutter.so',
+              'signal': 11,
+              'context': {'thread': 'render_thread'},
+            }
+          ];
+        } else if (call.method == 'clearPendingNativeCrashes') {
+          return null;
+        }
+        return null;
+      });
+
+      await BloomObservability.initialize(BloomObservabilityConfig(
+        enabled: true,
+        autoCaptureNativeCrashes: true,
+        transport: memoryTransport,
+      ));
+
+      expect(mockMethodCalls.any((c) => c.method == 'enableNativeCrashReporting'), isTrue);
+      expect(mockMethodCalls.any((c) => c.method == 'getPendingNativeCrashes'), isTrue);
+      expect(mockMethodCalls.any((c) => c.method == 'clearPendingNativeCrashes'), isTrue);
+
+      expect(memoryTransport.events.length, 1);
+      final nativeCrashEvent = memoryTransport.events.first;
+      expect(nativeCrashEvent.exceptionType, 'SIGSEGV');
+      expect(nativeCrashEvent.level, BloomErrorLevel.fatal);
+      expect(nativeCrashEvent.context['native'], isTrue);
+      expect(nativeCrashEvent.context['signal'], 11);
+
+      messenger.setMockMethodCallHandler(BloomObservability.nativeChannel, null);
     });
   });
 }

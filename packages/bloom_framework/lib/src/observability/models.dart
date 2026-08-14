@@ -88,6 +88,7 @@ class BloomTelemetryEvent {
   final String message;
   final String? stackTrace;
   final List<String> fingerprint;
+  final String? fingerprintHash;
   final Map<String, dynamic> context;
   final List<BloomBreadcrumb> breadcrumbs;
   final Map<String, dynamic> app;
@@ -102,6 +103,7 @@ class BloomTelemetryEvent {
     required this.message,
     this.stackTrace,
     this.fingerprint = const [],
+    this.fingerprintHash,
     this.context = const {},
     this.breadcrumbs = const [],
     this.app = const {},
@@ -118,6 +120,7 @@ class BloomTelemetryEvent {
       'message': message,
       if (stackTrace != null) 'stackTrace': stackTrace,
       'fingerprint': fingerprint,
+      if (fingerprintHash != null) 'fingerprintHash': fingerprintHash,
       'context': context,
       'breadcrumbs': breadcrumbs.map((b) => b.toJson()).toList(),
       'app': app,
@@ -139,6 +142,7 @@ class BloomTelemetryEvent {
       message: json['message'] as String? ?? '',
       stackTrace: json['stackTrace'] as String?,
       fingerprint: (json['fingerprint'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      fingerprintHash: json['fingerprintHash'] as String?,
       context: json['context'] is Map ? Map<String, dynamic>.from(json['context'] as Map) : {},
       breadcrumbs: (json['breadcrumbs'] as List<dynamic>?)
               ?.map((e) => BloomBreadcrumb.fromJson(Map<String, dynamic>.from(e as Map)))

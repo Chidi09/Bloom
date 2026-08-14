@@ -125,6 +125,7 @@ class BloomConfig {
   final int schema;
   final String name;
   final String version;
+  final String buildNumber;
   final String description;
   final String mode; // 'managed' or 'bare'
   final BloomPlatforms platforms;
@@ -140,6 +141,7 @@ class BloomConfig {
     this.schema = 1,
     this.name = 'bloom_app',
     this.version = '0.1.0',
+    this.buildNumber = '1',
     this.description = '',
     this.mode = 'managed',
     this.platforms = const BloomPlatforms(),
@@ -208,6 +210,8 @@ class BloomConfig {
       'schema',
       'name',
       'version',
+      'build_number',
+      'buildNumber',
       'description',
       'mode',
       'platforms',
@@ -222,8 +226,13 @@ class BloomConfig {
     };
 
     final customMap = <String, dynamic>{};
+    if (map['custom'] is Map) {
+      (map['custom'] as Map).forEach((k, v) {
+        customMap[k.toString()] = v;
+      });
+    }
     map.forEach((k, v) {
-      if (!knownKeys.contains(k.toString())) {
+      if (!knownKeys.contains(k.toString()) && k.toString() != 'custom') {
         customMap[k.toString()] = v;
       }
     });
@@ -232,6 +241,7 @@ class BloomConfig {
       schema: map['schema'] is int ? map['schema'] as int : 1,
       name: map['name']?.toString() ?? 'bloom_app',
       version: map['version']?.toString() ?? '0.1.0',
+      buildNumber: map['build_number']?.toString() ?? map['buildNumber']?.toString() ?? '1',
       description: map['description']?.toString() ?? '',
       mode: map['mode']?.toString().toLowerCase() ?? 'managed',
       platforms: BloomPlatforms.fromMap(platformsMap),

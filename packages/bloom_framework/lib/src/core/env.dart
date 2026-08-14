@@ -1,5 +1,6 @@
 // lib/src/core/env.dart
 import 'dart:collection';
+import '../config/env_schema.dart';
 
 /// Environment configuration parser and type-safe reader.
 class BloomEnv {
@@ -39,6 +40,19 @@ class BloomEnv {
         _env[k] = v;
       }
     });
+  }
+
+  /// Validates a typed [BloomEnvironmentSchema] against current environment variables.
+  /// Throws [BloomEnvironmentException] if any required keys are missing or malformed.
+  static T validate<T extends BloomEnvironmentSchema>(T schema) {
+    schema.validate();
+    if (schema.validationErrors.isNotEmpty) {
+      throw BloomEnvironmentException(
+        'Environment schema validation failed: ${schema.validationErrors.join("; ")}',
+        errors: schema.validationErrors,
+      );
+    }
+    return schema;
   }
 
   /// Get environment variable string, fallback to compile-time define if not in map, or throw if absent.

@@ -140,6 +140,13 @@ class BloomData {
     return entry as QueryCacheEntry<T>?;
   }
 
+  /// Remove a specific query cache entry.
+  static void removeEntry(List<dynamic> key) {
+    final keyStr = normalizeKey(key);
+    _cache.remove(keyStr);
+    _invalidationControllers.remove(keyStr)?.close();
+  }
+
   /// Store or update a cache entry.
   static void putEntry<T>(QueryCacheEntry<T> entry) {
     final keyStr = normalizeKey(entry.key);
