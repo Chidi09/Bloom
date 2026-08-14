@@ -1,10 +1,8 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Section from '../../components/common/Section.astro';
+import DocsLayout from '../../layouts/DocsLayout.astro';
 import { ComponentViewer } from '../../components/interactive/ComponentViewer';
-import { UI_REGISTRY, UI_CATEGORIES, type UIComponentDoc } from '../../lib/ui-registry';
+import { UI_REGISTRY, type UIComponentDoc } from '../../lib/ui-registry';
 import { 
-  ChevronRight, 
   Terminal, 
   Code2, 
   Sparkles, 
@@ -33,137 +31,106 @@ const prevComp = currentIndex > 0 ? UI_REGISTRY[currentIndex - 1] : null;
 const nextComp = currentIndex < UI_REGISTRY.length - 1 ? UI_REGISTRY[currentIndex + 1] : null;
 ---
 
-<Layout
-  title={`${component.title} — Bloom UI Documentation`}
+<DocsLayout
+  title={component.title}
   description={component.description}
-  hue="bloom"
-  petalHighlight="all"
-  nextChapterTitle="Bloom UI Components"
-  nextChapterLink="/ui"
-  nextChapterSubtitle="Explore all 60+ primitives"
-  ogPage="bloom"
+  currentSlug={component.slug}
+  category={component.category}
+  toc={[
+    { id: 'preview', title: 'Interactive Preview' },
+    { id: 'installation', title: 'Installation' },
+    { id: 'usage', title: 'Usage' },
+    { id: 'api', title: 'API & Properties' },
+  ]}
 >
-  <Section reveal={false} className="pt-8 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Breadcrumb Bar -->
-    <nav class="flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400 mb-8">
-      <a href="/" class="hover:text-purple-400 transition">Hub</a>
-      <ChevronRight className="w-3 h-3" />
-      <a href="/ui" class="hover:text-purple-400 transition">Bloom UI</a>
-      <ChevronRight className="w-3 h-3" />
-      <span class="text-slate-400">{component.category}</span>
-      <ChevronRight className="w-3 h-3" />
-      <span class="text-white font-bold">{component.title}</span>
-    </nav>
+  <div class="space-y-12 min-w-0">
+    <!-- Component Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+          {component.title}
+        </h1>
+        <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+          {component.name}
+        </span>
+      </div>
 
-    <!-- Main 2-Column Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      
-      <!-- Left Sidebar: Component Navigation Tree -->
-      <aside class="hidden lg:block lg:col-span-3 space-y-8 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto pr-4">
-        {UI_CATEGORIES.map((cat) => {
-          const items = UI_REGISTRY.filter((c) => c.category === cat);
-          return (
-            <div class="space-y-2">
-              <h3 class="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
-                {cat}
-              </h3>
-              <ul class="space-y-1">
-                {items.map((item) => (
-                  <li>
-                    <a
-                      href={`/ui/${item.slug}`}
-                      class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        item.slug === component.slug
-                          ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 font-bold'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
-                      }`}
-                    >
-                      {item.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-      </aside>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg leading-relaxed max-w-3xl">
+        {component.description}
+      </p>
 
-      <!-- Main Content Area -->
-      <main class="lg:col-span-9 space-y-10">
-        <!-- Component Header -->
-        <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <h1 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-              {component.title}
-            </h1>
-            <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              {component.name}
-            </span>
-          </div>
-
-          <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg leading-relaxed max-w-3xl">
-            {component.description}
-          </p>
-
-          <!-- CLI Quick Copy -->
-          <div class="flex flex-wrap items-center gap-3 pt-2">
-            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-purple-300">
-              <Terminal className="w-3.5 h-3.5" />
-              <code>{component.cliCommand}</code>
-              <button
-                onclick={`navigator.clipboard.writeText('${component.cliCommand}'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Command Copied', message: 'Ready to run in terminal.', type: 'emerald' } }))`}
-                class="ml-2 text-slate-400 hover:text-white"
-                title="Copy Command"
-              >
-                📋
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-pink-300">
-              <code>package: {component.pubPackage}</code>
-            </div>
-          </div>
+      <!-- CLI Quick Copy & Pub link -->
+      <div class="flex flex-wrap items-center gap-3 pt-2">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-purple-300">
+          <Terminal className="w-3.5 h-3.5" />
+          <code>{component.cliCommand}</code>
+          <button
+            onclick={`navigator.clipboard.writeText('${component.cliCommand}'); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Command Copied', message: 'Ready to run in terminal.', type: 'emerald' } }))`}
+            class="ml-2 text-slate-400 hover:text-white"
+            title="Copy Command"
+          >
+            📋
+          </button>
         </div>
 
-        <!-- Interactive Viewer with Mobile & Web Previews -->
-        <div class="space-y-4">
-          <ComponentViewer client:load component={component} />
-        </div>
-
-        <!-- Prev / Next Navigation Footer -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-10 border-t border-slate-200 dark:border-slate-800">
-          {prevComp ? (
-            <a
-              href={`/ui/${prevComp.slug}`}
-              class="flex items-center gap-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-purple-500/50 transition group"
-            >
-              <ArrowLeft className="w-4 h-4 text-purple-400 transform group-hover:-translate-x-1 transition-transform" />
-              <div>
-                <div class="text-[10px] font-mono text-slate-500 uppercase">Previous Component</div>
-                <div class="text-sm font-bold text-white group-hover:text-purple-300 transition">
-                  {prevComp.title}
-                </div>
-              </div>
-            </a>
-          ) : <div />}
-
-          {nextComp ? (
-            <a
-              href={`/ui/${nextComp.slug}`}
-              class="flex items-center justify-between p-4 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-purple-500/50 transition group text-right"
-            >
-              <div>
-                <div class="text-[10px] font-mono text-slate-500 uppercase">Next Component</div>
-                <div class="text-sm font-bold text-white group-hover:text-purple-300 transition">
-                  {nextComp.title}
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-purple-400 transform group-hover:translate-x-1 transition-transform" />
-            </a>
-          ) : <div />}
-        </div>
-      </main>
-
+        <a
+          href="https://pub.dev/packages/bloom_ui"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-pink-300 hover:text-white transition"
+        >
+          <span>package: {component.pubPackage}</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
     </div>
-  </Section>
-</Layout>
+
+    <!-- Interactive Viewer with Mobile & Web Previews -->
+    <div id="preview" class="space-y-4">
+      <ComponentViewer client:load component={component} />
+    </div>
+
+    <!-- Usage Code Section -->
+    <section id="usage" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Usage
+      </h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{component.usageCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Prev / Next Navigation Footer -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-10 border-t border-slate-200 dark:border-slate-800">
+      {prevComp ? (
+        <a
+          href={`/ui/${prevComp.slug}`}
+          class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 hover:border-purple-500/50 transition group"
+        >
+          <ArrowLeft className="w-4 h-4 text-purple-500 transform group-hover:-translate-x-1 transition-transform" />
+          <div>
+            <div class="text-[10px] font-mono text-slate-500 uppercase">Previous Component</div>
+            <div class="text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-400 transition">
+              {prevComp.title}
+            </div>
+          </div>
+        </a>
+      ) : <div />}
+
+      {nextComp ? (
+        <a
+          href={`/ui/${nextComp.slug}`}
+          class="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 hover:border-purple-500/50 transition group text-right"
+        >
+          <div>
+            <div class="text-[10px] font-mono text-slate-500 uppercase">Next Component</div>
+            <div class="text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-400 transition">
+              {nextComp.title}
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-purple-500 transform group-hover:translate-x-1 transition-transform" />
+        </a>
+      ) : <div />}
+    </div>
+  </div>
+</DocsLayout>

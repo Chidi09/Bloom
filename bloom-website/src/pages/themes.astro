@@ -1,0 +1,37 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro';
+import { ThemeGenerator } from '../components/interactive/ThemeGenerator';
+import { Palette, Sparkles, Sliders } from 'lucide-preact';
+---
+
+<DocsLayout
+  title="Theme Generator"
+  description="Customize 8 style presets, tweak border radius, test light/dark contrast, and copy ready-to-use Flutter theme Dart code."
+  currentSlug="themes"
+  category="Themes & Blocks"
+  toc={[
+    { id: 'generator', title: 'Interactive Theme Builder' },
+    { id: 'styles', title: 'Available Style Presets' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Palette className="w-3.5 h-3.5" />
+        Visual Theme Studio
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Theme Generator
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Pick a style preset, adjust corner roundness, preview interactive primitives in both dark and light modes, and export pure Flutter <code class="font-mono text-purple-400">BloomTheme</code> Dart code.
+      </p>
+    </div>
+
+    <!-- Interactive Generator -->
+    <section id="generator">
+      <ThemeGenerator client:load />
+    </section>
+  </div>
+</DocsLayout>
