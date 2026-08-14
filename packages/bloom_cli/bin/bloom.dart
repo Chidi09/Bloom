@@ -1,6 +1,7 @@
 // bin/bloom.dart
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../lib/src/commands/add_command.dart';
 import '../lib/src/commands/analyze_command.dart';
 import '../lib/src/commands/build_command.dart';
 import '../lib/src/commands/create_command.dart';
@@ -8,6 +9,7 @@ import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
+import '../lib/src/commands/remove_command.dart';
 import '../lib/src/commands/test_command.dart';
 import '../lib/src/utils/ansi.dart';
 
@@ -25,7 +27,9 @@ Future<void> main(List<String> args) async {
     ..addCommand(AnalyzeCommand())
     ..addCommand(TestCommand())
     ..addCommand(BuildCommand())
-    ..addCommand(PrebuildCommand());
+    ..addCommand(PrebuildCommand())
+    ..addCommand(AddCommand())
+    ..addCommand(RemoveCommand());
 
   runner.argParser.addFlag(
     'version',
