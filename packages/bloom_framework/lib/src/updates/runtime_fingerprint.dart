@@ -1,5 +1,6 @@
 // lib/src/updates/runtime_fingerprint.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 /// Cryptographic Runtime Fingerprint generator and validator.
@@ -21,7 +22,24 @@ class BloomRuntimeFingerprint {
     this.permissions = const [],
   });
 
-  /// Computes the deterministic SHA-256 runtime fingerprint hash string.
+  /// Derives runtime fingerprint dynamically from current environment.
+  factory BloomRuntimeFingerprint.current({
+    String bloomVersion = '1.0.0',
+    String? flutterRevision,
+    Map<String, String> moduleFingerprints = const {},
+    List<String> permissions = const [],
+  }) {
+    final dartVer = Platform.version.split(' ').first;
+    return BloomRuntimeFingerprint(
+      bloomVersion: bloomVersion,
+      flutterEngineRevision: flutterRevision ?? '3.27.0',
+      dartSdkVersion: dartVer,
+      nativeModuleFingerprints: moduleFingerprints,
+      permissions: permissions,
+    );
+  }
+
+  /// Computes the canonical deterministic SHA-256 runtime fingerprint hash string.
   String computeHash() {
     final buffer = StringBuffer();
     buffer.writeln('bloom_version:$bloomVersion');
@@ -63,7 +81,7 @@ class BloomRuntimeFingerprint {
     }
 
     final perms = <String>[];
-    final rawPerms = map['permissions'];
+    final rawPerms = map['permissions'] ?? map['plugins'];
     if (rawPerms is List) {
       for (final p in rawPerms) {
         perms.add(p.toString());
@@ -72,8 +90,8 @@ class BloomRuntimeFingerprint {
 
     return BloomRuntimeFingerprint(
       bloomVersion: map['bloom_version']?.toString() ?? '1.0.0',
-      flutterEngineRevision: map['flutter_engine']?.toString() ?? 'unknown',
-      dartSdkVersion: map['dart_sdk']?.toString() ?? 'unknown',
+      flutterEngineRevision: map['flutter_engine']?.toString() ?? map['flutter_version']?.toString() ?? '3.27.0',
+      dartSdkVersion: map['dart_sdk']?.toString() ?? map['dart_version']?.toString() ?? '3.6.0',
       nativeModuleFingerprints: modules,
       permissions: perms,
     );

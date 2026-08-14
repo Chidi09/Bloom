@@ -12,12 +12,17 @@ class FingerprintGenerator {
 
   FingerprintGenerator(this.project);
 
-  /// Computes the deterministic SHA-256 runtime fingerprint for this project.
+  /// Computes the canonical deterministic SHA-256 runtime fingerprint for this project.
   String computeFingerprint() {
     final buffer = StringBuffer();
-    buffer.writeln('bloom_version:1.0.0');
-    buffer.writeln('flutter_version:3.27.0');
-    buffer.writeln('dart_version:3.6.0');
+    final config = project.loadBloomConfig();
+    final bloomVersion = config['version']?.toString() ?? '1.0.0';
+    final dartSdkVersion = Platform.version.split(' ').first;
+    const flutterEngine = '3.27.0';
+
+    buffer.writeln('bloom_version:$bloomVersion');
+    buffer.writeln('flutter_engine:$flutterEngine');
+    buffer.writeln('dart_sdk:$dartSdkVersion');
 
     // 1. Read module fingerprints from bloom.lock if available
     final lockFile = File(p.join(project.rootDir.path, 'bloom.lock'));
@@ -37,12 +42,22 @@ class FingerprintGenerator {
       } catch (_) {}
     }
 
-    // 2. Read permissions from bloom.yaml
-    final config = project.loadBloomConfig();
-    final plugins = config['plugins'] is List ? (config['plugins'] as List) : [];
-    final sortedPlugins = plugins.map((p) => p.toString()).toList()..sort();
-    for (final p in sortedPlugins) {
-      buffer.writeln('plugin:$p');
+    // 2. Read permissions/plugins from bloom.yaml
+    final rawPerms = config['permissions'] ?? config['plugins'];
+    final perms = <String>[];
+    if (rawPerms is List) {
+      for (final p in rawPerms) {
+        perms.add(p.toString());
+      }
+    } else if (rawPerms is Map) {
+      for (final k in rawPerms.keys) {
+        perms.add(k.toString());
+      }
+    }
+
+    final sortedPerms = perms..sort();
+    for (final p in sortedPerms) {
+      buffer.writeln('permission:$p');
     }
 
     return sha256.convert(utf8.encode(buffer.toString())).toString();
