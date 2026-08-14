@@ -52,7 +52,7 @@ void main() {
         wrapWithTheme(
           BloomInput(
             controller: controller,
-            hintText: 'Enter name',
+            placeholder: 'Enter name',
           ),
         ),
       );
@@ -63,7 +63,7 @@ void main() {
     });
 
     testWidgets('BloomCheckbox toggles controlled and uncontrolled state', (tester) async {
-      var checked = false;
+      bool? checked = false;
       await tester.pumpWidget(
         wrapWithTheme(
           BloomCheckbox(
@@ -98,70 +98,116 @@ void main() {
       expect(enabled, isTrue);
     });
 
-    testWidgets('BloomRadio and BloomRadioGroup select active item', (tester) async {
-      String? selected = 'a';
+    testWidgets('BloomRadioGroup selects radio option', (tester) async {
+      String? selected;
       await tester.pumpWidget(
         wrapWithTheme(
           BloomRadioGroup<String>(
-            children: [
-              BloomRadio<String>(
-                value: 'a',
-                groupValue: selected,
-                label: const Text('Option A'),
-                onChanged: (v) => selected = v,
-              ),
-              BloomRadio<String>(
-                value: 'b',
-                groupValue: selected,
-                label: const Text('Option B'),
-                onChanged: (v) => selected = v,
-              ),
+            options: const [
+              BloomRadioOption(value: 'apple', label: Text('Apple')),
+              BloomRadioOption(value: 'banana', label: Text('Banana')),
             ],
+            defaultValue: 'apple',
+            onChanged: (val) => selected = val,
           ),
         ),
       );
 
-      expect(find.text('Option A'), findsOneWidget);
-      expect(find.text('Option B'), findsOneWidget);
-      await tester.tap(find.text('Option B'));
-      expect(selected, 'b');
+      expect(find.text('Apple'), findsOneWidget);
+      expect(find.text('Banana'), findsOneWidget);
+      await tester.tap(find.text('Banana'));
+      expect(selected, 'banana');
     });
 
-    testWidgets('BloomButtonGroup supports selection and horizontal/vertical orientation', (tester) async {
-      String selected = '1';
+    testWidgets('BloomSlider updates value on slide', (tester) async {
+      double sliderVal = 0.2;
+      await tester.pumpWidget(
+        wrapWithTheme(
+          StatefulBuilder(
+            builder: (ctx, setState) => BloomSlider(
+              value: sliderVal,
+              onChanged: (v) => setState(() => sliderVal = v),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(Slider), findsOneWidget);
+    });
+
+    testWidgets('BloomSelect renders dropdown with initial value', (tester) async {
+      String? selected = 'opt1';
+      await tester.pumpWidget(
+        wrapWithTheme(
+          BloomSelect<String>(
+            value: selected,
+            items: const [
+              BloomSelectItem(value: 'opt1', label: 'Option 1'),
+              BloomSelectItem(value: 'opt2', label: 'Option 2'),
+            ],
+            onChanged: (val) => selected = val,
+          ),
+        ),
+      );
+
+      expect(find.text('Option 1'), findsOneWidget);
+    });
+
+    testWidgets('BloomToggle toggles pressed state', (tester) async {
+      bool? toggled;
+      await tester.pumpWidget(
+        wrapWithTheme(
+          BloomToggle(
+            defaultChecked: false,
+            onPressed: (val) => toggled = val,
+            child: const Icon(Icons.format_bold),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.format_bold), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.format_bold));
+      expect(toggled, isTrue);
+    });
+
+    testWidgets('BloomButtonGroup renders horizontal items and allows selection', (tester) async {
+      String selected = 'day';
       await tester.pumpWidget(
         wrapWithTheme(
           BloomButtonGroup<String>(
-            defaultValue: '1',
-            value: selected,
-            onChanged: (v) => selected = v,
-            orientation: Axis.vertical,
             items: const [
-              BloomButtonGroupItem(value: '1', label: Text('First')),
-              BloomButtonGroupItem(value: '2', label: Text('Second')),
+              BloomButtonGroupItem(value: 'day', label: Text('Day')),
+              BloomButtonGroupItem(value: 'week', label: Text('Week')),
+              BloomButtonGroupItem(value: 'month', label: Text('Month')),
             ],
+            defaultValue: selected,
+            onChanged: (val) => selected = val,
           ),
         ),
       );
 
-      expect(find.text('First'), findsOneWidget);
-      expect(find.text('Second'), findsOneWidget);
-      await tester.tap(find.text('Second'));
-      expect(selected, '2');
+      expect(find.text('Day'), findsOneWidget);
+      expect(find.text('Week'), findsOneWidget);
+      expect(find.text('Month'), findsOneWidget);
+      await tester.tap(find.text('Week'));
+      expect(selected, 'week');
     });
   });
 
-  group('Bloom UI: Layout & Feedback Primitives', () {
-    testWidgets('BloomCard renders with header, description and content', (tester) async {
+  group('Bloom UI: Layout & Container Primitives', () {
+    testWidgets('BloomCard renders header, content, and footer', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
           const BloomCard(
-            child: Column(
-              children: [
-                BloomCardTitle('Project Settings'),
-                BloomCardDescription('Manage your deployment tokens.'),
-                BloomCardContent(child: Text('Card Content')),
-              ],
+            header: BloomCardHeader(
+              title: BloomCardTitle('Project Settings'),
+              description: BloomCardDescription('Manage your deployment tokens.'),
+            ),
+            content: BloomCardContent(
+              child: Text('Card Content'),
+            ),
+            footer: BloomCardFooter(
+              child: Text('Card Footer'),
             ),
           ),
         ),
@@ -170,14 +216,15 @@ void main() {
       expect(find.text('Project Settings'), findsOneWidget);
       expect(find.text('Manage your deployment tokens.'), findsOneWidget);
       expect(find.text('Card Content'), findsOneWidget);
+      expect(find.text('Card Footer'), findsOneWidget);
     });
 
     testWidgets('BloomAlert renders title and description', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
           const BloomAlert(
-            title: 'Update Available',
-            description: 'A new version of Bloom is ready to install.',
+            title: BloomAlertTitle('Update Available'),
+            description: BloomAlertDescription('A new version of Bloom is ready to install.'),
             variant: BloomAlertVariant.info,
           ),
         ),
@@ -192,11 +239,14 @@ void main() {
       await tester.pumpWidget(
         wrapWithTheme(
           BloomAlertDialog(
-            title: 'Are you sure?',
-            description: 'This action cannot be undone.',
-            confirmText: 'Delete',
-            isDestructive: true,
-            onConfirm: () => confirmed = true,
+            title: const BloomDialogTitle('Are you sure?'),
+            description: const BloomDialogDescription('This action cannot be undone.'),
+            cancel: const Text('Cancel'),
+            action: BloomButton(
+              size: BloomButtonSize.sm,
+              onPressed: () => confirmed = true,
+              child: const Text('Delete'),
+            ),
           ),
         ),
       );
@@ -230,10 +280,11 @@ void main() {
     testWidgets('BloomTabs switches tab content on click', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
-          const BloomTabs(
-            tabs: [
-              BloomTabItem(label: 'Account', content: Text('Account Panel')),
-              BloomTabItem(label: 'Password', content: Text('Password Panel')),
+          const BloomTabs<String>(
+            defaultValue: 'account',
+            items: [
+              BloomTabItem(value: 'account', label: Text('Account'), content: Text('Account Panel')),
+              BloomTabItem(value: 'password', label: Text('Password'), content: Text('Password Panel')),
             ],
           ),
         ),
@@ -254,22 +305,34 @@ void main() {
 
       expect(find.byType(BloomSkeleton), findsOneWidget);
     });
-  });
 
-  group('Bloom UI: Charts & Advanced', () {
-    testWidgets('BloomChart renders bar chart with legend and tooltip', (tester) async {
-      const data = BloomChartData(
-        labels: ['Jan', 'Feb', 'Mar'],
-        series: [
-          BloomChartSeries(name: 'Revenue', values: [100, 200, 300]),
-        ],
+    testWidgets('BloomProgress renders progress percentage', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomProgress(value: 0.65),
+        ),
       );
 
+      expect(find.byType(BloomProgress), findsOneWidget);
+    });
+  });
+
+  group('Bloom UI: Charts Suite', () {
+    testWidgets('BloomChart Area chart renders canvas and series labels', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
           const BloomChart(
-            data: data,
-            type: BloomChartType.bar,
+            type: BloomChartType.area,
+            data: BloomChartData(
+              labels: ['Jan', 'Feb', 'Mar'],
+              series: [
+                BloomChartSeries(
+                  name: 'Revenue',
+                  values: [100, 200, 150],
+                  color: BloomColors.petalPink,
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -280,19 +343,46 @@ void main() {
       expect(find.text('Mar'), findsOneWidget);
     });
 
-    testWidgets('BloomChart renders pie chart', (tester) async {
-      const data = BloomChartData(
-        labels: ['Desktop', 'Mobile', 'Tablet'],
-        series: [
-          BloomChartSeries(name: 'Values', values: [55, 35, 10]),
-        ],
-      );
-
+    testWidgets('BloomChart Bar chart renders bars and categories', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
           const BloomChart(
-            data: data,
+            type: BloomChartType.bar,
+            data: BloomChartData(
+              labels: ['Mon', 'Tue', 'Wed'],
+              series: [
+                BloomChartSeries(
+                  name: 'Active Users',
+                  values: [300, 450, 600],
+                  color: BloomColors.petalBlue,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Active Users'), findsOneWidget);
+      expect(find.text('Mon'), findsOneWidget);
+      expect(find.text('Tue'), findsOneWidget);
+      expect(find.text('Wed'), findsOneWidget);
+    });
+
+    testWidgets('BloomChart Pie chart renders slices and legends', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomChart(
             type: BloomChartType.pie,
+            data: BloomChartData(
+              labels: ['Desktop', 'Mobile', 'Tablet'],
+              series: [
+                BloomChartSeries(
+                  name: 'Values',
+                  values: [60, 30, 10],
+                  color: BloomColors.petalCyan,
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -323,7 +413,7 @@ void main() {
     testWidgets('BloomAvatar renders fallback letter when no image', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
-          const BloomAvatar(fallback: 'Sol'),
+          const BloomAvatar(name: 'Sol'),
         ),
       );
 
@@ -419,7 +509,7 @@ void main() {
           const Column(
             children: [
               BloomKbd(text: 'Ctrl+K'),
-              BloomMarker(text: 'Highlighted text'),
+              BloomMarker(content: Text('Highlighted text')),
             ],
           ),
         ),

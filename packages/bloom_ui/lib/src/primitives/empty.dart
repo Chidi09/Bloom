@@ -2,159 +2,104 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// Empty state container matching shadcn base-nova dashed border container.
 class BloomEmpty extends StatelessWidget {
-  final Widget? media;
+  final Widget? icon;
   final Widget? title;
   final Widget? description;
-  final List<Widget> children;
+  final Widget? action;
+  final Widget? child;
 
   const BloomEmpty({
     super.key,
-    this.media,
+    this.icon,
     this.title,
     this.description,
-    this.children = const [],
+    this.action,
+    this.child,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
-    final theme = context.bloomTheme;
 
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(theme.radius.lg),
-          border: Border.all(
-            color: colors.border,
-            width: 1.5,
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (media != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: media!,
-              ),
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: DefaultTextStyle(
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: theme.typography.sans,
-                  ),
-                  child: title!,
-                ),
-              ),
-            if (description != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: DefaultTextStyle(
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 14,
-                    fontFamily: theme.typography.sans,
-                  ),
-                  child: description!,
-                ),
-              ),
-            ...children,
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      decoration: BoxDecoration(
+        color: colors.surface0.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(context.bloomRadius.xl),
+        border: Border.all(color: colors.border, style: BorderStyle.solid),
       ),
-    );
-  }
-}
-
-class BloomEmptyHeader extends StatelessWidget {
-  final Widget child;
-
-  const BloomEmptyHeader({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: child,
-    );
-  }
-}
-
-class BloomEmptyMedia extends StatelessWidget {
-  final Widget child;
-
-  const BloomEmptyMedia({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: child,
+      child: Center(
+        child: child ??
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colors.surface0,
+                      borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                    ),
+                    alignment: Alignment.center,
+                    child: IconTheme(
+                      data: IconThemeData(color: colors.textSecondary, size: 20),
+                      child: icon!,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (title != null) ...[
+                  DefaultTextStyle(
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: context.bloomTypography.sans,
+                      letterSpacing: -0.1,
+                    ),
+                    textAlign: TextAlign.center,
+                    child: title!,
+                  ),
+                ],
+                if (description != null) ...[
+                  const SizedBox(height: 4),
+                  DefaultTextStyle(
+                    style: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      fontFamily: context.bloomTypography.sans,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                    child: description!,
+                  ),
+                ],
+                if (action != null) ...[
+                  const SizedBox(height: 16),
+                  action!,
+                ],
+              ],
+            ),
+      ),
     );
   }
 }
 
 class BloomEmptyTitle extends StatelessWidget {
   final String text;
-
   const BloomEmptyTitle(this.text, {super.key});
-
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: context.bloomColors.textPrimary,
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        fontFamily: context.bloomTypography.sans,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Text(text);
 }
 
 class BloomEmptyDescription extends StatelessWidget {
   final String text;
-
   const BloomEmptyDescription(this.text, {super.key});
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 24),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: context.bloomColors.textSecondary,
-          fontSize: 14,
-          fontFamily: context.bloomTypography.sans,
-        ),
-      ),
-    );
-  }
-}
-
-class BloomEmptyContent extends StatelessWidget {
-  final List<Widget> children;
-
-  const BloomEmptyContent({super.key, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
-  }
+  Widget build(BuildContext context) => Text(text);
 }

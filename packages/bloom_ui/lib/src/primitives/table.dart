@@ -2,29 +2,89 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
-class BloomTableCell extends StatelessWidget {
-  final Widget child;
-  final bool isHeader;
-  final EdgeInsetsGeometry? padding;
+/// Structured data table container matching shadcn base-nova.
+class BloomTable extends StatelessWidget {
+  final Widget? header;
+  final Widget? body;
+  final Widget? footer;
+  final Widget? caption;
+  final List<TableRow>? rows;
 
-  const BloomTableCell({
+  const BloomTable({
     super.key,
-    required this.child,
-    this.isHeader = false,
-    this.padding,
+    this.header,
+    this.body,
+    this.footer,
+    this.caption,
+    this.rows,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return Padding(
-      padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    if (rows != null) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
+          border: Border.all(color: colors.border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(context.bloomRadius.md),
+          child: Table(
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            border: TableBorder(horizontalInside: BorderSide(color: colors.border)),
+            children: rows!,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        border: Border.all(color: colors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (header != null) header!,
+            if (body != null) body!,
+            if (footer != null) footer!,
+            if (caption != null) caption!,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Table column header cell
+class BloomTableHead extends StatelessWidget {
+  final Widget child;
+  final TextAlign textAlign;
+
+  const BloomTableHead({
+    super.key,
+    required this.child,
+    this.textAlign = TextAlign.left,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40, // h-10
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      color: context.bloomColors.surface0,
+      alignment: Alignment.centerLeft,
       child: DefaultTextStyle(
         style: TextStyle(
-          color: isHeader ? colors.textSecondary : colors.textPrimary,
-          fontWeight: isHeader ? FontWeight.w600 : FontWeight.normal,
-          fontSize: isHeader ? 13 : 14,
+          color: context.bloomColors.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           fontFamily: context.bloomTypography.sans,
         ),
         child: child,
@@ -33,59 +93,29 @@ class BloomTableCell extends StatelessWidget {
   }
 }
 
-class BloomTableRow extends StatelessWidget {
-  final List<BloomTableCell> cells;
-  final bool isHeader;
-  final VoidCallback? onTap;
+/// Table body cell
+class BloomTableCell extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
-  const BloomTableRow({
+  const BloomTableCell({
     super.key,
-    required this.cells,
-    this.isHeader = false,
-    this.onTap,
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // p-2.5
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-
-    final row = Container(
-      decoration: BoxDecoration(
-        color: isHeader ? colors.surface2 : Colors.transparent,
-        border: Border(bottom: BorderSide(color: colors.border)),
+    return Padding(
+      padding: padding,
+      child: DefaultTextStyle(
+        style: TextStyle(
+          color: context.bloomColors.textPrimary,
+          fontSize: 13.5,
+          fontFamily: context.bloomTypography.sans,
+        ),
+        child: child,
       ),
-      child: Row(
-        children: cells.map((c) => Expanded(child: c)).toList(),
-      ),
-    );
-
-    if (onTap != null) {
-      return InkWell(onTap: onTap, child: row);
-    }
-    return row;
-  }
-}
-
-class BloomTable extends StatelessWidget {
-  final List<BloomTableRow> rows;
-
-  const BloomTable({
-    super.key,
-    required this.rows,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface1,
-        borderRadius: BorderRadius.circular(context.bloomRadius.md),
-        border: Border.all(color: colors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: rows),
     );
   }
 }

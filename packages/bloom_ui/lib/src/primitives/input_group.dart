@@ -1,88 +1,122 @@
 // lib/src/primitives/input_group.dart
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
+import 'button.dart';
 
-class BloomInputGroupAddon extends StatelessWidget {
+enum BloomInputGroupAddonAlign {
+  inlineStart,
+  inlineEnd,
+  blockStart,
+  blockEnd,
+}
+
+/// Composed input container matching shadcn/ui base-nova input-group.
+class BloomInputGroup extends StatelessWidget {
+  final Widget? leading;
+  final Widget? trailing;
   final Widget child;
 
-  const BloomInputGroupAddon({
+  const BloomInputGroup({
     super.key,
+    this.leading,
+    this.trailing,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
-    final theme = context.bloomTheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: const BoxDecoration(),
-      alignment: Alignment.center,
-      child: DefaultTextStyle(
-        style: TextStyle(
-          color: colors.textSecondary,
-          fontSize: 14,
-          fontFamily: theme.typography.sans,
-        ),
-        child: child,
+      height: 32, // h-8
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (leading != null) leading!,
+          Expanded(child: child),
+          if (trailing != null) trailing!,
+        ],
       ),
     );
   }
 }
 
-class BloomInputGroup extends StatelessWidget {
-  final Widget? leftAddon;
-  final Widget input;
-  final Widget? rightAddon;
+/// Addon container for InputGroup
+class BloomInputGroupAddon extends StatelessWidget {
+  final BloomInputGroupAddonAlign align;
+  final Widget child;
 
-  const BloomInputGroup({
+  const BloomInputGroupAddon({
     super.key,
-    this.leftAddon,
-    required this.input,
-    this.rightAddon,
+    this.align = BloomInputGroupAddonAlign.inlineStart,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.bloomColors;
-    final theme = context.bloomTheme;
-    final radius = theme.radius.md;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: align == BloomInputGroupAddonAlign.inlineStart ? 8 : 4,
+        right: align == BloomInputGroupAddonAlign.inlineEnd ? 8 : 4,
+      ),
+      child: child,
+    );
+  }
+}
 
-    return IntrinsicHeight(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: colors.border),
-            borderRadius: BorderRadius.circular(radius),
+/// Text addon in InputGroup
+class BloomInputGroupText extends StatelessWidget {
+  final String text;
+  final Widget? child;
+
+  const BloomInputGroupText({super.key, this.text = '', this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.center,
+      child: child ??
+          Text(
+            text,
+            style: TextStyle(
+              color: context.bloomColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFamily: context.bloomTypography.sans,
+            ),
           ),
-          child: Row(
-            children: [
-              if (leftAddon != null)
-                Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface2,
-                    border: Border(
-                      right: BorderSide(color: colors.border),
-                    ),
-                  ),
-                  child: leftAddon!,
-                ),
-              Expanded(child: input),
-              if (rightAddon != null)
-                Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface2,
-                    border: Border(
-                      left: BorderSide(color: colors.border),
-                    ),
-                  ),
-                  child: rightAddon!,
-                ),
-            ],
-          ),
-        ),
+    );
+  }
+}
+
+/// Button addon in InputGroup
+class BloomInputGroupButton extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onPressed;
+  final BloomButtonVariant variant;
+
+  const BloomInputGroupButton({
+    super.key,
+    required this.child,
+    this.onPressed,
+    this.variant = BloomButtonVariant.ghost,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: BloomButton(
+        variant: variant,
+        size: BloomButtonSize.xs,
+        onPressed: onPressed,
+        child: child,
       ),
     );
   }
