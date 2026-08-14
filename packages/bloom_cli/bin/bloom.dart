@@ -5,6 +5,7 @@ import '../lib/src/commands/add_command.dart';
 import '../lib/src/commands/analyze_command.dart';
 import '../lib/src/commands/build_command.dart';
 import '../lib/src/commands/create_command.dart';
+import '../lib/src/commands/deploy_command.dart';
 import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/generate_command.dart';
@@ -29,7 +30,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(BuildCommand())
     ..addCommand(PrebuildCommand())
     ..addCommand(AddCommand())
-    ..addCommand(RemoveCommand());
+    ..addCommand(RemoveCommand())
+    ..addCommand(DeployCommand());
 
   runner.argParser.addFlag(
     'version',
