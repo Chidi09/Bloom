@@ -70,19 +70,25 @@ class BloomApiRouter {
     final paramNames = <String>[];
     var regexPattern = pattern;
 
-    // Replace :param with regex capture group
-    final paramRegex = RegExp(r':([a-zA-Z0-9_]+)');
-    for (final match in paramRegex.allMatches(pattern)) {
-      paramNames.add(match.group(1)!);
-    }
-    regexPattern = regexPattern.replaceAll(paramRegex, r'([^/]+)');
+    RegExp regex;
+    if (pattern == '*' || pattern == '/*') {
+      regex = RegExp(r'^.*$');
+    } else {
+      // Replace :param with regex capture group
+      final paramRegex = RegExp(r':([a-zA-Z0-9_]+)');
+      for (final match in paramRegex.allMatches(pattern)) {
+        paramNames.add(match.group(1)!);
+      }
+      regexPattern = regexPattern.replaceAll(paramRegex, r'([^/]+)');
+      regexPattern = regexPattern.replaceAll('*', r'.*');
 
-    // Normalize trailing slashes
-    if (regexPattern != '/' && regexPattern.endsWith('/')) {
-      regexPattern = regexPattern.substring(0, regexPattern.length - 1);
-    }
+      // Normalize trailing slashes
+      if (regexPattern != '/' && regexPattern.endsWith('/')) {
+        regexPattern = regexPattern.substring(0, regexPattern.length - 1);
+      }
 
-    final regex = RegExp('^$regexPattern/?\$');
+      regex = RegExp('^$regexPattern/?\$');
+    }
 
     _routes.add(_RouteEntry(
       method: method.toUpperCase(),
