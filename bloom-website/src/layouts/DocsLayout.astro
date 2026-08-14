@@ -12,7 +12,9 @@ import {
   ArrowLeft, 
   ArrowRight,
   ExternalLink,
-  Code2
+  Code2,
+  Cpu,
+  Workflow
 } from 'lucide-preact';
 import { UI_REGISTRY, UI_CATEGORIES } from '../lib/ui-registry';
 
@@ -36,7 +38,7 @@ const currentPath = Astro.url.pathname;
 
 const docNavSections = [
   {
-    title: 'Getting Started',
+    title: 'Getting Started (UI)',
     items: [
       { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
       { title: 'Installation', href: '/docs/installation', slug: 'installation' },
@@ -44,6 +46,19 @@ const docNavSections = [
       { title: 'CLI Tooling', href: '/docs/cli', slug: 'cli' },
       { title: 'Typography', href: '/docs/typography', slug: 'typography' },
       { title: 'Changelog', href: '/docs/changelog', slug: 'changelog' },
+    ],
+  },
+  {
+    title: 'Framework & DX',
+    items: [
+      { title: 'Quickstart', href: '/docs/framework/quickstart', slug: 'framework-quickstart' },
+      { title: 'Filesystem Routing', href: '/docs/framework/routing', slug: 'framework-routing' },
+      { title: 'Signals & State', href: '/docs/framework/signals', slug: 'framework-signals' },
+      { title: 'Dependency Injection', href: '/docs/framework/di', slug: 'framework-di' },
+      { title: 'Data Layer & Queries', href: '/docs/framework/data', slug: 'framework-data' },
+      { title: 'Prebuild & Native Sync', href: '/docs/framework/prebuild', slug: 'framework-prebuild' },
+      { title: 'Cloud OTA Deployment', href: '/docs/framework/ota', slug: 'framework-ota' },
+      { title: 'Backend Adapters', href: '/docs/framework/adapters', slug: 'framework-adapters' },
     ],
   },
   {
@@ -58,7 +73,7 @@ const docNavSections = [
 ---
 
 <Layout
-  title={`${title} — Bloom UI`}
+  title={`${title} — Bloom Platform`}
   description={description}
   hue="bloom"
   petalHighlight="all"
@@ -69,7 +84,7 @@ const docNavSections = [
     <nav class="flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400 mb-8">
       <a href="/" class="hover:text-purple-400 transition">Hub</a>
       <ChevronRight className="w-3.5 h-3.5" />
-      <a href="/ui" class="hover:text-purple-400 transition">Bloom UI</a>
+      <a href="/docs/introduction" class="hover:text-purple-400 transition">Docs</a>
       <ChevronRight className="w-3.5 h-3.5" />
       <span class="text-slate-400">{category}</span>
       <ChevronRight className="w-3.5 h-3.5" />
@@ -82,7 +97,7 @@ const docNavSections = [
       <!-- Left Navigation Sidebar -->
       <aside class="hidden lg:block lg:col-span-3 space-y-8 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-4 scrollbar-thin">
         
-        <!-- Getting Started Links -->
+        <!-- Navigation Sections -->
         {docNavSections.map((section) => (
           <div class="space-y-2">
             <h3 class="text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider">
@@ -153,23 +168,11 @@ const docNavSections = [
           <li>
             <a href="#overview" class="hover:text-purple-400 transition block">Overview</a>
           </li>
-          <li>
-            <a href="#preview" class="hover:text-purple-400 transition block">Interactive Preview</a>
-          </li>
-          <li>
-            <a href="#installation" class="hover:text-purple-400 transition block">Installation</a>
-          </li>
-          <li>
-            <a href="#usage" class="hover:text-purple-400 transition block">Usage & Code</a>
-          </li>
           {toc.map((t) => (
             <li>
               <a href={`#${t.id}`} class="hover:text-purple-400 transition block">{t.title}</a>
             </li>
           ))}
-          <li>
-            <a href="#api" class="hover:text-purple-400 transition block">API Reference</a>
-          </li>
         </ul>
 
         <div class="pt-6 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-xs">

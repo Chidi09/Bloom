@@ -1,0 +1,187 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Workflow, Layers, ShieldCheck, ArrowRight, Code2 } from 'lucide-preact';
+
+const layoutCode = `// lib/routes/_layout.dart
+import 'package:flutter/material.dart';
+import 'package:bloom_framework/bloom.dart';
+
+class LayoutRoute extends StatelessWidget {
+  final Widget child;
+
+  const LayoutRoute({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _calculateIndex(context),
+        onDestinationSelected: (idx) {
+          if (idx == 0) BloomRouter.go('/');
+          if (idx == 1) BloomRouter.go('/explore');
+          if (idx == 2) BloomRouter.go('/profile');
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.search), label: 'Explore'),
+          NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+      ),
+    );
+  }
+
+  int _calculateIndex(BuildContext context) {
+    final path = GoRouterState.of(context).uri.path;
+    if (path.startsWith('/explore')) return 1;
+    if (path.startsWith('/profile')) return 2;
+    return 0;
+  }
+}`;
+
+const guardCode = `// lib/routes/profile.dart
+import 'package:flutter/material.dart';
+import 'package:bloom_framework/bloom.dart';
+
+class ProfileRoute extends StatelessWidget {
+  const ProfileRoute({super.key});
+
+  // Attach route guard
+  static List<BloomGuard> get guards => [
+    const BloomAuthGuard(loginPath: '/login'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: Text('Protected Profile Screen')));
+  }
+}`;
+
+const navCode = `// Navigate to path
+BloomRouter.go('/users/42');
+
+// Push modal route
+BloomRouter.push('/settings');
+
+// Replace current screen
+BloomRouter.replace('/dashboard');
+
+// Pop screen
+BloomRouter.pop();`;
+---
+
+<DocsLayout
+  title="Filesystem Routing"
+  description="Next.js-style declarative file-based routing compiled into strongly-typed GoRouter definitions."
+  currentSlug="framework-routing"
+  category="Framework & DX"
+  toc={[
+    { id: 'conventions', title: 'Conventions & Structure' },
+    { id: 'layouts', title: 'Shell Layouts (_layout.dart)' },
+    { id: 'guards', title: 'Route Guards & Auth' },
+    { id: 'navigation', title: 'Programmatic Navigation' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Filesystem Routing
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom brings file-based routing to Flutter. Simply create Dart files inside <code class="font-mono text-purple-400">lib/routes/</code>, and Bloom CLI automatically compiles them into a strongly-typed <code class="font-mono text-purple-400">GoRouter</code> table in <code class="font-mono text-purple-400">lib/app/routes.g.dart</code>.
+      </p>
+    </div>
+
+    <!-- Conventions -->
+    <section id="conventions" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Conventions & Structure</h2>
+      
+      <div class="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden text-xs font-mono">
+        <table class="w-full text-left">
+          <thead class="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-500">
+            <tr>
+              <th class="p-3">File in lib/routes/</th>
+              <th class="p-3">Generated URL</th>
+              <th class="p-3">Component Class Name</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+            <tr>
+              <td class="p-3 text-purple-400">index.dart</td>
+              <td class="p-3 text-pink-400">/</td>
+              <td class="p-3">IndexRoute</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-purple-400">settings.dart</td>
+              <td class="p-3 text-pink-400">/settings</td>
+              <td class="p-3">SettingsRoute</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-purple-400">users/[id].dart</td>
+              <td class="p-3 text-pink-400">/users/:id</td>
+              <td class="p-3">UsersIdRoute</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-purple-400">(auth)/login.dart</td>
+              <td class="p-3 text-pink-400">/login</td>
+              <td class="p-3">LoginRoute</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-purple-400">_layout.dart</td>
+              <td class="p-3 text-pink-400">Shell (/)</td>
+              <td class="p-3">LayoutRoute</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Shell Layouts -->
+    <section id="layouts" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Shell Layouts (_layout.dart)</h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        When a <code class="font-mono text-purple-400">_layout.dart</code> file exists in a directory, Bloom wraps all child routes in a persistent <code class="font-mono text-purple-400">ShellRoute</code> for bottom navigation or sidebars:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{layoutCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Guards -->
+    <section id="guards" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Route Guards & Auth</h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Guards intercept navigation before the route is built:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{guardCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <section id="navigation" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Programmatic Navigation</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{navCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/quickstart"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Quickstart</span>
+      </a>
+      <a
+        href="/docs/framework/signals"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Signals & State</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

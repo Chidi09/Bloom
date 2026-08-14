@@ -1,0 +1,80 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Box, CloudUpload, ArrowRight, Code2 } from 'lucide-preact';
+
+const deployCode = `# 1. Deploy instantaneous Dart patch over the air (no app store review!)
+bloom deploy patch --channel production
+
+# 2. Release a new baseline store binary
+bloom deploy release --platform android
+bloom deploy release --platform ios`;
+
+const clientCode = `// In your app boot or background sync:
+import 'package:bloom_framework/bloom.dart';
+
+void checkForUpdates() async {
+  final updater = inject<BloomUpdater>();
+  final updateAvailable = await updater.checkForUpdate();
+  
+  if (updateAvailable) {
+    await updater.downloadUpdate();
+    BloomSonner.success(context, 'Update downloaded! Restart to apply.');
+  }
+}`;
+---
+
+<DocsLayout
+  title="Cloud OTA Deployment"
+  description="Instantaneous Over-The-Air code push powered by Shorebird Cloud. Deploy Dart patches without app store review."
+  currentSlug="framework-ota"
+  category="Framework & DX"
+  toc={[
+    { id: 'deploy-cli', title: 'Deploying Patches with CLI' },
+    { id: 'client-updater', title: 'Client-Side Update Handling' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Cloud OTA Deployment
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Deploy instant bug fixes, UI improvements, and feature updates straight to user devices in seconds without waiting for Apple App Store or Google Play Store review cycles.
+      </p>
+    </div>
+
+    <!-- Deploy CLI -->
+    <section id="deploy-cli" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Deploying Patches with CLI</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-purple-300 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{deployCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Client Updater -->
+    <section id="client-updater" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Client-Side Update Handling</h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{clientCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/prebuild"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Prebuild</span>
+      </a>
+      <a
+        href="/docs/framework/adapters"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Backend Adapters</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

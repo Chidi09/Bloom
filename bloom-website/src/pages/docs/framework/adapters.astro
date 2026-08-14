@@ -1,0 +1,95 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { Database, Server, ArrowRight, Code2 } from 'lucide-preact';
+
+const supabaseCode = `// lib/app/boot.dart
+import 'package:bloom_framework/bloom.dart';
+import 'package:bloom_adapter_supabase/bloom_adapter_supabase.dart';
+
+class AppBootstrapper implements BloomBootstrapper {
+  @override
+  Future<void> onBoot(BloomContainer container) async {
+    // Initialize Supabase adapter
+    await container.useSupabase(
+      url: 'https://xyzcompany.supabase.co',
+      anonKey: 'public-anon-key',
+    );
+  }
+}`;
+
+const serverpodCode = `// lib/app/boot.dart
+import 'package:bloom_framework/bloom.dart';
+import 'package:bloom_adapter_serverpod/bloom_adapter_serverpod.dart';
+
+class AppBootstrapper implements BloomBootstrapper {
+  @override
+  Future<void> onBoot(BloomContainer container) async {
+    // Full-stack Dart Serverpod client
+    await container.useServerpod(
+      host: 'https://api.mybloomserver.com',
+    );
+  }
+}`;
+---
+
+<DocsLayout
+  title="Backend Adapters"
+  description="Pre-configured full-stack backend integrations for Supabase and Serverpod."
+  currentSlug="framework-adapters"
+  category="Framework & DX"
+  toc={[
+    { id: 'supabase', title: 'Supabase Adapter' },
+    { id: 'serverpod', title: 'Serverpod Adapter' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Backend Adapters
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom connects out of the box with popular backend ecosystems. Auth, real-time database listeners, and storage are automatically bound to Bloom's Signals and Dependency Injection container.
+      </p>
+    </div>
+
+    <!-- Supabase -->
+    <section id="supabase" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <Database className="w-5 h-5 text-emerald-400" />
+        <span>Supabase Adapter</span>
+      </h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{supabaseCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Serverpod -->
+    <section id="serverpod" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <Server className="w-5 h-5 text-purple-400" />
+        <span>Serverpod Adapter</span>
+      </h2>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{serverpodCode}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/framework/ota"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Cloud OTA</span>
+      </a>
+      <a
+        href="/ui"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Explore UI Components</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
