@@ -125,17 +125,25 @@ class _BloomCalendarState extends State<BloomCalendar> {
               .toList(),
         ),
         SizedBox(height: spacing.s2),
-        GridView.count(
-          crossAxisCount: 7,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          mainAxisSpacing: 2,
-          crossAxisSpacing: 2,
-          children: months.map((d) => _buildDayCell(context, d)).toList(),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _weeks(months).map((week) {
+            return Row(
+              children: week.map((d) => Expanded(child: _buildDayCell(context, d))).toList(),
+            );
+          }).toList(),
         ),
       ],
     );
+  }
+
+  List<List<DateTime>> _weeks(List<DateTime> days) {
+    final weeks = <List<DateTime>>[];
+    for (var i = 0; i < days.length; i += 7) {
+      final end = i + 7 < days.length ? i + 7 : days.length;
+      weeks.add(days.sublist(i, end));
+    }
+    return weeks;
   }
 
   Widget _buildHeader(BuildContext context) {

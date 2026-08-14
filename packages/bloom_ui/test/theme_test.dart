@@ -18,8 +18,8 @@ void main() {
       expect(BloomColorScheme.light.brightness, Brightness.light);
       expect(BloomColorScheme.dark.brightness, Brightness.dark);
       // Default is shadcn-neutral (near-black primary)
-      expect(BloomColorScheme.light.primary, const Color(0xFF09090B));
-      expect(BloomColorScheme.dark.primary, const Color(0xFFFAFAFA));
+      expect(BloomColorScheme.light.primary, const Color(0xFF171717));
+      expect(BloomColorScheme.dark.primary, const Color(0xFFE5E5E5));
     });
 
     testWidgets('BloomBuildContext extension resolves active theme from tree', (tester) async {
@@ -39,8 +39,8 @@ void main() {
         ),
       );
 
-      // Default light primary is shadcn-neutral near-black
-      expect(colors.primary, const Color(0xFF09090B));
+      // Default light primary is shadcn-neutral
+      expect(colors.primary, const Color(0xFF171717));
       expect(colors.brightness, Brightness.light);
     });
   });

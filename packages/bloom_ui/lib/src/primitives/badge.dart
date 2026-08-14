@@ -5,8 +5,10 @@ import '../utils/extensions.dart';
 enum BloomBadgeVariant {
   defaultVariant,
   secondary,
-  outline,
   destructive,
+  outline,
+  ghost,
+  link,
   success,
 }
 
@@ -59,6 +61,10 @@ class BloomBadge extends StatelessWidget {
         return _BadgeStyle(background: c.secondary, foreground: c.secondaryForeground, border: Colors.transparent);
       case BloomBadgeVariant.outline:
         return _BadgeStyle(background: Colors.transparent, foreground: c.textPrimary, border: c.border);
+      case BloomBadgeVariant.ghost:
+        return _BadgeStyle(background: Colors.transparent, foreground: c.textPrimary, border: Colors.transparent);
+      case BloomBadgeVariant.link:
+        return _BadgeStyle(background: Colors.transparent, foreground: c.primary, border: Colors.transparent);
       case BloomBadgeVariant.destructive:
         return _BadgeStyle(background: c.destructive, foreground: c.destructiveForeground, border: Colors.transparent);
       case BloomBadgeVariant.success:
