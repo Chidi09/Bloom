@@ -1,0 +1,96 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import { ArrowRight, Code2, RefreshCw } from 'lucide-preact';
+
+const riverpodDiff = `// BEFORE (Riverpod)
+class CounterNotifier extends StateNotifier<int> {
+  CounterNotifier() : super(0);
+  void increment() => state++;
+}
+final counterProvider = StateNotifierProvider<CounterNotifier, int>((ref) => CounterNotifier());
+
+// AFTER (Bloom Signals)
+class CounterController extends BloomController {
+  late final count = createSignal<int>(0);
+  void increment() => count.value++;
+}`;
+
+const routingDiff = `// BEFORE (Vanilla GoRouter - 200+ line config file)
+final router = GoRouter(
+  routes: [
+    GoRoute(path: '/', builder: (ctx, state) => const HomeScreen()),
+    GoRoute(path: '/users/:id', builder: (ctx, state) => UserScreen(id: state.pathParameters['id']!)),
+  ],
+);
+
+// AFTER (Bloom Filesystem Routes)
+// Just create lib/routes/index.dart and lib/routes/users/[id].dart!
+// Bloom generates the router table automatically.`;
+---
+
+<DocsLayout
+  title="Migration Guide"
+  description="How to migrate existing Flutter applications (Riverpod, BLoC, Vanilla GoRouter, Dio) to Bloom."
+  currentSlug="guides-migration"
+  category="Guides & Recipes"
+  toc={[
+    { id: 'state-migration', title: '1. State Management (Riverpod / BLoC ➔ Signals)' },
+    { id: 'routing-migration', title: '2. Routing (Manual GoRouter ➔ Filesystem)' },
+    { id: 'networking-migration', title: '3. Data Fetching (Dio / FutureBuilder ➔ BloomData)' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Migration Guide
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Step-by-step guidance for migrating existing Flutter projects to Bloom without doing a complete rewrite.
+      </p>
+    </div>
+
+    <!-- State Migration -->
+    <section id="state-migration" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        1. State Management (Riverpod / BLoC ➔ Signals)
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Replace verbose providers and streams with simple, fine-grained Signals:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{riverpodDiff}</code></pre>
+      </div>
+    </section>
+
+    <!-- Routing Migration -->
+    <section id="routing-migration" class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        2. Routing (Manual GoRouter ➔ Filesystem)
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Replace large manually-maintained routing maps with simple file conventions:
+      </p>
+      <div class="relative rounded-2xl bg-black/90 border border-slate-800 p-5 font-mono text-xs text-slate-200 overflow-x-auto">
+        <pre class="leading-relaxed"><code>{routingDiff}</code></pre>
+      </div>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+      <a
+        href="/docs/guides/best-practices"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+      >
+        <span>Previous: Best Practices</span>
+      </a>
+      <a
+        href="/docs/guides/testing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Testing & DevTools</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
