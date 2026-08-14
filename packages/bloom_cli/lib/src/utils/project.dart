@@ -32,6 +32,14 @@ class BloomProject {
     required this.pubspecFile,
   });
 
+  factory BloomProject.fromDirectory(Directory dir) {
+    return BloomProject(
+      rootDir: dir,
+      bloomYamlFile: File(p.join(dir.path, 'bloom.yaml')),
+      pubspecFile: File(p.join(dir.path, 'pubspec.yaml')),
+    );
+  }
+
   /// Find the Bloom project in [currentDir] or any ancestor directory.
   static BloomProject? find([Directory? currentDir]) {
     var dir = currentDir ?? Directory.current;

@@ -45,5 +45,8 @@ export 'src/native/camera.dart';
 export 'src/native/deep_links.dart';
 export 'src/native/background.dart';
 
+// Developer Experience & Bloom Go (Phase 5)
+export 'src/dev/bloom_go_client.dart';
+
 // Widgets
 export 'src/widgets/app.dart';
