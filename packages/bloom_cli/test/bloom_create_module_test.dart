@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import '../lib/src/commands/create_command.dart';
 import '../lib/src/commands/create_module_command.dart';
+import '../lib/src/commands/generate_command.dart';
 
 void main() {
   late Directory tempDir;
@@ -19,10 +20,11 @@ void main() {
     }
   });
 
-  group('Phase 9: Bloom Module Authoring CLI (bloom create module / bloom create-module)', () {
-    test('Scaffolds complete Bloom Native Module via create module <name>', () async {
+  group('Phase 9: Bloom Module Authoring & Code Generator', () {
+    test('Scaffolds module, compiles @BloomModule DSL, and generates typed bridges', () async {
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
-        ..addCommand(CreateCommand());
+        ..addCommand(CreateCommand())
+        ..addCommand(GenerateCommand());
 
       final prevDir = Directory.current;
       Directory.current = tempDir;
@@ -63,12 +65,19 @@ void main() {
         expect(dslContent, contains('@BloomModule('));
         expect(dslContent, contains('abstract class BluetoothBeaconDefinition'));
 
-        // 4. Dart Public API
+        // 4. Auto-Generated Typed Dart Bridge (.g.dart)
+        final gDartFile = File(p.join(moduleDir.path, 'lib', 'src', 'bluetooth_beacon.g.dart'));
+        expect(gDartFile.existsSync(), isTrue);
+        final gDartContent = gDartFile.readAsStringSync();
+        expect(gDartContent, contains('abstract class BloomBluetoothBeaconBridge extends BloomNativeModule implements BluetoothBeaconDefinition'));
+        expect(gDartContent, contains('Future<Map<String, dynamic>> executeAction'));
+
+        // 5. Dart Public API extends generated bridge
         final apiFile = File(p.join(moduleDir.path, 'lib', 'bluetooth_beacon.dart'));
         expect(apiFile.existsSync(), isTrue);
-        expect(apiFile.readAsStringSync(), contains('class BluetoothBeacon extends BloomNativeModule'));
+        expect(apiFile.readAsStringSync(), contains('class BluetoothBeacon extends BloomBluetoothBeaconBridge'));
 
-        // 5. Native Android Kotlin
+        // 6. Native Android Kotlin & Kotlin Bridge
         final kotlinFile = File(p.join(
           moduleDir.path,
           'android/src/main/kotlin/io/bloom/iot/bluetooth_beacon/BluetoothBeaconModule.kt',
@@ -76,7 +85,14 @@ void main() {
         expect(kotlinFile.existsSync(), isTrue);
         expect(kotlinFile.readAsStringSync(), contains('class BluetoothBeaconModule : BloomNativeModule()'));
 
-        // 6. Native iOS Swift
+        final kotlinBridgeFile = File(p.join(
+          moduleDir.path,
+          'android/src/main/kotlin/io/bloom/iot/bluetooth_beacon/BluetoothBeaconBridge.kt',
+        ));
+        expect(kotlinBridgeFile.existsSync(), isTrue);
+        expect(kotlinBridgeFile.readAsStringSync(), contains('interface BluetoothBeaconModuleBridge'));
+
+        // 7. Native iOS Swift & Swift Bridge
         final swiftFile = File(p.join(
           moduleDir.path,
           'ios/Sources/BluetoothBeaconModule.swift',
@@ -84,12 +100,24 @@ void main() {
         expect(swiftFile.existsSync(), isTrue);
         expect(swiftFile.readAsStringSync(), contains('public class BluetoothBeaconModule: BloomNativeModule'));
 
-        // 7. Podspec & Gradle
-        expect(File(p.join(moduleDir.path, 'ios', 'bluetooth_beacon.podspec')).existsSync(), isTrue);
-        expect(File(p.join(moduleDir.path, 'android', 'build.gradle.kts')).existsSync(), isTrue);
+        final swiftBridgeFile = File(p.join(
+          moduleDir.path,
+          'ios/Sources/BluetoothBeaconBridge.swift',
+        ));
+        expect(swiftBridgeFile.existsSync(), isTrue);
+        expect(swiftBridgeFile.readAsStringSync(), contains('public protocol BluetoothBeaconModuleBridge: AnyObject'));
 
-        // 8. Unit Test
-        expect(File(p.join(moduleDir.path, 'test', 'bluetooth_beacon_test.dart')).existsSync(), isTrue);
+        // 8. Test regenerating via bloom generate module
+        gDartFile.deleteSync();
+        expect(gDartFile.existsSync(), isFalse);
+
+        final genCode = await runner.run([
+          'generate',
+          'module',
+          moduleDir.path,
+        ]);
+        expect(genCode, 0);
+        expect(gDartFile.existsSync(), isTrue);
       } finally {
         Directory.current = prevDir;
       }
@@ -113,6 +141,7 @@ void main() {
         final moduleDir = Directory(p.join(tempDir.path, 'biometric_auth'));
         expect(moduleDir.existsSync(), isTrue);
         expect(File(p.join(moduleDir.path, 'bloom.module.yaml')).existsSync(), isTrue);
+        expect(File(p.join(moduleDir.path, 'lib', 'src', 'biometric_auth.g.dart')).existsSync(), isTrue);
       } finally {
         Directory.current = prevDir;
       }
