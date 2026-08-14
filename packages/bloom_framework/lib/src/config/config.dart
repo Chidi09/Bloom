@@ -64,6 +64,28 @@ class BloomConfig {
       map['plugins'].forEach((k, v) => pluginsMap[k.toString()] = v);
     }
 
+    // Filter out known keys so `custom` only contains unknown configuration properties
+    const knownKeys = {
+      'schema',
+      'name',
+      'version',
+      'description',
+      'platforms',
+      'features',
+      'environment',
+      'envFiles',
+      'plugins',
+      'deep_links',
+      'deepLinks',
+    };
+
+    final customMap = <String, dynamic>{};
+    map.forEach((k, v) {
+      if (!knownKeys.contains(k.toString())) {
+        customMap[k.toString()] = v;
+      }
+    });
+
     return BloomConfig(
       schema: map['schema'] is int ? map['schema'] as int : 1,
       name: map['name']?.toString() ?? 'bloom_app',
@@ -73,7 +95,7 @@ class BloomConfig {
       features: BloomFeatures.fromMap(featuresMap),
       envFiles: envList,
       plugins: pluginsMap,
-      custom: Map<String, dynamic>.from(map),
+      custom: customMap,
     );
   }
 }

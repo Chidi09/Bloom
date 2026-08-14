@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/logger.dart';
-import '../di/container.dart';
 import 'route.dart';
 
 /// Central Bloom router orchestrating `GoRouter`.

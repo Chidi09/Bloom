@@ -1,5 +1,6 @@
 // lib/src/data/auth.dart
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../core/logger.dart';
 import '../di/container.dart';
@@ -7,91 +8,124 @@ import '../router/route.dart';
 import '../state/signals.dart';
 import 'storage.dart';
 
-/// Central authentication and session manager for Bloom applications.
-class BloomAuth<U> {
-  final BloomStorageAdapter storage;
-  final String storageKeyToken;
-  final String storageKeyUser;
-  final U Function(Map<String, dynamic> json)? userDeserializer;
-  final Map<String, dynamic> Function(U user)? userSerializer;
+/// Base non-generic interface for Bloom authentication session management.
+abstract class BloomAuthBase {
+  ReadonlySignal<bool> get isAuthenticated;
+  ReadonlySignal<String?> get token;
+  Future<void> logout();
+}
+
+/// Reactive user session manager and persistence layer.
+class BloomAuth<U> implements BloomAuthBase {
+  final BloomStorageAdapter? storage;
+  final U Function(Map<String, dynamic> json)? fromJson;
+  final Map<String, dynamic> Function(U user)? toJson;
+  final String sessionKey;
 
   late final Signal<U?> _currentUser;
   late final Signal<String?> _token;
   late final Computed<bool> _isAuthenticated;
 
   BloomAuth({
-    BloomStorageAdapter? storage,
-    this.storageKeyToken = 'bloom_auth_token',
-    this.storageKeyUser = 'bloom_auth_user',
-    this.userDeserializer,
-    this.userSerializer,
-  }) : storage = storage ?? InMemoryStorageAdapter() {
-    _currentUser = signal<U?>(null, debugLabel: 'auth.user');
+    this.storage,
+    U Function(Map<String, dynamic> json)? fromJson,
+    U Function(Map<String, dynamic> json)? userDeserializer,
+    Map<String, dynamic> Function(U user)? toJson,
+    Map<String, dynamic> Function(U user)? userSerializer,
+    this.sessionKey = 'bloom_auth_session',
+  })  : fromJson = fromJson ?? userDeserializer,
+        toJson = toJson ?? userSerializer {
+    _currentUser = signal<U?>(null, debugLabel: 'auth.currentUser');
     _token = signal<String?>(null, debugLabel: 'auth.token');
-    _isAuthenticated = computed(() => _token.value != null && _currentUser.value != null, debugLabel: 'auth.isAuthenticated');
+    _isAuthenticated = computed<bool>(() => _currentUser.value != null && _token.value != null,
+        debugLabel: 'auth.isAuthenticated');
+
+    // Register as BloomAuthBase in DI container
+    globalContainer.provideValue<BloomAuthBase>(this);
   }
 
   ReadonlySignal<U?> get currentUser => _currentUser.readonly();
+  @override
   ReadonlySignal<String?> get token => _token.readonly();
+  @override
   ReadonlySignal<bool> get isAuthenticated => _isAuthenticated.readonly();
 
-  /// Log in a user with a token and user model, persisting session if storage is available.
-  Future<void> login(String authToken, U user) async {
-    _token.value = authToken;
+  /// Set the active user session and optionally persist it to secure storage.
+  Future<void> setSession({required U user, required String token}) async {
     _currentUser.value = user;
+    _token.value = token;
 
-    await storage.write(storageKeyToken, authToken);
-    if (userSerializer != null) {
-      final userJson = userSerializer!(user);
-      await BloomJsonStorage(storage).writeJson(storageKeyUser, userJson);
+    if (storage != null && toJson != null) {
+      final sessionData = {
+        'user': toJson!(user),
+        'token': token,
+      };
+      await storage!.write(sessionKey, jsonEncode(sessionData));
     }
     logger.info('BloomAuth: User session established.');
   }
 
-  /// Clear the current session and remove stored credentials.
-  Future<void> logout() async {
-    _token.value = null;
-    _currentUser.value = null;
-    await storage.delete(storageKeyToken);
-    await storage.delete(storageKeyUser);
-    logger.info('BloomAuth: User logged out.');
+  /// Login user setting active session (supports positional `login(token, user)`).
+  Future<void> login(String token, U user) =>
+      setSession(user: user, token: token);
+
+  /// Restore user session from persistent storage (e.g. on application boot).
+  Future<bool> restoreSession() async {
+    if (storage == null || fromJson == null) return false;
+
+    try {
+      final raw = await storage!.read(sessionKey);
+      if (raw == null || raw.isEmpty) return false;
+
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final tokenStr = decoded['token'] as String?;
+      final userData = decoded['user'] as Map<String, dynamic>?;
+
+      if (tokenStr != null && userData != null) {
+        _token.value = tokenStr;
+        _currentUser.value = fromJson!(userData);
+        logger.info('BloomAuth: Restored session from storage (hasUser: ${_currentUser.value != null})');
+        return true;
+      }
+    } catch (e) {
+      logger.error('BloomAuth: Failed to restore session from storage: $e');
+    }
+    return false;
   }
 
-  /// Restore user session from persistent storage during app boot.
-  Future<bool> restoreSession() async {
-    final savedToken = await storage.read(storageKeyToken);
-    if (savedToken == null || savedToken.isEmpty) return false;
+  /// Clear the active user session and purge persistent session storage.
+  @override
+  Future<void> logout() async {
+    _currentUser.value = null;
+    _token.value = null;
 
-    U? restoredUser;
-    if (userDeserializer != null) {
-      final userDoc = await BloomJsonStorage(storage).readJson(storageKeyUser);
-      if (userDoc != null) {
-        try {
-          restoredUser = userDeserializer!(userDoc);
-        } catch (e) {
-          logger.warn('Failed to deserialize saved user: $e');
-        }
-      }
+    if (storage != null) {
+      await storage!.delete(sessionKey);
     }
-
-    _token.value = savedToken;
-    _currentUser.value = restoredUser;
-    logger.info('BloomAuth: Restored session from storage (hasUser: ${restoredUser != null})');
-    return true;
+    logger.info('BloomAuth: User logged out.');
   }
 }
 
-/// Standard route guard enforcing authentication on protected routes.
-class BloomAuthGuard extends BloomGuard {
+/// Standard authentication route guard protecting authenticated screens.
+class BloomAuthGuard implements BloomGuard {
   final String loginPath;
-  const BloomAuthGuard({this.loginPath = '/login'});
+  final BloomAuthBase? auth;
+
+  const BloomAuthGuard({
+    this.loginPath = '/login',
+    this.auth,
+  });
 
   @override
   FutureOr<GuardResult> canActivate(BuildContext context, BloomRouteMatch match) {
-    final auth = globalContainer.injectOrNull<BloomAuth>();
-    if (auth != null && auth.isAuthenticated.value) {
-      return GuardResult.allow();
+    final activeAuth = auth ?? injectOrNull<BloomAuthBase>();
+
+    if (activeAuth == null || !activeAuth.isAuthenticated.value) {
+      final currentUri = Uri.encodeComponent(match.location);
+      final redirect = '$loginPath?from=$currentUri';
+      return GuardResult.redirect(redirect);
     }
-    return GuardResult.redirect('$loginPath?from=${Uri.encodeComponent(match.location)}');
+
+    return GuardResult.allow();
   }
 }

@@ -38,8 +38,11 @@ class _Binding<T> {
 
 /// Lightweight, high-performance Dependency Injection container for Bloom.
 class BloomContainer {
+  final BloomContainer? parent;
   final Map<Type, _Binding<dynamic>> _bindings = HashMap<Type, _Binding<dynamic>>();
   final Map<Type, dynamic> _overrides = HashMap<Type, dynamic>();
+
+  BloomContainer({this.parent});
 
   /// Register a transient factory. A new instance is created on each `inject<T>()`.
   void provide<T>(FactoryFunc<T> factory) {
@@ -61,9 +64,9 @@ class BloomContainer {
     _overrides[T] = instance;
   }
 
-  /// Remove a test override.
-  void removeOverride<T>() {
-    _overrides.remove(T);
+  /// Remove a test override by generic type or explicit [type].
+  void removeOverride<T>([Type? type]) {
+    _overrides.remove(type ?? T);
   }
 
   /// Resolve dependency of type [T]. Throws [StateError] if unregistered.
@@ -73,14 +76,18 @@ class BloomContainer {
     }
 
     final binding = _bindings[T];
-    if (binding == null) {
-      throw StateError(
-        'BloomContainer: No provider registered for type "$T". '
-        'Ensure you called `provide<$T>()` or `provideSingleton<$T>()` before resolving.',
-      );
+    if (binding != null) {
+      return binding.resolve() as T;
     }
 
-    return binding.resolve() as T;
+    if (parent != null) {
+      return parent!.inject<T>();
+    }
+
+    throw StateError(
+      'BloomContainer: No provider registered for type "$T". '
+      'Ensure you called `provide<$T>()` or `provideSingleton<$T>()` before resolving.',
+    );
   }
 
   /// Resolve dependency of type [T], or return `null` if not registered.
@@ -89,14 +96,22 @@ class BloomContainer {
       return _overrides[T] as T?;
     }
     final binding = _bindings[T];
-    if (binding == null) return null;
-    return binding.resolve() as T;
+    if (binding != null) {
+      return binding.resolve() as T;
+    }
+    if (parent != null) {
+      return parent!.injectOrNull<T>();
+    }
+    return null;
   }
 
   /// Check if a dependency of type [T] is registered.
-  bool has<T>() => _overrides.containsKey(T) || _bindings.containsKey(T);
+  bool has<T>() =>
+      _overrides.containsKey(T) ||
+      _bindings.containsKey(T) ||
+      (parent?.has<T>() ?? false);
 
-  /// Clear all registrations and overrides.
+  /// Clear all local registrations and overrides.
   void reset() {
     _bindings.clear();
     _overrides.clear();
