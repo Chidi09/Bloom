@@ -1,0 +1,29 @@
+# Bloom Application Manifest
+# Schema versioning ensures backwards compatibility
+schema: 1
+
+name: bloom_counter
+version: 0.1.0
+description: "A modern application built with Bloom"
+
+platforms:
+  android:
+    min_sdk: 24
+    target_sdk: 34
+  ios:
+    minimum_version: "15.0"
+  web:
+    title: "bloom_counter"
+
+features:
+  routing: true
+  state: true
+  data: false
+  native: false
+
+environment:
+  files:
+    - .env
+    - .env.local
+
+plugins: []
