@@ -1,0 +1,32 @@
+schema: 1
+name: bloom_go
+version: 0.6.0
+description: Official Bloom Go mobile development client and universal shell.
+mode: managed
+
+platforms:
+  android:
+    min_sdk: 24
+    target_sdk: 34
+    package: dev.bloom.go
+  ios:
+    minimum_version: "15.0"
+    bundle_identifier: dev.bloom.go
+  web:
+    title: Bloom Go Hub
+
+features:
+  routing: true
+  state: true
+  data: true
+  native: true
+
+plugins:
+  - camera
+  - notifications
+  - secure_storage
+
+deep_links:
+  enabled: true
+  schemes:
+    - bloom
