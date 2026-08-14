@@ -116,6 +116,28 @@ class BloomContainer {
       _bindings.containsKey(T) ||
       (parent?.has<T>() ?? false);
 
+  /// Dump container registrations for DevTools visual inspection.
+  Map<String, dynamic> dumpContainer() {
+    final bindingsList = <Map<String, dynamic>>[];
+    _bindings.forEach((type, binding) {
+      bindingsList.add({
+        'type': type.toString(),
+        'kind': binding.type.name,
+        'isInstantiated': binding.instance != null,
+      });
+    });
+
+    final overridesList = _overrides.keys.map((k) => k.toString()).toList();
+
+    return {
+      'bindingsCount': _bindings.length,
+      'bindings': bindingsList,
+      'overridesCount': _overrides.length,
+      'overrides': overridesList,
+      'hasParent': parent != null,
+    };
+  }
+
   /// Clear all local registrations and overrides.
   void reset() {
     _bindings.clear();

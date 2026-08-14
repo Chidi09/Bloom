@@ -98,6 +98,15 @@ class BloomRouter {
     return GoRouterState.of(context).uri.toString();
   }
 
+  /// Dump router state for DevTools inspection.
+  static Map<String, dynamic> dumpRouter() {
+    return {
+      'isInitialized': isInitialized,
+      'hasActiveGoRouter': _activeGoRouter != null,
+      'pendingDeepLink': BloomDeepLinks.pendingInitialUri?.toString(),
+    };
+  }
+
   /// Helper to create a [GoRoute] with Bloom route match & guard resolution.
   static GoRoute route({
     required String path,

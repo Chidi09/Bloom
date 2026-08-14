@@ -47,4 +47,19 @@ void main() {
     expect(find.text('App Info'), findsOneWidget);
     expect(find.text('Purge Query Cache'), findsOneWidget);
   });
+
+  testWidgets('ScanRoute mounts and provides manual URI input', (tester) async {
+    await tester.pumpWidget(
+      BloomApp(
+        title: 'Bloom Go Scan Test',
+        routes: $bloomRoutes,
+        initialLocation: '/scan',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scan Terminal QR Code'), findsOneWidget);
+    expect(find.text('Or enter pairing URI manually:'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
 }

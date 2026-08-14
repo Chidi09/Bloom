@@ -22,10 +22,20 @@ class _IndexRouteState extends State<IndexRoute> {
     _discovery.startListening();
     _sub = _discovery.discoveredServers.listen((server) {
       if (!mounted) return;
-      setState(() {
-        _discoveredServers.removeWhere((s) => s.uri == server.uri);
-        _discoveredServers.add(server);
-      });
+      final existingIndex = _discoveredServers.indexWhere((s) => s.uri == server.uri);
+      if (existingIndex == -1) {
+        setState(() {
+          _discoveredServers.add(server);
+        });
+      } else {
+        // Only update if project or port changed, preventing rebuild churn
+        final existing = _discoveredServers[existingIndex];
+        if (existing.projectName != server.projectName || existing.port != server.port) {
+          setState(() {
+            _discoveredServers[existingIndex] = server;
+          });
+        }
+      }
     });
   }
 
@@ -46,9 +56,36 @@ class _IndexRouteState extends State<IndexRoute> {
     final input = _ipController.text.trim();
     if (input.isEmpty) return;
 
-    final parts = input.split(':');
-    final host = parts[0];
-    final port = parts.length > 1 ? parts[1] : '8080';
+    String host;
+    String port = '8080';
+
+    // Handle IPv6 [::1]:8080 or IPv4/hostname 192.168.1.50:8080
+    if (input.startsWith('[')) {
+      final closingBracket = input.indexOf(']');
+      if (closingBracket != -1) {
+        host = input.substring(1, closingBracket);
+        final rest = input.substring(closingBracket + 1);
+        if (rest.startsWith(':')) {
+          port = rest.substring(1);
+        }
+      } else {
+        host = input;
+      }
+    } else {
+      final parts = input.split(':');
+      host = parts[0].trim();
+      if (parts.length > 1) {
+        port = parts[1].trim();
+      }
+    }
+
+    if (host.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid IP address or hostname.')),
+      );
+      return;
+    }
+
     final devUri = 'bloom://dev-server?host=$host&port=$port&id=manual_project';
     _connectTo(devUri);
   }

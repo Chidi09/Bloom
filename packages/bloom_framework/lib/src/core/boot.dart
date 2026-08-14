@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../config/config.dart';
+import '../data/cache.dart';
+import '../devtools/devtools_service.dart';
 import '../di/container.dart';
 import '../di/scope.dart';
 import '../native/deep_links.dart';
@@ -111,7 +113,11 @@ class Bloom {
       );
     }
 
-    // 8. Execute user bootstrapper if provided
+    // 8. Auto-register VM DevTools Service extensions & start cache GC
+    BloomDevToolsService.register();
+    BloomData.startGarbageCollector();
+
+    // 9. Execute user bootstrapper if provided
     if (bootstrapper != null) {
       await bootstrapper.onBoot(container);
     }
@@ -133,5 +139,6 @@ class Bloom {
     BloomEnv.clear();
     container.reset();
     BloomDeepLinks.dispose();
+    BloomData.stopGarbageCollector();
   }
 }

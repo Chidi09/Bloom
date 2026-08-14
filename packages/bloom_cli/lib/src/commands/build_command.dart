@@ -87,6 +87,7 @@ class BuildCommand extends Command<int> {
 
     if (flavor != null) {
       buildArgs.addAll(['--flavor', flavor]);
+      buildArgs.add('--dart-define=BLOOM_FLAVOR=$flavor');
     }
 
     if (envToInject != null) {
