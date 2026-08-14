@@ -251,5 +251,29 @@ void main() {
       expect(decoded['exceptionType'], 'NetworkException');
       expect(decoded['message'], 'Gateway Timeout');
     });
+
+    test('captureMessage sets exceptionType to "message" and attaches metadata', () async {
+      final memoryTransport = BloomMemoryTelemetryTransport();
+      BloomObservability.initialize(BloomObservabilityConfig(
+        enabled: true,
+        transport: memoryTransport,
+        runtimeFingerprint: 'custom_fp_hash_123',
+        appInfo: {
+          'name': 'my_app',
+          'channel': 'staging',
+          'activePatchId': 'patch_42',
+        },
+      ));
+
+      final event = await Bloom.captureMessage('User performed manual sync', level: BloomErrorLevel.info);
+
+      expect(event, isNotNull);
+      expect(event!.exceptionType, 'message');
+      expect(event.message, 'User performed manual sync');
+      expect(event.level, BloomErrorLevel.info);
+      expect(event.runtime['runtimeFingerprint'], 'custom_fp_hash_123');
+      expect(event.runtime['channel'], 'staging');
+      expect(event.runtime['activePatchId'], 'patch_42');
+    });
   });
 }
