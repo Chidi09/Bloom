@@ -204,7 +204,7 @@ class _UpdatePublishCommand extends Command<int> {
     final storage = UpdateManifestStorage(project);
     final manifestData = {
       'id': updateId,
-      'version': '1.0.1',
+      'version': project.loadBloomConfig()['version']?.toString() ?? '1.0.0',
       'channel': channel,
       'branch': branch,
       'rollout_percentage': rollout,
@@ -317,7 +317,7 @@ class _UpdateRollbackCommand extends Command<int> {
     print(Ansi.boldText('\n🛡️  Instant Rollback Triggered:'));
     print('  Channel: ${Ansi.cyan}$channel${Ansi.reset}');
     print('  Deactivated: $rolledBackCount active patch(es)');
-    print('\n${Ansi.success('✔ Active update deactivated on CDN. Clients rolled back to base binary release.')}\n');
+    print('\n${Ansi.success('✔ Active update deactivated in manifest storage. Clients rolled back to base binary release.')}\n');
     return 0;
   }
 }

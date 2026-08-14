@@ -22,7 +22,7 @@ class BloomRuntimeFingerprint {
     this.permissions = const [],
   });
 
-  /// Derives runtime fingerprint dynamically from current environment.
+  /// Derives runtime fingerprint dynamically from current environment or BloomConfig.
   factory BloomRuntimeFingerprint.current({
     String bloomVersion = '1.0.0',
     String? flutterRevision,
@@ -36,6 +36,34 @@ class BloomRuntimeFingerprint {
       dartSdkVersion: dartVer,
       nativeModuleFingerprints: moduleFingerprints,
       permissions: permissions,
+    );
+  }
+
+  /// Creates a runtime fingerprint from a [BloomConfig] object and native module fingerprints.
+  factory BloomRuntimeFingerprint.fromConfig(
+    dynamic config, {
+    Map<String, String> moduleFingerprints = const {},
+    String? flutterRevision,
+  }) {
+    final dartVer = Platform.version.split(' ').first;
+    var version = '1.0.0';
+    final perms = <String>[];
+
+    if (config != null) {
+      try {
+        version = config.version?.toString() ?? '1.0.0';
+        if (config.plugins is Map) {
+          perms.addAll((config.plugins as Map).keys.map((k) => k.toString()));
+        }
+      } catch (_) {}
+    }
+
+    return BloomRuntimeFingerprint(
+      bloomVersion: version,
+      flutterEngineRevision: flutterRevision ?? '3.27.0',
+      dartSdkVersion: dartVer,
+      nativeModuleFingerprints: moduleFingerprints,
+      permissions: perms,
     );
   }
 
