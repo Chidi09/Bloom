@@ -151,6 +151,6 @@ class Bloom {
     BloomDeepLinks.dispose();
     BloomData.stopGarbageCollector();
     BloomOTA.reset();
-    BloomModuleRegistry().reset();
+    BloomModuleRegistry().resetSync();
   }
 }

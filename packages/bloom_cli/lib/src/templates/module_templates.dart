@@ -124,36 +124,12 @@ abstract class ${className}Definition {
     return '''// lib/$name.dart
 library $name;
 
-import 'package:bloom_framework/bloom.dart';
 export 'src/${name}.module.dart';
+export 'src/${name}.g.dart';
 
-/// Public interface for the $className Native Module.
-class $className extends BloomNativeModule {
-  $className()
-      : super(
-          name: '$className',
-          version: '0.1.0',
-        );
-
-  /// Executes an asynchronous native operation on the background worker queue.
-  Future<Map<String, dynamic>> executeAction({
-    required String action,
-    Map<String, dynamic>? parameters,
-  }) async {
-    final result = await invokeAsync<Map<dynamic, dynamic>>(
-      'executeAction',
-      {
-        'action': action,
-        if (parameters != null) 'parameters': parameters,
-      },
-      NativeThread.background,
-    );
-    return result != null ? Map<String, dynamic>.from(result) : {};
-  }
-
-  /// Subscribes to real-time status events emitted by the native hardware.
-  Stream<Map<String, dynamic>> get onStatusEvent =>
-      subscribeStream<Map<String, dynamic>>('onStatusEvent');
+/// Public interface for the $className Native Module implementing [${className}Definition].
+class $className extends Bloom${className}Bridge {
+  $className();
 }
 ''';
   }

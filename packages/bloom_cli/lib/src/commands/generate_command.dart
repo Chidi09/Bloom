@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../generator/module_generator.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -10,7 +11,7 @@ class GenerateCommand extends Command<int> {
   @override
   final String name = 'generate';
   @override
-  final String description = 'Generates deterministic routes, pages, controllers, models, services, and environments.';
+  final String description = 'Generates deterministic routes, pages, controllers, models, services, environments, and native module bridges.';
 
   GenerateCommand() {
     addSubcommand(_GeneratePageCommand());
@@ -20,6 +21,7 @@ class GenerateCommand extends Command<int> {
     addSubcommand(_GenerateServiceCommand());
     addSubcommand(_GenerateRouterCommand());
     addSubcommand(_GenerateEnvCommand());
+    addSubcommand(_GenerateModuleCommand());
   }
 }
 
@@ -271,5 +273,35 @@ class _GenerateRouterCommand extends Command<int> {
 
     print(Ansi.success('Successfully scanned ${routes.length} route(s) and regenerated ${routerFile.path}'));
     return 0;
+  }
+}
+
+class _GenerateModuleCommand extends Command<int> {
+  @override
+  final String name = 'module';
+  @override
+  final String description = 'Compiles @BloomModule DSL definitions into typed Dart, Swift, and Kotlin bridge interfaces.';
+
+  @override
+  Future<int> run() async {
+    final rest = argResults?.rest ?? [];
+    final targetPath = rest.isNotEmpty ? rest.first : Directory.current.path;
+    final dir = Directory(targetPath);
+
+    if (!dir.existsSync()) {
+      print(Ansi.error('Directory not found: $targetPath'));
+      return 1;
+    }
+
+    print(Ansi.boldText('\n⚙  Running Bloom Module Code Generator on "${dir.path}"...\n'));
+    final success = BloomModuleCodeGenerator.generateForModule(dir);
+
+    if (success) {
+      print(Ansi.success('Successfully compiled @BloomModule DSL into typed Dart, Swift, and Kotlin bridge bindings!'));
+      return 0;
+    } else {
+      print(Ansi.warn('No .module.dart DSL files found in ${dir.path}/lib/src'));
+      return 1;
+    }
   }
 }

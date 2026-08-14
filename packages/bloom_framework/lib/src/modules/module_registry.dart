@@ -69,12 +69,22 @@ class BloomModuleRegistry {
     }
   }
 
+  /// Synchronously resets all registered modules and triggers disposal.
+  void resetSync() {
+    final modulesToDispose = List<BloomNativeModule>.from(_modules.values);
+    _modules.clear();
+    for (final module in modulesToDispose) {
+      unawaited(module.onDispose());
+    }
+  }
+
   /// Completely clears and resets all registered modules (used between test runs).
   Future<void> reset() async {
-    for (final module in _modules.values) {
+    final modulesToDispose = List<BloomNativeModule>.from(_modules.values);
+    _modules.clear();
+    for (final module in modulesToDispose) {
       await module.onDispose();
     }
-    _modules.clear();
   }
 
   /// Dumps metadata of all registered modules for DevTools and diagnostics.
