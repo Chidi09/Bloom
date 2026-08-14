@@ -213,7 +213,59 @@ void main() {
     });
   });
 
-  group('Bloom UI: Data Display & Composites', () {
+  group('Bloom UI: Chart', () {
+    testWidgets('BloomChart renders bar chart with legend and tooltip', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomChart(
+            data: BloomChartData(
+              labels: ['Jan', 'Feb', 'Mar'],
+              series: [
+                BloomChartSeries(name: 'Desktop', values: [100, 80, 95]),
+                BloomChartSeries(name: 'Mobile', values: [60, 90, 70]),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Desktop'), findsOneWidget);
+      expect(find.text('Mobile'), findsOneWidget);
+      expect(find.text('Jan'), findsOneWidget);
+    });
+
+    testWidgets('BloomChart renders pie chart', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const BloomChart(
+            data: BloomChartData(
+              labels: ['A', 'B', 'C'],
+              series: [BloomChartSeries(name: 'Values', values: [30, 50, 20])],
+            ),
+            type: BloomChartType.pie,
+          ),
+        ),
+      );
+
+      expect(find.text('Values'), findsOneWidget);
+    });
+  });
+
+  group('Bloom UI: Calendar', () {
+    testWidgets('BloomCalendar single mode renders month grid', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          BloomCalendar.single(
+            onDaySelected: (_) {},
+          ),
+        ),
+      );
+
+      // Should show month/year header and day grid
+      expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    });
+  });
     testWidgets('BloomAvatar renders fallback letter when no image', (tester) async {
       await tester.pumpWidget(
         wrapWithTheme(
@@ -286,5 +338,4 @@ void main() {
       await tester.tap(find.text('Open Settings'));
       expect(triggered, isTrue);
     });
-  });
 }
