@@ -169,6 +169,8 @@ pub async fn create_deployment(
     user_id: i64,
     _user_role: OrganizationRole,
     req: DeploymentCreateRequest,
+    // See `builds::services::create_build`: set only by the workflow engine, never by a client.
+    workflow_run_step_id: Option<i64>,
 ) -> Result<DeploymentDetail, DeploymentError> {
     let platform = req.platform.trim().to_ascii_lowercase();
     let target = req.target.trim().to_ascii_lowercase();
@@ -251,6 +253,7 @@ pub async fn create_deployment(
     let deployment = Deployment {
         id: 0,
         public_id: deployment_public_id.clone(),
+        workflow_run_step_id,
         release_id: release_summary.as_ref().map(|r| r.id),
         artifact_id: artifact_summary.as_ref().map(|a| a.id),
         environment_id: ForeignKey::new(env.id),

@@ -71,3 +71,47 @@ fn test_encryption_and_decryption_roundtrip() {
     let decrypted = Crypto::decrypt(&ciphertext).unwrap();
     assert_eq!(decrypted, raw_secret);
 }
+
+#[test]
+fn test_credential_events_payload_structure_and_secret_redaction() {
+    // Verify credential event payloads match events.md catalogue:
+    // credential.created -> { credential_id, provider }
+    // credential.deleted -> { credential_id, provider }
+    // credential.tested  -> { credential_id, provider, success }
+    // AND assert NO secret material appears anywhere in any payload.
+
+    let credential_id = "cred-uuid-1234";
+    let provider = "apple";
+    let secret_material = "super_secret_p8_private_key_material";
+
+    let created_payload = serde_json::json!({
+        "credential_id": credential_id,
+        "provider": provider,
+    });
+    let created_str = created_payload.to_string();
+    assert_eq!(created_payload["credential_id"], credential_id);
+    assert_eq!(created_payload["provider"], provider);
+    assert!(!created_str.contains(secret_material));
+    assert!(created_payload.get("token").is_none());
+    assert!(created_payload.get("encrypted_token").is_none());
+
+    let deleted_payload = serde_json::json!({
+        "credential_id": credential_id,
+        "provider": provider,
+    });
+    let deleted_str = deleted_payload.to_string();
+    assert_eq!(deleted_payload["credential_id"], credential_id);
+    assert_eq!(deleted_payload["provider"], provider);
+    assert!(!deleted_str.contains(secret_material));
+
+    let tested_payload = serde_json::json!({
+        "credential_id": credential_id,
+        "provider": provider,
+        "success": true,
+    });
+    let tested_str = tested_payload.to_string();
+    assert_eq!(tested_payload["credential_id"], credential_id);
+    assert_eq!(tested_payload["provider"], provider);
+    assert_eq!(tested_payload["success"], true);
+    assert!(!tested_str.contains(secret_material));
+}

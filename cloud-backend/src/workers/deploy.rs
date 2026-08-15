@@ -22,7 +22,11 @@
 //!    - **Shorebird** (`shorebird`):
 //!      Drives the `shorebird` CLI to publish OTA Dart patches, surfacing credential health
 //!      and deprecation notices (such as the September 2026 `login:ci` expiry).
-//! 4. Completes the deployment and emits state events (`deployment.succeeded` / `deployment.failed`).
+//! 4. Closes the workflow resumption loop: on reaching ANY terminal state (`success`,
+//!    `failed`, `cancelled`), if a parent workflow run step is waiting on this deployment
+//!    (`workflow_run_step_id`), the step is updated and the parent run is re-enqueued
+//!    as [`Job::Workflow`].
+//! 5. Completes the deployment and emits state events (`deployment.succeeded` / `deployment.failed`).
 //!
 //! # Total Ack/Fail Contract
 //!
@@ -33,9 +37,15 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
+use chrono::Utc;
 use djangors_db::Database;
+use djangors_orm::{q, Model};
 
+use crate::apps::deployments::models::Deployment;
+use crate::apps::organizations::models::Organization;
 use crate::apps::webhosting::services::build_web_storage_prefix;
+use crate::apps::workflows::models::{Workflow, WorkflowRun, WorkflowRunStep};
+use crate::apps::workflows::repositories as workflow_repos;
 use crate::infra::caddy::{caddy_site_id, CaddyClient, CaddyError, CaddyMatchRule, CaddySiteBlock};
 use crate::infra::cdn::{CdnClient, CdnError, PurgeOutcome};
 use crate::infra::googleplay::{GooglePlayClient, GooglePlayError, ReleaseStatus, TrackRelease};
@@ -348,7 +358,8 @@ pub struct DeployJobContext {
 ///    - TestFlight / App Store: App Store Connect build processing + Beta group assignment.
 ///    - Google Play: Atomic Edit transaction lifecycle with guaranteed rollback on failure.
 ///    - Shorebird: CLI patch execution and release linking.
-/// 4. Acknowledges the job on success; fails the job with reason on fatal error.
+/// 4. Re-enqueues parent workflow run if waiting on this deployment.
+/// 5. Acknowledges the job on success; fails the job with reason on fatal error.
 pub async fn run_deploy_job(
     deps: DeployWorkerDeps<'_>,
     consumer_name: &str,
@@ -425,6 +436,9 @@ pub async fn run_deploy_job(
             )
             .await;
 
+            // Re-enqueue parent workflow run on success if parked
+            let _ = resume_parent_workflow_run(db, queue, &deployment_id, "live", None).await;
+
             // Acknowledge the job in Redis Streams
             queue
                 .ack(&stream_id)
@@ -450,6 +464,16 @@ pub async fn run_deploy_job(
                     "platform": ctx.platform,
                     "reason": error_message,
                 }),
+            )
+            .await;
+
+            // Re-enqueue parent workflow run on failure so parked runs fail rather than hanging
+            let _ = resume_parent_workflow_run(
+                db,
+                queue,
+                &deployment_id,
+                "failed",
+                Some(&error_message),
             )
             .await;
 
@@ -856,4 +880,129 @@ async fn execute_shorebird_deploy(
         external_id: patch_id,
         external_url: Some(external_url),
     })
+}
+
+/// Re-enqueues the parent workflow run if this deployment was spawned by a workflow step.
+///
+/// # Resumption & Idempotence Guarantee
+///
+/// When a deployment reaches a terminal state (`ready`, `live`, `failed`, or `cancelled`),
+/// it checks whether a workflow step is waiting on it via `deployment.workflow_run_step_id`.
+///
+/// To guarantee IDEMPOTENCE (so retried workers after crashes do not advance the run twice):
+/// 1. The step status is checked: only a step in `running` status is transitioned to
+///    `completed` or `failed`.
+/// 2. If the step is already `completed` or `failed`, the function returns immediately
+///    without re-enqueuing `Job::Workflow`.
+/// 3. The step record is updated atomically before pushing `Job::Workflow` to the queue.
+pub async fn resume_parent_workflow_run(
+    db: &Database,
+    queue: &JobQueue,
+    deployment_id: &str,
+    terminal_status: &str,
+    failure_reason: Option<&str>,
+) -> Result<(), DeployWorkerError> {
+    // 1. Resolve deployment record
+    let deployment = match Deployment::objects()
+        .filter(q!(public_id = deployment_id.to_owned()))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+    {
+        Some(d) => d,
+        None => return Ok(()),
+    };
+
+    // 2. Check if a workflow run step is waiting on this deployment
+    let step_id = match deployment.workflow_run_step_id {
+        Some(id) => id,
+        None => return Ok(()),
+    };
+
+    // 3. Resolve the waiting WorkflowRunStep
+    let mut step = match WorkflowRunStep::objects()
+        .filter(q!(id = step_id))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+    {
+        Some(s) => s,
+        None => return Ok(()),
+    };
+
+    // 4. Idempotency guard: if the step is already completed or failed, do NOT re-enqueue
+    if step.status != "running" {
+        return Ok(());
+    }
+
+    let now = Utc::now();
+    let is_success = matches!(terminal_status, "ready" | "live" | "completed" | "success");
+
+    if is_success {
+        step.status = "completed".to_string();
+        step.finished_at = Some(now);
+        step.log_snippet = Some(format!(
+            "Deployment '{deployment_id}' finished successfully."
+        ));
+    } else {
+        step.status = "failed".to_string();
+        step.finished_at = Some(now);
+        step.log_snippet = Some(failure_reason.unwrap_or("Deployment failed").to_string());
+    }
+
+    // Persist step transition
+    workflow_repos::update_workflow_run_step(db, &step)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?;
+
+    // 5. Resolve parent WorkflowRun
+    let run = match WorkflowRun::objects()
+        .filter(q!(id = step.run_id.id))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+    {
+        Some(r) => r,
+        None => return Ok(()),
+    };
+
+    // 6. Resolve parent Workflow definition
+    let workflow = match Workflow::objects()
+        .filter(q!(id = run.workflow_id.id))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+    {
+        Some(w) => w,
+        None => return Ok(()),
+    };
+
+    // 7. Resolve Organization public UUID
+    let org = Organization::objects()
+        .filter(q!(id = run.organization_id))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?;
+
+    let org_public_id = org.map(|o| o.public_id).unwrap_or_default();
+
+    // 8. Re-enqueue parent workflow run as Job::Workflow
+    let workflow_job = Job::Workflow {
+        run_id: run.public_id,
+        organization_id: org_public_id,
+        workflow_id: workflow.public_id,
+        environment_id: None,
+    };
+
+    queue
+        .push(workflow_job)
+        .await
+        .map_err(|e| DeployWorkerError::Queue(e.to_string()))?;
+
+    Ok(())
 }

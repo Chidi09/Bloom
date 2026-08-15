@@ -77,7 +77,7 @@ pub async fn record_platform_metric(
 ) -> Result<PlatformMetric, ObservabilityError> {
     let metric = PlatformMetric {
         id: 0,
-        deployment_id,
+        deployment_id: djangors_orm::ForeignKey::new(deployment_id),
         metric_type: metric_type.to_string(),
         value,
         captured_at: Utc::now(),

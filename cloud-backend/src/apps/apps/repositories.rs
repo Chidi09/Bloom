@@ -191,14 +191,25 @@ pub async fn organization_summary_by_id(
 
 /// Check if an app has associated child records that block deletion.
 ///
-/// Only `environments` is checked here: it is the sole child model that exists today.
-/// TODO(spec): extend to `builds` and `releases` once those apps land (PHASES.md Phase 3
-/// and Phase 4). This previously issued raw SQL against `builds_build` and
-/// `releases_release` — tables no migration creates — inside `if let Ok(..)`, so those
-/// checks silently evaluated to "no children" and would have permitted deleting an app
-/// that still had builds or releases.
+/// Checks `environments`, `builds`, and `releases` via their ORM models.
 pub async fn app_has_children(db: &Database, app_id: i64) -> Result<bool, OrmError> {
-    crate::apps::environments::models::Environment::objects()
+    if crate::apps::environments::models::Environment::objects()
+        .filter(q!(app_id = app_id))?
+        .exists(db)
+        .await?
+    {
+        return Ok(true);
+    }
+
+    if crate::apps::builds::models::Build::objects()
+        .filter(q!(app_id = app_id))?
+        .exists(db)
+        .await?
+    {
+        return Ok(true);
+    }
+
+    crate::apps::releases::models::Release::objects()
         .filter(q!(app_id = app_id))?
         .exists(db)
         .await

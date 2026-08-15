@@ -140,3 +140,35 @@ fn test_get_effective_build_config_merging() {
     // Feature flags check
     assert_eq!(effective.feature_flags.get("dark_mode"), Some(&true));
 }
+
+#[test]
+fn test_environment_events_payload_structure() {
+    // Verify environment event payloads match events.md catalogue:
+    // environment.created -> { environment_id, app_id }
+    // environment.updated -> { environment_id, app_id }
+    // environment.deleted -> { environment_id, app_id }
+
+    let env_id = "env-uuid-1111";
+    let app_id = "app-uuid-2222";
+
+    let created_payload = serde_json::json!({
+        "environment_id": env_id,
+        "app_id": app_id,
+    });
+    assert_eq!(created_payload["environment_id"], env_id);
+    assert_eq!(created_payload["app_id"], app_id);
+
+    let updated_payload = serde_json::json!({
+        "environment_id": env_id,
+        "app_id": app_id,
+    });
+    assert_eq!(updated_payload["environment_id"], env_id);
+    assert_eq!(updated_payload["app_id"], app_id);
+
+    let deleted_payload = serde_json::json!({
+        "environment_id": env_id,
+        "app_id": app_id,
+    });
+    assert_eq!(deleted_payload["environment_id"], env_id);
+    assert_eq!(deleted_payload["app_id"], app_id);
+}

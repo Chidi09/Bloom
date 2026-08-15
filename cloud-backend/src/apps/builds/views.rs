@@ -90,7 +90,8 @@ pub async fn create_build(req: Request, _params: PathParams) -> Result<Response,
     let Json(body) = Json::<BuildCreateRequest>::from_request(&req).await?;
 
     let (build, stages, app, env, org) =
-        services::create_build(db, org_id, Some(user.id), queue, body)
+        // A build started through the API belongs to no workflow step.
+        services::create_build(db, org_id, Some(user.id), queue, body, None)
             .await
             .map_err(DjangorsError::from)?;
 

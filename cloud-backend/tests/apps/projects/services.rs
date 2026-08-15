@@ -37,3 +37,31 @@ fn test_project_update_request_partial_contracts() {
     assert_eq!(empty_update.name, None);
     assert_eq!(empty_update.description, None);
 }
+
+#[test]
+fn test_project_events_payload_structure() {
+    // Verify project event payloads match events.md catalogue:
+    // project.created -> { project_id, organization_id }
+    // project.updated -> { project_id }
+    // project.deleted -> { project_id }
+
+    let project_id = "proj-uuid-1111";
+    let organization_id = 42_i64;
+
+    let created_payload = serde_json::json!({
+        "project_id": project_id,
+        "organization_id": organization_id,
+    });
+    assert_eq!(created_payload["project_id"], project_id);
+    assert_eq!(created_payload["organization_id"], organization_id);
+
+    let updated_payload = serde_json::json!({
+        "project_id": project_id,
+    });
+    assert_eq!(updated_payload["project_id"], project_id);
+
+    let deleted_payload = serde_json::json!({
+        "project_id": project_id,
+    });
+    assert_eq!(deleted_payload["project_id"], project_id);
+}

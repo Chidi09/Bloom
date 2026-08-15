@@ -63,16 +63,14 @@ pub struct EnvironmentSummary {
 }
 
 /// Lightweight local projection of a `Deployment` row from the `deployments` app.
-///
-// TODO(spec): parallel dispatch for deployments app will supply crate::apps::deployments::models::Deployment.
 #[derive(Debug, Clone)]
 pub struct DeploymentSummary {
     /// Internal primary key.
     pub id: i64,
     /// External public UUID identifier.
     pub public_id: String,
-    /// Associated release internal primary key.
-    pub release_id: i64,
+    /// Associated release internal primary key, if assigned.
+    pub release_id: Option<i64>,
     /// Platform name (e.g. `ios`, `android`, `web`).
     pub platform: String,
     /// Deployment target (e.g. `testflight`, `google_play`, `production`).
@@ -223,6 +221,54 @@ pub async fn environments_for_app_and_org(
             organization_id: e.organization_id,
             name: e.name,
             slug: e.slug,
+        })
+        .collect())
+}
+
+/// Look up a deployment by its external public UUID within an organization.
+pub async fn deployment_by_public_id_and_org(
+    db: &Database,
+    deployment_public_id: &str,
+    organization_id: i64,
+) -> Result<Option<DeploymentSummary>, OrmError> {
+    let found = crate::apps::deployments::models::Deployment::objects()
+        .filter(q!(public_id = deployment_public_id.to_owned()))?
+        .filter(q!(organization_id = organization_id))?
+        .first(db)
+        .await?;
+
+    Ok(found.map(|d| DeploymentSummary {
+        id: d.id,
+        public_id: d.public_id,
+        release_id: d.release_id,
+        platform: d.platform,
+        target: d.target,
+        status: d.status,
+    }))
+}
+
+/// List deployments for a release within an organization, newest first.
+pub async fn deployments_for_release(
+    db: &Database,
+    release_id: i64,
+    organization_id: i64,
+) -> Result<Vec<DeploymentSummary>, OrmError> {
+    let deployments = crate::apps::deployments::models::Deployment::objects()
+        .filter(q!(release_id = release_id))?
+        .filter(q!(organization_id = organization_id))?
+        .order_by("-created_at")?
+        .all(db)
+        .await?;
+
+    Ok(deployments
+        .into_iter()
+        .map(|d| DeploymentSummary {
+            id: d.id,
+            public_id: d.public_id,
+            release_id: d.release_id,
+            platform: d.platform,
+            target: d.target,
+            status: d.status,
         })
         .collect())
 }

@@ -87,15 +87,16 @@ fn test_platform_metric_model_metadata() {
     assert_eq!(meta.app_label, "observability");
     assert_eq!(meta.table_name, "observability_platformmetric");
 
-    let deployment_id_field = meta
-        .fields
+    // `deployment_id` is a declared foreign key, so it is registered as a relation rather
+    // than as a plain field -- the relation assertion below is what covers it.
+    let relation = meta
+        .relations
         .iter()
-        .find(|f| f.name == "deployment_id")
-        .expect("deployment_id field must exist on PlatformMetric");
-    assert!(
-        deployment_id_field.db_index,
-        "deployment_id must be indexed on PlatformMetric"
-    );
+        .find(|r| r.field_name == "deployment_id")
+        .expect("deployment_id foreign key relation must exist on PlatformMetric");
+    let target = (relation.target)();
+    assert_eq!(target.app_label, "deployments");
+    assert_eq!(target.table_name, "deployments_deployment");
 
     let metric_type_field = meta
         .fields

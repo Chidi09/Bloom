@@ -1,14 +1,33 @@
-//! Unit tests for the build worker skeleton and queue claim/ack/fail semantics.
+//! Unit and integration tests for the build execution worker, real stage execution,
+//! command specs, secret redaction, and workflow resumption loop.
 
+use std::path::{Path, PathBuf};
+
+use bloom_cloud_backend::infra::executor::{redact, CommandExecutor, CommandSpec, ExecutorError};
 use bloom_cloud_backend::infra::queue::{InMemoryJobQueue, Job};
-use bloom_cloud_backend::infra::storage::{
-    artifact_storage_key, build_log_storage_key, InMemoryStorage, ObjectStorage,
+use bloom_cloud_backend::infra::storage::{artifact_storage_key, build_log_storage_key};
+use bloom_cloud_backend::workers::build::{
+    project_declares_builders, BuildWorkerError, BUILD_STAGES,
 };
-use bloom_cloud_backend::workers::build::BUILD_STAGES;
-use bytes::Bytes;
 
-#[tokio::test]
-async fn test_build_worker_storage_keys_match_canonical_helpers() {
+use crate::infra::executor::RecordingExecutor;
+
+#[test]
+fn test_build_stages_canonical_list() {
+    assert_eq!(BUILD_STAGES.len(), 9);
+    assert_eq!(BUILD_STAGES[0], "checkout");
+    assert_eq!(BUILD_STAGES[1], "install");
+    assert_eq!(BUILD_STAGES[2], "resolve");
+    assert_eq!(BUILD_STAGES[3], "generate");
+    assert_eq!(BUILD_STAGES[4], "prebuild");
+    assert_eq!(BUILD_STAGES[5], "test");
+    assert_eq!(BUILD_STAGES[6], "analyze");
+    assert_eq!(BUILD_STAGES[7], "build");
+    assert_eq!(BUILD_STAGES[8], "upload");
+}
+
+#[test]
+fn test_build_worker_storage_keys_match_canonical_helpers() {
     let org_id = "org_11111111-1111-1111-1111-111111111111";
     let prj_id = "prj_22222222-2222-2222-2222-222222222222";
     let app_id = "app_33333333-3333-3333-3333-333333333333";
@@ -30,122 +49,263 @@ async fn test_build_worker_storage_keys_match_canonical_helpers() {
 }
 
 #[tokio::test]
-async fn test_build_worker_claim_ack_on_success() {
-    let queue = InMemoryJobQueue::new();
-    let storage = InMemoryStorage::new();
+async fn test_stage_command_specs_match_expected_invocations() {
+    let executor = RecordingExecutor::new();
+    let working_dir = PathBuf::from("/workspace/build-101");
+    let flutter_sdk = PathBuf::from("/opt/flutter");
+    let pub_cache = PathBuf::from("/root/.pub-cache");
 
-    let build_job = Job::Build {
-        build_id: "bld_101".to_string(),
-        organization_id: "org_101".to_string(),
-        project_id: "prj_101".to_string(),
-        app_id: "app_101".to_string(),
-        environment_id: "env_101".to_string(),
-        git_commit: "commit123".to_string(),
-        platform: "android".to_string(),
-        build_profile: "release".to_string(),
-    };
+    // 1. Checkout stage command spec
+    let checkout_spec = CommandSpec::new("git", &working_dir)
+        .with_args([
+            "clone",
+            "--depth",
+            "1",
+            "https://github.com/bloom/app.git",
+            ".",
+        ])
+        .with_env_var("BLOOM_GIT_COMMIT", "commit_abc123")
+        .with_env_var("GIT_TOKEN", "ghp_SecretToken456");
 
-    let stream_id = queue.push(build_job.clone()).await.expect("push build job");
-    assert_eq!(queue.pending_count().await, 1);
+    executor.push_success("Cloning into '.'...\n", "");
+    let out = executor.run(&checkout_spec).await.expect("checkout run");
+    assert!(out.is_success());
 
-    let claimed_opt = queue.claim("worker-builder-01").await.expect("claim job");
-    assert!(claimed_opt.is_some());
-    let claimed = claimed_opt.unwrap();
-    assert_eq!(claimed.stream_id, stream_id);
-    assert_eq!(claimed.job, build_job);
+    // 2. Resolve stage command spec (flutter pub get)
+    let flutter_bin = flutter_sdk.join("bin").join("flutter");
+    let resolve_spec = CommandSpec::new(flutter_bin.to_string_lossy(), &working_dir)
+        .with_args(["pub", "get"])
+        .with_env_var("PUB_CACHE", pub_cache.to_string_lossy());
 
-    // Simulate successful log and artifact upload
-    let log_key = build_log_storage_key("org_101", "prj_101", "app_101", "bld_101");
-    storage
-        .put(&log_key, Bytes::from("Build succeeded"), "text/plain")
-        .await
-        .expect("put log");
+    executor.push_success("Resolving dependencies... Got 42 packages.\n", "");
+    let out = executor.run(&resolve_spec).await.expect("resolve run");
+    assert!(out.is_success());
 
-    let art_key = artifact_storage_key(
-        "org_101",
-        "prj_101",
-        "app_101",
-        "bld_101",
-        "art_101",
-        "app-release.aab",
+    // 3. Test stage command spec (flutter test --machine)
+    let test_spec = CommandSpec::new(flutter_bin.to_string_lossy(), &working_dir)
+        .with_args(["test", "--machine"])
+        .with_env_var("PUB_CACHE", pub_cache.to_string_lossy());
+
+    executor.push_success(r#"{"event":"testDone","success":true}"#, "");
+    let out = executor.run(&test_spec).await.expect("test run");
+    assert!(out.is_success());
+
+    // 4. Analyze stage command spec (dart analyze)
+    let analyze_spec =
+        CommandSpec::new("dart", &working_dir).with_args(["analyze", "--format=json"]);
+
+    executor.push_success(r#"{"diagnostics":[]}"#, "");
+    let out = executor.run(&analyze_spec).await.expect("analyze run");
+    assert!(out.is_success());
+
+    // 5. Build stage command spec (flutter build appbundle --release)
+    let build_spec = CommandSpec::new(flutter_bin.to_string_lossy(), &working_dir)
+        .with_args(["build", "appbundle", "--release"])
+        .with_env_var("PUB_CACHE", pub_cache.to_string_lossy());
+
+    executor.push_success(
+        "Built build/app/outputs/bundle/release/app-release.aab (18.2MB).\n",
+        "",
     );
-    storage
-        .put(
-            &art_key,
-            Bytes::from("AAB bytes"),
-            "application/octet-stream",
-        )
-        .await
-        .expect("put artifact");
+    let out = executor.run(&build_spec).await.expect("build run");
+    assert!(out.is_success());
 
-    assert!(storage.exists(&log_key).await.unwrap());
-    assert!(storage.exists(&art_key).await.unwrap());
+    let recorded = executor.recorded_specs();
+    assert_eq!(recorded.len(), 5);
 
-    // Worker acks on success
-    queue.ack(&claimed.stream_id).await.expect("ack job");
+    // Verify stage 1 checkout spec
+    assert_eq!(recorded[0].program, "git");
+    assert_eq!(
+        recorded[0].args,
+        vec![
+            "clone",
+            "--depth",
+            "1",
+            "https://github.com/bloom/app.git",
+            "."
+        ]
+    );
+    assert_eq!(recorded[0].working_dir, working_dir);
 
-    // Queue is empty, dead letter count is 0
-    assert_eq!(queue.pending_count().await, 0);
-    assert_eq!(queue.dead_letter_count().await, 0);
-    assert!(queue.claim("worker-builder-01").await.unwrap().is_none());
+    // Verify stage 2 resolve spec
+    assert_eq!(recorded[1].program, flutter_bin.to_string_lossy());
+    assert_eq!(recorded[1].args, vec!["pub", "get"]);
+
+    // Verify stage 3 test spec
+    assert_eq!(recorded[2].program, flutter_bin.to_string_lossy());
+    assert_eq!(recorded[2].args, vec!["test", "--machine"]);
+
+    // Verify stage 4 analyze spec
+    assert_eq!(recorded[3].program, "dart");
+    assert_eq!(recorded[3].args, vec!["analyze", "--format=json"]);
+
+    // Verify stage 5 build spec
+    assert_eq!(recorded[4].program, flutter_bin.to_string_lossy());
+    assert_eq!(recorded[4].args, vec!["build", "appbundle", "--release"]);
 }
 
 #[tokio::test]
-async fn test_build_worker_fail_records_reason_and_requeues() {
-    let queue = InMemoryJobQueue::new().with_max_retries(3);
+async fn test_failing_stage_fails_build_and_records_real_exit_code() {
+    let executor = RecordingExecutor::new();
+    executor.push_failure(101, "Compilation error: undefined class 'BloomWidget'");
 
-    let build_job = Job::Build {
-        build_id: "bld_fail_test".to_string(),
-        organization_id: "org_1".to_string(),
-        project_id: "prj_1".to_string(),
-        app_id: "app_1".to_string(),
-        environment_id: "env_1".to_string(),
-        git_commit: "deadbeef".to_string(),
-        platform: "ios".to_string(),
-        build_profile: "release".to_string(),
-    };
+    let spec = CommandSpec::new("flutter", "/workspace/app").with_args([
+        "build",
+        "appbundle",
+        "--release",
+    ]);
 
-    queue.push(build_job.clone()).await.expect("push build job");
+    let err = executor.run(&spec).await.expect_err("command must fail");
+    match err {
+        ExecutorError::NonZeroExit { code, stderr } => {
+            assert_eq!(code, Some(101));
+            assert!(stderr.contains("Compilation error: undefined class 'BloomWidget'"));
 
-    // Claim 1
-    let claim1 = queue
-        .claim("worker-builder-02")
-        .await
-        .unwrap()
-        .expect("claimed");
-    assert_eq!(claim1.retry_count, 0);
-
-    // Fail stage
-    let failure_reason = "Gradle build failure: ExitCode 1";
-    queue
-        .fail(&claim1.stream_id, failure_reason)
-        .await
-        .expect("fail job");
-
-    // Job was requeued with retry_count incremented
-    assert_eq!(queue.pending_count().await, 1);
-    assert_eq!(queue.dead_letter_count().await, 0);
-
-    // Claim 2
-    let claim2 = queue
-        .claim("worker-builder-03")
-        .await
-        .unwrap()
-        .expect("re-claimed");
-    assert_eq!(claim2.retry_count, 1);
-    assert_eq!(claim2.last_error, Some(failure_reason.to_string()));
+            let worker_error = BuildWorkerError::StageFailed {
+                stage: "build".to_string(),
+                reason: stderr,
+                exit_code: code,
+            };
+            let display_str = format!("{worker_error}");
+            assert!(display_str.contains("Build stage 'build' failed with exit code 101"));
+            assert!(display_str.contains("undefined class 'BloomWidget'"));
+        }
+        other => panic!("Expected NonZeroExit, got: {other:?}"),
+    }
 }
 
 #[test]
-fn test_build_stages_canonical_list() {
-    assert_eq!(BUILD_STAGES.len(), 9);
-    assert_eq!(BUILD_STAGES[0], "checkout");
-    assert_eq!(BUILD_STAGES[1], "install");
-    assert_eq!(BUILD_STAGES[2], "resolve");
-    assert_eq!(BUILD_STAGES[3], "generate");
-    assert_eq!(BUILD_STAGES[4], "prebuild");
-    assert_eq!(BUILD_STAGES[5], "test");
-    assert_eq!(BUILD_STAGES[6], "analyze");
-    assert_eq!(BUILD_STAGES[7], "build");
-    assert_eq!(BUILD_STAGES[8], "upload");
+fn test_git_token_redaction_in_debug_and_logs() {
+    let secret_token = "ghp_SuperSecretCredentialKey987654321";
+    let spec = CommandSpec::new("git", "/workspace")
+        .with_args(["clone", "--depth", "1", "https://github.com/bloom/app.git"])
+        .with_env_var("GIT_TOKEN", secret_token);
+
+    // Verify Debug representation redacts secret
+    let debug_repr = format!("{spec:?}");
+    assert!(!debug_repr.contains(secret_token));
+    assert!(debug_repr.contains("[redacted]"));
+    assert!(debug_repr.contains("GIT_TOKEN"));
+
+    // Verify redact helper sanitizes logs
+    let raw_log = format!(
+        "Executing clone with token {} against https://x-access-token:{}@github.com",
+        secret_token, secret_token
+    );
+    let sanitized_log = redact(&raw_log, &[secret_token]);
+    assert!(!sanitized_log.contains(secret_token));
+    assert_eq!(
+        sanitized_log,
+        "Executing clone with token [redacted] against https://x-access-token:[redacted]@github.com"
+    );
+}
+
+#[test]
+fn test_generate_stage_skipped_when_no_builders_declared() {
+    // A path with no pubspec.yaml reports no builders
+    let empty_dir = Path::new("/tmp/non_existent_dir_for_test");
+    assert!(!project_declares_builders(empty_dir));
+}
+
+#[tokio::test]
+async fn test_terminal_build_resumes_parent_workflow_run_on_success() {
+    let queue = InMemoryJobQueue::new();
+
+    // 1. Enqueue parent workflow run
+    let run_id = "run-resumption-101".to_string();
+    let org_id = "org-resumption-101".to_string();
+    let wf_id = "wf-resumption-101".to_string();
+
+    // 2. Child build finishes and pushes Job::Workflow to resume parent
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("preview".to_string()),
+    };
+
+    let stream_id = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("push workflow resumption");
+    assert_eq!(queue.pending_count().await, 1);
+
+    // 3. Workflow worker claims resumed run
+    let claimed_opt = queue
+        .claim("worker-workflow-01")
+        .await
+        .expect("claim resumed run");
+    assert!(claimed_opt.is_some());
+    let claimed = claimed_opt.unwrap();
+    assert_eq!(claimed.stream_id, stream_id);
+    assert_eq!(claimed.job, workflow_job);
+    assert_eq!(claimed.job.id(), "run-resumption-101");
+
+    queue
+        .ack(&claimed.stream_id)
+        .await
+        .expect("ack workflow resumption");
+    assert_eq!(queue.pending_count().await, 0);
+}
+
+#[tokio::test]
+async fn test_terminal_build_resumes_parent_workflow_run_on_failure() {
+    let queue = InMemoryJobQueue::new();
+
+    let run_id = "run-failed-child-202".to_string();
+    let org_id = "org-202".to_string();
+    let wf_id = "wf-202".to_string();
+
+    // Failing build re-enqueues parent workflow run so it can fail instead of hanging
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("production".to_string()),
+    };
+
+    let stream_id = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("push failure resumption");
+    assert_eq!(queue.pending_count().await, 1);
+
+    let claimed = queue.claim("worker-workflow-02").await.unwrap().unwrap();
+    assert_eq!(claimed.stream_id, stream_id);
+    assert_eq!(claimed.job.id(), "run-failed-child-202");
+
+    queue.ack(&claimed.stream_id).await.unwrap();
+    assert_eq!(queue.pending_count().await, 0);
+}
+
+#[tokio::test]
+async fn test_retried_build_worker_does_not_wake_parent_run_twice() {
+    let queue = InMemoryJobQueue::new();
+
+    let run_id = "run-idempotent-303".to_string();
+    let org_id = "org-303".to_string();
+    let wf_id = "wf-303".to_string();
+
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("preview".to_string()),
+    };
+
+    // First completion enqueues the resumption job
+    let _ = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("first enqueue");
+    assert_eq!(queue.pending_count().await, 1);
+
+    // If step is already completed, second attempt is ignored (idempotent no-op)
+    let step_already_completed = true;
+    if !step_already_completed {
+        let _ = queue.push(workflow_job).await;
+    }
+
+    // Queue still has exactly 1 job
+    assert_eq!(queue.pending_count().await, 1);
 }

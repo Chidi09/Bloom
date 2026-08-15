@@ -130,7 +130,8 @@ pub async fn create_deployment(
     }
 
     let detail =
-        services::create_deployment(db, queue.as_deref(), org_id, user.id, user_role, body)
+        // A deployment started through the API belongs to no workflow step.
+        services::create_deployment(db, queue.as_deref(), org_id, user.id, user_role, body, None)
             .await
             .map_err(DjangorsError::from)?;
 

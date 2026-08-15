@@ -88,21 +88,27 @@ pub async fn generate_unique_slug(
 
 /// Emits an event to the events log.
 ///
-/// TODO(spec): stands in for `events.md` event emission. The `EventLog` model does not
-/// exist yet — PHASES.md introduces it in Phase 3 ("Build events are emitted and stored
-/// in `EventLog`"). This previously wrote to an `events_eventlog` table with raw SQL,
-/// which both fabricated a table that no migration creates and bypassed the ORM that
-/// APP_PATTERN.md requires repositories to use. Wire this to the real `events` app when
-/// it lands; until then emission is a no-op rather than a silent failing INSERT.
+/// Delegates to the `events` app's public service interface, which swallows and logs any
+/// recording failure so that emitting an event never fails this app's own write.
 pub async fn emit_event(
-    _db: &Database,
-    _event_type: &str,
-    _organization_id: Option<i64>,
-    _project_id: Option<i64>,
-    _app_id: Option<i64>,
-    _actor_id: Option<i64>,
-    _payload: serde_json::Value,
+    db: &Database,
+    event_type: &str,
+    organization_id: Option<i64>,
+    project_id: Option<i64>,
+    app_id: Option<i64>,
+    actor_id: Option<i64>,
+    payload: serde_json::Value,
 ) {
+    crate::apps::events::emit(
+        db,
+        event_type,
+        organization_id,
+        project_id,
+        app_id,
+        actor_id,
+        payload,
+    )
+    .await;
 }
 
 /// Create a new `Environment` entity scoped to an app and organization.

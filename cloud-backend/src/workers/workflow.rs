@@ -835,6 +835,8 @@ async fn drive_step_kind(
                     bloom_version: None,
                     flavor: None,
                 },
+                // This is the edge the parked run is woken through.
+                Some(step_ctx.step.id),
             )
             .await
             .map_err(|e| WorkflowWorkerError::StepFailed {
@@ -899,6 +901,8 @@ async fn drive_step_kind(
                     platform: "web".to_string(),
                     target: target.to_string(),
                 },
+                // This is the edge the parked run is woken through.
+                Some(step_ctx.step.id),
             )
             .await
             .map_err(|e| WorkflowWorkerError::StepFailed {

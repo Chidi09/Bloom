@@ -159,6 +159,10 @@ pub async fn create_build(
     user_id: Option<i64>,
     queue: &JobQueue,
     req: BuildCreateRequest,
+    // Set only when a workflow step started this build, so its terminal state can wake the
+    // parked parent run. Deliberately a parameter rather than a field on BuildCreateRequest:
+    // an API client must never be able to attach its build to someone else's workflow step.
+    workflow_run_step_id: Option<i64>,
 ) -> Result<
     (
         Build,
@@ -273,6 +277,7 @@ pub async fn create_build(
     let build = Build {
         id: 0,
         public_id: Uuid::new_v4().to_string(),
+        workflow_run_step_id,
         app_id: ForeignKey::new(app.id),
         organization_id,
         environment_id: ForeignKey::new(env.id),

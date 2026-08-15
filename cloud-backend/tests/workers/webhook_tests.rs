@@ -96,20 +96,68 @@ fn test_verify_webhook_delivery_unverified_providers_rejected() {
     let payload = b"{}";
     let sig = "sha256=1234";
 
-    // GitLab is unverified -> rejected
+    // GitLab is unverified -> rejected with UnverifiedProvider error
     let gitlab_res =
         verify_webhook_delivery(WebhookProvider::GitLab, Some(secret), payload, Some(sig));
+    match gitlab_res {
+        Err(WebhookError::UnverifiedProvider(msg)) => {
+            assert!(msg.contains("GitLab webhook signature scheme is unverified"));
+        }
+        other => panic!("Expected Err(UnverifiedProvider), got: {:?}", other),
+    }
+
+    // GitLab with None signature header is also rejected with UnverifiedProvider
+    let gitlab_no_sig =
+        verify_webhook_delivery(WebhookProvider::GitLab, Some(secret), payload, None);
     assert!(matches!(
-        gitlab_res,
+        gitlab_no_sig,
         Err(WebhookError::UnverifiedProvider(_))
     ));
 
-    // Bitbucket is unverified -> rejected
+    // Bitbucket is unverified -> rejected with UnverifiedProvider error
     let bitbucket_res =
         verify_webhook_delivery(WebhookProvider::BitBucket, Some(secret), payload, Some(sig));
+    match bitbucket_res {
+        Err(WebhookError::UnverifiedProvider(msg)) => {
+            assert!(msg.contains("Bitbucket webhook signature scheme is unverified"));
+        }
+        other => panic!("Expected Err(UnverifiedProvider), got: {:?}", other),
+    }
+
+    // Bitbucket with invalid/missing signature is also rejected with UnverifiedProvider
+    let bitbucket_no_sig =
+        verify_webhook_delivery(WebhookProvider::BitBucket, Some(secret), payload, None);
     assert!(matches!(
-        bitbucket_res,
+        bitbucket_no_sig,
         Err(WebhookError::UnverifiedProvider(_))
+    ));
+}
+
+#[test]
+fn test_github_invalid_signature_is_rejected() {
+    let _secret = b"bloom_test_webhook_secret_key_12345";
+    let payload = br#"{"ref":"refs/heads/main","after":"abc123commit456"}"#;
+
+    // Bad signature string
+    let bad_sig = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
+    let res = verify_webhook_delivery(
+        WebhookProvider::GitHub,
+        Some("bloom_test_webhook_secret_key_12345"),
+        payload,
+        Some(bad_sig),
+    );
+    assert!(matches!(res, Err(WebhookError::SignatureMismatch(_))));
+
+    // Missing signature header on GitHub
+    let res_missing_sig = verify_webhook_delivery(
+        WebhookProvider::GitHub,
+        Some("bloom_test_webhook_secret_key_12345"),
+        payload,
+        None,
+    );
+    assert!(matches!(
+        res_missing_sig,
+        Err(WebhookError::MissingSignature(_))
     ));
 }
 

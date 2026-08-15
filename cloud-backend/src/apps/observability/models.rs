@@ -62,11 +62,9 @@ pub struct PlatformMetric {
     #[djangors(primary_key, auto)]
     pub id: i64,
 
-    /// Foreign key referencing the parent deployment's internal primary key.
-    ///
-    // TODO(spec): parallel dispatch for deployments app will supply crate::apps::deployments::models::Deployment.
-    #[djangors(db_index)]
-    pub deployment_id: i64,
+    /// Foreign key referencing the parent deployment.
+    #[djangors(foreign_key(on_delete = "cascade"))]
+    pub deployment_id: ForeignKey<crate::apps::deployments::models::Deployment>,
 
     /// Metric type: `crash`, `session`, or `active_user`.
     #[djangors(max_length = 32)]

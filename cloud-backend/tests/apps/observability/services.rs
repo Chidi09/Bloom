@@ -240,7 +240,7 @@ async fn test_observability_db_operations_and_scoping() {
     let metric = record_platform_metric(&db, 42, "crash", 5)
         .await
         .expect("record platform metric succeeds");
-    assert_eq!(metric.deployment_id, 42);
+    assert_eq!(metric.deployment_id.id, 42);
     assert_eq!(metric.metric_type, "crash");
     assert_eq!(metric.value, 5);
 

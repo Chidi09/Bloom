@@ -22,6 +22,13 @@ pub struct Deployment {
     #[djangors(max_length = 36)]
     pub public_id: String,
 
+    /// Workflow run step waiting on this deployment, when one started it.
+    ///
+    /// Mirrors `Build::workflow_run_step_id`; see that field for why it is a plain
+    /// `Option<i64>` rather than an `Option<ForeignKey<_>>`.
+    #[djangors(nullable, db_index)]
+    pub workflow_run_step_id: Option<i64>,
+
     /// Optional foreign key referencing an associated Release.
     ///
     /// Declared as `Option<i64>` rather than `Option<ForeignKey<Release>>` because the Model derive

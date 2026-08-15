@@ -67,6 +67,31 @@ pub async fn generate_unique_slug_in_org(
     Ok(format!("{base}-{}", random_suffix.to_lowercase()))
 }
 
+/// Emits an event to the events log.
+///
+/// Delegates to the `events` app's public service interface, which swallows and logs any
+/// recording failure so that emitting an event never fails this app's own write.
+pub async fn emit_event(
+    db: &Database,
+    event_type: &str,
+    organization_id: Option<i64>,
+    project_id: Option<i64>,
+    app_id: Option<i64>,
+    actor_id: Option<i64>,
+    payload: serde_json::Value,
+) {
+    crate::apps::events::emit(
+        db,
+        event_type,
+        organization_id,
+        project_id,
+        app_id,
+        actor_id,
+        payload,
+    )
+    .await;
+}
+
 /// Create a new project within an organization.
 pub async fn create_project(
     db: &Database,
@@ -119,7 +144,19 @@ pub async fn create_project(
 
     let saved_project = repositories::insert_project(db, project).await?;
 
-    // TODO(spec): Emit project.created event via events::publish (payload: { project_id, organization_id })
+    emit_event(
+        db,
+        "project.created",
+        Some(organization_id),
+        Some(saved_project.id),
+        None,
+        None,
+        serde_json::json!({
+            "project_id": saved_project.public_id,
+            "organization_id": organization_id,
+        }),
+    )
+    .await;
 
     Ok(saved_project)
 }
@@ -198,7 +235,18 @@ pub async fn update_project(
         project.updated_at = Utc::now();
         repositories::update_project(db, project).await?;
 
-        // TODO(spec): Emit project.updated event via events::publish (payload: { project_id })
+        emit_event(
+            db,
+            "project.updated",
+            Some(project.organization_id.id),
+            Some(project.id),
+            None,
+            None,
+            serde_json::json!({
+                "project_id": project.public_id,
+            }),
+        )
+        .await;
     }
 
     Ok(project.clone())
@@ -213,7 +261,18 @@ pub async fn delete_project(db: &Database, project: &Project) -> Result<(), Proj
 
     repositories::delete_project_by_id(db, project.id).await?;
 
-    // TODO(spec): Emit project.deleted event via events::publish (payload: { project_id })
+    emit_event(
+        db,
+        "project.deleted",
+        Some(project.organization_id.id),
+        Some(project.id),
+        None,
+        None,
+        serde_json::json!({
+            "project_id": project.public_id,
+        }),
+    )
+    .await;
 
     Ok(())
 }

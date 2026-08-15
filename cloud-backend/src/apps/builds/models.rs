@@ -27,6 +27,15 @@ pub struct Build {
     #[djangors(foreign_key(on_delete = "cascade"))]
     pub app_id: djangors_orm::ForeignKey<crate::apps::apps::models::App>,
 
+    /// Workflow run step waiting on this build, when one started it.
+    ///
+    /// `None` for a build started directly, which is most of them. When set, reaching a
+    /// terminal state re-enqueues the parked parent run. Held as a plain `Option<i64>` rather
+    /// than an `Option<ForeignKey<_>>` -- the derive matches on the outer type and does not
+    /// compile for the latter -- so the real `ON DELETE SET NULL` lives in the migration.
+    #[djangors(nullable, db_index)]
+    pub workflow_run_step_id: Option<i64>,
+
     /// Denormalized foreign key referencing the tenant organization for direct scoping.
     #[djangors(db_index)]
     pub organization_id: i64,

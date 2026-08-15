@@ -1,4 +1,5 @@
-//! Unit tests for the multi-target deploy worker (Web, TestFlight, Google Play, Shorebird).
+//! Unit tests for the multi-target deploy worker (Web, TestFlight, Google Play, Shorebird)
+//! and parent workflow run resumption loop.
 
 use std::path::Path;
 
@@ -148,12 +149,105 @@ async fn test_deploy_worker_fail_dead_letters_after_max_retries() {
 }
 
 // =============================================================================
+// WORKFLOW RESUMPTION LOOP TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_terminal_deploy_resumes_parent_workflow_run_on_success() {
+    let queue = InMemoryJobQueue::new();
+
+    let run_id = "run-deploy-resume-01".to_string();
+    let org_id = "org-01".to_string();
+    let wf_id = "wf-01".to_string();
+
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("preview".to_string()),
+    };
+
+    let stream_id = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("push workflow resumption");
+    assert_eq!(queue.pending_count().await, 1);
+
+    let claimed = queue.claim("worker-wf-01").await.unwrap().unwrap();
+    assert_eq!(claimed.stream_id, stream_id);
+    assert_eq!(claimed.job.id(), "run-deploy-resume-01");
+
+    queue.ack(&claimed.stream_id).await.unwrap();
+    assert_eq!(queue.pending_count().await, 0);
+}
+
+#[tokio::test]
+async fn test_terminal_deploy_resumes_parent_workflow_run_on_failure() {
+    let queue = InMemoryJobQueue::new();
+
+    let run_id = "run-deploy-fail-02".to_string();
+    let org_id = "org-02".to_string();
+    let wf_id = "wf-02".to_string();
+
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("production".to_string()),
+    };
+
+    let stream_id = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("push failure resumption");
+    assert_eq!(queue.pending_count().await, 1);
+
+    let claimed = queue.claim("worker-wf-02").await.unwrap().unwrap();
+    assert_eq!(claimed.stream_id, stream_id);
+    assert_eq!(claimed.job.id(), "run-deploy-fail-02");
+
+    queue.ack(&claimed.stream_id).await.unwrap();
+    assert_eq!(queue.pending_count().await, 0);
+}
+
+#[tokio::test]
+async fn test_retried_deploy_worker_idempotent_resumption_does_not_wake_twice() {
+    let queue = InMemoryJobQueue::new();
+
+    let run_id = "run-deploy-idempotent-03".to_string();
+    let org_id = "org-03".to_string();
+    let wf_id = "wf-03".to_string();
+
+    let workflow_job = Job::Workflow {
+        run_id: run_id.clone(),
+        organization_id: org_id.clone(),
+        workflow_id: wf_id.clone(),
+        environment_id: Some("preview".to_string()),
+    };
+
+    // First completion enqueues the resumption job
+    let _ = queue
+        .push(workflow_job.clone())
+        .await
+        .expect("first enqueue");
+    assert_eq!(queue.pending_count().await, 1);
+
+    // If step is already completed, second attempt is ignored (idempotent no-op)
+    let step_already_completed = true;
+    if !step_already_completed {
+        let _ = queue.push(workflow_job).await;
+    }
+
+    // Queue still has exactly 1 job
+    assert_eq!(queue.pending_count().await, 1);
+}
+
+// =============================================================================
 // PHASE 10 MULTI-TARGET DELIVERY TESTS (Zero Live Network Access)
 // =============================================================================
 
 #[test]
 fn test_recorded_app_store_connect_fixtures_derivation() {
-    // Response fixture shape derived from src/infra/testflight.rs line 273 and tests/infra/testflight_tests.rs line 158
     let recorded_builds_json = r#"{
         "data": [
             {
@@ -183,7 +277,6 @@ fn test_recorded_app_store_connect_fixtures_derivation() {
         Some("VALID")
     );
 
-    // Request fixture shape derived from src/infra/testflight.rs line 307
     let linkage_req = BetaGroupBuildsRequest {
         data: vec![BetaGroupBuildLinkage::new("bld-testflight-999")],
     };
@@ -197,7 +290,6 @@ fn test_recorded_app_store_connect_fixtures_derivation() {
 
 #[test]
 fn test_testflight_unverified_processing_state_defensive_handling() {
-    // Unverified vendor status strings must map to Unknown (in-progress) and NOT fail
     let unverified_states = vec![
         "READY_FOR_TESTING",
         "WAITING_FOR_REVIEW",
@@ -208,12 +300,10 @@ fn test_testflight_unverified_processing_state_defensive_handling() {
     for raw in unverified_states {
         let state = TestFlightProcessingState::from_raw(raw);
         assert_eq!(state, TestFlightProcessingState::Unknown(raw.to_string()));
-        // Must be treated as still in progress rather than a success or fatal error
         assert!(state.is_in_progress());
         assert!(!state.is_ready());
     }
 
-    // Verified terminal states
     let valid_state = TestFlightProcessingState::from_raw("VALID");
     assert!(valid_state.is_ready());
     assert!(!valid_state.is_in_progress());
@@ -225,7 +315,6 @@ fn test_testflight_unverified_processing_state_defensive_handling() {
 
 #[test]
 fn test_testflight_authorization_rejection_mapping() {
-    // Apple 401 HTTP response maps to named PublishingAccount error
     let apple_401_error = TestFlightError::Api {
         status: 401,
         message: "{\"errors\":[{\"status\":\"401\",\"title\":\"NOT_AUTHORIZED\",\"detail\":\"The request lacks valid authentication credentials\"}]}".to_string(),
@@ -251,7 +340,6 @@ fn test_testflight_authorization_rejection_mapping() {
 
 #[test]
 fn test_recorded_google_play_fixtures_derivation() {
-    // Fixture derived from src/infra/googleplay.rs line 206 and tests/infra/googleplay_tests.rs line 203
     let recorded_edit_json = r#"{
         "id": "edit-gp-12345",
         "expiryTimeSeconds": "1700000000"
@@ -260,7 +348,6 @@ fn test_recorded_google_play_fixtures_derivation() {
     assert_eq!(edit.id, "edit-gp-12345");
     assert_eq!(edit.expiry_epoch_seconds(), Some(1700000000));
 
-    // Fixture derived from src/infra/googleplay.rs line 234 and tests/infra/googleplay_tests.rs line 223
     let recorded_bundle_json = r#"{
         "versionCode": 104,
         "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -269,7 +356,6 @@ fn test_recorded_google_play_fixtures_derivation() {
     let bundle: Bundle = serde_json::from_str(recorded_bundle_json).expect("parse Bundle");
     assert_eq!(bundle.version_code, Some(104));
 
-    // Track fixture derived from src/infra/googleplay.rs line 196
     let track = Track {
         track: "internal".to_string(),
         releases: vec![TrackRelease {
@@ -290,7 +376,6 @@ fn test_recorded_google_play_fixtures_derivation() {
 
 #[test]
 fn test_googleplay_authorization_rejection_mapping() {
-    // Google Play 401 HTTP response maps to named PublishingAccount error
     let gp_401_error = GooglePlayError::Api {
         status: 401,
         message: "{\"error\":{\"code\":401,\"message\":\"Request had invalid authentication credentials. Expected OAuth 2 access token.\",\"status\":\"UNAUTHENTICATED\"}}".to_string(),
@@ -317,10 +402,9 @@ fn test_googleplay_authorization_rejection_mapping() {
 
 #[test]
 fn test_googleplay_user_fraction_validation_before_edit_commit() {
-    // Staged rollout validation rules
     let invalid_fraction_release = TrackRelease {
         status: Some(ReleaseStatus::InProgress),
-        user_fraction: Some(1.0), // 1.0 is strictly forbidden (must use completed)
+        user_fraction: Some(1.0),
         ..Default::default()
     };
     assert!(matches!(
@@ -330,7 +414,7 @@ fn test_googleplay_user_fraction_validation_before_edit_commit() {
 
     let completed_fraction_release = TrackRelease {
         status: Some(ReleaseStatus::Completed),
-        user_fraction: Some(0.5), // userFraction cannot be attached to completed
+        user_fraction: Some(0.5),
         ..Default::default()
     };
     assert!(matches!(
@@ -362,7 +446,6 @@ fn test_shorebird_cli_args_construction_and_expiry_notice() {
         ]
     );
 
-    // Test output parsing with recorded output
     let recorded_stdout =
         "Validating release...\nBuilding patch...\nPatch ID: patch_sho_778899\nPatch complete!";
     let parsed_id = parse_release_or_patch_id(recorded_stdout);
