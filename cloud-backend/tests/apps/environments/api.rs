@@ -1,0 +1,133 @@
+use bloom_cloud_backend::apps::environments::contracts::{
+    ApiConfig, EnvVar, EnvironmentCreateRequest, EnvironmentResponse, EnvironmentUpdateRequest,
+    FeatureFlag,
+};
+use bloom_cloud_backend::apps::environments::errors::EnvironmentError;
+use djangors_core::{DjangorsError, StatusCode};
+
+#[test]
+fn test_environment_contracts_serialization_and_deserialization() {
+    let create_json = r#"{
+        "app_id": "app-uuid-123",
+        "name": "Production",
+        "slug": "production",
+        "api_config": {
+            "env_vars": [
+                {"key": "API_URL", "value": "https://api.example.com"}
+            ],
+            "feature_flags": [
+                {"key": "new_ui", "enabled": true}
+            ]
+        },
+        "build_profile": "release",
+        "flutter_version": "3.22.0",
+        "dart_version": "3.4.0",
+        "bloom_version": "0.7.0",
+        "flavor": "prod"
+    }"#;
+
+    let create_req: EnvironmentCreateRequest = serde_json::from_str(create_json).unwrap();
+    assert_eq!(create_req.app_id, "app-uuid-123");
+    assert_eq!(create_req.name, "Production");
+    assert_eq!(create_req.slug, "production");
+    assert_eq!(create_req.build_profile, Some("release".to_string()));
+    assert_eq!(create_req.flutter_version, Some("3.22.0".to_string()));
+    assert_eq!(create_req.api_config.env_vars.len(), 1);
+    assert_eq!(create_req.api_config.env_vars[0].key, "API_URL");
+    assert_eq!(create_req.api_config.feature_flags.len(), 1);
+    assert_eq!(create_req.api_config.feature_flags[0].key, "new_ui");
+    assert!(create_req.api_config.feature_flags[0].enabled);
+
+    // Partial update contract
+    let update_json = r#"{
+        "name": "Production Updated",
+        "flutter_version": "3.24.0"
+    }"#;
+    let update_req: EnvironmentUpdateRequest = serde_json::from_str(update_json).unwrap();
+    assert_eq!(update_req.name, Some("Production Updated".to_string()));
+    assert_eq!(update_req.flutter_version, Some("3.24.0".to_string()));
+    assert_eq!(update_req.api_config, None);
+    assert_eq!(update_req.build_profile, None);
+    assert_eq!(update_req.dart_version, None);
+    assert_eq!(update_req.bloom_version, None);
+    assert_eq!(update_req.flavor, None);
+
+    // Wire response serialization
+    let env_res = EnvironmentResponse {
+        id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        app_id: "app-550e8400-e29b-41d4-a716-446655440000".to_string(),
+        organization_id: "org-550e8400-e29b-41d4-a716-446655440000".to_string(),
+        name: "Staging".to_string(),
+        slug: "staging".to_string(),
+        api_config: ApiConfig {
+            env_vars: vec![EnvVar {
+                key: "BASE".to_string(),
+                value: "staging.example.com".to_string(),
+            }],
+            feature_flags: vec![FeatureFlag {
+                key: "test_flag".to_string(),
+                enabled: false,
+            }],
+        },
+        build_profile: "debug".to_string(),
+        flutter_version: Some("3.22.0".to_string()),
+        dart_version: None,
+        bloom_version: Some("0.7.0".to_string()),
+        flavor: None,
+        created_at: "2026-08-15T00:00:00Z".to_string(),
+        updated_at: "2026-08-15T00:00:00Z".to_string(),
+    };
+
+    let serialized_res = serde_json::to_string(&env_res).unwrap();
+    assert!(serialized_res.contains("\"id\":\"550e8400-e29b-41d4-a716-446655440000\""));
+    assert!(serialized_res.contains("\"app_id\":\"app-550e8400-e29b-41d4-a716-446655440000\""));
+    assert!(
+        serialized_res.contains("\"organization_id\":\"org-550e8400-e29b-41d4-a716-446655440000\"")
+    );
+    assert!(serialized_res.contains("\"slug\":\"staging\""));
+    assert!(serialized_res.contains("\"build_profile\":\"debug\""));
+    assert!(!serialized_res.contains("public_id"));
+}
+
+#[test]
+fn test_environment_error_mappings() {
+    let err = EnvironmentError::SlugTaken;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "slug_taken");
+
+    let err = EnvironmentError::EnvironmentNotFound;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(dj_err.code(), "not_found");
+
+    let err = EnvironmentError::AppNotFound;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(dj_err.code(), "not_found");
+
+    let err = EnvironmentError::OrganizationNotFound;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(dj_err.code(), "organization_not_found");
+
+    let err = EnvironmentError::InvalidBuildProfile;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_build_profile");
+
+    let err = EnvironmentError::InvalidApiConfig("bad json".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_api_config");
+
+    let err = EnvironmentError::Forbidden;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::FORBIDDEN);
+    assert_eq!(dj_err.code(), "permission_denied");
+
+    let err = EnvironmentError::ValidationError("Missing field".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "validation_error");
+}

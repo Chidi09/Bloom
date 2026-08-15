@@ -1,0 +1,48 @@
+[workspace]
+members = ["."]
+
+[package]
+name = "bloom-cloud-backend"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+djangors-core = "=0.7.0"
+djangors-orm = "=0.7.0"
+djangors-db = "=0.7.0"
+djangors-rest = { version = "=0.7.0", features = ["jwt"] }
+djangors-auth = "=0.7.0"
+djangors-migrations = "=0.7.0"
+djangors-macros = "=0.7.0"
+djangors-tasks = "=0.7.0"
+# Bachs + Paystack payment providers ship natively; do not hand-roll HTTP clients.
+djangors-contrib-payments = "=0.7.0"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+rand = "0.8"
+
+# djangors-core re-exports only StatusCode, not Method or Request, but tower
+# Service impls (organization-resolution middleware) need hyper types directly.
+# Version tracks djangors-core's own hyper 1.10.1 so the types are identical.
+hyper = { version = "1.10.1", features = ["full"] }
+
+# --- infra layer (src/infra) -------------------------------------------------
+# Redis is used directly rather than via djangors-cache because the build/deploy
+# queue needs Redis Streams consumer groups (XADD/XREADGROUP/XCLAIM) for exclusive
+# claiming with a visibility timeout. djangors-cache::Cache is a get/set/delete KV
+# trait and cannot express that. AI-AGENT-PRINCIPLES.md mandates this split:
+# djangors-tasks for ordinary background side effects, a custom Redis queue for
+# build/deploy jobs.
+redis = { version = "1", features = ["tokio-comp"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+subtle = "2.5"
+bytes = "1.6"
+async-trait = "0.1"
+aws-sdk-s3 = "1"

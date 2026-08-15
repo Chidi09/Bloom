@@ -11,7 +11,11 @@ The framework ships: ORM with `QuerySet`/`q!`, migrations, admin, auth, permissi
 ## The workflow, every time
 
 1. **Read the relevant specification in this directory first.** `DESIGN-SPEC.md` is the master; `apps/<app>.md` is the per-app contract; `integrations/<platform>.md` is the external API contract. Do not guess scope.
-2. **Before writing a single line of new Rust for a mechanism** (pagination, caching, a permission check, a transaction, rate limiting, a validation error shape, filtering, an audit log, a signal, a background task, typed settings), search `djangors-contrib` and the pinned `0.7.0` crate source. The authoritative source is on disk at `/root/.cargo/registry/src/index.crates.io-*/djangors-<crate>-0.7.0/src/`.
+2. **Before writing a single line of new Rust for a mechanism** (pagination, caching, a permission check, a transaction, rate limiting, a validation error shape, filtering, an audit log, a signal, a background task, typed settings), search `djangors-contrib` and the pinned `0.7.0` crate source.
+
+   **The authoritative source is the Djangors monorepo checked out on this machine at `/root/dev/Rango/crates/djangors-*/src/` (git tag `v0.7.0`).** Read it there. It is the exact pinned version, it is complete, and it needs no network. A registry copy may also exist under `/root/.cargo/registry/src/index.crates.io-*/djangors-<crate>-0.7.0/src/`, but prefer the monorepo — the registry cache has at times held only older versions.
+
+   **Working reference implementation:** `/root/dev/school-management-saas-/backend` is a large, real Djangors codebase (60+ domain apps) whose `src/apps/accounts/` follows this project's required app layout. Read it for *patterns* — module boundaries, repository/service split, error mapping, permission composition, migration style. **But it is pinned `=0.6.3`, not `0.7.0`.** Never copy a call site from it without confirming the signature against `/root/dev/Rango/crates/`.
 3. **Verify the exact API by reading the real crate source**, not by inference from the docs. Every "fabricated API" bug comes from writing code against a guessed API instead of the real one. Guessing is not allowed.
 4. **Follow the file layout in `APP_PATTERN.md`.** It exists because it is the required Djangors domain-app structure. Do not improvise a different split for one app "because it's simpler here."
 5. **Use the exact public-identifier convention.** Every model has an internal `i64` primary key that never crosses the API boundary, and a `public_id: String` (UUID) that does. Every JSON response keys the public identity as `"id"`, never `"public_id"`. Every foreign key crosses the wire as the related row's UUID string.
@@ -29,7 +33,28 @@ The framework ships: ORM with `QuerySet`/`q!`, migrations, admin, auth, permissi
 
 ## Verified API facts (save yourself the rediscovery)
 
-These were established by reading the real `=0.6.3` source. Trust these; re-verify anything not on this list before using it.
+**Read this caveat before trusting the list below.** The facts in this section were originally established by reading the real `=0.6.3` source, but this project pins `=0.7.0`. They are a strong starting point, not gospel: confirm each one against `/root/dev/Rango/crates/` before you rely on it, and re-verify anything not on this list.
+
+### Re-verified against the pinned 0.7.0 source
+
+These were each confirmed by reading `/root/dev/Rango/crates/` at tag `v0.7.0`, with the file and line where the signature lives:
+
+- **Project bootstrap** — the canonical `main.rs` sequence is, in this exact order: `djangors_core::introspect_models_if_requested()`, `djangors_core::run_management_command_if_requested().await`, `djangors_core::logging::init_dev_logging()`, `DjangorsSettings::load()?` (returns `(settings, warnings)`), build `Router`, `djangors_core::router::RouterService::new(router, settings.debug)`, wrap in `tower::ServiceBuilder` with `djangors_core::middleware::security_headers_layer()`, then `Djangors::new(settings, Router::new()).run_service(service).await`. Source: `djangors-cli/src/commands.rs` (the framework's own generator).
+- **Handler signature is two arguments**: `async fn name(req: Request, params: PathParams) -> Result<Response, DjangorsError>`. Easy to get wrong — a one-argument handler will not compile.
+- `Response::html(StatusCode, String)` and `Response::text(StatusCode, &str)`.
+- `djangors_db::DatabaseConfig::new(url: impl Into<String>) -> Self` — `djangors-db/src/config.rs:27`.
+- `djangors_db::Database::connect(config: &DatabaseConfig) -> Result<Self, DbError>` (async) — `djangors-db/src/database.rs:62`.
+- `Router::with_state<T: Send + Sync + 'static>(self, value: T) -> Self` — `djangors-core/src/router.rs:125`. Chainable; call once per state type.
+- `DjangorsError::Internal(String)` is a real variant — `djangors-core/src/error.rs:83`.
+- `DjangorsError::api(status: StatusCode, code: impl Into<String>, message: impl Into<String>)` — `djangors-core/src/error.rs:125`.
+- `djangors_migrations::migrate(db: &Database) -> Result<(), MigrationError>` — `djangors-migrations/src/lib.rs:210`.
+- `djangors_migrations::migrate_from_dir(db: &Database, dir: &Path) -> Result<(), MigrationError>` — `djangors-migrations/src/lib.rs:37`. `MigrationError` is re-exported from the crate root.
+- `djangors_rest::current_user(req: &Request) -> Option<djangors_auth::User>` (async) — `djangors-rest/src/permissions.rs:53`. Note the return type is `djangors_auth::User`.
+- `djangors_rest::Scoped` is `trait Scoped: Model + FromRow + Send + Sync + 'static` with `fn scope(req: &Request, qs: QuerySet<Self>) -> Result<QuerySet<Self>, DjangorsError>` — `djangors-rest/src/viewsets.rs:265`. Your model must satisfy the `FromRow` bound too.
+- Pagination types all exist in `djangors-rest/src/pagination.rs`: `PageNumberPagination` (:52), `LimitOffsetPagination` (:126), `CursorPagination` (:190).
+- JWT support is **behind a feature flag**: `djangors-rest = { version = "=0.7.0", features = ["jwt"] }`. Without it, `jsonwebtoken` is not compiled in.
+
+### Originally established against 0.6.3 (confirm before use)
 
 - `djangors_core::Router`: `.get()/.post()/.put()/.delete()` are 2-arg sugar; `.route(path, Method::X, handler)` is the 3-arg general form (needed for `PATCH`). `.mount(prefix, sub_router)` composes routers and inherits parent state for types the sub-router didn't set.
 - `djangors_core::Request`: `.path() -> &str`, `.method() -> &hyper::Method`, `.header(name) -> Option<&HeaderValue>`, `.raw_query() -> Option<&str>`, `.require_state::<T>()` / `.state::<T>()`, `.body_bytes().await`.

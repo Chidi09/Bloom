@@ -1,0 +1,38 @@
+pub mod accounts;
+// The `apps` domain app lives under the `apps` module tree like every other domain app;
+// the name collision is inherent to the layout, not an accident.
+#[allow(clippy::module_inception)]
+pub mod apps;
+pub mod artifacts;
+pub mod builds;
+pub mod common;
+pub mod credentials;
+pub mod environments;
+pub mod events;
+pub mod organizations;
+pub mod projects;
+pub mod secrets;
+pub mod signing;
+
+use djangors_core::Router;
+
+/// Domain application route composition point.
+///
+/// Mounts all domain-level applications (e.g. accounts, organizations, projects)
+/// under the `/api/v1` namespace.
+pub fn urls() -> Router {
+    Router::new()
+        .mount("", accounts::urls())
+        .mount("", organizations::urls())
+        .mount("", environments::urls())
+        .mount("", apps::urls())
+        .mount("", projects::urls())
+        .mount("", credentials::urls())
+        .mount("", secrets::urls())
+        .mount("", signing::urls())
+        // Phase 3: events is the write sink every other app emits through; builds owns the
+        // queueing path and artifacts the storage path.
+        .mount("", events::urls())
+        .mount("", builds::urls())
+        .mount("", artifacts::urls())
+}
