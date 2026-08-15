@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 import '../utils/ansi.dart';
+import 'plugin_catalog.dart';
 
 class AndroidPrebuild {
   final Directory androidDir;
@@ -37,15 +38,9 @@ class AndroidPrebuild {
 
           for (final plugin in plugins) {
             final pluginName = plugin is String ? plugin : (plugin is Map ? plugin.keys.first.toString() : '');
-            if (pluginName == 'camera') {
-              permissionsToInject.add('android.permission.CAMERA');
-              permissionsToInject.add('android.permission.RECORD_AUDIO');
-            } else if (pluginName == 'notifications') {
-              permissionsToInject.add('android.permission.POST_NOTIFICATIONS');
-              permissionsToInject.add('android.permission.VIBRATE');
-            } else if (pluginName == 'location') {
-              permissionsToInject.add('android.permission.ACCESS_FINE_LOCATION');
-              permissionsToInject.add('android.permission.ACCESS_COARSE_LOCATION');
+            final descriptor = BloomPluginCatalog.resolve(pluginName);
+            if (descriptor != null) {
+              permissionsToInject.addAll(descriptor.androidPermissions);
             }
           }
 

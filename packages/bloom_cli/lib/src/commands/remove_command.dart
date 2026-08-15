@@ -2,6 +2,7 @@
 import 'package:args/command_runner.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 import '../native/prebuild_engine.dart';
+import '../native/plugin_catalog.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
@@ -20,13 +21,22 @@ class RemoveCommand extends Command<int> {
     }
 
     final pluginName = rest.first.trim().toLowerCase();
+    final descriptor = BloomPluginCatalog.resolve(pluginName);
+    if (descriptor == null) {
+      print(Ansi.error('Unknown plugin: "$pluginName".'));
+      print(Ansi.error('Supported plugins: ${BloomPluginCatalog.supportedIds.join(', ')}.'));
+      return 1;
+    }
+
+    final canonicalName = descriptor.id;
+
     final project = BloomProject.find();
     if (project == null) {
       print(Ansi.error('No Bloom project found.'));
       return 1;
     }
 
-    print(Ansi.boldText('\n➖ Removing Bloom plugin: ${Ansi.cyan}$pluginName${Ansi.reset}\n'));
+    print(Ansi.boldText('\n➖ Removing Bloom plugin: ${Ansi.cyan}$canonicalName${Ansi.reset}\n'));
 
     // Update bloom.yaml
     final yamlContent = project.bloomYamlFile.readAsStringSync();
@@ -35,10 +45,10 @@ class RemoveCommand extends Command<int> {
     final config = project.loadBloomConfig();
     final plugins = config['plugins'] is List ? List.from(config['plugins'] as List) : [];
 
-    plugins.removeWhere((p) => p == pluginName || (p is Map && p.containsKey(pluginName)));
+    plugins.removeWhere((p) => p == canonicalName || (p is Map && p.containsKey(canonicalName)));
     editor.update(['plugins'], plugins);
     project.bloomYamlFile.writeAsStringSync(editor.toString());
-    print(Ansi.success('Removed plugin "$pluginName" from bloom.yaml.'));
+    print(Ansi.success('Removed plugin "$canonicalName" from bloom.yaml.'));
 
     // Run Prebuild synchronization
     final engine = PrebuildEngine(project);

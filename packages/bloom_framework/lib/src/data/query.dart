@@ -148,6 +148,7 @@ class BloomQuery<T> {
   void dispose() {
     _isDisposed = true;
     _invalidationSub?.cancel();
+    BloomData.releaseListener(key);
   }
 }
 
