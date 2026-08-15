@@ -109,7 +109,7 @@ pub fn urls() -> Router {
             views::author_reply_template_review,
         )
         .post(
-            "/marketplace/reviews/:id}/reply",
+            "/marketplace/reviews/:id/reply",
             views::author_reply_template_review,
         )
         .post(
@@ -117,7 +117,7 @@ pub fn urls() -> Router {
             views::report_template_review,
         )
         .post(
-            "/marketplace/reviews/:id}/report",
+            "/marketplace/reviews/:id/report",
             views::report_template_review,
         )
         .post(
@@ -125,7 +125,7 @@ pub fn urls() -> Router {
             views::moderate_template_review,
         )
         .post(
-            "/marketplace/reviews/:id}/moderate",
+            "/marketplace/reviews/:id/moderate",
             views::moderate_template_review,
         )
         // Install Analytics & Verification
@@ -134,22 +134,22 @@ pub fn urls() -> Router {
             views::record_template_install,
         )
         .post(
-            "/marketplace/templates/:id}/install",
+            "/marketplace/templates/:id/install",
             views::record_template_install,
         )
         .post("/templates/{id}/install", views::record_template_install)
-        .post("/templates/:id}/install", views::record_template_install)
+        .post("/templates/:id/install", views::record_template_install)
         // Staff Curation & Featured Placement
         .post(
             "/marketplace/templates/{id}/feature",
             views::feature_template,
         )
         .post(
-            "/marketplace/templates/:id}/feature",
+            "/marketplace/templates/:id/feature",
             views::feature_template,
         )
         .post("/templates/{id}/feature", views::feature_template)
-        .post("/templates/:id}/feature", views::feature_template)
+        .post("/templates/:id/feature", views::feature_template)
         // Organization-scoped template management routes
         .get("/templates", views::list_templates)
         .post("/templates", views::create_template)

@@ -11,11 +11,12 @@ Date: 2026-08-15. Original commit: `76e3117`.
 | S3 hardcoded signing key | Fixed — `c99e5d2` |
 | S4 no rate limiting | Fixed — `c99e5d2` |
 | S5 credential validation is simulated | **Open** — needs live API calls, pairs with the integration pass |
-| C1 unbounded list endpoints | Partly fixed — `b4bcc69` covered builds/events/artifacts/deployments/releases; remaining apps in flight |
-| C2 N+1 lookups | Partly fixed — same commit and scope as C1 |
-| C3 no transactions | Partly fixed — `e3d412d` made install recording atomic; other multi-step writes still unwrapped |
-| F1 framework surface unused | Largely fixed — pagination, throttling, SSE, and djangors-tasks all adopted |
+| C1 unbounded list endpoints | Fixed — `b4bcc69` covered builds/events/artifacts/deployments/releases; `088d253` closed the remaining 23 sites (workflows, webhosting, marketplace, and all double-COUNT views) |
+| C2 N+1 lookups | Fixed — same commits as C1 |
+| C3 no transactions | Fixed — `e3d412d` made install recording atomic; `3855813` closed the rest (billing webhook settlement, org creation/invite acceptance, web deployment create/rollback) |
+| F1 framework surface unused | Largely fixed — pagination, throttling, SSE, and djangors-tasks all adopted. ViewSet migration investigated and found blocked by the framework in 0.7.0 (see **V1** below) |
 | F2 fabricated constants | Fixed |
+| V1 malformed legacy route paths | Fixed — 7 routes in `marketplace/urls.rs` registered `:id}` (stray brace) instead of `:id`, which the router accepted as a param literally named `"id}"`, so every handler's `params.get("id")` silently 400'd on the legacy path style. Canonical `{id}`-style routes were unaffected. |
 
 Two findings surfaced during the fixes and are also closed:
 
