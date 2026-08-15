@@ -20,6 +20,8 @@ pub fn serialize_plan(plan: &Plan) -> PlanResponse {
         id: plan.public_id.clone(),
         name: plan.name.clone(),
         description: plan.description.clone(),
+        price_minor: plan.price_minor,
+        currency: plan.currency.clone(),
         entitlements: parse_entitlements_json(&plan.entitlements),
         active: plan.active,
         created_at: plan.created_at,

@@ -30,6 +30,14 @@ pub struct Plan {
     #[djangors(nullable)]
     pub description: Option<String>,
 
+    /// Plan price in integer minor currency units (e.g. 0 for free, 2900 for $29.00 Pro).
+    #[djangors(default = 0)]
+    pub price_minor: i64,
+
+    /// Three-letter ISO 4217 currency code (e.g. "USD").
+    #[djangors(max_length = 3, default = "USD")]
+    pub currency: String,
+
     /// JSON string containing feature flags and quota limits.
     #[djangors(default = "{}")]
     pub entitlements: String,
@@ -67,6 +75,10 @@ pub struct Subscription {
     /// Foreign key referencing the active billing plan.
     #[djangors(foreign_key(on_delete = "cascade"))]
     pub plan_id: ForeignKey<Plan>,
+
+    /// Optional foreign key ID of pending plan upgrade awaiting payment confirmation.
+    #[djangors(nullable)]
+    pub pending_plan_id: Option<i64>,
 
     /// Lifecycle status: `trialing`, `active`, `past_due`, `locked`, or `cancelled`.
     #[djangors(max_length = 32)]

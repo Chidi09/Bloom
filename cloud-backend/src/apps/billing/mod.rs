@@ -19,9 +19,11 @@ pub use contracts::{
     SubscriptionResponse, UsageSummaryResponse,
 };
 pub use services::{
-    calculate_build_minutes, calculate_prorated_amount, check_bandwidth_entitlement,
+    apply_charge_initiation, apply_free_downgrade, apply_payment_success, calculate_build_minutes,
+    calculate_prorated_amount, can_transition_subscription, check_bandwidth_entitlement,
     check_build_minutes_entitlement, check_storage_entitlement, check_web_hosting_entitlement,
-    evaluate_feature_enforcement, evaluate_numeric_enforcement, EnforcementContext,
+    evaluate_feature_enforcement, evaluate_numeric_enforcement, validate_subscription_upgrade,
+    EnforcementContext,
 };
 
 /// Build the billing app router.

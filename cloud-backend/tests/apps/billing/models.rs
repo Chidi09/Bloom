@@ -41,6 +41,21 @@ fn test_plan_model_metadata() {
         .find(|f| f.name == "active")
         .expect("active field must exist on Plan");
     assert_eq!(active_field.default, DefaultValue::Bool(true));
+
+    let price_minor_field = meta
+        .fields
+        .iter()
+        .find(|f| f.name == "price_minor")
+        .expect("price_minor field must exist on Plan");
+    assert_eq!(price_minor_field.default, DefaultValue::I64(0));
+
+    let currency_field = meta
+        .fields
+        .iter()
+        .find(|f| f.name == "currency")
+        .expect("currency field must exist on Plan");
+    assert_eq!(currency_field.max_length, Some(3));
+    assert_eq!(currency_field.default, DefaultValue::Text("USD"));
 }
 
 #[test]
@@ -62,6 +77,13 @@ fn test_subscription_model_metadata() {
         .find(|f| f.name == "status")
         .expect("status field must exist on Subscription");
     assert_eq!(status_field.max_length, Some(32));
+
+    let pending_plan_field = meta
+        .fields
+        .iter()
+        .find(|f| f.name == "pending_plan_id")
+        .expect("pending_plan_id field must exist on Subscription");
+    assert!(pending_plan_field.nullable);
 
     let trial_ends_field = meta
         .fields

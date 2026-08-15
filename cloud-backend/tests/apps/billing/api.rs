@@ -67,6 +67,8 @@ fn test_plan_response_serialization() {
         id: "plan-550e8400-e29b-41d4-a716-446655440000".to_string(),
         name: "pro".to_string(),
         description: Some("Professional Plan".to_string()),
+        price_minor: 2900,
+        currency: "USD".to_string(),
         entitlements: Entitlements {
             max_projects: 10,
             max_apps: 25,
@@ -90,6 +92,8 @@ fn test_plan_response_serialization() {
     let serialized = serde_json::to_string(&res).unwrap();
     assert!(serialized.contains("\"id\":\"plan-550e8400-e29b-41d4-a716-446655440000\""));
     assert!(serialized.contains("\"name\":\"pro\""));
+    assert!(serialized.contains("\"price_minor\":2900"));
+    assert!(serialized.contains("\"currency\":\"USD\""));
     assert!(serialized.contains("\"max_projects\":10"));
     assert!(serialized.contains("\"build_minutes_monthly\":2000"));
     assert!(serialized.contains("\"shorebird\":true"));
@@ -235,6 +239,11 @@ fn test_billing_error_mappings() {
     let dj_err: DjangorsError = err.into();
     assert_eq!(dj_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(dj_err.code(), "missing_webhook_secret");
+
+    let err = BillingError::PaymentProviderNotConfigured;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(dj_err.code(), "payment_provider_not_configured");
 
     let err = BillingError::QuotaExceeded {
         metric: "build_minutes".to_string(),

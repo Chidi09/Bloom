@@ -45,6 +45,9 @@ pub enum BillingError {
     /// Error returned by the payment gateway (Bachs or Paystack).
     PaymentProviderError(String),
 
+    /// Selected payment provider is not configured (missing settings or secret key).
+    PaymentProviderNotConfigured,
+
     /// Inbound payment webhook signature verification failed.
     InvalidWebhookSignature,
 
@@ -96,6 +99,9 @@ impl std::fmt::Display for BillingError {
             Self::InvalidMetric(m) => write!(f, "Invalid usage metric: '{m}'."),
             Self::InvalidAmount(msg) => write!(f, "Invalid monetary amount: {msg}."),
             Self::PaymentProviderError(msg) => write!(f, "Payment provider error: {msg}."),
+            Self::PaymentProviderNotConfigured => {
+                write!(f, "Payment provider is not configured.")
+            }
             Self::InvalidWebhookSignature => write!(f, "Invalid or missing webhook signature."),
             Self::MissingWebhookSecret => {
                 write!(f, "Payment provider webhook secret is not configured.")
@@ -175,6 +181,11 @@ impl From<BillingError> for DjangorsError {
             BillingError::PaymentProviderError(msg) => {
                 DjangorsError::api(StatusCode::BAD_GATEWAY, "payment_provider_error", msg)
             }
+            BillingError::PaymentProviderNotConfigured => DjangorsError::api(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "payment_provider_not_configured",
+                "Payment provider is not configured.",
+            ),
             BillingError::InvalidWebhookSignature => DjangorsError::api(
                 StatusCode::BAD_REQUEST,
                 "invalid_webhook_signature",

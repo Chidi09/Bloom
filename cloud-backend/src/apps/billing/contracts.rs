@@ -95,6 +95,12 @@ pub struct PlanResponse {
     /// Optional plan description.
     pub description: Option<String>,
 
+    /// Plan price in integer minor currency units (e.g. 0 for free, 2900 for $29.00).
+    pub price_minor: i64,
+
+    /// Three-letter ISO 4217 currency code (e.g. "USD").
+    pub currency: String,
+
     /// Typed entitlements structure parsed from JSON.
     pub entitlements: Entitlements,
 

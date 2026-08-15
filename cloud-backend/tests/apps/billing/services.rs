@@ -1,19 +1,25 @@
 use bloom_cloud_backend::apps::billing::contracts::{
     EnforcementDecision, Entitlements, FeatureEntitlements,
 };
+use bloom_cloud_backend::apps::billing::errors::BillingError;
+use bloom_cloud_backend::apps::billing::models::{Plan, Subscription};
 use bloom_cloud_backend::apps::billing::serializers::parse_entitlements_json;
 use bloom_cloud_backend::apps::billing::services::{
-    calculate_build_minutes, calculate_prorated_amount, can_transition_subscription,
-    check_bandwidth_entitlement, check_build_minutes_entitlement, check_storage_entitlement,
-    check_web_hosting_entitlement, evaluate_feature_enforcement, evaluate_numeric_enforcement,
+    apply_charge_initiation, apply_free_downgrade, apply_payment_success, calculate_build_minutes,
+    calculate_prorated_amount, can_transition_subscription, check_bandwidth_entitlement,
+    check_build_minutes_entitlement, check_storage_entitlement, check_web_hosting_entitlement,
+    evaluate_feature_enforcement, evaluate_numeric_enforcement, validate_subscription_upgrade,
     EnforcementContext, VALID_INVOICE_STATUSES, VALID_METRICS, VALID_SUBSCRIPTION_STATUSES,
 };
 use bloom_cloud_backend::infra::crypto::Crypto;
 use chrono::{Duration, Utc};
 use djangors_contrib_payments::PaymentProvider;
 use djangors_contrib_payments::{BachsProvider, PaystackProvider};
+use djangors_core::{DjangorsError, StatusCode};
+use djangors_orm::ForeignKey;
 use hmac::{Hmac, Mac};
 use sha2::Sha512;
+use uuid::Uuid;
 
 #[test]
 fn test_entitlements_parsing_and_restrictive_defaults() {
@@ -426,5 +432,242 @@ fn test_constants_completeness() {
     assert_eq!(
         VALID_INVOICE_STATUSES,
         &["draft", "sent", "paid", "overdue", "void"]
+    );
+}
+
+fn sample_plan(id: i64, name: &str, price_minor: i64, currency: &str) -> Plan {
+    Plan {
+        id,
+        public_id: Uuid::new_v4().to_string(),
+        name: name.to_string(),
+        description: Some(format!("{name} plan")),
+        price_minor,
+        currency: currency.to_string(),
+        entitlements: "{}".to_string(),
+        active: true,
+        created_at: Utc::now(),
+    }
+}
+
+fn sample_subscription(id: i64, plan_id: i64, status: &str) -> Subscription {
+    let now = Utc::now();
+    Subscription {
+        id,
+        public_id: Uuid::new_v4().to_string(),
+        organization_id: ForeignKey::new(100),
+        plan_id: ForeignKey::new(plan_id),
+        pending_plan_id: None,
+        status: status.to_string(),
+        trial_ends_at: None,
+        activated_at: Some(now),
+        current_period_start: now,
+        current_period_end: now + Duration::days(30),
+        stripe_customer_id: None,
+        stripe_subscription_id: None,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+#[test]
+fn test_unknown_provider_string_rejected_with_validation_error() {
+    let pro_plan = sample_plan(2, "pro", 2900, "USD");
+
+    // Invalid providers rejected with validation error
+    let err_stripe = validate_subscription_upgrade(&pro_plan, Some("stripe")).unwrap_err();
+    assert!(matches!(err_stripe, BillingError::ValidationError(_)));
+
+    let err_paypal = validate_subscription_upgrade(&pro_plan, Some("paypal")).unwrap_err();
+    assert!(matches!(err_paypal, BillingError::ValidationError(_)));
+
+    let err_random = validate_subscription_upgrade(&pro_plan, Some("unknown_prov")).unwrap_err();
+    assert!(matches!(err_random, BillingError::ValidationError(_)));
+
+    // Valid providers accepted
+    let (prov_bachs, amt, curr) = validate_subscription_upgrade(&pro_plan, Some("bachs")).unwrap();
+    assert_eq!(prov_bachs, "bachs");
+    assert_eq!(amt, 2900);
+    assert_eq!(curr, "USD");
+
+    let (prov_paystack, amt, curr) =
+        validate_subscription_upgrade(&pro_plan, Some("paystack")).unwrap();
+    assert_eq!(prov_paystack, "paystack");
+    assert_eq!(amt, 2900);
+    assert_eq!(curr, "USD");
+
+    // Default provider when None is bachs
+    let (prov_default, amt, curr) = validate_subscription_upgrade(&pro_plan, None).unwrap();
+    assert_eq!(prov_default, "bachs");
+    assert_eq!(amt, 2900);
+    assert_eq!(curr, "USD");
+}
+
+#[test]
+fn test_plan_price_minor_drives_charge_and_zero_price_on_paid_plan_rejected() {
+    // 1. Paid plan with price 0 is rejected as an invalid amount
+    let zero_price_pro = sample_plan(2, "pro", 0, "USD");
+    let err_zero = validate_subscription_upgrade(&zero_price_pro, None).unwrap_err();
+    assert!(matches!(err_zero, BillingError::InvalidAmount(_)));
+
+    // Negative price is also rejected
+    let neg_price_plan = sample_plan(2, "pro", -100, "USD");
+    let err_neg = validate_subscription_upgrade(&neg_price_plan, None).unwrap_err();
+    assert!(matches!(err_neg, BillingError::InvalidAmount(_)));
+
+    // 2. Enterprise plan with price 19900 cents correctly returns 19900
+    let ent_plan = sample_plan(3, "enterprise", 19900, "USD");
+    let (_, charged_cents, currency) = validate_subscription_upgrade(&ent_plan, None).unwrap();
+    assert_eq!(charged_cents, 19900);
+    assert_eq!(currency, "USD");
+
+    // Custom paid plan price drives the charged amount
+    let custom_plan = sample_plan(4, "custom", 4900, "USD");
+    let (_, charged_cents, currency) = validate_subscription_upgrade(&custom_plan, None).unwrap();
+    assert_eq!(charged_cents, 4900);
+    assert_eq!(currency, "USD");
+}
+
+#[test]
+fn test_free_downgrade_immediate_no_charge_attempted() {
+    let free_plan = sample_plan(1, "free", 0, "USD");
+
+    // Free plan validation bypasses provider charge
+    let (provider, amount, _) = validate_subscription_upgrade(&free_plan, None).unwrap();
+    assert_eq!(provider, "none");
+    assert_eq!(amount, 0);
+
+    // Free downgrade directly updates plan_id and sets active without pending_plan_id
+    let mut sub = sample_subscription(10, 2, "active"); // currently on Pro (plan_id = 2)
+    let now = Utc::now();
+    let period_end = now + Duration::days(30);
+
+    apply_free_downgrade(&mut sub, free_plan.id, now, period_end);
+
+    assert_eq!(sub.plan_id.id, 1);
+    assert_eq!(sub.pending_plan_id, None);
+    assert_eq!(sub.status, "active");
+}
+
+#[test]
+fn test_successful_initiation_sets_past_due_preserves_plan_id_and_sets_pending_plan() {
+    let mut sub = sample_subscription(10, 1, "active"); // on Free (plan_id = 1)
+    let now = Utc::now();
+    let original_period_start = sub.current_period_start;
+    let original_period_end = sub.current_period_end;
+    let target_plan_id = 2_i64; // Pro
+    let reference = "sub_100_test_ref_123";
+
+    apply_charge_initiation(&mut sub, target_plan_id, reference, now)
+        .expect("charge initiation succeeds");
+
+    // Status becomes past_due
+    assert_eq!(sub.status, "past_due");
+    // PREVIOUS plan_id is UNCHANGED until payment confirms
+    assert_eq!(sub.plan_id.id, 1);
+    // Pending target plan is persisted
+    assert_eq!(sub.pending_plan_id, Some(2));
+    // Reference is recorded
+    assert_eq!(sub.stripe_subscription_id, Some(reference.to_string()));
+    // The billing period must NOT advance on mere initiation. Metered usage is counted since
+    // current_period_start, so advancing it here would let a caller reset their own quota by
+    // starting an upgrade and abandoning the payment page.
+    assert_eq!(sub.current_period_start, original_period_start);
+    assert_eq!(sub.current_period_end, original_period_end);
+}
+
+#[test]
+fn test_abandoned_checkout_does_not_reset_metered_usage_window() {
+    let mut sub = sample_subscription(10, 1, "active");
+    let original_period_start = sub.current_period_start;
+
+    // Caller repeatedly starts an upgrade and never pays.
+    for i in 0..3 {
+        let now = Utc::now() + Duration::minutes(i);
+        apply_charge_initiation(&mut sub, 2, &format!("ref_{i}"), now)
+            .expect("re-initiation from past_due is allowed");
+        assert_eq!(
+            sub.current_period_start, original_period_start,
+            "quota window must never move without a confirmed payment"
+        );
+    }
+
+    // Still on the free plan the whole time.
+    assert_eq!(sub.plan_id.id, 1);
+}
+
+#[test]
+fn test_webhook_success_applies_pending_plan_and_activates() {
+    let mut sub = sample_subscription(10, 1, "past_due");
+    sub.pending_plan_id = Some(2); // Pro upgrade pending
+    sub.activated_at = None;
+
+    let now = Utc::now();
+    let period_end = now + Duration::days(30);
+    let changed = apply_payment_success(&mut sub, now, period_end);
+
+    assert!(changed, "apply_payment_success must report state changed");
+    // The billing period advances here, against a confirmed payment.
+    assert_eq!(sub.current_period_start, now);
+    assert_eq!(sub.current_period_end, period_end);
+    // Plan is updated to pending target plan
+    assert_eq!(sub.plan_id.id, 2);
+    // Pending target plan is cleared
+    assert_eq!(sub.pending_plan_id, None);
+    // Status transitions to active
+    assert_eq!(sub.status, "active");
+    // Activated timestamp is set
+    assert_eq!(sub.activated_at, Some(now));
+}
+
+#[test]
+fn test_webhook_redelivered_twice_is_idempotent() {
+    let mut sub = sample_subscription(10, 1, "past_due");
+    sub.pending_plan_id = Some(2);
+    sub.activated_at = None;
+
+    let first_time = Utc::now();
+    let first_applied =
+        apply_payment_success(&mut sub, first_time, first_time + Duration::days(30));
+    assert!(first_applied);
+    assert_eq!(sub.plan_id.id, 2);
+    assert_eq!(sub.pending_plan_id, None);
+    assert_eq!(sub.status, "active");
+    assert_eq!(sub.activated_at, Some(first_time));
+
+    // Second webhook delivery for same event later
+    let second_time = first_time + Duration::minutes(10);
+    let period_after_first = sub.current_period_start;
+    let second_applied =
+        apply_payment_success(&mut sub, second_time, second_time + Duration::days(30));
+
+    // A redelivered webhook must not slide the quota window forward either.
+    assert_eq!(sub.current_period_start, period_after_first);
+
+    // Must NOT re-apply or mutate
+    assert!(
+        !second_applied,
+        "Second delivery must be a no-op (idempotent)"
+    );
+    assert_eq!(sub.plan_id.id, 2);
+    assert_eq!(sub.pending_plan_id, None);
+    assert_eq!(sub.status, "active");
+    // Original activated_at preserved
+    assert_eq!(sub.activated_at, Some(first_time));
+}
+
+#[test]
+fn test_provider_failure_maps_to_bad_gateway_and_never_grants_the_plan() {
+    // A provider failure must surface as 502 rather than being swallowed. `subscribe_to_plan`
+    // propagates it with `?` BEFORE calling apply_charge_initiation, so the only way a plan
+    // change is ever persisted is through the success path exercised above.
+    let err: DjangorsError =
+        BillingError::PaymentProviderError("bachs: 502 Bad Gateway".to_string()).into();
+    assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
+
+    // An unconfigured provider is likewise an error, not a silent free upgrade.
+    let unconfigured: DjangorsError = BillingError::PaymentProviderNotConfigured.into();
+    assert_eq!(
+        unconfigured.status_code(),
+        StatusCode::INTERNAL_SERVER_ERROR
     );
 }

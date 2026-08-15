@@ -256,6 +256,128 @@ pub fn can_transition_subscription(from: &str, to: &str) -> bool {
     )
 }
 
+/// Validate subscription upgrade request parameters and target plan pricing.
+///
+/// Returns `(provider_name, price_minor, currency)` on success.
+/// Rejects non-positive prices on paid plans and unknown provider strings.
+pub fn validate_subscription_upgrade(
+    target_plan: &Plan,
+    provider: Option<&str>,
+) -> Result<(&'static str, i64, String), BillingError> {
+    if target_plan.name == "free" {
+        return Ok(("none", 0, "USD".to_string()));
+    }
+
+    if target_plan.price_minor <= 0 {
+        return Err(BillingError::InvalidAmount(format!(
+            "Paid plan '{}' must have a positive price_minor, got {}",
+            target_plan.name, target_plan.price_minor
+        )));
+    }
+
+    let provider_name = match provider {
+        None | Some("bachs") => "bachs",
+        Some("paystack") => "paystack",
+        Some(other) => {
+            return Err(BillingError::ValidationError(format!(
+                "Unsupported payment provider: '{other}'. Valid providers are 'bachs' and 'paystack'."
+            )));
+        }
+    };
+
+    Ok((
+        provider_name,
+        target_plan.price_minor,
+        target_plan.currency.clone(),
+    ))
+}
+
+/// Pure state transformation on successful charge initiation for a paid plan upgrade.
+///
+/// Transitions subscription to `past_due`, records `pending_plan_id`, and leaves `plan_id` unchanged.
+///
+/// The billing period is deliberately NOT advanced here. Metered usage is counted since
+/// `current_period_start`, so resetting it on mere charge initiation would let a caller wipe
+/// their own quota by starting an upgrade and abandoning the payment page. The period moves
+/// only once payment confirms, in [`apply_payment_success`].
+pub fn apply_charge_initiation(
+    sub: &mut Subscription,
+    target_plan_id: i64,
+    reference: &str,
+    now: DateTime<Utc>,
+) -> Result<(), BillingError> {
+    if sub.status != "past_due" && !can_transition_subscription(&sub.status, "past_due") {
+        return Err(BillingError::InvalidStatusTransition {
+            from: sub.status.clone(),
+            to: "past_due".to_string(),
+        });
+    }
+
+    sub.status = "past_due".to_string();
+    sub.pending_plan_id = Some(target_plan_id);
+    sub.stripe_subscription_id = Some(reference.to_string());
+    sub.updated_at = now;
+
+    Ok(())
+}
+
+/// Pure state transformation for immediate free-tier downgrade.
+///
+/// Applies the free plan immediately without pending state or charge.
+pub fn apply_free_downgrade(
+    sub: &mut Subscription,
+    free_plan_id: i64,
+    now: DateTime<Utc>,
+    period_end: DateTime<Utc>,
+) {
+    sub.plan_id = ForeignKey::new(free_plan_id);
+    sub.pending_plan_id = None;
+    sub.status = "active".to_string();
+    sub.current_period_start = now;
+    sub.current_period_end = period_end;
+    sub.updated_at = now;
+}
+
+/// Pure state transition upon successful payment confirmation (from webhook).
+///
+/// Applies the `pending_plan_id` to `plan_id`, transitions status to `active`,
+/// and updates `activated_at`. Returns `true` if any change occurred (idempotency check).
+///
+/// This is also where the billing period advances, because metered usage is counted since
+/// `current_period_start` and must only reset against confirmed payment. The period is moved
+/// exactly once per payment, guarded by the same pending-plan check that makes redelivered
+/// webhooks idempotent.
+pub fn apply_payment_success(
+    sub: &mut Subscription,
+    now: DateTime<Utc>,
+    period_end: DateTime<Utc>,
+) -> bool {
+    let mut changed = false;
+
+    if let Some(pending_id) = sub.pending_plan_id.take() {
+        sub.plan_id = ForeignKey::new(pending_id);
+        sub.current_period_start = now;
+        sub.current_period_end = period_end;
+        changed = true;
+    }
+
+    if sub.status != "active" && can_transition_subscription(&sub.status, "active") {
+        sub.status = "active".to_string();
+        changed = true;
+    }
+
+    if sub.activated_at.is_none() {
+        sub.activated_at = Some(now);
+        changed = true;
+    }
+
+    if changed {
+        sub.updated_at = now;
+    }
+
+    changed
+}
+
 // ---------------------------------------------------------------------------
 // Domain result structures
 // ---------------------------------------------------------------------------
@@ -398,6 +520,8 @@ pub async fn get_or_create_subscription(
                 public_id: Uuid::new_v4().to_string(),
                 name: "free".to_string(),
                 description: Some("Bloom Cloud Free Tier".to_string()),
+                price_minor: 0,
+                currency: "USD".to_string(),
                 entitlements: serde_json::to_string(&free_entitlements)
                     .unwrap_or_else(|_| "{}".to_string()),
                 active: true,
@@ -415,6 +539,7 @@ pub async fn get_or_create_subscription(
         public_id: Uuid::new_v4().to_string(),
         organization_id: ForeignKey::new(organization_id),
         plan_id: ForeignKey::new(plan.id),
+        pending_plan_id: None,
         status: "active".to_string(),
         trial_ends_at: None,
         activated_at: Some(now),
@@ -490,11 +615,7 @@ pub async fn subscribe_to_plan(
 
     // If free tier switch, update immediately
     if target_plan.name == "free" {
-        sub.plan_id = ForeignKey::new(target_plan.id);
-        sub.status = "active".to_string();
-        sub.current_period_start = now;
-        sub.current_period_end = period_end;
-        sub.updated_at = now;
+        apply_free_downgrade(&mut sub, target_plan.id, now, period_end);
         repositories::update_subscription(db, &sub).await?;
 
         emit_event(
@@ -520,69 +641,71 @@ pub async fn subscribe_to_plan(
         });
     }
 
-    // Determine plan pricing in cents (Pro: $29/mo = 2900 cents, Enterprise: $199/mo = 19900 cents)
-    let amount_cents = match target_plan.name.as_str() {
-        "pro" => 2900_i64,
-        "enterprise" => 19900_i64,
-        _ => 2900_i64,
-    };
+    // Validate pricing and provider
+    let (provider_name, price_minor, currency) =
+        validate_subscription_upgrade(&target_plan, req.provider.as_deref())?;
 
     let reference = format!("sub_{}_{}", organization_id, Uuid::new_v4());
 
     // 2. Initiate charge via configured payment provider (Bachs or Paystack)
-    let provider_name = req.provider.as_deref().unwrap_or("bachs");
     let mut auth_url = None;
 
     if provider_name == "paystack" {
-        if let Some(settings) = paystack_settings {
-            if let Some(secret) = &settings.secret_key {
-                let provider = if let Some(base_url) = &settings.base_url {
-                    PaystackProvider::with_base_url(secret.clone(), base_url.clone())
-                } else {
-                    PaystackProvider::new(secret.clone())
-                };
+        let settings = paystack_settings.ok_or(BillingError::PaymentProviderNotConfigured)?;
+        let secret = settings
+            .secret_key
+            .as_deref()
+            .ok_or(BillingError::PaymentProviderNotConfigured)?;
 
-                let charge_req = InitiateChargeRequest {
-                    email: user_email.to_string(),
-                    amount_minor: amount_cents,
-                    currency: "USD".to_string(),
-                    reference: reference.clone(),
-                    callback_url: req.callback_url.clone(),
-                };
+        let provider = if let Some(base_url) = &settings.base_url {
+            PaystackProvider::with_base_url(secret.to_string(), base_url.clone())
+        } else {
+            PaystackProvider::new(secret.to_string())
+        };
 
-                if let Ok(res) = provider.initiate(&charge_req).await {
-                    auth_url = Some(res.authorization_url);
-                }
-            }
-        }
-    } else if let Some(settings) = bachs_settings {
-        if let Some(secret) = &settings.secret_key {
-            let provider = if let Some(base_url) = &settings.base_url {
-                BachsProvider::with_base_url(secret.clone(), base_url.clone())
-            } else {
-                BachsProvider::new(secret.clone())
-            };
+        let charge_req = InitiateChargeRequest {
+            email: user_email.to_string(),
+            amount_minor: price_minor,
+            currency,
+            reference: reference.clone(),
+            callback_url: req.callback_url.clone(),
+        };
 
-            let charge_req = InitiateChargeRequest {
-                email: user_email.to_string(),
-                amount_minor: amount_cents,
-                currency: "USD".to_string(),
-                reference: reference.clone(),
-                callback_url: req.callback_url.clone(),
-            };
+        let res = provider
+            .initiate(&charge_req)
+            .await
+            .map_err(|e| BillingError::PaymentProviderError(format!("paystack: {e}")))?;
+        auth_url = Some(res.authorization_url);
+    } else if provider_name == "bachs" {
+        let settings = bachs_settings.ok_or(BillingError::PaymentProviderNotConfigured)?;
+        let secret = settings
+            .secret_key
+            .as_deref()
+            .ok_or(BillingError::PaymentProviderNotConfigured)?;
 
-            if let Ok(res) = provider.initiate(&charge_req).await {
-                auth_url = Some(res.authorization_url);
-            }
-        }
+        let provider = if let Some(base_url) = &settings.base_url {
+            BachsProvider::with_base_url(secret.to_string(), base_url.clone())
+        } else {
+            BachsProvider::new(secret.to_string())
+        };
+
+        let charge_req = InitiateChargeRequest {
+            email: user_email.to_string(),
+            amount_minor: price_minor,
+            currency,
+            reference: reference.clone(),
+            callback_url: req.callback_url.clone(),
+        };
+
+        let res = provider
+            .initiate(&charge_req)
+            .await
+            .map_err(|e| BillingError::PaymentProviderError(format!("bachs: {e}")))?;
+        auth_url = Some(res.authorization_url);
     }
 
-    // Update subscription to trialing/active
-    sub.plan_id = ForeignKey::new(target_plan.id);
-    sub.stripe_subscription_id = Some(reference.clone());
-    sub.current_period_start = now;
-    sub.current_period_end = period_end;
-    sub.updated_at = now;
+    // Apply charge initiation state (status becomes past_due, plan_id UNCHANGED, pending_plan_id set)
+    apply_charge_initiation(&mut sub, target_plan.id, &reference, now)?;
     repositories::update_subscription(db, &sub).await?;
 
     emit_event(
@@ -594,7 +717,8 @@ pub async fn subscribe_to_plan(
         Some(user_id),
         serde_json::json!({
             "subscription_id": sub.public_id,
-            "plan_name": target_plan.name,
+            "plan_name": current_plan.name,
+            "pending_plan_name": target_plan.name,
             "status": sub.status,
             "reference": reference,
         }),
@@ -603,7 +727,7 @@ pub async fn subscribe_to_plan(
 
     Ok(SubscribeOutcome {
         subscription: sub,
-        plan: target_plan,
+        plan: current_plan,
         authorization_url: auth_url,
         reference: Some(reference),
     })
@@ -844,45 +968,47 @@ pub async fn handle_bachs_webhook(
                 repositories::subscription_by_provider_subscription_id(db, ref_str).await?
             {
                 let now = Utc::now();
-                sub.status = "active".to_string();
-                sub.activated_at = Some(now);
-                sub.updated_at = now;
-                repositories::update_subscription(db, &sub).await?;
+                let period_end = now + Duration::days(30);
+                if apply_payment_success(&mut sub, now, period_end) {
+                    repositories::update_subscription(db, &sub).await?;
 
-                emit_event(
-                    db,
-                    "billing.subscription.activated",
-                    Some(sub.organization_id.id),
-                    None,
-                    None,
-                    None,
-                    serde_json::json!({
-                        "subscription_id": sub.public_id,
-                        "reference": ref_str,
-                    }),
-                )
-                .await;
+                    emit_event(
+                        db,
+                        "billing.subscription.activated",
+                        Some(sub.organization_id.id),
+                        None,
+                        None,
+                        None,
+                        serde_json::json!({
+                            "subscription_id": sub.public_id,
+                            "reference": ref_str,
+                        }),
+                    )
+                    .await;
+                }
             }
 
             if let Some(mut inv) = repositories::invoice_by_provider_invoice_id(db, ref_str).await?
             {
-                inv.status = "paid".to_string();
-                inv.paid_at = Some(Utc::now());
-                repositories::update_invoice(db, &inv).await?;
+                if inv.status != "paid" {
+                    inv.status = "paid".to_string();
+                    inv.paid_at = Some(Utc::now());
+                    repositories::update_invoice(db, &inv).await?;
 
-                emit_event(
-                    db,
-                    "billing.invoice.paid",
-                    Some(inv.organization_id.id),
-                    None,
-                    None,
-                    None,
-                    serde_json::json!({
-                        "invoice_id": inv.public_id,
-                        "reference": ref_str,
-                    }),
-                )
-                .await;
+                    emit_event(
+                        db,
+                        "billing.invoice.paid",
+                        Some(inv.organization_id.id),
+                        None,
+                        None,
+                        None,
+                        serde_json::json!({
+                            "invoice_id": inv.public_id,
+                            "reference": ref_str,
+                        }),
+                    )
+                    .await;
+                }
             }
         }
 
@@ -946,45 +1072,47 @@ pub async fn handle_paystack_webhook(
                 repositories::subscription_by_provider_subscription_id(db, ref_str).await?
             {
                 let now = Utc::now();
-                sub.status = "active".to_string();
-                sub.activated_at = Some(now);
-                sub.updated_at = now;
-                repositories::update_subscription(db, &sub).await?;
+                let period_end = now + Duration::days(30);
+                if apply_payment_success(&mut sub, now, period_end) {
+                    repositories::update_subscription(db, &sub).await?;
 
-                emit_event(
-                    db,
-                    "billing.subscription.activated",
-                    Some(sub.organization_id.id),
-                    None,
-                    None,
-                    None,
-                    serde_json::json!({
-                        "subscription_id": sub.public_id,
-                        "reference": ref_str,
-                    }),
-                )
-                .await;
+                    emit_event(
+                        db,
+                        "billing.subscription.activated",
+                        Some(sub.organization_id.id),
+                        None,
+                        None,
+                        None,
+                        serde_json::json!({
+                            "subscription_id": sub.public_id,
+                            "reference": ref_str,
+                        }),
+                    )
+                    .await;
+                }
             }
 
             if let Some(mut inv) = repositories::invoice_by_provider_invoice_id(db, ref_str).await?
             {
-                inv.status = "paid".to_string();
-                inv.paid_at = Some(Utc::now());
-                repositories::update_invoice(db, &inv).await?;
+                if inv.status != "paid" {
+                    inv.status = "paid".to_string();
+                    inv.paid_at = Some(Utc::now());
+                    repositories::update_invoice(db, &inv).await?;
 
-                emit_event(
-                    db,
-                    "billing.invoice.paid",
-                    Some(inv.organization_id.id),
-                    None,
-                    None,
-                    None,
-                    serde_json::json!({
-                        "invoice_id": inv.public_id,
-                        "reference": ref_str,
-                    }),
-                )
-                .await;
+                    emit_event(
+                        db,
+                        "billing.invoice.paid",
+                        Some(inv.organization_id.id),
+                        None,
+                        None,
+                        None,
+                        serde_json::json!({
+                            "invoice_id": inv.public_id,
+                            "reference": ref_str,
+                        }),
+                    )
+                    .await;
+                }
             }
         }
 
