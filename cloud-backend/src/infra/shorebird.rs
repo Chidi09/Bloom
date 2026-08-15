@@ -42,6 +42,15 @@ use tokio::process::Command;
 /// Authorised by EXTERNAL_APIS.txt line 246.
 pub const DEFAULT_SHOREBIRD_TRACK: &str = "stable";
 
+/// Flag requesting machine-readable output from the Shorebird CLI.
+///
+/// Available from CLI v1.6.94. Always prefer this over scraping the human-readable output --
+/// the interactive form prints spinners and check marks that change between releases.
+pub const SHOREBIRD_JSON_FLAG: &str = "--json";
+
+/// Flag disabling interactive prompts, so a CI invocation can never block waiting on a TTY.
+pub const SHOREBIRD_NO_INPUT_FLAG: &str = "--no-input";
+
 /// Supported Shorebird operational action verbs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShorebirdAction {
@@ -260,6 +269,11 @@ pub fn build_shorebird_args(
     // 1. Action subcommand (release or patch)
     args.push(action.as_str().to_string());
 
+    // 2. Machine-readable, non-interactive output. A worker has no TTY, so a prompt would
+    // hang the build slot until the command timed out.
+    args.push(SHOREBIRD_JSON_FLAG.to_string());
+    args.push(SHOREBIRD_NO_INPUT_FLAG.to_string());
+
     // 2. Target platform(s)
     match platforms {
         ShorebirdPlatforms::Single(platform) => {
@@ -337,11 +351,40 @@ pub fn build_shorebird_args(
     args
 }
 
-/// Parses the release or patch ID from Shorebird CLI standard output.
+/// Parses the release or patch ID from Shorebird CLI output.
 ///
-/// If the output format cannot be definitively determined, returns [`None`].
+/// Prefers the structured `--json` envelope (see [`SHOREBIRD_JSON_FLAG`]) and falls back to
+/// scanning human-readable lines. The fallback exists because the exact JSON envelope shape is
+/// documented only loosely; it is a safety net, not the intended path.
+///
+/// Returns [`None`] when no id can be determined. It never guesses: a caller receiving `None`
+/// must treat the id as unknown rather than substituting a placeholder.
 pub fn parse_release_or_patch_id(output: &str) -> Option<String> {
-    // TODO(spec): shorebird CLI output parsing unverified
+    // Structured output first. Any of these keys may carry the id depending on the command.
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(output.trim()) {
+        for key in ["release_id", "patch_id", "id", "number"] {
+            match value.get(key) {
+                Some(serde_json::Value::String(s)) if !s.is_empty() => return Some(s.clone()),
+                Some(serde_json::Value::Number(n)) => return Some(n.to_string()),
+                _ => {}
+            }
+        }
+        // Commands nest the payload one level down under `release` / `patch`.
+        for parent in ["release", "patch"] {
+            if let Some(obj) = value.get(parent) {
+                for key in ["id", "number", "release_id", "patch_id"] {
+                    match obj.get(key) {
+                        Some(serde_json::Value::String(s)) if !s.is_empty() => {
+                            return Some(s.clone())
+                        }
+                        Some(serde_json::Value::Number(n)) => return Some(n.to_string()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
     for line in output.lines() {
         let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("Release ID:") {

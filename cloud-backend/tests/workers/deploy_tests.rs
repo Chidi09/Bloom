@@ -438,6 +438,8 @@ fn test_shorebird_cli_args_construction_and_expiry_notice() {
         args,
         vec![
             "patch",
+            "--json",
+            "--no-input",
             "android",
             "--release-version",
             "1.2.0",

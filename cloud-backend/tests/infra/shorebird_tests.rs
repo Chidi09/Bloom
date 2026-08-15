@@ -19,7 +19,19 @@ fn test_build_shorebird_args_release_single_platform_default_track() {
 
     let args = build_shorebird_args(action, &platforms, &options);
 
-    assert_eq!(args, vec!["release", "android", "--track", "stable"]);
+    // --json/--no-input ride on every invocation: a worker has no TTY and must not be
+    // handed spinner output or an interactive prompt.
+    assert_eq!(
+        args,
+        vec![
+            "release",
+            "--json",
+            "--no-input",
+            "android",
+            "--track",
+            "stable"
+        ]
+    );
 }
 
 #[test]
@@ -33,7 +45,14 @@ fn test_build_shorebird_args_patch_multiple_platforms() {
 
     assert_eq!(
         args,
-        vec!["patch", "--platforms=android,ios", "--track", "stable"]
+        vec![
+            "patch",
+            "--json",
+            "--no-input",
+            "--platforms=android,ios",
+            "--track",
+            "stable"
+        ]
     );
 }
 
@@ -55,6 +74,8 @@ fn test_build_shorebird_args_all_platforms() {
         args,
         vec![
             "patch",
+            "--json",
+            "--no-input",
             "--platforms=android,ios,linux,macos,windows",
             "--track",
             "stable"
@@ -86,6 +107,8 @@ fn test_build_shorebird_args_verified_flags() {
         args,
         vec![
             "release",
+            "--json",
+            "--no-input",
             "ios",
             "--release-version",
             "1.2.0+42",
