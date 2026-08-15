@@ -24,18 +24,23 @@ Bloom Cloud is the deployment, release, and operational control plane for Bloom 
           TestFlight            Testing Tracks
 ```
 
-## Documents in this directory
+## Documents
+
+All specifications live in [`docs/`](docs/).
 
 | Document | Purpose |
 |----------|---------|
-| [`AI-AGENT-PRINCIPLES.md`](AI-AGENT-PRINCIPLES.md) | Rules every agent must follow before writing code |
-| [`APP_PATTERN.md`](APP_PATTERN.md) | Required file layout and dependency flow for every domain app |
-| [`DESIGN-SPEC.md`](DESIGN-SPEC.md) | Master architecture, data model, and product scope |
-| [`PHASES.md`](PHASES.md) | Phase-by-phase implementation order and exit gates |
-| [`infrastructure.md`](infrastructure.md) | Runtime, workers, storage, queues, events, settings, dual backend |
-| [`events.md`](events.md) | Canonical event catalog |
-| [`apps/*.md`](apps/) | Per-domain app specifications |
-| [`integrations/*.md`](integrations/) | External-platform integration specifications |
+| [`AI-AGENT-PRINCIPLES.md`](docs/AI-AGENT-PRINCIPLES.md) | Rules every agent must follow before writing code |
+| [`APP_PATTERN.md`](docs/APP_PATTERN.md) | Required file layout and dependency flow for every domain app |
+| [`DESIGN-SPEC.md`](docs/DESIGN-SPEC.md) | Master architecture, data model, and product scope |
+| [`PHASES.md`](docs/PHASES.md) | Phase-by-phase implementation order and exit gates (phases 0-8) |
+| [`PHASES-FINAL.md`](docs/PHASES-FINAL.md) | Phases 9-15: execution layer, communication, hardening |
+| [`infrastructure.md`](docs/infrastructure.md) | Runtime, workers, storage, queues, events, settings, dual backend |
+| [`events.md`](docs/events.md) | Canonical event catalog |
+| [`GOLDEN_APP.md`](docs/GOLDEN_APP.md) | Reference app walkthrough |
+| [`SUMMARY.md`](docs/SUMMARY.md) | Index of every specification document |
+| [`apps/*.md`](docs/apps/) | Per-domain app specifications |
+| [`integrations/*.md`](docs/integrations/) | External-platform integration specifications |
 
 ## Frontend scope
 

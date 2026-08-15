@@ -372,7 +372,7 @@ pub async fn create_connection(
 
     let saved = repositories::insert_connection(db, connection).await?;
 
-    // Emit git.connected event per events.md
+    // Emit git.connected event per docs/events.md
     emit_event(
         db,
         "git.connected",
@@ -418,7 +418,7 @@ pub async fn delete_connection(
 ) -> Result<(), GitConnectionError> {
     repositories::delete_connection_by_id(db, connection.id).await?;
 
-    // Emit git.disconnected event per events.md
+    // Emit git.disconnected event per docs/events.md
     emit_event(
         db,
         "git.disconnected",
@@ -495,7 +495,7 @@ pub async fn list_repositories(
 /// 1. Verify `X-Hub-Signature-256` HMAC-SHA256 against raw body bytes.
 /// 2. Deduplicate on `X-GitHub-Delivery` GUID using database unique constraint.
 /// 3. If duplicate, return [`WebhookDeliveryOutcome::AlreadyProcessed`] (idempotent no-op).
-/// 4. Dispatch event (`ping`, `push`, `pull_request`) and emit appropriate domain event per `events.md`.
+/// 4. Dispatch event (`ping`, `push`, `pull_request`) and emit appropriate domain event per `docs/events.md`.
 pub async fn handle_github_webhook(
     db: &Database,
     webhook_secret: Option<&str>,
@@ -574,7 +574,7 @@ pub async fn handle_github_webhook(
 
     let org_id_opt = connection_opt.as_ref().map(|c| c.organization_id.id);
 
-    // 5. Handle event types per integrations/github.md and events.md
+    // 5. Handle event types per docs/integrations/github.md and docs/events.md
     match event_type {
         "ping" => {
             let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
@@ -604,7 +604,7 @@ pub async fn handle_github_webhook(
                 .unwrap_or("HEAD")
                 .to_string();
 
-            // Emit git.push event per events.md
+            // Emit git.push event per docs/events.md
             emit_event(
                 db,
                 "git.push",
@@ -647,7 +647,7 @@ pub async fn handle_github_webhook(
                 .unwrap_or("opened")
                 .to_string();
 
-            // Emit git.pull_request event per events.md
+            // Emit git.pull_request event per docs/events.md
             emit_event(
                 db,
                 "git.pull_request",
@@ -687,7 +687,7 @@ pub async fn handle_github_webhook(
 /// 1. Verify GitLab signature via Standard Webhooks or Legacy token in constant time.
 /// 2. Deduplicate delivery GUID using database unique constraint.
 /// 3. If duplicate, return [`WebhookDeliveryOutcome::AlreadyProcessed`] (idempotent no-op).
-/// 4. Dispatch event (`ping`, `push`, `tag_push`, `merge_request`) and emit appropriate domain event per `events.md`.
+/// 4. Dispatch event (`ping`, `push`, `tag_push`, `merge_request`) and emit appropriate domain event per `docs/events.md`.
 ///
 /// Verified against GitLab webhook documentation.
 pub async fn handle_gitlab_webhook(
@@ -883,7 +883,7 @@ pub async fn handle_gitlab_webhook(
 ///    (Bitbucket omits header when no secret is configured; missing signature is rejected).
 /// 2. Deduplicate on `X-Request-UUID` GUID using database unique constraint.
 /// 3. If duplicate, return [`WebhookDeliveryOutcome::AlreadyProcessed`] (idempotent no-op).
-/// 4. Dispatch event (`ping`, `repo:push`, `pullrequest:created`, `pullrequest:updated`) and emit domain event per `events.md`.
+/// 4. Dispatch event (`ping`, `repo:push`, `pullrequest:created`, `pullrequest:updated`) and emit domain event per `docs/events.md`.
 ///
 /// Verified against Bitbucket Cloud webhook documentation.
 pub async fn handle_bitbucket_webhook(

@@ -2,7 +2,7 @@
 //!
 //! # Architecture & Scope
 //!
-//! Implements Flutter toolchain resolution (PHASES-FINAL.md Phase 9, Deliverables 3 & 5):
+//! Implements Flutter toolchain resolution (docs/PHASES-FINAL.md Phase 9, Deliverables 3 & 5):
 //! - Version parsing and ordering for semantic Flutter versions (e.g. `3.24.1`, `3.24.1-stable`).
 //! - Release channel modeling (`stable`, `beta`, `master`).
 //! - Stable, deterministic per-runner SDK cache key generation.

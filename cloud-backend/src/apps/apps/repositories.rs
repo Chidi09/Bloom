@@ -118,7 +118,7 @@ pub struct OrganizationSummary {
 /// Look up a project by its external public UUID within an organization.
 ///
 /// Uses the `projects` app's public model through the ORM rather than raw SQL, per
-/// APP_PATTERN.md: repositories own QuerySet construction and must not reach into
+/// docs/APP_PATTERN.md: repositories own QuerySet construction and must not reach into
 /// another app's tables directly.
 pub async fn project_by_public_id_and_org(
     db: &Database,

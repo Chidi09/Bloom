@@ -143,7 +143,7 @@ fn test_get_effective_build_config_merging() {
 
 #[test]
 fn test_environment_events_payload_structure() {
-    // Verify environment event payloads match events.md catalogue:
+    // Verify environment event payloads match docs/events.md catalogue:
     // environment.created -> { environment_id, app_id }
     // environment.updated -> { environment_id, app_id }
     // environment.deleted -> { environment_id, app_id }

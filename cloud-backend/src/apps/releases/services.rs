@@ -234,7 +234,7 @@ async fn resolve_release_detail(
     })
 }
 
-/// Create a new `Release` record in `draft` status (per `apps/releases.md` §3).
+/// Create a new `Release` record in `draft` status (per `docs/apps/releases.md` §3).
 ///
 /// 1. Resolve app and verify organization.
 /// 2. Validate version semver-ish, platforms, commit, and build number.
@@ -337,7 +337,7 @@ pub async fn create_release(
     resolve_release_detail(db, saved_release, organization_id).await
 }
 
-/// Approve or reject a release (per `apps/releases.md` §3).
+/// Approve or reject a release (per `docs/apps/releases.md` §3).
 ///
 /// Only `ReleaseManager` or above (`Admin`, `Owner`) can approve or reject.
 /// If approved, transitions status to `approved`.
@@ -408,7 +408,7 @@ pub async fn approve_release(
     resolve_release_detail(db, updated, organization_id).await
 }
 
-/// Roll back a release (per `apps/releases.md` §3).
+/// Roll back a release (per `docs/apps/releases.md` §3).
 ///
 /// Only `ReleaseManager` or above (`Admin`, `Owner`) can initiate a rollback.
 /// Marks the release status as `rolled_back` and emits `release.rolled_back`.

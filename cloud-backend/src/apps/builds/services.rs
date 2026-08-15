@@ -143,7 +143,7 @@ pub fn validate_stage_status(status: &str) -> Result<(), BuildError> {
 
 /// Create a new `Build` and queue its execution job.
 ///
-/// Steps (per `apps/builds.md` §3):
+/// Steps (per `docs/apps/builds.md` §3):
 /// 1. Resolve app and environment, verify they belong to the active organization and
 ///    to each other.
 /// 2. Resolve git defaults from the app when not provided.
@@ -191,7 +191,7 @@ pub async fn create_build(
         .await?
         .ok_or(BuildError::OrganizationNotFound)?;
 
-    // Billing gate (PHASES.md Phase 7): refuse the build only on a hard lock. A soft block or
+    // Billing gate (docs/PHASES.md Phase 7): refuse the build only on a hard lock. A soft block or
     // warning still queues, so a free-tier org inside its grace period is nudged, not stopped.
     // ESTIMATED_BUILD_MINUTES is the projection charged against the monthly quota up front; the
     // real duration is metered on completion.
@@ -518,7 +518,7 @@ pub async fn is_build_cancelled(
         .map_err(|e| BuildError::QueueError(e.to_string()))
 }
 
-/// Cancel a build (per `apps/builds.md` §3).
+/// Cancel a build (per `docs/apps/builds.md` §3).
 ///
 /// Only `pending` or `queued` builds are cancelled immediately in the database. A `running` build
 /// emits `build.cancelled` and sets the Redis cancellation signal so the worker halts at its next
@@ -717,7 +717,7 @@ pub async fn update_stage(
         .await;
     }
 
-    // Stage events per events.md. `duration_ms` is measured from the stage's own
+    // Stage events per docs/events.md. `duration_ms` is measured from the stage's own
     // `started_at`; a stage that reached a terminal status without ever being marked
     // running has no meaningful duration, so the key is omitted rather than reported as 0.
     let stage_event = match req.status.as_str() {
@@ -800,7 +800,7 @@ pub async fn complete_build(
 
     repositories::update_build(db, &updated).await?;
 
-    // Terminal build events per events.md. This path is the worker reporting back, so the
+    // Terminal build events per docs/events.md. This path is the worker reporting back, so the
     // actor is the system (`actor_id: None`) rather than a user.
     let (event_type, payload) = match target.as_str() {
         "success" => (

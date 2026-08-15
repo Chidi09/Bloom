@@ -49,7 +49,7 @@ fn test_git_connection_role_matrix_rules() {
     assert!(admin >= OrganizationRole::Viewer);
     assert!(owner >= OrganizationRole::Viewer);
 
-    // Create / Delete requires Admin (per apps/git_connections.md)
+    // Create / Delete requires Admin (per docs/apps/git_connections.md)
     assert!(viewer < OrganizationRole::Admin);
     assert!(developer < OrganizationRole::Admin);
     assert!(release_manager < OrganizationRole::Admin);

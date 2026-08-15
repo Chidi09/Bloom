@@ -93,7 +93,7 @@ pub struct ObjectStorageSettings {
 /// Used for member invites, device-login notifications, build/deploy failure
 /// alerts, and expiring-signing-material warnings.
 ///
-/// NOTE: there is no `integrations/zeptomail.md` specification yet. These fields
+/// NOTE: there is no `docs/integrations/zeptomail.md` specification yet. These fields
 /// cover ZeptoMail's documented send API surface; reconcile them with a spec
 /// before the mailer is implemented.
 #[derive(Settings, Debug, Clone)]
@@ -152,10 +152,10 @@ pub struct CaddySettings {
 /// Do NOT hand-roll an HTTP client for this — construct `BachsProvider::new(secret_key)`
 /// (or `::sandbox(...)`) and use the trait.
 ///
-/// Billing scope, plans, and the free-tier quota model belong in `apps/billing.md`.
+/// Billing scope, plans, and the free-tier quota model belong in `docs/apps/billing.md`.
 /// Product intent is a generous free tier matching Vercel's limits for Flutter and
 /// Bloom apps; those limits are NOT yet specified or enforced anywhere in this
-/// codebase, and must be written into `apps/billing.md` before they can be.
+/// codebase, and must be written into `docs/apps/billing.md` before they can be.
 #[derive(Settings, Debug, Clone)]
 #[djangors(prefix = "BLOOM_BACHS")]
 pub struct BachsSettings {
@@ -193,7 +193,7 @@ pub struct PaystackSettings {
 
 /// Shorebird — over-the-air Dart code push.
 ///
-/// Contract: `integrations/shorebird.md`.
+/// Contract: `docs/integrations/shorebird.md`.
 #[derive(Settings, Debug, Clone)]
 #[djangors(prefix = "BLOOM_SHOREBIRD")]
 pub struct ShorebirdSettings {
@@ -221,7 +221,7 @@ pub struct GooglePlaySettings {
 
 /// Apple App Store Connect / TestFlight.
 ///
-/// Contract: `integrations/testflight.md`. Per-organization signing material lives
+/// Contract: `docs/integrations/testflight.md`. Per-organization signing material lives
 /// encrypted in the `signing` app; these are platform-level defaults only.
 #[derive(Settings, Debug, Clone)]
 #[djangors(prefix = "BLOOM_TESTFLIGHT")]
@@ -239,7 +239,7 @@ pub struct TestFlightSettings {
 
 /// GitHub — repository connections, webhooks, and build triggers.
 ///
-/// Contract: `integrations/github.md` and `apps/git_connections.md`.
+/// Contract: `docs/integrations/github.md` and `docs/apps/git_connections.md`.
 #[derive(Settings, Debug, Clone)]
 #[djangors(prefix = "BLOOM_GITHUB")]
 pub struct GitHubSettings {
@@ -264,7 +264,7 @@ pub struct GitHubSettings {
 /// Distinct from [`GooglePlaySettings`]: this is end-user identity, not publishing.
 ///
 /// NOTE: no specification covers this yet; the device-code CLI flow in `accounts`
-/// is the currently specified login path. Reconcile with `apps/accounts.md` before
+/// is the currently specified login path. Reconcile with `docs/apps/accounts.md` before
 /// implementing.
 #[derive(Settings, Debug, Clone)]
 #[djangors(prefix = "BLOOM_GOOGLE_AUTH")]

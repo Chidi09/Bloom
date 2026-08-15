@@ -185,7 +185,7 @@ pub struct Event {
 
 ### Event types
 
-See [`events.md`](../events.md) for the canonical list. The infrastructure only transports and stores them.
+See [`events.md`](events.md) for the canonical list. The infrastructure only transports and stores them.
 
 ### Publishing
 

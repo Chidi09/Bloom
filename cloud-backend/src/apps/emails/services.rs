@@ -20,7 +20,7 @@ use super::serializers::CampaignAggregatedStats;
 use crate::infra::crypto::Crypto;
 
 // ---------------------------------------------------------------------------
-// Constants & Weights from PHASES-FINAL.md section 14.2
+// Constants & Weights from docs/PHASES-FINAL.md section 14.2
 // ---------------------------------------------------------------------------
 
 /// Standard minimum score threshold required to select a campaign.
@@ -169,7 +169,7 @@ impl std::fmt::Display for EligibilityRejectionReason {
 
 /// Pure scoring function evaluating a campaign rule against a user activity snapshot.
 ///
-/// # Rules (PHASES-FINAL.md §14.2):
+/// # Rules (docs/PHASES-FINAL.md §14.2):
 /// - Returns `None` if the trigger condition is not matched ("not eligible", distinct from score 0).
 /// - Exact weights from spec:
 ///   +50: trigger condition matched exactly
@@ -232,7 +232,7 @@ pub fn score_campaign(
 
 /// Pure eligibility filter evaluating whether a user can receive any promotional email.
 ///
-/// # Rules (PHASES-FINAL.md §14.1, §14.2 Stage 1) evaluated in strict sequence:
+/// # Rules (docs/PHASES-FINAL.md §14.1, §14.2 Stage 1) evaluated in strict sequence:
 /// 1. `product` preference is not `all` or `digest` (default for new users is off)
 /// 2. Address is present in `EmailSuppression`
 /// 3. User created less than 3 days ago
@@ -805,7 +805,7 @@ pub async fn preview_campaign(
 
 /// Idempotent campaign dispatch execution.
 ///
-/// # Idempotence (PHASES-FINAL.md §14.2 Stage 5):
+/// # Idempotence (docs/PHASES-FINAL.md §14.2 Stage 5):
 /// Writes the `EmailLog` row with the campaign key BEFORE dispatch,
 /// so a crash mid-run cannot double-send on retry.
 pub async fn send_promotional_campaign_idempotent(

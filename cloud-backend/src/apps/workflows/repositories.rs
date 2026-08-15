@@ -146,7 +146,7 @@ pub async fn update_workflow_run_step(
 
 // ---------------------------------------------------------------------------
 // External entity lookups (apps, organizations, users, projects) projected
-// onto local summary types per APP_PATTERN.md / COMMON_RULES.
+// onto local summary types per docs/APP_PATTERN.md / COMMON_RULES.
 // ---------------------------------------------------------------------------
 
 /// Resolved summary for an application entity.

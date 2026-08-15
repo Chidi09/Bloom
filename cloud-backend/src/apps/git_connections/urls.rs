@@ -4,7 +4,7 @@ use djangors_core::Router;
 
 use super::views;
 
-/// Build and return the `git_connections` app router matching the spec in `apps/git_connections.md`.
+/// Build and return the `git_connections` app router matching the spec in `docs/apps/git_connections.md`.
 pub fn urls() -> Router {
     Router::new()
         .get("/git-connections", views::list_connections)

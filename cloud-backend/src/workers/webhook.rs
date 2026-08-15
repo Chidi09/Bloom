@@ -1075,7 +1075,7 @@ pub async fn run_webhook_job(
             if let Some((repo, branch, commit_sha)) =
                 parse_provider_push_payload(provider, &payload)
             {
-                // Emit git.push event per events.md
+                // Emit git.push event per docs/events.md
                 let conn_id = connection
                     .as_ref()
                     .map(|c| c.connection_id.clone())

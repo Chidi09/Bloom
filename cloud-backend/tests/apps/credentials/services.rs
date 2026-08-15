@@ -74,7 +74,7 @@ fn test_encryption_and_decryption_roundtrip() {
 
 #[test]
 fn test_credential_events_payload_structure_and_secret_redaction() {
-    // Verify credential event payloads match events.md catalogue:
+    // Verify credential event payloads match docs/events.md catalogue:
     // credential.created -> { credential_id, provider }
     // credential.deleted -> { credential_id, provider }
     // credential.tested  -> { credential_id, provider, success }

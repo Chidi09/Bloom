@@ -235,7 +235,7 @@ pub async fn register_artifact(
     };
     let saved = repositories::insert_artifact(db, artifact).await?;
 
-    // 7. Emit artifact events (payload keys per events.md).
+    // 7. Emit artifact events (payload keys per docs/events.md).
     emit_event(
         db,
         "artifact.created",

@@ -1001,7 +1001,7 @@ pub async fn handle_paystack_webhook(
 }
 
 // ---------------------------------------------------------------------------
-// Cross-app enforcement gates (PHASES.md Phase 7, deliverable 2)
+// Cross-app enforcement gates (docs/PHASES.md Phase 7, deliverable 2)
 // ---------------------------------------------------------------------------
 
 /// Gate a new build against the organization's build-minutes quota.

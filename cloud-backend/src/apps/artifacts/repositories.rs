@@ -168,7 +168,7 @@ pub async fn project_summary_by_id(
 // ---------------------------------------------------------------------------
 // Build lookups.
 //
-// Projected from the `builds` app's public model, per APP_PATTERN.md: an app reaches
+// Projected from the `builds` app's public model, per docs/APP_PATTERN.md: an app reaches
 // another app's rows through its model type, never raw SQL against its table.
 // `Build::app_id` is a `ForeignKey<App>` (hence `.id`); `Build::organization_id` is a
 // denormalized plain `i64`.

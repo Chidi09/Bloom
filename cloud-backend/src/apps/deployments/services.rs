@@ -185,7 +185,7 @@ pub async fn create_deployment(
         .await?
         .ok_or(DeploymentError::OrganizationNotFound)?;
 
-    // Billing gate (PHASES.md Phase 7): the target decides which plan feature flag applies.
+    // Billing gate (docs/PHASES.md Phase 7): the target decides which plan feature flag applies.
     // Only a hard lock refuses; soft blocks and warnings proceed.
     crate::apps::billing::services::ensure_deployment_allowed(db, organization_id, &target)
         .await
@@ -236,7 +236,7 @@ pub async fn create_deployment(
     };
 
     // 4. Enforce approval rules:
-    // Production targets (`production`, `app_store`) require an approved release (PHASES.md Phase 5 exit gate).
+    // Production targets (`production`, `app_store`) require an approved release (docs/PHASES.md Phase 5 exit gate).
     if is_production_target(&target) {
         match release_summary.as_ref() {
             Some(rel)
@@ -306,7 +306,7 @@ pub async fn create_deployment(
         }
     }
 
-    // 7. Emit `deployment.created` event per events.md.
+    // 7. Emit `deployment.created` event per docs/events.md.
     emit_event(
         db,
         "deployment.created",
@@ -623,7 +623,7 @@ pub async fn rollback_deployment(
         .await?
         .unwrap_or_else(|| user_id.to_string());
 
-    // Emit `deployment.rolled_back` event per events.md
+    // Emit `deployment.rolled_back` event per docs/events.md
     emit_event(
         db,
         "deployment.rolled_back",

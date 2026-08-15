@@ -4,7 +4,7 @@ This directory contains the complete specification for the Bloom Cloud control-p
 
 ## Start here
 
-1. [`README.md`](README.md) — what this is, stack, verification commands.
+1. [`README.md`](../README.md) — what this is, stack, verification commands.
 2. [`AI-AGENT-PRINCIPLES.md`](AI-AGENT-PRINCIPLES.md) — rules every agent must follow before writing code.
 3. [`APP_PATTERN.md`](APP_PATTERN.md) — required file layout and dependency flow for every domain app.
 4. [`DESIGN-SPEC.md`](DESIGN-SPEC.md) — master architecture, data model, and product scope.
@@ -46,7 +46,7 @@ This directory contains the complete specification for the Bloom Cloud control-p
 
 ## Frontend
 
-The dashboard frontend specification is at [`../cloud-dashboard-frontend.md`](../cloud-dashboard-frontend.md).
+The dashboard frontend specification is at [`cloud-dashboard-frontend.md`](../../cloud-dashboard-frontend.md), at the repository root.
 
 ## Implementation order
 

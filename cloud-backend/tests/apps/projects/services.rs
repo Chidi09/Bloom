@@ -40,7 +40,7 @@ fn test_project_update_request_partial_contracts() {
 
 #[test]
 fn test_project_events_payload_structure() {
-    // Verify project event payloads match events.md catalogue:
+    // Verify project event payloads match docs/events.md catalogue:
     // project.created -> { project_id, organization_id }
     // project.updated -> { project_id }
     // project.deleted -> { project_id }

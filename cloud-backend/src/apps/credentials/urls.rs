@@ -4,7 +4,7 @@ use djangors_core::Router;
 
 use super::views;
 
-/// Build the credentials router matching the contract in `apps/credentials.md`.
+/// Build the credentials router matching the contract in `docs/apps/credentials.md`.
 pub fn urls() -> Router {
     Router::new()
         .get("/credentials", views::list_credentials)

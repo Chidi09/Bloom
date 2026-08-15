@@ -178,7 +178,7 @@ pub struct WorkflowDefinition {
 
 /// Parses a YAML workflow definition into ordered step templates.
 ///
-/// The definition is authored by the user (PHASES.md Phase 6: "Workflows can be defined in
+/// The definition is authored by the user (docs/PHASES.md Phase 6: "Workflows can be defined in
 /// YAML"), so this parses the actual document. It must never fall back to a canonical
 /// pipeline when parsing fails: doing so would silently run steps the author did not write,
 /// including skipping an approval gate they did declare.
@@ -369,7 +369,7 @@ pub async fn create_workflow(
 
     let saved_workflow = repositories::insert_workflow(db, workflow).await?;
 
-    // 4. Emit `workflow.created` event per events.md.
+    // 4. Emit `workflow.created` event per docs/events.md.
     emit_event(
         db,
         "workflow.created",
@@ -568,7 +568,7 @@ pub async fn create_workflow_run(
         saved_steps.push(s);
     }
 
-    // 3. Emit `workflowrun.started` event per events.md
+    // 3. Emit `workflowrun.started` event per docs/events.md
     emit_event(
         db,
         "workflowrun.started",

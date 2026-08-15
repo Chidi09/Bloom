@@ -120,7 +120,7 @@ pub struct OrganizationSummary {
 /// Look up an app by its external public UUID within an organization.
 ///
 /// Uses the `apps` app's public model through the ORM rather than raw SQL, per
-/// APP_PATTERN.md: repositories own QuerySet construction, and an app may not reach
+/// docs/APP_PATTERN.md: repositories own QuerySet construction, and an app may not reach
 /// into another app's tables directly.
 pub async fn app_by_public_id_and_org(
     db: &Database,
