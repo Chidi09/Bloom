@@ -6,22 +6,31 @@ use djangors_orm::ForeignKey;
 use uuid::Uuid;
 
 use super::contracts::{
-    TemplateCreateRequest, TemplatePublishRequest, TemplateUpdateRequest,
-    TemplateVersionCreateRequest,
+    CreateSellerOnboardingLinkRequest, PurchaseTemplateRequest, RefundPurchaseRequest,
+    SellerOnboardingLinkResponse, TemplateCreateRequest, TemplatePublishRequest,
+    TemplateUpdateRequest, TemplateVersionCreateRequest,
 };
 use super::errors::MarketplaceError;
-use super::models::{Template, TemplateVersion};
+use super::models::{SellerAccount, Template, TemplatePurchase, TemplateVersion};
 use super::repositories;
+use crate::infra::stripe::{
+    CreateAccountLinkParams, CreateAccountParams, CreatePaymentIntentParams, CreateRefundParams,
+    StripeClient,
+};
 
-// TODO(spec): Monetization and paid template billing workflows deferred per Phase 8 specification.
-// TODO(spec): Template reviews, ratings, and community moderation workflows deferred per Phase 8 specification.
-// TODO(spec): Template install analytics and download counters deferred per Phase 8 specification.
-// TODO(spec): Featured placement and marketplace curation workflows deferred per Phase 8 specification.
+/// Default platform commission rate in basis points (2000 bps = 20.00%).
+pub const DEFAULT_COMMISSION_BPS: i64 = 2000;
+
+/// Valid purchase lifecycle status identifiers.
+pub const VALID_PURCHASE_STATUSES: &[&str] = &["pending", "succeeded", "refunded", "failed"];
+
+/// Valid visibility scopes for templates.
+pub const VALID_VISIBILITIES: &[&str] = &["private", "public"];
+
+/// All valid template lifecycle statuses.
+pub const VALID_STATUSES: &[&str] = &["draft", "published", "archived"];
 
 /// Emits an event to the system events log.
-///
-/// Delegates to the `events` app's public service interface, which logs and swallows any
-/// recording failure so that event logging never fails the primary business write.
 pub async fn emit_event(
     db: &Database,
     event_type: &str,
@@ -43,18 +52,86 @@ pub async fn emit_event(
     .await;
 }
 
-/// Valid visibility scopes for templates.
-pub const VALID_VISIBILITIES: &[&str] = &["private", "public"];
+/// Calculated platform fee and seller payout breakdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitAmounts {
+    /// Total charged amount in integer minor units.
+    pub amount: i64,
 
-/// All valid template lifecycle statuses.
-pub const VALID_STATUSES: &[&str] = &["draft", "published", "archived"];
+    /// Platform application fee cut in integer minor units.
+    pub platform_fee: i64,
+
+    /// Seller payout cut in integer minor units.
+    pub seller_amount: i64,
+}
+
+/// Calculates the platform fee and seller payout for a given transaction amount.
+///
+/// # Rounding Rule (ADDENDUM D.8):
+/// Platform commission is computed using integer minor units:
+/// `platform_fee = (amount * commission_bps) / 10_000` (integer truncation towards zero).
+/// The seller payout is strictly defined as `seller_amount = amount - platform_fee`.
+///
+/// This guarantees that `platform_fee + seller_amount == amount` exactly in every code path,
+/// eliminating rounding discrepancies and preventing bias towards either party.
+pub fn calculate_split(amount: i64, commission_bps: i64) -> Result<SplitAmounts, MarketplaceError> {
+    if amount < 0 {
+        return Err(MarketplaceError::ValidationError(
+            "Amount cannot be negative.".to_string(),
+        ));
+    }
+    if !(0..=10_000).contains(&commission_bps) {
+        return Err(MarketplaceError::ValidationError(
+            "Commission BPS must be between 0 and 10000.".to_string(),
+        ));
+    }
+
+    let platform_fee = ((amount as i128 * commission_bps as i128) / 10_000) as i64;
+    let seller_amount = amount - platform_fee;
+
+    // Enforce documented Stripe constraint: Application fee cannot exceed payment amount
+    if platform_fee > amount {
+        return Err(MarketplaceError::ValidationError(
+            "Application fee amount cannot exceed total payment amount.".to_string(),
+        ));
+    }
+
+    Ok(SplitAmounts {
+        amount,
+        platform_fee,
+        seller_amount,
+    })
+}
+
+/// Validate pricing configuration for a template.
+pub fn validate_pricing(
+    is_free: bool,
+    price_amount: i64,
+    price_currency: &str,
+) -> Result<(), MarketplaceError> {
+    if is_free {
+        if price_amount != 0 {
+            return Err(MarketplaceError::ValidationError(
+                "Free templates must have a price amount of 0.".to_string(),
+            ));
+        }
+    } else {
+        if price_amount <= 0 {
+            return Err(MarketplaceError::ValidationError(
+                "Paid templates must have a price amount greater than 0.".to_string(),
+            ));
+        }
+        let cur = price_currency.trim();
+        if cur.len() != 3 || !cur.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(MarketplaceError::ValidationError(
+                "Price currency must be a valid 3-letter ISO code.".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
 
 /// Returns `true` when `from -> to` is a legal template status transition.
-///
-/// State transition rules:
-/// - `draft`: can advance to `published` (published to marketplace/org), or `archived` (discarded draft).
-/// - `published`: can return to `draft` (unpublish / return to staging), or advance to `archived` (deprecated/retired).
-/// - `archived`: strictly absorbing terminal state (no transitions out).
 pub fn can_transition(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
@@ -161,6 +238,207 @@ pub struct TemplateVersionDetail {
     pub template_public_id: String,
 }
 
+/// Outcome of a template purchase operation.
+#[derive(Debug, Clone)]
+pub struct PurchaseOutcome {
+    /// The created or existing purchase record.
+    pub purchase: TemplatePurchase,
+    /// Buyer organization public UUID.
+    pub buyer_org_public_id: String,
+    /// Purchased template public UUID.
+    pub template_public_id: String,
+    /// Name of the purchased template.
+    pub template_name: String,
+    /// Purchased version public UUID if specified.
+    pub version_public_id: Option<String>,
+    /// Seller organization public UUID.
+    pub seller_org_public_id: String,
+    /// Stripe client secret for frontend confirmation if applicable.
+    pub client_secret: Option<String>,
+}
+
+/// Outcome of a refund operation.
+#[derive(Debug, Clone)]
+pub struct RefundOutcome {
+    /// Purchase public UUID.
+    pub purchase_public_id: String,
+    /// Stripe refund ID (`re_...`).
+    pub stripe_refund_id: String,
+    /// Refunded amount in minor units.
+    pub amount: i64,
+    /// Currency code.
+    pub currency: String,
+    /// Status of the refund.
+    pub status: String,
+}
+
+/// Result of an access / entitlement check.
+#[derive(Debug, Clone)]
+pub struct TemplateAccessDecision {
+    /// Whether access is granted.
+    pub has_access: bool,
+    /// Reason string (`owner`, `free_template`, `purchased`, `no_entitlement`).
+    pub reason: String,
+    /// Template public UUID.
+    pub template_public_id: String,
+    /// Version public UUID if applicable.
+    pub version_public_id: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Seller Onboarding & Account Management
+// ---------------------------------------------------------------------------
+
+/// Retrieve or create a seller payout account with Stripe Connect Express.
+pub async fn get_or_create_seller_account(
+    db: &Database,
+    stripe: &dyn StripeClient,
+    organization_id: i64,
+    actor_id: i64,
+    email: Option<String>,
+    country: Option<String>,
+) -> Result<SellerAccount, MarketplaceError> {
+    let org_summary = repositories::organization_summary_by_id(db, organization_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    if let Some(account) = repositories::seller_account_by_org_id(db, organization_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+    {
+        return Ok(account);
+    }
+
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert("organization_id".to_string(), org_summary.public_id.clone());
+
+    let params = CreateAccountParams {
+        email,
+        country,
+        business_type: Some("company".to_string()),
+        metadata,
+    };
+
+    let stripe_acct = stripe.create_express_account(&params).await?;
+
+    let new_account = SellerAccount {
+        id: 0,
+        public_id: Uuid::new_v4().to_string(),
+        organization_id: ForeignKey::new(organization_id),
+        stripe_account_id: stripe_acct.id,
+        payouts_enabled: stripe_acct.payouts_enabled,
+        charges_enabled: stripe_acct.charges_enabled,
+        details_submitted: stripe_acct.details_submitted,
+        default_currency: stripe_acct.default_currency,
+        last_payouts_checked_at: Some(Utc::now()),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let saved = repositories::insert_seller_account(db, new_account)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    emit_event(
+        db,
+        "marketplace.seller.created",
+        Some(organization_id),
+        None,
+        None,
+        Some(actor_id),
+        serde_json::json!({
+            "seller_account_id": saved.public_id,
+            "organization_id": org_summary.public_id,
+            "payouts_enabled": saved.payouts_enabled,
+        }),
+    )
+    .await;
+
+    Ok(saved)
+}
+
+/// Generate a hosted Stripe AccountLink onboarding URL for a seller organization.
+pub async fn create_seller_onboarding_link(
+    db: &Database,
+    stripe: &dyn StripeClient,
+    organization_id: i64,
+    actor_id: i64,
+    req: CreateSellerOnboardingLinkRequest,
+) -> Result<SellerOnboardingLinkResponse, MarketplaceError> {
+    let account =
+        get_or_create_seller_account(db, stripe, organization_id, actor_id, None, None).await?;
+
+    let link_params = CreateAccountLinkParams {
+        account_id: account.stripe_account_id.clone(),
+        refresh_url: req.refresh_url,
+        return_url: req.return_url,
+        link_type: Some("account_onboarding".to_string()),
+    };
+
+    let link = stripe.create_account_link(&link_params).await?;
+
+    Ok(SellerOnboardingLinkResponse {
+        url: link.url,
+        expires_at: link.expires_at,
+    })
+}
+
+/// Refresh and synchronize the `payouts_enabled` state directly from Stripe.
+pub async fn refresh_seller_payout_status(
+    db: &Database,
+    stripe: &dyn StripeClient,
+    organization_id: i64,
+    actor_id: i64,
+) -> Result<SellerAccount, MarketplaceError> {
+    let org_summary = repositories::organization_summary_by_id(db, organization_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    let mut account = repositories::seller_account_by_org_id(db, organization_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::SellerAccountNotFound)?;
+
+    let stripe_acct = stripe.retrieve_account(&account.stripe_account_id).await?;
+
+    account.payouts_enabled = stripe_acct.payouts_enabled;
+    account.charges_enabled = stripe_acct.charges_enabled;
+    account.details_submitted = stripe_acct.details_submitted;
+    if let Some(cur) = stripe_acct.default_currency {
+        account.default_currency = Some(cur);
+    }
+    account.last_payouts_checked_at = Some(Utc::now());
+    account.updated_at = Utc::now();
+
+    repositories::update_seller_account(db, &account)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    emit_event(
+        db,
+        "marketplace.seller.refreshed",
+        Some(organization_id),
+        None,
+        None,
+        Some(actor_id),
+        serde_json::json!({
+            "seller_account_id": account.public_id,
+            "organization_id": org_summary.public_id,
+            "payouts_enabled": account.payouts_enabled,
+            "charges_enabled": account.charges_enabled,
+        }),
+    )
+    .await;
+
+    Ok(account)
+}
+
+// ---------------------------------------------------------------------------
+// Template Creation & Publishing
+// ---------------------------------------------------------------------------
+
 /// Create a new template in `draft` status within an organization.
 pub async fn create_template(
     db: &Database,
@@ -186,6 +464,16 @@ pub async fn create_template(
         .map(|v| v.trim().to_lowercase())
         .unwrap_or_else(|| "private".to_string());
     validate_visibility(&visibility)?;
+
+    let is_free = req.is_free.unwrap_or(true);
+    let price_amount = req.price_amount.unwrap_or(0);
+    let price_currency = req
+        .price_currency
+        .as_deref()
+        .map(|c| c.trim().to_lowercase())
+        .unwrap_or_else(|| "usd".to_string());
+
+    validate_pricing(is_free, price_amount, &price_currency)?;
 
     let org_summary = repositories::organization_summary_by_id(db, organization_id)
         .await
@@ -218,6 +506,9 @@ pub async fn create_template(
         description: req.description.map(|d| d.trim().to_string()),
         visibility,
         status: "draft".to_string(),
+        is_free,
+        price_amount,
+        price_currency,
         metadata: metadata_str,
         created_by_id: actor_id,
         created_at: Utc::now(),
@@ -242,6 +533,9 @@ pub async fn create_template(
             "slug": saved.slug,
             "visibility": saved.visibility,
             "status": saved.status,
+            "is_free": saved.is_free,
+            "price_amount": saved.price_amount,
+            "price_currency": saved.price_currency,
         }),
     )
     .await;
@@ -367,6 +661,24 @@ pub async fn update_template(
         template.visibility = vis_lower;
     }
 
+    if let Some(is_free) = req.is_free {
+        template.is_free = is_free;
+    }
+
+    if let Some(amount) = req.price_amount {
+        template.price_amount = amount;
+    }
+
+    if let Some(ref cur) = req.price_currency {
+        template.price_currency = cur.trim().to_lowercase();
+    }
+
+    validate_pricing(
+        template.is_free,
+        template.price_amount,
+        &template.price_currency,
+    )?;
+
     let mut status_changed = false;
     if let Some(ref target_status) = req.status {
         let target_lower = target_status.trim().to_lowercase();
@@ -378,6 +690,19 @@ pub async fn update_template(
                     to: target_lower,
                 });
             }
+
+            // Enforce payouts_enabled requirement for listing paid templates
+            if target_lower == "published" && !template.is_free {
+                let seller_account = repositories::seller_account_by_org_id(db, organization_id)
+                    .await
+                    .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+                match seller_account {
+                    Some(ref sa) if sa.payouts_enabled => {}
+                    _ => return Err(MarketplaceError::SellerPayoutsNotEnabled),
+                }
+            }
+
             template.status = target_lower;
             status_changed = true;
         }
@@ -413,6 +738,9 @@ pub async fn update_template(
             "name": template.name,
             "visibility": template.visibility,
             "status": template.status,
+            "is_free": template.is_free,
+            "price_amount": template.price_amount,
+            "price_currency": template.price_currency,
         }),
     )
     .await;
@@ -433,6 +761,9 @@ pub async fn update_template(
 }
 
 /// Explicitly publish a template.
+///
+/// If the template is paid (`is_free == false`), publishing REQUIRES that the seller's
+/// payout account exists and has `payouts_enabled == true`.
 pub async fn publish_template(
     db: &Database,
     organization_id: i64,
@@ -450,6 +781,18 @@ pub async fn publish_template(
             .await
             .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
             .ok_or(MarketplaceError::TemplateNotFound)?;
+
+    // Enforce payouts_enabled requirement before publishing a paid template
+    if !template.is_free {
+        let seller_account = repositories::seller_account_by_org_id(db, organization_id)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+        match seller_account {
+            Some(ref sa) if sa.payouts_enabled => {}
+            _ => return Err(MarketplaceError::SellerPayoutsNotEnabled),
+        }
+    }
 
     if template.status != "published" {
         if !can_transition(&template.status, "published") {
@@ -484,6 +827,9 @@ pub async fn publish_template(
             "organization_id": org_summary.public_id,
             "visibility": template.visibility,
             "status": template.status,
+            "is_free": template.is_free,
+            "price_amount": template.price_amount,
+            "price_currency": template.price_currency,
         }),
     )
     .await;
@@ -607,8 +953,6 @@ pub async fn delete_template(
 }
 
 /// List public published templates for the marketplace catalog.
-///
-/// Private or unpublished templates are strictly excluded from results.
 pub async fn list_public_templates(
     db: &Database,
     search: Option<&str>,
@@ -646,8 +990,6 @@ pub async fn list_public_templates(
 }
 
 /// Look up a public published template by UUID or slug.
-///
-/// Returns `TemplateNotFound` if the template does not exist, is private, or is unpublished.
 pub async fn get_public_template(
     db: &Database,
     template_public_id_or_slug: &str,
@@ -660,7 +1002,6 @@ pub async fn get_public_template(
     let template = match template {
         Some(t) => t,
         None => {
-            // Check if template exists by public_id or slug to return the correct error
             let maybe_t = repositories::template_by_public_id(db, template_public_id_or_slug)
                 .await
                 .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
@@ -701,6 +1042,10 @@ pub async fn get_public_template(
         versions_count,
     })
 }
+
+// ---------------------------------------------------------------------------
+// Template Versions
+// ---------------------------------------------------------------------------
 
 /// Create a new version for an organization template.
 pub async fn create_template_version(
@@ -885,5 +1230,489 @@ pub async fn get_public_template_version(
     Ok(TemplateVersionDetail {
         version,
         template_public_id: template.public_id,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Purchases & Entitlements
+// ---------------------------------------------------------------------------
+
+/// Purchase a template using a Stripe Connect destination charge.
+///
+/// # Idempotency and Double-Charge Prevention:
+/// 1. Checks if an active succeeded entitlement already exists for `(buyer_organization_id, template_id)`.
+///    If present, returns the existing record immediately without contacting Stripe.
+/// 2. Uses Stripe's idempotency key mechanism (`Idempotency-Key` header) so repeated network requests
+///    cannot create duplicate payment intents or charges on Stripe's side.
+/// 3. Records the idempotency key in `marketplace_templatepurchase` and checks it locally before insert.
+pub async fn purchase_template(
+    db: &Database,
+    stripe: &dyn StripeClient,
+    buyer_org_id: i64,
+    actor_id: i64,
+    template_public_id: &str,
+    req: PurchaseTemplateRequest,
+) -> Result<PurchaseOutcome, MarketplaceError> {
+    let buyer_summary = repositories::organization_summary_by_id(db, buyer_org_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    let template = repositories::template_by_public_id(db, template_public_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::TemplateNotFound)?;
+
+    if template.organization_id.id == buyer_org_id {
+        return Err(MarketplaceError::CannotPurchaseOwnTemplate);
+    }
+
+    let seller_summary = repositories::organization_summary_by_id(db, template.organization_id.id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    // Check if buyer already owns an active entitlement for this template
+    if let Some(existing) =
+        repositories::succeeded_purchase_for_buyer_and_template(db, buyer_org_id, template.id)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+    {
+        return Ok(PurchaseOutcome {
+            purchase: existing,
+            buyer_org_public_id: buyer_summary.public_id,
+            template_public_id: template.public_id,
+            template_name: template.name,
+            version_public_id: req.template_version_id,
+            seller_org_public_id: seller_summary.public_id,
+            client_secret: None,
+        });
+    }
+
+    let idempotency_key = req.idempotency_key.unwrap_or_else(|| {
+        format!(
+            "mkt_buy_{}_{}_{}",
+            buyer_org_id,
+            template.id,
+            Uuid::new_v4()
+        )
+    });
+
+    // Check local idempotency key
+    if let Some(existing) = repositories::purchase_by_idempotency_key(db, &idempotency_key)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+    {
+        return Ok(PurchaseOutcome {
+            purchase: existing,
+            buyer_org_public_id: buyer_summary.public_id,
+            template_public_id: template.public_id,
+            template_name: template.name,
+            version_public_id: req.template_version_id,
+            seller_org_public_id: seller_summary.public_id,
+            client_secret: None,
+        });
+    }
+
+    // Free template handling: zero-price entitlement granted directly without Stripe charge
+    if template.is_free {
+        let purchase = TemplatePurchase {
+            id: 0,
+            public_id: Uuid::new_v4().to_string(),
+            buyer_organization_id: ForeignKey::new(buyer_org_id),
+            template_id: ForeignKey::new(template.id),
+            template_version_id: None,
+            seller_organization_id: ForeignKey::new(template.organization_id.id),
+            amount: 0,
+            currency: template.price_currency.clone(),
+            platform_fee: 0,
+            seller_amount: 0,
+            stripe_payment_intent_id: "free_grant".to_string(),
+            status: "succeeded".to_string(),
+            idempotency_key,
+            created_by_id: actor_id,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let saved = repositories::insert_purchase(db, purchase)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+        emit_event(
+            db,
+            "marketplace.purchase.completed",
+            Some(buyer_org_id),
+            None,
+            None,
+            Some(actor_id),
+            serde_json::json!({
+                "purchase_id": saved.public_id,
+                "buyer_organization_id": buyer_summary.public_id,
+                "template_id": template.public_id,
+                "amount": 0,
+                "is_free": true,
+            }),
+        )
+        .await;
+
+        return Ok(PurchaseOutcome {
+            purchase: saved,
+            buyer_org_public_id: buyer_summary.public_id,
+            template_public_id: template.public_id,
+            template_name: template.name,
+            version_public_id: req.template_version_id,
+            seller_org_public_id: seller_summary.public_id,
+            client_secret: None,
+        });
+    }
+
+    // Paid template handling: verify seller Stripe account
+    let seller_account = repositories::seller_account_by_org_id(db, template.organization_id.id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::SellerNotConfigured)?;
+
+    if !seller_account.payouts_enabled {
+        return Err(MarketplaceError::SellerPayoutsNotEnabled);
+    }
+
+    let split = calculate_split(template.price_amount, DEFAULT_COMMISSION_BPS)?;
+
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert("template_id".to_string(), template.public_id.clone());
+    metadata.insert(
+        "buyer_organization_id".to_string(),
+        buyer_summary.public_id.clone(),
+    );
+    metadata.insert(
+        "seller_organization_id".to_string(),
+        seller_summary.public_id.clone(),
+    );
+
+    let pi_params = CreatePaymentIntentParams {
+        amount: split.amount,
+        currency: template.price_currency.clone(),
+        application_fee_amount: split.platform_fee,
+        destination_account_id: seller_account.stripe_account_id.clone(),
+        description: Some(format!("Bloom Marketplace Template: {}", template.name)),
+        metadata,
+    };
+
+    let payment_intent = stripe
+        .create_payment_intent(&pi_params, Some(&idempotency_key))
+        .await?;
+
+    let version_fk = if let Some(ref ver_pub) = req.template_version_id {
+        repositories::version_by_public_id(db, ver_pub)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+            .map(|v| v.id)
+    } else {
+        None
+    };
+
+    let purchase = TemplatePurchase {
+        id: 0,
+        public_id: Uuid::new_v4().to_string(),
+        buyer_organization_id: ForeignKey::new(buyer_org_id),
+        template_id: ForeignKey::new(template.id),
+        template_version_id: version_fk,
+        seller_organization_id: ForeignKey::new(template.organization_id.id),
+        amount: split.amount,
+        currency: template.price_currency.clone(),
+        platform_fee: split.platform_fee,
+        seller_amount: split.seller_amount,
+        stripe_payment_intent_id: payment_intent.id.clone(),
+        status: payment_intent.status.clone(),
+        idempotency_key,
+        created_by_id: actor_id,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let saved = repositories::insert_purchase(db, purchase)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    emit_event(
+        db,
+        "marketplace.purchase.created",
+        Some(buyer_org_id),
+        None,
+        None,
+        Some(actor_id),
+        serde_json::json!({
+            "purchase_id": saved.public_id,
+            "buyer_organization_id": buyer_summary.public_id,
+            "template_id": template.public_id,
+            "amount": saved.amount,
+            "platform_fee": saved.platform_fee,
+            "seller_amount": saved.seller_amount,
+            "status": saved.status,
+        }),
+    )
+    .await;
+
+    Ok(PurchaseOutcome {
+        purchase: saved,
+        buyer_org_public_id: buyer_summary.public_id,
+        template_public_id: template.public_id,
+        template_name: template.name,
+        version_public_id: req.template_version_id,
+        seller_org_public_id: seller_summary.public_id,
+        client_secret: payment_intent.client_secret,
+    })
+}
+
+/// List all purchases for a buyer organization.
+pub async fn list_organization_purchases(
+    db: &Database,
+    buyer_org_id: i64,
+) -> Result<Vec<PurchaseOutcome>, MarketplaceError> {
+    let buyer_summary = repositories::organization_summary_by_id(db, buyer_org_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    let purchases = repositories::purchases_for_buyer_org(db, buyer_org_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    let mut outcomes = Vec::with_capacity(purchases.len());
+    for p in purchases {
+        let template = repositories::template_by_id(db, p.template_id.id)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+        let (tmpl_pub, tmpl_name) = match template {
+            Some(t) => (t.public_id, t.name),
+            None => ("deleted".to_string(), "Deleted Template".to_string()),
+        };
+
+        let seller_summary =
+            repositories::organization_summary_by_id(db, p.seller_organization_id.id)
+                .await
+                .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+        let seller_pub = seller_summary
+            .map(|s| s.public_id)
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let ver_pub = if let Some(vid) = p.template_version_id {
+            repositories::version_by_id(db, vid)
+                .await
+                .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+                .map(|v| v.public_id)
+        } else {
+            None
+        };
+
+        outcomes.push(PurchaseOutcome {
+            purchase: p,
+            buyer_org_public_id: buyer_summary.public_id.clone(),
+            template_public_id: tmpl_pub,
+            template_name: tmpl_name,
+            version_public_id: ver_pub,
+            seller_org_public_id: seller_pub,
+            client_secret: None,
+        });
+    }
+
+    Ok(outcomes)
+}
+
+/// Retrieve a single purchase by public UUID for an organization.
+pub async fn get_organization_purchase(
+    db: &Database,
+    buyer_org_id: i64,
+    purchase_public_id: &str,
+) -> Result<PurchaseOutcome, MarketplaceError> {
+    let buyer_summary = repositories::organization_summary_by_id(db, buyer_org_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    let purchase = repositories::purchase_by_public_id(db, purchase_public_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::PurchaseNotFound)?;
+
+    if purchase.buyer_organization_id.id != buyer_org_id
+        && purchase.seller_organization_id.id != buyer_org_id
+    {
+        return Err(MarketplaceError::PurchaseNotFound);
+    }
+
+    let template = repositories::template_by_id(db, purchase.template_id.id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    let (tmpl_pub, tmpl_name) = match template {
+        Some(t) => (t.public_id, t.name),
+        None => ("deleted".to_string(), "Deleted Template".to_string()),
+    };
+
+    let seller_summary =
+        repositories::organization_summary_by_id(db, purchase.seller_organization_id.id)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+    let seller_pub = seller_summary
+        .map(|s| s.public_id)
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let ver_pub = if let Some(vid) = purchase.template_version_id {
+        repositories::version_by_id(db, vid)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+            .map(|v| v.public_id)
+    } else {
+        None
+    };
+
+    Ok(PurchaseOutcome {
+        purchase,
+        buyer_org_public_id: buyer_summary.public_id,
+        template_public_id: tmpl_pub,
+        template_name: tmpl_name,
+        version_public_id: ver_pub,
+        seller_org_public_id: seller_pub,
+        client_secret: None,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Entitlement Access Checks & Download Verification
+// ---------------------------------------------------------------------------
+
+/// Evaluate whether an organization is entitled to access and download a template.
+///
+/// Rules:
+/// - The organization that OWNS the template always has access without purchase.
+/// - Any organization has access to a free template (`is_free == true`).
+/// - For paid templates, requires an active completed purchase record (`status == "succeeded"`).
+pub async fn check_template_access(
+    db: &Database,
+    organization_id: i64,
+    template_public_id: &str,
+    version_public_id: Option<&str>,
+) -> Result<TemplateAccessDecision, MarketplaceError> {
+    let template = repositories::template_by_public_id(db, template_public_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::TemplateNotFound)?;
+
+    // 1. Template owner always has full access
+    if template.organization_id.id == organization_id {
+        return Ok(TemplateAccessDecision {
+            has_access: true,
+            reason: "owner".to_string(),
+            template_public_id: template.public_id,
+            version_public_id: version_public_id.map(|s| s.to_string()),
+        });
+    }
+
+    // 2. Free templates are available to all organizations
+    if template.is_free {
+        return Ok(TemplateAccessDecision {
+            has_access: true,
+            reason: "free_template".to_string(),
+            template_public_id: template.public_id,
+            version_public_id: version_public_id.map(|s| s.to_string()),
+        });
+    }
+
+    // 3. Paid templates require confirmed purchase
+    let active_purchase =
+        repositories::succeeded_purchase_for_buyer_and_template(db, organization_id, template.id)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    if active_purchase.is_some() {
+        Ok(TemplateAccessDecision {
+            has_access: true,
+            reason: "purchased".to_string(),
+            template_public_id: template.public_id,
+            version_public_id: version_public_id.map(|s| s.to_string()),
+        })
+    } else {
+        Err(MarketplaceError::PaymentRequired)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Refunds & Entitlement Revocation
+// ---------------------------------------------------------------------------
+
+/// Issue a refund on a paid template purchase, reversing the transfer and revoking the entitlement.
+pub async fn refund_purchase(
+    db: &Database,
+    stripe: &dyn StripeClient,
+    actor_org_id: i64,
+    actor_id: i64,
+    purchase_public_id: &str,
+    _req: RefundPurchaseRequest,
+) -> Result<RefundOutcome, MarketplaceError> {
+    let mut purchase = repositories::purchase_by_public_id(db, purchase_public_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::PurchaseNotFound)?;
+
+    if purchase.buyer_organization_id.id != actor_org_id
+        && purchase.seller_organization_id.id != actor_org_id
+    {
+        return Err(MarketplaceError::PurchaseNotFound);
+    }
+
+    if purchase.status == "refunded" {
+        return Err(MarketplaceError::PurchaseAlreadyRefunded);
+    }
+
+    if purchase.status != "succeeded" {
+        return Err(MarketplaceError::InvalidRefundState(format!(
+            "Cannot refund purchase with status '{}'. Only succeeded purchases can be refunded.",
+            purchase.status
+        )));
+    }
+
+    let refund_idempotency = format!("ref_{}", purchase.public_id);
+    let refund_params = CreateRefundParams {
+        payment_intent_id: purchase.stripe_payment_intent_id.clone(),
+        amount: Some(purchase.amount),
+        reverse_transfer: true,
+        refund_application_fee: Some(true),
+    };
+
+    let refund = stripe
+        .create_refund(&refund_params, Some(&refund_idempotency))
+        .await?;
+
+    purchase.status = "refunded".to_string();
+    purchase.updated_at = Utc::now();
+    repositories::update_purchase(db, &purchase)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    emit_event(
+        db,
+        "marketplace.purchase.refunded",
+        Some(purchase.buyer_organization_id.id),
+        None,
+        None,
+        Some(actor_id),
+        serde_json::json!({
+            "purchase_id": purchase.public_id,
+            "refund_id": refund.id,
+            "amount": refund.amount,
+            "currency": refund.currency,
+        }),
+    )
+    .await;
+
+    Ok(RefundOutcome {
+        purchase_public_id: purchase.public_id,
+        stripe_refund_id: refund.id,
+        amount: refund.amount,
+        currency: refund.currency,
+        status: refund.status,
     })
 }

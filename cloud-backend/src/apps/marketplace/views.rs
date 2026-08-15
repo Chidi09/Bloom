@@ -1,12 +1,14 @@
 //! HTTP view handlers for the `marketplace` domain app.
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use djangors_core::extract::{FromRequest, Json};
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
 use djangors_db::Database;
 
 use super::contracts::{
+    CreateSellerOnboardingLinkRequest, PurchaseTemplateRequest, RefundPurchaseRequest,
     TemplateCreateRequest, TemplatePublishRequest, TemplateUpdateRequest,
     TemplateVersionCreateRequest,
 };
@@ -18,10 +20,24 @@ use super::{serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
 use crate::apps::organizations::models::{Organization, UserOrganizationMembership};
 use crate::apps::organizations::repositories as org_repos;
+use crate::infra::stripe::{HttpStripeClient, MockStripeClient, StripeClient};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
     req.require_state::<Database>()
+}
+
+/// Retrieve the Stripe client from request state or initialize from environment/mock fallback.
+fn get_stripe_client(req: &Request) -> Arc<dyn StripeClient> {
+    if let Some(client) = req.state::<Arc<dyn StripeClient>>() {
+        return client.clone();
+    }
+
+    if let Ok(client) = HttpStripeClient::from_env() {
+        return Arc::new(client);
+    }
+
+    Arc::new(MockStripeClient::new())
 }
 
 /// Resolve the active organization and verify the user's membership.
@@ -380,6 +396,10 @@ pub async fn delete_template(req: Request, params: PathParams) -> Result<Respons
     Ok(Response::text(StatusCode::NO_CONTENT, ""))
 }
 
+// =========================================================================
+// Template Version Views
+// =========================================================================
+
 /// GET `/api/v1/templates/{id}/versions` — List all versions of a template.
 pub async fn list_template_versions(
     req: Request,
@@ -493,4 +513,296 @@ pub async fn delete_template_version(
         .map_err(DjangorsError::from)?;
 
     Ok(Response::text(StatusCode::NO_CONTENT, ""))
+}
+
+// =========================================================================
+// Seller Onboarding & Payout Views
+// =========================================================================
+
+/// GET `/api/v1/marketplace/seller/account` — View seller payout account status.
+pub async fn retrieve_seller_account(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let stripe = get_stripe_client(&req);
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let account =
+        services::get_or_create_seller_account(db, stripe.as_ref(), org.id, user.id, None, None)
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_seller_account(&account, &org.public_id);
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/marketplace/seller/onboarding` — Create Stripe AccountLink for seller onboarding.
+pub async fn create_seller_onboarding(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let stripe = get_stripe_client(&req);
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
+
+    let Json(body) = Json::<CreateSellerOnboardingLinkRequest>::from_request(&req).await?;
+
+    let link = services::create_seller_onboarding_link(db, stripe.as_ref(), org.id, user.id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    Response::json(StatusCode::OK, &link)
+}
+
+/// POST `/api/v1/marketplace/seller/refresh` — Refresh payouts_enabled state from Stripe.
+pub async fn refresh_seller_status(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let stripe = get_stripe_client(&req);
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let account = services::refresh_seller_payout_status(db, stripe.as_ref(), org.id, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_seller_account(&account, &org.public_id);
+    Response::json(StatusCode::OK, &payload)
+}
+
+// =========================================================================
+// Purchases & Entitlements Views
+// =========================================================================
+
+/// POST `/api/v1/marketplace/templates/{id}/purchase` — Purchase a paid template.
+pub async fn purchase_template(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let stripe = get_stripe_client(&req);
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let body = if req.body_bytes().await.is_empty() {
+        PurchaseTemplateRequest::default()
+    } else {
+        Json::<PurchaseTemplateRequest>::from_request(&req)
+            .await
+            .map(|Json(b)| b)
+            .unwrap_or_default()
+    };
+
+    let outcome =
+        services::purchase_template(db, stripe.as_ref(), org.id, user.id, template_id, body)
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_purchase(
+        &outcome.purchase,
+        &outcome.buyer_org_public_id,
+        &outcome.template_public_id,
+        &outcome.template_name,
+        outcome.version_public_id,
+        &outcome.seller_org_public_id,
+        outcome.client_secret,
+    );
+
+    Response::json(StatusCode::CREATED, &payload)
+}
+
+/// GET `/api/v1/marketplace/purchases` — List all purchases made by the current organization.
+pub async fn list_purchases(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
+
+    let outcomes = services::list_organization_purchases(db, org.id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload: Vec<_> = outcomes
+        .iter()
+        .map(|o| {
+            serializers::serialize_purchase(
+                &o.purchase,
+                &o.buyer_org_public_id,
+                &o.template_public_id,
+                &o.template_name,
+                o.version_public_id.clone(),
+                &o.seller_org_public_id,
+                o.client_secret.clone(),
+            )
+        })
+        .collect();
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// GET `/api/v1/marketplace/purchases/{id}` — Retrieve a purchase record.
+pub async fn retrieve_purchase(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
+
+    let purchase_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing purchase id".to_string()))?;
+
+    let o = services::get_organization_purchase(db, org.id, purchase_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_purchase(
+        &o.purchase,
+        &o.buyer_org_public_id,
+        &o.template_public_id,
+        &o.template_name,
+        o.version_public_id,
+        &o.seller_org_public_id,
+        o.client_secret,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/marketplace/purchases/{id}/refund` — Refund a purchase.
+pub async fn refund_purchase(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let stripe = get_stripe_client(&req);
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
+
+    let purchase_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing purchase id".to_string()))?;
+
+    let body = if req.body_bytes().await.is_empty() {
+        RefundPurchaseRequest::default()
+    } else {
+        Json::<RefundPurchaseRequest>::from_request(&req)
+            .await
+            .map(|Json(b)| b)
+            .unwrap_or_default()
+    };
+
+    let outcome =
+        services::refund_purchase(db, stripe.as_ref(), org.id, user.id, purchase_id, body)
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_refund(
+        &outcome.purchase_public_id,
+        &outcome.stripe_refund_id,
+        outcome.amount,
+        &outcome.currency,
+        &outcome.status,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// GET `/api/v1/templates/{id}/download` — Verify entitlement before template download.
+pub async fn download_template(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let decision = services::check_template_access(db, org.id, template_id, None)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_access(
+        decision.has_access,
+        &decision.reason,
+        &decision.template_public_id,
+        decision.version_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// GET `/api/v1/templates/{id}/versions/{version_id}/download` — Verify entitlement before version download.
+pub async fn download_template_version(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+    let version_id = params
+        .get("version_id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing version id".to_string()))?;
+
+    let decision = services::check_template_access(db, org.id, template_id, Some(version_id))
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_access(
+        decision.has_access,
+        &decision.reason,
+        &decision.template_public_id,
+        decision.version_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
 }

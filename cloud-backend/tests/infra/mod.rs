@@ -9,5 +9,6 @@ pub mod googleplay_tests;
 pub mod queue_tests;
 pub mod shorebird_tests;
 pub mod storage_tests;
+pub mod stripe;
 pub mod testflight_tests;
 pub mod toolchain;

@@ -2,6 +2,8 @@
 
 use djangors_core::{DjangorsError, StatusCode};
 
+use crate::infra::stripe::StripeError;
+
 /// Domain errors encountered in `marketplace` workflows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MarketplaceError {
@@ -31,6 +33,36 @@ pub enum MarketplaceError {
     /// The template is private and cannot be accessed publicly.
     TemplatePrivate,
 
+    /// The seller payout account was not found.
+    SellerAccountNotFound,
+
+    /// The seller's payouts are not enabled on Stripe Connect.
+    SellerPayoutsNotEnabled,
+
+    /// The seller organization has not configured a Stripe payout account.
+    SellerNotConfigured,
+
+    /// An organization attempted to purchase a template it already owns.
+    CannotPurchaseOwnTemplate,
+
+    /// A paid template was requested without an active purchase entitlement.
+    PaymentRequired,
+
+    /// Payment execution or card charge failed.
+    PaymentFailed(String),
+
+    /// The requested template purchase was not found.
+    PurchaseNotFound,
+
+    /// The purchase was already refunded.
+    PurchaseAlreadyRefunded,
+
+    /// Invalid state for issuing a refund.
+    InvalidRefundState(String),
+
+    /// Stripe infrastructure error.
+    Stripe(String),
+
     /// Field or payload validation error.
     ValidationError(String),
 
@@ -51,6 +83,17 @@ pub enum MarketplaceError {
 
     /// Database or persistence layer error.
     DatabaseError(String),
+}
+
+impl From<StripeError> for MarketplaceError {
+    fn from(err: StripeError) -> Self {
+        match err {
+            StripeError::CardDeclined(msg) => MarketplaceError::PaymentFailed(msg),
+            StripeError::InvalidRequest(msg) => MarketplaceError::ValidationError(msg),
+            StripeError::NotFound(_) => MarketplaceError::PurchaseNotFound,
+            other => MarketplaceError::Stripe(other.to_string()),
+        }
+    }
 }
 
 impl From<MarketplaceError> for DjangorsError {
@@ -91,6 +134,50 @@ impl From<MarketplaceError> for DjangorsError {
                 "template_not_found",
                 "The requested template is private.",
             ),
+            MarketplaceError::SellerAccountNotFound => DjangorsError::api(
+                StatusCode::NOT_FOUND,
+                "seller_account_not_found",
+                "Seller payout account has not been set up.",
+            ),
+            MarketplaceError::SellerPayoutsNotEnabled => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "seller_payouts_not_enabled",
+                "Seller must complete Stripe onboarding and have payouts_enabled=true before listing a paid template.",
+            ),
+            MarketplaceError::SellerNotConfigured => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "seller_not_configured",
+                "Seller organization has not connected a Stripe payout account.",
+            ),
+            MarketplaceError::CannotPurchaseOwnTemplate => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "cannot_purchase_own_template",
+                "Organizations cannot purchase templates they own.",
+            ),
+            MarketplaceError::PaymentRequired => DjangorsError::api(
+                StatusCode::PAYMENT_REQUIRED,
+                "payment_required",
+                "Access requires purchasing this paid template.",
+            ),
+            MarketplaceError::PaymentFailed(msg) => {
+                DjangorsError::api(StatusCode::PAYMENT_REQUIRED, "payment_failed", msg)
+            }
+            MarketplaceError::PurchaseNotFound => DjangorsError::api(
+                StatusCode::NOT_FOUND,
+                "purchase_not_found",
+                "The requested template purchase was not found.",
+            ),
+            MarketplaceError::PurchaseAlreadyRefunded => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "purchase_already_refunded",
+                "This purchase has already been refunded.",
+            ),
+            MarketplaceError::InvalidRefundState(msg) => {
+                DjangorsError::api(StatusCode::BAD_REQUEST, "invalid_refund_state", msg)
+            }
+            MarketplaceError::Stripe(msg) => {
+                DjangorsError::api(StatusCode::BAD_GATEWAY, "stripe_error", msg)
+            }
             MarketplaceError::ValidationError(msg) => {
                 DjangorsError::api(StatusCode::BAD_REQUEST, "validation_error", msg)
             }

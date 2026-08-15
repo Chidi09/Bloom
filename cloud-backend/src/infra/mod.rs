@@ -21,5 +21,6 @@ pub mod googleplay;
 pub mod queue;
 pub mod shorebird;
 pub mod storage;
+pub mod stripe;
 pub mod testflight;
 pub mod toolchain;

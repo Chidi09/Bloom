@@ -26,6 +26,43 @@ pub fn urls() -> Router {
             "/marketplace/templates/:id/versions/:version_id",
             views::retrieve_marketplace_template_version,
         )
+        // Seller Onboarding & Payouts (Stripe Connect Express)
+        .get(
+            "/marketplace/seller/account",
+            views::retrieve_seller_account,
+        )
+        .post(
+            "/marketplace/seller/onboarding",
+            views::create_seller_onboarding,
+        )
+        .post("/marketplace/seller/refresh", views::refresh_seller_status)
+        // Purchases, Entitlements & Refunds
+        .post(
+            "/marketplace/templates/{id}/purchase",
+            views::purchase_template,
+        )
+        .post(
+            "/marketplace/templates/:id/purchase",
+            views::purchase_template,
+        )
+        .post("/templates/{id}/purchase", views::purchase_template)
+        .post("/templates/:id/purchase", views::purchase_template)
+        .get("/marketplace/purchases", views::list_purchases)
+        .get("/marketplace/purchases/{id}", views::retrieve_purchase)
+        .get("/marketplace/purchases/:id", views::retrieve_purchase)
+        .post("/marketplace/purchases/{id}/refund", views::refund_purchase)
+        .post("/marketplace/purchases/:id/refund", views::refund_purchase)
+        // Entitlement checks for downloads
+        .get("/templates/{id}/download", views::download_template)
+        .get("/templates/:id/download", views::download_template)
+        .get(
+            "/templates/{id}/versions/{version_id}/download",
+            views::download_template_version,
+        )
+        .get(
+            "/templates/:id/versions/:version_id/download",
+            views::download_template_version,
+        )
         // Organization-scoped template management routes
         .get("/templates", views::list_templates)
         .post("/templates", views::create_template)

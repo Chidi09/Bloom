@@ -3,7 +3,7 @@
 use djangors_db::Database;
 use djangors_orm::{q, Model, OrmError};
 
-use super::models::{Template, TemplateVersion};
+use super::models::{SellerAccount, Template, TemplatePurchase, TemplateVersion};
 
 /// Lightweight summary projection of an organization from another app.
 #[derive(Debug, Clone)]
@@ -13,6 +13,10 @@ pub struct OrganizationSummary {
     /// External public UUID v4 identifier.
     pub public_id: String,
 }
+
+// ---------------------------------------------------------------------------
+// Template Queries
+// ---------------------------------------------------------------------------
 
 /// Fetch a [`Template`] by its internal primary key.
 pub async fn template_by_id(db: &Database, id: i64) -> Result<Option<Template>, OrmError> {
@@ -111,7 +115,7 @@ pub async fn public_published_templates(
     }
 }
 
-/// Look up a public and published template by public UUID or slug.
+/// Look up a public and published template by public UUID.
 pub async fn public_published_template_by_public_id(
     db: &Database,
     public_id: &str,
@@ -138,6 +142,10 @@ pub async fn update_template(db: &Database, template: &Template) -> Result<(), O
 pub async fn delete_template_by_id(db: &Database, id: i64) -> Result<u64, OrmError> {
     Template::objects().filter(q!(id = id))?.delete(db).await
 }
+
+// ---------------------------------------------------------------------------
+// TemplateVersion Queries
+// ---------------------------------------------------------------------------
 
 /// Fetch a [`TemplateVersion`] by internal primary key.
 pub async fn version_by_id(db: &Database, id: i64) -> Result<Option<TemplateVersion>, OrmError> {
@@ -231,6 +239,122 @@ pub async fn delete_version_by_id(db: &Database, id: i64) -> Result<u64, OrmErro
         .delete(db)
         .await
 }
+
+// ---------------------------------------------------------------------------
+// SellerAccount Queries
+// ---------------------------------------------------------------------------
+
+/// Fetch a [`SellerAccount`] by organization internal primary key.
+pub async fn seller_account_by_org_id(
+    db: &Database,
+    organization_id: i64,
+) -> Result<Option<SellerAccount>, OrmError> {
+    SellerAccount::objects()
+        .filter(q!(organization_id = organization_id))?
+        .first(db)
+        .await
+}
+
+/// Fetch a [`SellerAccount`] by Stripe connected account ID (`acct_...`).
+pub async fn seller_account_by_stripe_id(
+    db: &Database,
+    stripe_account_id: &str,
+) -> Result<Option<SellerAccount>, OrmError> {
+    SellerAccount::objects()
+        .filter(q!(stripe_account_id = stripe_account_id.to_owned()))?
+        .first(db)
+        .await
+}
+
+/// Insert a new [`SellerAccount`] record.
+pub async fn insert_seller_account(
+    db: &Database,
+    account: SellerAccount,
+) -> Result<SellerAccount, OrmError> {
+    account.save(db).await
+}
+
+/// Update an existing [`SellerAccount`] record.
+pub async fn update_seller_account(db: &Database, account: &SellerAccount) -> Result<(), OrmError> {
+    account.update(db).await
+}
+
+// ---------------------------------------------------------------------------
+// TemplatePurchase Queries
+// ---------------------------------------------------------------------------
+
+/// Fetch a [`TemplatePurchase`] by its internal primary key.
+pub async fn purchase_by_id(db: &Database, id: i64) -> Result<Option<TemplatePurchase>, OrmError> {
+    TemplatePurchase::objects()
+        .filter(q!(id = id))?
+        .first(db)
+        .await
+}
+
+/// Fetch a [`TemplatePurchase`] by its external public UUID v4.
+pub async fn purchase_by_public_id(
+    db: &Database,
+    public_id: &str,
+) -> Result<Option<TemplatePurchase>, OrmError> {
+    TemplatePurchase::objects()
+        .filter(q!(public_id = public_id.to_owned()))?
+        .first(db)
+        .await
+}
+
+/// Fetch a [`TemplatePurchase`] by idempotency key.
+pub async fn purchase_by_idempotency_key(
+    db: &Database,
+    idempotency_key: &str,
+) -> Result<Option<TemplatePurchase>, OrmError> {
+    TemplatePurchase::objects()
+        .filter(q!(idempotency_key = idempotency_key.to_owned()))?
+        .first(db)
+        .await
+}
+
+/// Fetch an active succeeded purchase for a buyer organization and template.
+pub async fn succeeded_purchase_for_buyer_and_template(
+    db: &Database,
+    buyer_organization_id: i64,
+    template_id: i64,
+) -> Result<Option<TemplatePurchase>, OrmError> {
+    TemplatePurchase::objects()
+        .filter(q!(buyer_organization_id = buyer_organization_id))?
+        .filter(q!(template_id = template_id))?
+        .filter(q!(status = "succeeded".to_string()))?
+        .first(db)
+        .await
+}
+
+/// List all purchases made by a buyer organization, ordered by `-created_at`.
+pub async fn purchases_for_buyer_org(
+    db: &Database,
+    buyer_organization_id: i64,
+) -> Result<Vec<TemplatePurchase>, OrmError> {
+    TemplatePurchase::objects()
+        .filter(q!(buyer_organization_id = buyer_organization_id))?
+        .order_by("-created_at")?
+        .all(db)
+        .await
+}
+
+/// Insert a new [`TemplatePurchase`] record.
+pub async fn insert_purchase(
+    db: &Database,
+    purchase: TemplatePurchase,
+) -> Result<TemplatePurchase, OrmError> {
+    purchase.save(db).await
+}
+
+/// Update an existing [`TemplatePurchase`] record.
+pub async fn update_purchase(db: &Database, purchase: &TemplatePurchase) -> Result<(), OrmError> {
+    purchase.update(db).await
+}
+
+// ---------------------------------------------------------------------------
+// Cross-App Projections
+// ---------------------------------------------------------------------------
 
 /// Look up an organization summary by its internal primary key.
 pub async fn organization_summary_by_id(
