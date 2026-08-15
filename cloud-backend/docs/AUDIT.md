@@ -273,3 +273,45 @@ written and correct. Unblocking needs one of:
 
 Until one is chosen, hand-written handlers are the right call and the duplication
 removed in `088d253` and `263738b` is the realistic win.
+
+### V1a — what the reference app actually did
+
+Checked `/root/dev/school-management-saas-/backend` directly rather than inferring
+from an identifier count. Its route registrations:
+
+| | count |
+|---|---|
+| hand-written route registrations | 433 |
+| mounts via `scoped_viewset_routes*` | 20 |
+
+**The reference app is ~96% hand-written.** It never performed a ViewSet
+migration. Its pattern is:
+
+- Mount `scoped_viewset_routes_with_config` for a handful of flat, low-privilege
+  resources (20 mounts).
+- For everything else, hand-write the handler so it owns the route path and the
+  role check, then `match req.method()` and delegate only the plain read to
+  `ScopedViewSet::<M>::list` as the fallback arm (48 such call sites, e.g.
+  `hostels/views.rs:151`).
+- For any resource whose response embeds related entities, skip ViewSets
+  entirely: build a `*Representation` struct of resolved `String` public IDs and
+  render it with a plain `serialize_*` function
+  (`hostels/serializers.rs:41-105`).
+
+That third bullet is exactly what this codebase already does with
+`ReleaseDetail` + `serialize_release`. Even where the reference app does use a
+`Serializer` impl, it sidesteps the relation problem by omitting the FK from the
+representation: `HostelSerializer` renders `id`/`name`/`gender`/`address` and
+drops `school` (`hostels/serializers.rs:12-23`), despite `Hostel.school` being a
+`ForeignKey<School>`.
+
+**Correction to an earlier claim in this document's discussion:** the figure "the
+reference app uses ScopedViewSet 73 times" counted every mention of the
+identifier, 17 of which are comments. The number of routes actually served by a
+mounted ViewSet is 20, against 433 hand-written.
+
+**Conclusion: there is no migration to perform.** Our 315 hand-written routes
+already follow the reference app's pattern. V1's framework limitations explain
+why that pattern exists, rather than describing a gap to close. The duplication
+worth removing was the copy-pasted helpers, and that is done (`088d253`,
+`263738b`).
