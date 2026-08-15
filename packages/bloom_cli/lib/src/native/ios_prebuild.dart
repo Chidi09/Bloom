@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 import '../utils/ansi.dart';
+import 'plugin_catalog.dart';
 
 class IosPrebuild {
   final Directory iosDir;
@@ -33,15 +34,17 @@ class IosPrebuild {
           for (final plugin in plugins) {
             final pluginName = plugin is String ? plugin : (plugin is Map ? plugin.keys.first.toString() : '');
             final pluginConfig = plugin is Map ? plugin[pluginName] as Map? : null;
-
-            if (pluginName == 'camera') {
-              keysToInject['NSCameraUsageDescription'] = pluginConfig?['camera_permission']?.toString() ??
-                  'This application requires camera access to take photos.';
-              keysToInject['NSMicrophoneUsageDescription'] = pluginConfig?['microphone_permission']?.toString() ??
-                  'This application requires microphone access to record audio.';
-            } else if (pluginName == 'location') {
-              keysToInject['NSLocationWhenInUseUsageDescription'] =
-                  'This application requires location access to provide location services.';
+            final descriptor = BloomPluginCatalog.resolve(pluginName);
+            if (descriptor != null) {
+              for (final entry in descriptor.iosUsageDescriptions.entries) {
+                var value = entry.value;
+                if (entry.key == 'NSCameraUsageDescription') {
+                  value = pluginConfig?['camera_permission']?.toString() ?? value;
+                } else if (entry.key == 'NSMicrophoneUsageDescription') {
+                  value = pluginConfig?['microphone_permission']?.toString() ?? value;
+                }
+                keysToInject[entry.key] = value;
+              }
             }
           }
 

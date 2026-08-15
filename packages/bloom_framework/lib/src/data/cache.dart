@@ -35,6 +35,7 @@ class BloomData {
       HashMap<String, StreamController<void>>();
   static final Map<String, Completer<dynamic>> _inFlightRequests =
       HashMap<String, Completer<dynamic>>();
+  static final Map<String, int> _listenerCounts = HashMap<String, int>();
 
   static Timer? _gcTimer;
 
@@ -51,8 +52,15 @@ class BloomData {
   }
 
   /// Converts a key list like `['users', 42, 'posts']` to a normalized string key.
-  static String normalizeKey(List<dynamic> key) {
-    return key.map((e) => e.toString()).join(':');
+  static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
+
+  static String _canonical(dynamic e) {
+    if (e is Map) {
+      final entries = e.entries.map((kv) => '${kv.key}: ${_canonical(kv.value)}').toList()..sort();
+      return '{${entries.join(', ')}}';
+    }
+    if (e is Iterable) return '[${e.map(_canonical).join(', ')}]';
+    return e.toString();
   }
 
   /// Check if a query key matches a given prefix key.
@@ -60,7 +68,7 @@ class BloomData {
     if (prefix.isEmpty) return true;
     if (candidateKey.length < prefix.length) return false;
     for (int i = 0; i < prefix.length; i++) {
-      if (candidateKey[i].toString() != prefix[i].toString()) {
+      if (_canonical(candidateKey[i]) != _canonical(prefix[i])) {
         return false;
       }
     }
@@ -72,18 +80,28 @@ class BloomData {
     final prefixStr = normalizeKey(keyPrefix);
     logger.debug('BloomData: Invalidating queries matching [$prefixStr]');
 
-    final matchingKeys = <String>[];
-    for (final entryKey in _cache.keys) {
-      final entry = _cache[entryKey]!;
+    final matchingKeys = <String>{};
+    for (final entry in _cache.values) {
       if (matchesKey(entry.key, keyPrefix)) {
         entry.isStale = true;
-        matchingKeys.add(entryKey);
+        matchingKeys.add(normalizeKey(entry.key));
       }
+    }
+
+    // Also reach queries that have never cached a successful result.
+    for (final keyStr in _invalidationControllers.keys) {
+      if (_matchesNormalizedPrefix(keyStr, keyPrefix)) matchingKeys.add(keyStr);
     }
 
     for (final keyStr in matchingKeys) {
       _invalidationControllers[keyStr]?.add(null);
     }
+  }
+
+  static bool _matchesNormalizedPrefix(String keyStr, List<dynamic> prefix) {
+    final prefixStr = normalizeKey(prefix);
+    if (prefixStr.isEmpty || keyStr == prefixStr) return true;
+    return keyStr.startsWith('$prefixStr:');
   }
 
   /// Mark queries matching [keyPrefix] as stale without immediately refetching.
@@ -120,7 +138,7 @@ class BloomData {
     if (entry != null) {
       if (entry.isExpired) {
         _cache.remove(keyStr);
-        _invalidationControllers.remove(keyStr)?.close();
+        _disposeController(keyStr);
         return null;
       }
       return entry.data as T?;
@@ -128,13 +146,13 @@ class BloomData {
     return null;
   }
 
-  /// Get full cache entry for internal query lifecycle management.
+  /// Gets a cached query entry if available and not expired.
   static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     final entry = _cache[keyStr];
     if (entry != null && entry.isExpired) {
       _cache.remove(keyStr);
-      _invalidationControllers.remove(keyStr)?.close();
+      _disposeController(keyStr);
       return null;
     }
     return entry as QueryCacheEntry<T>?;
@@ -144,7 +162,7 @@ class BloomData {
   static void removeEntry(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     _cache.remove(keyStr);
-    _invalidationControllers.remove(keyStr)?.close();
+    _disposeController(keyStr);
   }
 
   /// Store or update a cache entry.
@@ -157,13 +175,14 @@ class BloomData {
   static int garbageCollect() {
     final expiredKeys = <String>[];
     for (final entryKey in _cache.keys) {
-      if (_cache[entryKey]!.isExpired) {
+      final entry = _cache[entryKey]!;
+      if (entry.isExpired && (_listenerCounts[entryKey] ?? 0) == 0) {
         expiredKeys.add(entryKey);
       }
     }
     for (final k in expiredKeys) {
       _cache.remove(k);
-      _invalidationControllers.remove(k)?.close();
+      _disposeController(k);
     }
     if (expiredKeys.isNotEmpty) {
       logger.debug('BloomData: Evicted ${expiredKeys.length} expired query cache entries.');
@@ -174,9 +193,29 @@ class BloomData {
   /// Listen for invalidation events on a specific query key.
   static Stream<void> onInvalidated(List<dynamic> key) {
     final keyStr = normalizeKey(key);
+    _listenerCounts[keyStr] = (_listenerCounts[keyStr] ?? 0) + 1;
     return _invalidationControllers
         .putIfAbsent(keyStr, () => StreamController<void>.broadcast())
         .stream;
+  }
+
+  /// Releases a listener slot previously acquired via [onInvalidated].
+  static void releaseListener(List<dynamic> key) {
+    final keyStr = normalizeKey(key);
+    final count = _listenerCounts[keyStr] ?? 0;
+    if (count <= 1) {
+      _listenerCounts.remove(keyStr);
+    } else {
+      _listenerCounts[keyStr] = count - 1;
+    }
+  }
+
+  /// Closes and removes the invalidation controller for [keyStr] only if it has
+  /// no live listeners, leaving it open and untouched otherwise.
+  static void _disposeController(String keyStr) {
+    if ((_listenerCounts[keyStr] ?? 0) == 0) {
+      _invalidationControllers.remove(keyStr)?.close();
+    }
   }
 
   /// Request deduplication: ensures multiple simultaneous fetches for the same key share a single Future.
@@ -238,5 +277,6 @@ class BloomData {
     }
     _invalidationControllers.clear();
     _inFlightRequests.clear();
+    _listenerCounts.clear();
   }
 }

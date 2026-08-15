@@ -1,6 +1,6 @@
 name: bloom_cli
 description: The official command-line interface for the Bloom application framework and developer platform.
-version: 0.1.0
+version: 0.2.0
 homepage: https://bloom.dev
 repository: https://github.com/bloom-framework/bloom
 issue_tracker: https://github.com/bloom-framework/bloom/issues
