@@ -179,3 +179,25 @@ fn test_stage_status_validation() {
         &["pending", "running", "completed", "failed", "skipped"]
     );
 }
+
+#[test]
+fn test_build_cancel_key_format() {
+    use bloom_cloud_backend::apps::builds::services::build_cancel_key;
+
+    let build_id = "550e8400-e29b-41d4-a716-446655440000";
+    let key = build_cancel_key(build_id);
+    assert_eq!(
+        key,
+        "bloomcloud:builds:550e8400-e29b-41d4-a716-446655440000:cancel"
+    );
+}
+
+#[test]
+fn test_cancelling_terminal_states_transitions_matrix() {
+    // The transition matrix does not allow transitions out of terminal states,
+    // but the high-level service function treats cancelling an already-terminal
+    // build (success, failed, cancelled) as an idempotent no-op.
+    assert!(!can_transition("success", "cancelled"));
+    assert!(!can_transition("failed", "cancelled"));
+    assert!(!can_transition("cancelled", "cancelled"));
+}

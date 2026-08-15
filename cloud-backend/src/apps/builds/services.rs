@@ -473,22 +473,75 @@ pub async fn list_builds(
     Ok(results)
 }
 
+/// Default TTL for a build cancellation key in Redis (24 hours).
+///
+/// Prevents a cancellation signal for a finished build from lingering indefinitely
+/// and poisoning a future build reusing an ID.
+pub const DEFAULT_CANCEL_KEY_TTL_SECS: u64 = 86400;
+
+/// Constructs the canonical Redis key for a build cancellation signal.
+///
+/// Pattern follows `src/infra/queue.rs` (`bloomcloud:jobs...`) and
+/// `src/infra/storage.rs`: `bloomcloud:builds:{build_public_id}:cancel`.
+pub fn build_cancel_key(build_public_id: &str) -> String {
+    format!("bloomcloud:builds:{build_public_id}:cancel")
+}
+
+/// Sets the cancellation signal for a build in Redis with an expiration TTL.
+///
+/// Called when a build is cancelled while running or queued. Uses `SET key 1 EX ttl`.
+pub async fn set_build_cancellation_signal(
+    queue: &JobQueue,
+    build_public_id: &str,
+    ttl_secs: u64,
+) -> Result<(), BuildError> {
+    let key = build_cancel_key(build_public_id);
+    queue
+        .set_flag(&key, ttl_secs)
+        .await
+        .map_err(|e| BuildError::QueueError(e.to_string()))
+}
+
+/// Checks whether a cancellation signal has been set for a build.
+///
+/// Predicate called between worker stages to observe cancellation. Small,
+/// non-blocking, and separately testable. Returns `true` if the cancellation
+/// key exists in Redis.
+pub async fn is_build_cancelled(
+    queue: &JobQueue,
+    build_public_id: &str,
+) -> Result<bool, BuildError> {
+    let key = build_cancel_key(build_public_id);
+    queue
+        .has_flag(&key)
+        .await
+        .map_err(|e| BuildError::QueueError(e.to_string()))
+}
+
 /// Cancel a build (per `apps/builds.md` §3).
 ///
-/// Only `pending` or `queued` builds are cancelled immediately. A `running` build is
-/// not transitioned here: a cancel signal is sent to the worker, and the worker
-/// reports the terminal `cancelled` status back via [`complete_build`].
+/// Only `pending` or `queued` builds are cancelled immediately in the database. A `running` build
+/// emits `build.cancelled` and sets the Redis cancellation signal so the worker halts at its next
+/// stage check and reports the terminal `cancelled` status back via [`complete_build`].
+///
+/// Cancelling an already-terminal build (`success`, `failed`, `cancelled`) is an idempotent no-op
+/// that does NOT error.
 pub async fn cancel_build(
     db: &Database,
     organization_id: i64,
     user_id: Option<i64>,
     build_public_id: &str,
+    queue: Option<&JobQueue>,
 ) -> Result<BuildDetail, BuildError> {
     let build = repositories::build_by_public_id_and_org(db, build_public_id, organization_id)
         .await?
         .ok_or(BuildError::BuildNotFound)?;
 
     let updated = match build.status.as_str() {
+        "success" | "failed" | "cancelled" => {
+            // Cancelling an already-terminal build is a no-op that does not error.
+            build.clone()
+        }
         "pending" | "queued" => {
             let mut updated = build.clone();
             updated.status = "cancelled".to_string();
@@ -510,6 +563,15 @@ pub async fn cancel_build(
             )
             .await;
 
+            if let Some(q) = queue {
+                let _ = set_build_cancellation_signal(
+                    q,
+                    &updated.public_id,
+                    DEFAULT_CANCEL_KEY_TTL_SECS,
+                )
+                .await;
+            }
+
             updated
         }
         "running" => {
@@ -529,9 +591,11 @@ pub async fn cancel_build(
             )
             .await;
 
-            // TODO(spec): send a cancel signal to the worker (a Redis cancel key keyed
-            // by the build public UUID) — `infra/queue.rs` exposes no cancel primitive
-            // yet, so this is left for the phase that adds the worker protocol.
+            // Set the Redis cancellation key with a 24-hour TTL so workers observe it.
+            if let Some(q) = queue {
+                set_build_cancellation_signal(q, &build.public_id, DEFAULT_CANCEL_KEY_TTL_SECS)
+                    .await?;
+            }
 
             build.clone()
         }

@@ -10,19 +10,24 @@
 //!
 //! 1. **Cryptographic Signature Verification**:
 //!    - GitHub deliveries MUST include the `X-Hub-Signature-256` header formatted as `"sha256=" + hex_digest`.
-//!    - Signatures are computed as `HMAC-SHA256(secret, raw_body_bytes)`.
+//!    - GitLab deliveries support two verified schemes:
+//!      * Legacy shared secret: `X-Gitlab-Token` header containing the plain secret, compared in constant time.
+//!      * Current Standard Webhooks (GitLab 19.0+): `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers
+//!        signing `"{webhook-id}.{webhook-timestamp}.{raw_body}"` with base64-decoded `whsec_` key, verified in constant time
+//!        with timestamp replay protection (`GITLAB_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS`).
+//!    - Bitbucket Cloud deliveries MUST include the `X-Hub-Signature` header formatted as `"sha256=" + hex_digest`.
+//!      Because Bitbucket Cloud omits the header when no secret is configured, missing signature headers are strictly REJECTED.
 //!    - **The raw request body bytes (`&[u8]`) are verified directly.** Deserializing and re-serializing JSON
 //!      before verification is forbidden because whitespace or key-order differences invalidate signatures.
 //!    - Digests are compared in **constant time** via [`Crypto::constant_time_eq`] to prevent timing attacks.
 //!    - Missing signatures, absent secrets, or signature mismatches are **rejected immediately**
 //!      before performing any database writes or queue interactions.
 //!
-//! 2. **Unverified Providers**:
-//!    - GitLab and Bitbucket signature schemes are not independently verified against live vendor specifications.
-//!    - Per `EXTERNAL_APIS.txt` §6, unverified provider deliveries are **safely rejected** rather than accepted unverified.
+//! 2. **Provider Verification**:
+//!    - GitHub, GitLab, and Bitbucket Cloud signature schemes are independently verified against vendor specifications.
 //!
 //! 3. **Idempotency & Deduplication**:
-//!    - Deliveries are uniquely identified by the `X-GitHub-Delivery` GUID.
+//!    - Deliveries are uniquely identified by their provider delivery GUID.
 //!    - Replaying a delivery GUID is a no-op and will not queue duplicate build jobs.
 //!
 //! 4. **Total Ack/Fail Contract**:
@@ -33,6 +38,9 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
+use chrono::Utc;
 use djangors_db::Database;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -52,6 +60,28 @@ pub const HEADER_GITHUB_DELIVERY: &str = "X-GitHub-Delivery";
 pub const HEADER_HUB_SIGNATURE_256: &str = "X-Hub-Signature-256";
 /// Canonical User-Agent prefix for GitHub webhooks.
 pub const GITHUB_USER_AGENT_PREFIX: &str = "GitHub-Hookshot/";
+
+/// Canonical GitLab token header (legacy shared secret scheme).
+pub const HEADER_GITLAB_TOKEN: &str = "X-Gitlab-Token";
+/// Canonical GitLab webhook ID header (Standard Webhooks scheme).
+pub const HEADER_GITLAB_WEBHOOK_ID: &str = "webhook-id";
+/// Canonical GitLab webhook timestamp header (Standard Webhooks scheme).
+pub const HEADER_GITLAB_WEBHOOK_TIMESTAMP: &str = "webhook-timestamp";
+/// Canonical GitLab webhook signature header (Standard Webhooks scheme).
+pub const HEADER_GITLAB_WEBHOOK_SIGNATURE: &str = "webhook-signature";
+/// Canonical GitLab event header.
+pub const HEADER_GITLAB_EVENT: &str = "X-Gitlab-Event";
+
+/// Canonical Bitbucket HMAC-SHA256 signature header.
+pub const HEADER_BITBUCKET_SIGNATURE: &str = "X-Hub-Signature";
+/// Canonical Bitbucket delivery UUID header.
+pub const HEADER_BITBUCKET_UUID: &str = "X-Request-UUID";
+/// Canonical Bitbucket event key header.
+pub const HEADER_BITBUCKET_EVENT: &str = "X-Event-Key";
+
+/// Maximum allowed timestamp age/drift for GitLab Standard Webhook signatures in seconds (5 minutes).
+/// Webhook deliveries whose timestamp drifts further than this tolerance are rejected to prevent replay attacks.
+pub const GITLAB_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS: i64 = 300;
 
 /// Supported Git webhook provider identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -250,6 +250,37 @@ impl JobQueue {
             .map_err(|e| QueueError::Connection(e.to_string()))
     }
 
+    /// Sets a short-lived flag key, used to signal a running job that it should stop.
+    ///
+    /// The TTL is mandatory rather than optional: a flag for a job that has already finished
+    /// must expire on its own, or it would cancel a later job that reuses the identifier.
+    ///
+    /// This is deliberately a method on the queue rather than a raw connection handed to the
+    /// domain layer -- `conn` stays private so Redis access cannot spread across the codebase.
+    pub async fn set_flag(&self, key: &str, ttl_secs: u64) -> Result<(), QueueError> {
+        let mut conn = self.conn().await?;
+        redis::cmd("SET")
+            .arg(key)
+            .arg("1")
+            .arg("EX")
+            .arg(ttl_secs)
+            .query_async::<()>(&mut conn)
+            .await
+            .map_err(|e| QueueError::Connection(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Returns whether a flag set by [`JobQueue::set_flag`] is currently present.
+    pub async fn has_flag(&self, key: &str) -> Result<bool, QueueError> {
+        let mut conn = self.conn().await?;
+        let exists: bool = redis::cmd("EXISTS")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| QueueError::Connection(e.to_string()))?;
+        Ok(exists)
+    }
+
     /// Ensures that the Redis consumer group and stream exist.
     /// Verifies Redis is reachable by issuing `PING`.
     ///

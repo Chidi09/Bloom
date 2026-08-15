@@ -93,6 +93,11 @@ pub enum BuildWorkerError {
     Database(String),
     /// Unexpected job variant passed to build worker.
     InvalidJobVariant(String),
+    /// The build was cancelled by the customer while it was running.
+    ///
+    /// Carried as an error so it travels the pipeline's existing total error path, but it is
+    /// NOT a failure: the caller reports the build as `cancelled`, not `failed`.
+    Cancelled,
     /// Stage execution failure.
     StageFailed {
         /// The stage that failed.
@@ -117,6 +122,7 @@ impl fmt::Display for BuildWorkerError {
             BuildWorkerError::InvalidJobVariant(msg) => {
                 write!(f, "Invalid job variant for build worker: {msg}")
             }
+            BuildWorkerError::Cancelled => write!(f, "Build cancelled by user request"),
             BuildWorkerError::StageFailed {
                 stage,
                 reason,
@@ -318,11 +324,18 @@ pub async fn run_build_job(
         }
         Err(err) => {
             let error_message = err.to_string();
-            eprintln!("Build {build_id} execution failed: {error_message}");
+            // A cancelled build is a terminal outcome the customer asked for, not a failure.
+            // Reporting it as `failed` would show a red build for a deliberate cancel and
+            // would meter it as a failed build against the organization.
+            let terminal_status = match err {
+                BuildWorkerError::Cancelled => "cancelled",
+                _ => "failed",
+            };
+            eprintln!("Build {build_id} ended as {terminal_status}: {error_message}");
 
-            // Update domain build status to failed
+            // Update domain build status to its terminal state
             let req = CompleteBuildRequest {
-                status: "failed".to_string(),
+                status: terminal_status.to_string(),
                 metadata: None,
                 logs_url: None,
                 reason: Some(error_message.clone()),
@@ -330,12 +343,13 @@ pub async fn run_build_job(
 
             let _ = build_services::complete_build(deps.db, &build_id, req).await;
 
-            // Re-enqueue parent workflow run on failure so parked runs fail rather than hanging
+            // Re-enqueue parent workflow run on every terminal outcome so parked runs resolve
+            // rather than hanging -- cancellation included.
             let _ = resume_parent_workflow_run(
                 deps.db,
                 deps.queue,
                 &build_id,
-                "failed",
+                terminal_status,
                 Some(&error_message),
                 None,
             )
@@ -356,6 +370,27 @@ pub fn project_declares_builders(working_dir: &Path) -> bool {
         content.contains("build_runner") || content.contains("builders:")
     } else {
         false
+    }
+}
+
+/// Returns `Err(BuildWorkerError::Cancelled)` when the customer has cancelled this build.
+///
+/// Called at every stage boundary. A build that is not observed as cancelled keeps running --
+/// a Redis failure here must never abort an otherwise healthy build, so an unreachable broker
+/// is treated as "not cancelled" and logged rather than surfaced as a build failure.
+async fn bail_if_cancelled(
+    db: &Database,
+    queue: &JobQueue,
+    build_public_id: &str,
+) -> Result<(), BuildWorkerError> {
+    let _ = db;
+    match build_services::is_build_cancelled(queue, build_public_id).await {
+        Ok(true) => Err(BuildWorkerError::Cancelled),
+        Ok(false) => Ok(()),
+        Err(e) => {
+            eprintln!("cancellation check for build {build_public_id} failed, continuing: {e}");
+            Ok(())
+        }
     }
 }
 
@@ -517,6 +552,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -574,6 +610,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -635,6 +672,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -721,6 +759,7 @@ async fn execute_build_pipeline(
         }
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -792,6 +831,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -853,6 +893,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -913,6 +954,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -992,6 +1034,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
     }
 
     // -------------------------------------------------------------------------
@@ -1116,6 +1159,7 @@ async fn execute_build_pipeline(
         .map_err(|e| BuildWorkerError::BuildService(e.to_string()))?;
 
         stages_completed += 1;
+        bail_if_cancelled(db, queue, build_id).await?;
 
         (log_key, saved_artifact)
     };

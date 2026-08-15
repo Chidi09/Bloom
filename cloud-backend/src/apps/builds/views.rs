@@ -149,7 +149,12 @@ pub async fn cancel_build(req: Request, params: PathParams) -> Result<Response, 
         .get("id")
         .ok_or_else(|| BuildError::ValidationError("Missing build id".to_string()))?;
 
-    let detail = services::cancel_build(db, org_id, Some(user.id), build_id)
+    // A running build is stopped by a cancel flag the worker observes between stages, so the
+    // queue is required here; without it a cancel would only mark the row and let the build
+    // keep burning billable minutes.
+    let queue = req.require_state::<JobQueue>()?;
+
+    let detail = services::cancel_build(db, org_id, Some(user.id), build_id, Some(queue))
         .await
         .map_err(DjangorsError::from)?;
 
