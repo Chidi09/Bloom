@@ -525,6 +525,21 @@ pub async fn update_review_report(db: &Database, report: &ReviewReport) -> Resul
 // ---------------------------------------------------------------------------
 
 /// Checks if an install event deduplication record exists for the given template, actor hash, and date bucket.
+/// Deletes install deduplication rows created before `cutoff`, returning how many were removed.
+///
+/// Backs the `purge_install_dedup` recurring task. These rows are write-once and read only
+/// within their daily bucket, so without a purge the table grows by one row per unique
+/// installer per template per day forever.
+pub async fn delete_install_dedup_before(
+    db: &Database,
+    cutoff: chrono::DateTime<chrono::Utc>,
+) -> Result<u64, OrmError> {
+    TemplateInstallDedup::objects()
+        .filter(q!(created_at__lt = cutoff))?
+        .delete(db)
+        .await
+}
+
 pub async fn install_dedup_exists(
     db: &Database,
     template_id: i64,

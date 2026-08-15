@@ -634,6 +634,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "cron",
  "djangors-auth",
  "djangors-cache",
  "djangors-contrib-payments",

@@ -93,3 +93,6 @@ aws-sdk-s3 = "1"
 [dev-dependencies]
 hmac = "0.12"
 hex = "0.4"
+# Parses recurring-task schedules exactly as djangors_tasks::register_recurring does, so a
+# malformed cron expression fails a test instead of silently registering nothing.
+cron = "0.17"

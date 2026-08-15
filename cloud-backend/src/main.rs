@@ -45,6 +45,23 @@ async fn main() -> Result<(), DjangorsError> {
         .await
         .map_err(|e| DjangorsError::Internal(format!("Migration failed: {e}")))?;
 
+    // Background side effects (retention sweeps, cleanup) run on djangors-tasks, per
+    // infrastructure.md section 2. Its tables are created here rather than in a migration
+    // because the framework owns their schema.
+    djangors_tasks::create_task_table(&db)
+        .await
+        .map_err(|e| DjangorsError::Internal(format!("Failed to create task table: {e}")))?;
+    djangors_tasks::create_recurring_task_table(&db)
+        .await
+        .map_err(|e| {
+            DjangorsError::Internal(format!("Failed to create recurring task table: {e}"))
+        })?;
+
+    // Task handlers receive only a payload and have no request context, so they read the
+    // database through this process-global handle. Installed before any worker starts.
+    bloom_cloud_backend::runtime::set_db(db.clone());
+    bloom_cloud_backend::tasks::register_recurring_tasks(&db).await;
+
     // The build/deploy job queue is attached to router state so handlers (and the
     // /readyz probe) can reach Redis without opening a fresh connection each time.
     let queue = bloom_cloud_backend::infra::queue::JobQueue::from_url(&bloom_settings.redis_url)

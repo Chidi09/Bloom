@@ -149,6 +149,20 @@ pub async fn device_flow_by_user_code(
 }
 
 /// Update status and optional user_id for a device flow request.
+/// Marks every still-pending device-flow request whose deadline has passed as `expired`,
+/// returning how many rows changed.
+///
+/// Backs the `expire_device_flows` recurring task. The poll endpoint expires a request lazily
+/// when asked about it, so a request the CLI abandons stays `pending` forever and the table
+/// accumulates rows that look actionable but never are.
+pub async fn expire_stale_device_flows(db: &Database) -> Result<u64, OrmError> {
+    DeviceFlowRequest::objects()
+        .filter(q!(status = "pending".to_string()))?
+        .filter(q!(expires_at__lt = Utc::now()))?
+        .update(db, vec![("status", "expired".to_string().into_set_expr())])
+        .await
+}
+
 pub async fn update_device_flow_status(
     db: &Database,
     id: i64,
