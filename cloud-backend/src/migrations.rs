@@ -74,6 +74,16 @@ pub const MIGRATIONS: &[MigrationRef] = &[
         app: "webhosting",
         path: "migrations/webhosting",
     },
+    // Phase 5: deployments reference releases and artifacts; observability snapshots
+    // reference releases, so both apply after those.
+    MigrationRef {
+        app: "deployments",
+        path: "migrations/deployments",
+    },
+    MigrationRef {
+        app: "observability",
+        path: "migrations/observability",
+    },
 ];
 
 /// Applies all pending database migrations in registered sequence.

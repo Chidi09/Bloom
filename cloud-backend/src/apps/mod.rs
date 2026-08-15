@@ -7,8 +7,10 @@ pub mod artifacts;
 pub mod builds;
 pub mod common;
 pub mod credentials;
+pub mod deployments;
 pub mod environments;
 pub mod events;
+pub mod observability;
 pub mod organizations;
 pub mod projects;
 pub mod releases;
@@ -40,4 +42,7 @@ pub fn urls() -> Router {
         // Phase 4: releases group artifacts; webhosting deploys the web bundle.
         .mount("", releases::urls())
         .mount("", webhosting::urls())
+        // Phase 5: mobile store deployments and the metrics they report back.
+        .mount("", deployments::urls())
+        .mount("", observability::urls())
 }

@@ -39,6 +39,11 @@ hyper = { version = "1.10.1", features = ["full"] }
 # and one TLS backend are compiled.
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
+# JWT signing for the mobile store APIs: ES256 with Apple's .p8 key for App Store Connect,
+# and RS256 service-account assertions for the Google Play Developer API. Version and feature
+# set track djangors-rest's own jwt feature so only one jsonwebtoken is compiled.
+jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
+
 # --- infra layer (src/infra) -------------------------------------------------
 # Redis is used directly rather than via djangors-cache because the build/deploy
 # queue needs Redis Streams consumer groups (XADD/XREADGROUP/XCLAIM) for exclusive
