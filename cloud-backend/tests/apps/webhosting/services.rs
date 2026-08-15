@@ -3,9 +3,15 @@ use bytes::Bytes;
 use bloom_cloud_backend::apps::webhosting::models::WebDeployment;
 use bloom_cloud_backend::apps::webhosting::services::{
     build_preview_url, build_production_url, build_web_storage_prefix, can_transition,
-    sanitize_branch_slug, validate_domain, validate_target, DEFAULT_APEX_DOMAIN,
-    VALID_CERTIFICATE_STATUSES, VALID_DEPLOYMENT_STATUSES, VALID_TARGETS,
+    compute_challenge_hostname, compute_required_dns_records, generate_verification_token,
+    is_apex_domain, sanitize_branch_slug, validate_certificate_status, validate_domain,
+    validate_target, DEFAULT_APEX_DOMAIN, DEFAULT_EDGE_A_RECORD_IP, VALID_CERTIFICATE_STATUSES,
+    VALID_DEPLOYMENT_STATUSES, VALID_TARGETS,
 };
+use bloom_cloud_backend::infra::caddy::{
+    build_dns_challenge_automation_policy, build_verified_custom_domain_site_block, CaddyError,
+};
+use bloom_cloud_backend::infra::crypto::Crypto;
 use bloom_cloud_backend::infra::storage::{web_bundle_storage_key, InMemoryStorage, ObjectStorage};
 
 #[test]
@@ -109,6 +115,7 @@ fn test_domain_validation() {
         "app.example.com"
     );
     assert!(validate_domain("my-store.acme.co.uk").is_ok());
+    assert!(validate_domain("*.acme.co.uk").is_ok());
 
     assert!(validate_domain("").is_err());
     assert!(validate_domain("https://example.com").is_err());
@@ -118,6 +125,133 @@ fn test_domain_validation() {
     assert!(validate_domain("example.com.").is_err());
     assert!(validate_domain("example_domain.com").is_err());
     assert!(validate_domain("nodots").is_err());
+}
+
+#[test]
+fn test_is_apex_domain() {
+    assert!(is_apex_domain("example.com"));
+    assert!(is_apex_domain("bloom.dev"));
+    assert!(is_apex_domain("company.co.uk"));
+    assert!(is_apex_domain("startup.com.ng"));
+
+    assert!(!is_apex_domain("app.example.com"));
+    assert!(!is_apex_domain("dashboard.bloom.dev"));
+    assert!(!is_apex_domain("api.company.co.uk"));
+}
+
+#[test]
+fn test_challenge_hostname_and_required_records_computation() {
+    let token = "bloom_verify_token_123";
+    let challenge = compute_challenge_hostname("app.mysite.com");
+    assert_eq!(challenge, "_bloom-challenge.app.mysite.com");
+
+    let wildcard_challenge = compute_challenge_hostname("*.mysite.com");
+    assert_eq!(wildcard_challenge, "_bloom-challenge.mysite.com");
+
+    // Subdomain records
+    let sub_records = compute_required_dns_records(
+        "app.mysite.com",
+        token,
+        "flutter-store",
+        "retail",
+        Some("bloomcloud.dev"),
+    );
+    assert_eq!(sub_records.len(), 2);
+    assert_eq!(sub_records[0].record_type, "TXT");
+    assert_eq!(sub_records[0].host, "_bloom-challenge.app.mysite.com");
+    assert_eq!(sub_records[0].value, token);
+    assert_eq!(sub_records[1].record_type, "CNAME");
+    assert_eq!(sub_records[1].host, "app.mysite.com");
+    assert_eq!(sub_records[1].value, "flutter-store-retail.bloomcloud.dev");
+
+    // Apex domain records
+    let apex_records = compute_required_dns_records(
+        "mysite.com",
+        token,
+        "flutter-store",
+        "retail",
+        Some("bloomcloud.dev"),
+    );
+    assert_eq!(apex_records.len(), 3);
+    assert_eq!(apex_records[0].record_type, "TXT");
+    assert_eq!(apex_records[0].host, "_bloom-challenge.mysite.com");
+    assert_eq!(apex_records[1].record_type, "A");
+    assert_eq!(apex_records[1].value, DEFAULT_EDGE_A_RECORD_IP);
+    assert_eq!(apex_records[2].record_type, "CNAME");
+    assert_eq!(apex_records[2].value, "flutter-store-retail.bloomcloud.dev");
+}
+
+#[test]
+fn test_generate_verification_token() {
+    let token1 = generate_verification_token();
+    let token2 = generate_verification_token();
+    assert!(token1.starts_with("bloom_verify_"));
+    assert!(token2.starts_with("bloom_verify_"));
+    assert_ne!(token1, token2);
+}
+
+#[test]
+fn test_constant_time_token_comparison_near_miss() {
+    let expected = "bloom_verify_abcd1234efgh5678";
+    let identical = "bloom_verify_abcd1234efgh5678";
+    let near_miss = "bloom_verify_abcd1234efgh5679"; // Last char differs
+    let different_len = "bloom_verify_abcd1234efgh56789";
+
+    assert!(Crypto::constant_time_eq_str(expected, identical));
+    assert!(!Crypto::constant_time_eq_str(expected, near_miss));
+    assert!(!Crypto::constant_time_eq_str(expected, different_len));
+}
+
+#[test]
+fn test_security_rule_unverified_domain_never_reaches_caddy() {
+    let site_id = "bloom-domain-123";
+    let domain = "unverified-site.com";
+    let storage_prefix = "orgs/1/projects/2/apps/3/custom_domains/123";
+
+    // Attempting to build a site block with is_verified: false MUST fail with SecurityViolation
+    let result = build_verified_custom_domain_site_block(site_id, domain, storage_prefix, false);
+
+    assert!(matches!(result, Err(CaddyError::SecurityViolation(_))));
+    if let Err(CaddyError::SecurityViolation(msg)) = result {
+        assert!(msg.contains("Security rule violation"));
+        assert!(msg.contains("not verified"));
+    }
+
+    // Verified domain succeeds
+    let verified_result =
+        build_verified_custom_domain_site_block(site_id, domain, storage_prefix, true);
+    assert!(verified_result.is_ok());
+    let site_block = verified_result.unwrap();
+    assert_eq!(site_block.id, site_id);
+    assert_eq!(
+        site_block.r#match.unwrap()[0].host.as_ref().unwrap(),
+        &vec![domain.to_string()]
+    );
+}
+
+#[test]
+fn test_dns_challenge_automation_policy_builder() {
+    let policy = build_dns_challenge_automation_policy(
+        "*.example.com",
+        Some("cf_token_123"),
+        Some("ops@bloom.sh"),
+    );
+
+    let subjects = policy.subjects.expect("subjects configured");
+    assert_eq!(subjects, vec!["*.example.com"]);
+
+    let issuers = policy.issuers.expect("issuers configured");
+    assert_eq!(issuers.len(), 1);
+    assert_eq!(issuers[0].module, "acme");
+    assert_eq!(issuers[0].email, Some("ops@bloom.sh".to_string()));
+
+    let challenges = issuers[0].challenges.as_ref().expect("challenges");
+    let dns_challenge = challenges.dns.as_ref().expect("dns challenge");
+    assert_eq!(dns_challenge.provider.name, "cloudflare");
+    assert_eq!(
+        dns_challenge.provider.api_token,
+        Some("cf_token_123".to_string())
+    );
 }
 
 #[test]
@@ -134,8 +268,13 @@ fn test_target_and_constants_validation() {
     );
     assert_eq!(
         VALID_CERTIFICATE_STATUSES,
-        &["pending", "issued", "expired"]
+        &["pending", "issuing", "active", "failed"]
     );
+    assert!(validate_certificate_status("pending").is_ok());
+    assert!(validate_certificate_status("issuing").is_ok());
+    assert!(validate_certificate_status("active").is_ok());
+    assert!(validate_certificate_status("failed").is_ok());
+    assert!(validate_certificate_status("expired").is_err());
 }
 
 #[tokio::test]
@@ -163,8 +302,6 @@ async fn test_in_memory_storage_with_web_bundle_key() {
 
 #[test]
 fn test_rollback_selection_order() {
-    // Simulates the selection rule: previous_deployment_for_app_and_target
-    // picks the most recent deployment where id != current.id and status is live/rolled_back.
     let deployments = vec![
         WebDeployment {
             id: 3,

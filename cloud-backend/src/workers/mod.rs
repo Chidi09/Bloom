@@ -13,6 +13,8 @@
 //!   artifact registration, build log upload, and stage event reporting.
 //! - [`deploy`]: Web deployment worker uploading web bundles, invalidating Cloudflare CDN
 //!   cache prefixes, and provisioning Caddy site blocks.
+//! - [`workflow`]: Workflow run engine walking a run's steps in order, driving child build and
+//!   deploy jobs, and parking on approval gates without holding a worker slot.
 //!
 //! # Ack/Fail Total Decision Contract
 //!
@@ -25,6 +27,7 @@ use std::fmt;
 pub mod build;
 pub mod deploy;
 pub mod webhook;
+pub mod workflow;
 
 pub use build::{run_build_job, BuildWorkerError, BuildWorkerResult};
 pub use deploy::{run_deploy_job, DeployWorkerError, DeployWorkerResult};

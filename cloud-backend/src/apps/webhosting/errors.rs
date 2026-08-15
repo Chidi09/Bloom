@@ -6,6 +6,8 @@ use djangors_core::error::DjangorsError;
 use djangors_core::StatusCode;
 use djangors_orm::OrmError;
 
+use crate::infra::caddy::CaddyError;
+use crate::infra::dns::DnsError;
 use crate::infra::storage::StorageError;
 
 /// Domain error enum for the `webhosting` app.
@@ -37,6 +39,10 @@ pub enum WebHostingError {
     InvalidDomain,
     /// Custom domain already exists for this application.
     DomainAlreadyExists,
+    /// Domain ownership verification failed.
+    VerificationFailed(String),
+    /// Domain is not verified and cannot be provisioned or served.
+    DomainNotVerified(String),
     /// No previous live deployment was found to rollback to.
     NoPreviousDeployment,
     /// Metadata JSON text is invalid.
@@ -45,6 +51,10 @@ pub enum WebHostingError {
     Forbidden,
     /// Request validation failed.
     ValidationError(String),
+    /// DNS resolution error during domain verification.
+    DnsError(String),
+    /// Caddy reverse proxy admin API operation failed.
+    CaddyError(String),
     /// Object storage operation failed.
     StorageError(String),
     /// Database query/persistence operation failed.
@@ -76,12 +86,16 @@ impl fmt::Display for WebHostingError {
             Self::DomainAlreadyExists => {
                 write!(f, "This custom domain is already registered for this app.")
             }
+            Self::VerificationFailed(msg) => write!(f, "DNS verification failed: {msg}"),
+            Self::DomainNotVerified(msg) => write!(f, "Domain is not verified: {msg}"),
             Self::NoPreviousDeployment => {
                 write!(f, "No previous deployment found to restore on rollback.")
             }
             Self::InvalidMetadata(msg) => write!(f, "Invalid deployment metadata: {msg}"),
             Self::Forbidden => write!(f, "Permission denied for this operation."),
             Self::ValidationError(msg) => write!(f, "Validation error: {msg}"),
+            Self::DnsError(msg) => write!(f, "DNS resolution error: {msg}"),
+            Self::CaddyError(msg) => write!(f, "Caddy proxy error: {msg}"),
             Self::StorageError(msg) => write!(f, "Object storage error: {msg}"),
             Self::OrmError(msg) => write!(f, "Database error: {msg}"),
         }
@@ -99,6 +113,18 @@ impl From<OrmError> for WebHostingError {
 impl From<StorageError> for WebHostingError {
     fn from(err: StorageError) -> Self {
         Self::StorageError(err.to_string())
+    }
+}
+
+impl From<DnsError> for WebHostingError {
+    fn from(err: DnsError) -> Self {
+        Self::DnsError(err.to_string())
+    }
+}
+
+impl From<CaddyError> for WebHostingError {
+    fn from(err: CaddyError) -> Self {
+        Self::CaddyError(err.to_string())
     }
 }
 
@@ -170,6 +196,12 @@ impl From<WebHostingError> for DjangorsError {
                 "domain_already_exists",
                 "This custom domain is already registered for this app.",
             ),
+            WebHostingError::VerificationFailed(msg) => {
+                DjangorsError::api(StatusCode::BAD_REQUEST, "verification_failed", msg.clone())
+            }
+            WebHostingError::DomainNotVerified(msg) => {
+                DjangorsError::api(StatusCode::BAD_REQUEST, "domain_not_verified", msg.clone())
+            }
             WebHostingError::NoPreviousDeployment => DjangorsError::api(
                 StatusCode::BAD_REQUEST,
                 "no_previous_deployment",
@@ -188,6 +220,14 @@ impl From<WebHostingError> for DjangorsError {
             WebHostingError::ValidationError(msg) => {
                 DjangorsError::api(StatusCode::BAD_REQUEST, "validation_error", msg.clone())
             }
+            WebHostingError::DnsError(msg) => {
+                DjangorsError::api(StatusCode::BAD_GATEWAY, "dns_error", msg.clone())
+            }
+            WebHostingError::CaddyError(msg) => DjangorsError::api(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "caddy_error",
+                msg.clone(),
+            ),
             WebHostingError::StorageError(msg) => DjangorsError::api(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_error",

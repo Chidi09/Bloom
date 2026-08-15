@@ -185,3 +185,49 @@ fn test_workflow_definition_rejects_invalid_documents() {
     let dup = "steps:\n  - name: a\n    kind: test\n    order: 1\n  - name: b\n    kind: build\n    order: 1\n";
     assert!(parse_workflow_definition(dup).is_err());
 }
+
+#[test]
+fn test_workflow_definition_custom_step_with_metadata() {
+    let yaml = r#"
+steps:
+  - name: flutter analyze
+    kind: custom
+    metadata:
+      command: flutter analyze
+      continue_on_error: true
+      timeout_secs: 300
+"#;
+    let steps = parse_workflow_definition(yaml).expect("valid custom step parses");
+    assert_eq!(steps.len(), 1);
+    assert_eq!(steps[0].name, "flutter analyze");
+    assert_eq!(steps[0].step_kind, "custom");
+    assert!(!steps[0].requires_approval);
+    assert!(steps[0].metadata.contains("continue_on_error"));
+}
+
+#[test]
+fn test_workflow_definition_all_valid_step_kinds_accepted() {
+    let yaml = r#"
+steps:
+  - name: s1
+    kind: test
+  - name: s2
+    kind: build
+  - name: s3
+    kind: deploy_preview
+  - name: s4
+    kind: approval_gate
+  - name: s5
+    kind: deploy_production
+  - name: s6
+    kind: custom
+"#;
+    let steps = parse_workflow_definition(yaml).expect("all valid step kinds parse");
+    assert_eq!(steps.len(), 6);
+    assert_eq!(steps[0].step_kind, "test");
+    assert_eq!(steps[1].step_kind, "build");
+    assert_eq!(steps[2].step_kind, "deploy_preview");
+    assert_eq!(steps[3].step_kind, "approval_gate");
+    assert_eq!(steps[4].step_kind, "deploy_production");
+    assert_eq!(steps[5].step_kind, "custom");
+}

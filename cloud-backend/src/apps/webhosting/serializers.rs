@@ -1,6 +1,6 @@
 //! Wire serialization adapters for the `webhosting` app.
 
-use super::contracts::{CustomDomainResponse, WebDeploymentResponse};
+use super::contracts::{CustomDomainResponse, RequiredDnsRecord, WebDeploymentResponse};
 use super::models::{CustomDomain, WebDeployment};
 
 /// Safely parse JSON metadata string into `serde_json::Value`, falling back to `{}` without panicking.
@@ -30,13 +30,20 @@ pub fn serialize_web_deployment(
 }
 
 /// Serializes a [`CustomDomain`] into its public wire representation [`CustomDomainResponse`].
-pub fn serialize_custom_domain(domain: &CustomDomain, app_public_id: &str) -> CustomDomainResponse {
+pub fn serialize_custom_domain(
+    domain: &CustomDomain,
+    app_public_id: &str,
+    required_records: Vec<RequiredDnsRecord>,
+) -> CustomDomainResponse {
     CustomDomainResponse {
         id: domain.public_id.clone(),
         app_id: app_public_id.to_string(),
         domain: domain.domain.clone(),
+        verification_token: domain.verification_token.clone(),
         certificate_status: domain.certificate_status.clone(),
         certificate_expires_at: domain.certificate_expires_at.map(|t| t.to_rfc3339()),
         verified_at: domain.verified_at.map(|t| t.to_rfc3339()),
+        failure_reason: domain.failure_reason.clone(),
+        required_records,
     }
 }

@@ -116,7 +116,11 @@ pub struct CustomDomain {
     #[djangors(max_length = 255)]
     pub domain: String,
 
-    /// TLS certificate status: `pending`, `issued`, or `expired`.
+    /// DNS verification token expected in `_bloom-challenge.<domain>` TXT record.
+    #[djangors(max_length = 64, default = "")]
+    pub verification_token: String,
+
+    /// TLS certificate status: `pending`, `issuing`, `active`, or `failed`.
     #[djangors(max_length = 32, default = "pending")]
     pub certificate_status: String,
 
@@ -127,6 +131,10 @@ pub struct CustomDomain {
     /// Optional timestamp when domain ownership was verified.
     #[djangors(nullable)]
     pub verified_at: Option<DateTime<Utc>>,
+
+    /// Optional failure reason explaining why DNS verification or certificate issuance failed.
+    #[djangors(nullable)]
+    pub failure_reason: Option<String>,
 
     /// Creation timestamp.
     #[djangors(auto_now_add)]

@@ -19,5 +19,10 @@ pub fn urls() -> Router {
         )
         .get("/webhosting/domains", views::list_custom_domains)
         .post("/webhosting/domains", views::create_custom_domain)
+        .get("/webhosting/domains/:id", views::retrieve_custom_domain)
+        .post(
+            "/webhosting/domains/:id/verify",
+            views::verify_custom_domain,
+        )
         .delete("/webhosting/domains/:id", views::delete_custom_domain)
 }

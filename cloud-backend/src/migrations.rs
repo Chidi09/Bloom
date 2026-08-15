@@ -104,6 +104,12 @@ pub const MIGRATIONS: &[MigrationRef] = &[
         app: "marketplace",
         path: "migrations/marketplace",
     },
+    // Phases 13-14: the email log, notification preferences, suppression list, and campaigns.
+    // Applies last because campaign sends reference users and organizations.
+    MigrationRef {
+        app: "emails",
+        path: "migrations/emails",
+    },
 ];
 
 /// Applies all pending database migrations in registered sequence.

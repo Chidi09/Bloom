@@ -9,6 +9,7 @@ pub mod builds;
 pub mod common;
 pub mod credentials;
 pub mod deployments;
+pub mod emails;
 pub mod environments;
 pub mod events;
 pub mod git_connections;
@@ -55,4 +56,6 @@ pub fn urls() -> Router {
         // Phases 7-8: metered billing, and the templates/marketplace foundation.
         .mount("", billing::urls())
         .mount("", marketplace::urls())
+        // Phases 13-14: notification preferences, the email audit log, and campaign selection.
+        .mount("", emails::urls())
 }

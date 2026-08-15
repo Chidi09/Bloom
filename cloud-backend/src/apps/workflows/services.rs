@@ -903,6 +903,22 @@ pub async fn approve_workflow_run(
 
         emit_event(
             db,
+            "workflow.rejected",
+            Some(organization_id),
+            Some(app.project_id),
+            Some(app.id),
+            Some(user_id),
+            serde_json::json!({
+                "run_id": run.public_id,
+                "workflow_id": workflow.public_id,
+                "rejected_by": user_id,
+                "reason": req.reason,
+            }),
+        )
+        .await;
+
+        emit_event(
+            db,
             "workflowrun.completed",
             Some(organization_id),
             Some(app.project_id),
@@ -933,4 +949,38 @@ pub async fn approve_workflow_run(
         created_by_public_id: user_pub_id,
         approved_by_public_id: approved_by_pub_id,
     })
+}
+
+/// Approve or reject a workflow run waiting at an approval gate and re-enqueue to the job queue.
+///
+/// On approval, if subsequent steps remain pending, this enqueues the run back to [`JobQueue`]
+/// to resume execution at the next step without requiring a manual trigger.
+pub async fn approve_and_enqueue_workflow_run(
+    db: &Database,
+    queue: &JobQueue,
+    organization_id: i64,
+    user_id: i64,
+    user_role: OrganizationRole,
+    run_public_id: &str,
+    req: WorkflowApproveRequest,
+) -> Result<WorkflowRunDetail, WorkflowError> {
+    let detail =
+        approve_workflow_run(db, organization_id, user_id, user_role, run_public_id, req).await?;
+
+    if detail.run.status == "running" {
+        // Resuming after an approval re-enqueues the run itself, not a build. The workflow
+        // worker picks it up and continues at the first step that is not yet complete.
+        let job = Job::Workflow {
+            run_id: detail.run.public_id.clone(),
+            organization_id: detail.organization_public_id.clone(),
+            workflow_id: detail.workflow_public_id.clone(),
+            environment_id: None,
+        };
+        let _ = queue
+            .push(job)
+            .await
+            .map_err(|e| WorkflowError::QueueError(e.to_string()))?;
+    }
+
+    Ok(detail)
 }

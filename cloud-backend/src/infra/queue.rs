@@ -121,6 +121,21 @@ pub enum Job {
         /// Cryptographic HMAC signature from provider.
         signature: String,
     },
+    /// Workflow run execution job, claimed by the workflow worker.
+    ///
+    /// A workflow run is re-enqueued as this same variant each time it resumes -- after an
+    /// approval gate is granted, or after a child build or deploy reaches a terminal state --
+    /// so a resuming run is indistinguishable from a fresh one to the queue.
+    Workflow {
+        /// Public UUID of the workflow run.
+        run_id: String,
+        /// Public UUID of the owning organization.
+        organization_id: String,
+        /// Public UUID of the parent workflow definition.
+        workflow_id: String,
+        /// Public UUID of the target environment, when the run is scoped to one.
+        environment_id: Option<String>,
+    },
 }
 
 impl Job {
@@ -130,6 +145,7 @@ impl Job {
             Job::Build { build_id, .. } => build_id,
             Job::Deploy { deployment_id, .. } => deployment_id,
             Job::Webhook { delivery_id, .. } => delivery_id,
+            Job::Workflow { run_id, .. } => run_id,
         }
     }
 
@@ -139,6 +155,7 @@ impl Job {
             Job::Build { .. } => "Build",
             Job::Deploy { .. } => "Deploy",
             Job::Webhook { .. } => "Webhook",
+            Job::Workflow { .. } => "Workflow",
         }
     }
 }

@@ -1,5 +1,6 @@
 use bloom_cloud_backend::apps::webhosting::contracts::{
-    CreateCustomDomainRequest, CustomDomainResponse, DeployWebRequest, WebDeploymentResponse,
+    CreateCustomDomainRequest, CustomDomainResponse, DeployWebRequest, RequiredDnsRecord,
+    WebDeploymentResponse,
 };
 use bloom_cloud_backend::apps::webhosting::errors::WebHostingError;
 use djangors_core::{DjangorsError, StatusCode};
@@ -81,18 +82,38 @@ fn test_custom_domain_response_serialization() {
         id: "dom-550e8400-e29b-41d4-a716-446655440000".to_string(),
         app_id: "app-123".to_string(),
         domain: "store.example.com".to_string(),
-        certificate_status: "issued".to_string(),
+        verification_token: "bloom_verify_xyz123".to_string(),
+        certificate_status: "active".to_string(),
         certificate_expires_at: Some("2027-01-01T00:00:00Z".to_string()),
         verified_at: Some("2026-08-15T12:00:00Z".to_string()),
+        failure_reason: None,
+        required_records: vec![
+            RequiredDnsRecord {
+                record_type: "TXT".to_string(),
+                host: "_bloom-challenge.store.example.com".to_string(),
+                value: "bloom_verify_xyz123".to_string(),
+                purpose: "Domain ownership verification".to_string(),
+            },
+            RequiredDnsRecord {
+                record_type: "CNAME".to_string(),
+                host: "store.example.com".to_string(),
+                value: "store-app.bloomcloud.dev".to_string(),
+                purpose: "Traffic routing (CNAME)".to_string(),
+            },
+        ],
     };
 
     let serialized = serde_json::to_string(&res).unwrap();
     assert!(serialized.contains("\"id\":\"dom-550e8400-e29b-41d4-a716-446655440000\""));
     assert!(serialized.contains("\"app_id\":\"app-123\""));
     assert!(serialized.contains("\"domain\":\"store.example.com\""));
-    assert!(serialized.contains("\"certificate_status\":\"issued\""));
+    assert!(serialized.contains("\"verification_token\":\"bloom_verify_xyz123\""));
+    assert!(serialized.contains("\"certificate_status\":\"active\""));
     assert!(serialized.contains("\"certificate_expires_at\":\"2027-01-01T00:00:00Z\""));
     assert!(serialized.contains("\"verified_at\":\"2026-08-15T12:00:00Z\""));
+    assert!(serialized.contains("\"required_records\":["));
+    assert!(serialized.contains("\"record_type\":\"TXT\""));
+    assert!(serialized.contains("\"record_type\":\"CNAME\""));
     assert!(!serialized.contains("public_id"));
 }
 
@@ -163,10 +184,25 @@ fn test_webhosting_error_mappings() {
     assert_eq!(dj_err.status_code(), StatusCode::CONFLICT);
     assert_eq!(dj_err.code(), "domain_already_exists");
 
+    let err = WebHostingError::VerificationFailed("Missing TXT".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "verification_failed");
+
+    let err = WebHostingError::DomainNotVerified("Domain unverified".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "domain_not_verified");
+
     let err = WebHostingError::NoPreviousDeployment;
     let dj_err: DjangorsError = err.into();
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "no_previous_deployment");
+
+    let err = WebHostingError::InvalidMetadata("Bad JSON".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_metadata");
 
     let err = WebHostingError::Forbidden;
     let dj_err: DjangorsError = err.into();
@@ -177,4 +213,14 @@ fn test_webhosting_error_mappings() {
     let dj_err: DjangorsError = err.into();
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "validation_error");
+
+    let err = WebHostingError::DnsError("Resolver timeout".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_GATEWAY);
+    assert_eq!(dj_err.code(), "dns_error");
+
+    let err = WebHostingError::CaddyError("Proxy unreachable".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(dj_err.code(), "caddy_error");
 }

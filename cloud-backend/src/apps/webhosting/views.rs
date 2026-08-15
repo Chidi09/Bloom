@@ -15,9 +15,12 @@ use super::permissions::{
     require_authenticated, CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission,
     OrganizationRole,
 };
+use super::services::VerifyDomainParams;
 use super::{serializers, services};
+use crate::infra::caddy::CaddyClient;
+use crate::infra::dns::{DnsResolver, SystemDnsResolver};
 use crate::infra::storage::{InMemoryStorage, ObjectStorage};
-use crate::settings::CloudflareSettings;
+use crate::settings::{CaddySettings, CloudflareSettings};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -48,6 +51,21 @@ fn get_storage(req: &Request) -> Arc<dyn ObjectStorage> {
 fn get_apex_domain(req: &Request) -> Option<String> {
     req.state::<CloudflareSettings>()
         .and_then(|s| s.apex_domain.clone())
+}
+
+/// Retrieve the DNS resolver instance from request state, falling back to SystemDnsResolver.
+fn get_dns_resolver(req: &Request) -> Arc<dyn DnsResolver> {
+    req.state::<Arc<dyn DnsResolver>>()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(SystemDnsResolver::new()))
+}
+
+/// Retrieve the Caddy client from request state if configured.
+fn get_caddy_client(req: &Request) -> Option<Arc<CaddyClient>> {
+    req.state::<Arc<CaddyClient>>().cloned().or_else(|| {
+        req.state::<CaddySettings>()
+            .map(|s| Arc::new(CaddyClient::new(s)))
+    })
 }
 
 /// Resolves the authenticated user's organization role.
@@ -231,16 +249,23 @@ pub async fn list_custom_domains(
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+    let apex_domain = get_apex_domain(&req);
 
     let app_filter = req.query("app_id");
 
-    let details = services::list_custom_domains(db, org_id, app_filter)
+    let details = services::list_custom_domains(db, org_id, app_filter, apex_domain.as_deref())
         .await
         .map_err(DjangorsError::from)?;
 
     let payload: Vec<_> = details
         .iter()
-        .map(|d| serializers::serialize_custom_domain(&d.domain, &d.app_public_id))
+        .map(|d| {
+            serializers::serialize_custom_domain(
+                &d.domain,
+                &d.app_public_id,
+                d.required_records.clone(),
+            )
+        })
         .collect();
 
     Response::json(StatusCode::OK, &payload)
@@ -259,15 +284,104 @@ pub async fn create_custom_domain(
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+    let apex_domain = get_apex_domain(&req);
 
     let Json(body) = Json::<CreateCustomDomainRequest>::from_request(&req).await?;
 
-    let detail = services::create_custom_domain(db, org_id, body)
+    let detail = services::create_custom_domain(db, org_id, apex_domain.as_deref(), body)
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload = serializers::serialize_custom_domain(&detail.domain, &detail.app_public_id);
+    let payload = serializers::serialize_custom_domain(
+        &detail.domain,
+        &detail.app_public_id,
+        detail.required_records,
+    );
     Response::json(StatusCode::CREATED, &payload)
+}
+
+/// GET `/api/v1/webhosting/domains/{id}` — Retrieve a custom domain by public UUID.
+pub async fn retrieve_custom_domain(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::viewer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+    let apex_domain = get_apex_domain(&req);
+
+    let domain_id = params
+        .get("id")
+        .ok_or_else(|| WebHostingError::ValidationError("Missing domain id".to_string()))?;
+
+    let detail = services::get_custom_domain(db, org_id, domain_id, apex_domain.as_deref())
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_custom_domain(
+        &detail.domain,
+        &detail.app_public_id,
+        detail.required_records,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/webhosting/domains/{id}/verify` — Verify or re-verify domain ownership via DNS.
+pub async fn verify_custom_domain(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::developer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+    let dns = get_dns_resolver(&req);
+    let caddy = get_caddy_client(&req);
+    let apex_domain = get_apex_domain(&req);
+
+    let cf_token = req
+        .state::<CloudflareSettings>()
+        .and_then(|s| s.api_token.clone());
+    let acme_email = req
+        .state::<CaddySettings>()
+        .and_then(|s| s.acme_email.clone());
+
+    let domain_id = params
+        .get("id")
+        .ok_or_else(|| WebHostingError::ValidationError("Missing domain id".to_string()))?;
+
+    let verify_params = VerifyDomainParams {
+        db,
+        dns: &*dns,
+        caddy: caddy.as_deref(),
+        organization_id: org_id,
+        domain_public_id: domain_id,
+        apex_domain: apex_domain.as_deref(),
+        cloudflare_api_token: cf_token.as_deref(),
+        acme_email: acme_email.as_deref(),
+    };
+
+    let detail = services::verify_custom_domain(verify_params)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_custom_domain(
+        &detail.domain,
+        &detail.app_public_id,
+        detail.required_records,
+    );
+
+    Response::json(StatusCode::OK, &payload)
 }
 
 /// DELETE `/api/v1/webhosting/domains/{id}` — Delete a custom domain.
@@ -283,12 +397,13 @@ pub async fn delete_custom_domain(
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+    let caddy = get_caddy_client(&req);
 
     let domain_id = params
         .get("id")
         .ok_or_else(|| WebHostingError::ValidationError("Missing domain id".to_string()))?;
 
-    services::delete_custom_domain(db, org_id, domain_id)
+    services::delete_custom_domain(db, caddy.as_deref(), org_id, domain_id)
         .await
         .map_err(DjangorsError::from)?;
 

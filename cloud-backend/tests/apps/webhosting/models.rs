@@ -77,10 +77,24 @@ fn test_custom_domain_model_metadata() {
         .expect("domain field must exist on CustomDomain");
     assert_eq!(domain_field.max_length, Some(255));
 
+    let token_field = meta
+        .fields
+        .iter()
+        .find(|f| f.name == "verification_token")
+        .expect("verification_token field must exist on CustomDomain");
+    assert_eq!(token_field.max_length, Some(64));
+
     let cert_status_field = meta
         .fields
         .iter()
         .find(|f| f.name == "certificate_status")
         .expect("certificate_status field must exist on CustomDomain");
     assert_eq!(cert_status_field.max_length, Some(32));
+
+    let failure_reason_field = meta
+        .fields
+        .iter()
+        .find(|f| f.name == "failure_reason")
+        .expect("failure_reason field must exist on CustomDomain");
+    assert!(failure_reason_field.nullable);
 }

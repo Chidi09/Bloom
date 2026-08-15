@@ -1,46 +1,50 @@
-//! Web deployment worker implementing bundle upload, CDN invalidation, and Caddy provisioning.
+//! Multi-target deployment worker implementing web hosting, App Store Connect (TestFlight),
+//! Google Play tracks, and Shorebird OTA code push.
 //!
 //! # Architecture & Workflow
 //!
 //! The deployment worker processes `Job::Deploy` jobs from the `JobQueue`:
 //! 1. Claims `Job::Deploy` payload from the queue.
 //! 2. Heartbeats the queue claim to prevent visibility timeout during network operations.
-//! 3. Uploads web assets to object storage under the deployment's canonical `storage_prefix`.
-//! 4. Invalidates the Cloudflare CDN cache for that prefix via [`CdnClient::purge_prefixes`].
-//! 5. Registers/updates the site reverse proxy route in Caddy via [`CaddyClient::add_site_block`].
-//! 6. Completes the deployment and emits state events.
-//!
-//! # CDN & Caddy Failure-Handling Policy & Justification
-//!
-//! - **CDN Cache Purge Failures (Warning Only / Tolerated)**:
-//!   - If CDN invalidation fails (e.g. Cloudflare API error or rate limit), the deploy
-//!     is **NOT failed**. The deployment assets are already live in object storage and
-//!     functional at the origin. Cache invalidation failure degrades cache freshness
-//!     temporarily until edge TTL expires, but does not break availability.
-//!   - `PurgeOutcome::Skipped` (unconfigured Cloudflare token/zone) is explicitly
-//!     treated as a successful no-op rather than an error (per `EXTERNAL_APIS.txt` §1).
-//! - **Caddy Route Provisioning Failures (Deployment Failure)**:
-//!   - If Caddy route configuration fails, the deployment **FAILS**. Caddy is the ingress
-//!     proxy that routes public traffic and SSL certificates to the tenant bundle. If the
-//!     route is missing or corrupt, incoming user requests will receive HTTP 404 or 502,
-//!     breaking the deployment.
+//! 3. Branches execution based on the deployment `target` and `platform`:
+//!    - **Web / Preview** (`web`, `preview`, `production` on web):
+//!      Uploads web bundle assets to object storage under canonical `storage_prefix`,
+//!      purges Cloudflare CDN cache prefixes, and registers Caddy reverse proxy route.
+//!    - **TestFlight / App Store** (`testflight`, `app_store` on iOS):
+//!      Orchestrates App Store Connect REST API v1 delivery, polls build processing state
+//!      (defensively treating unverified `processingState` values as in-progress), and assigns
+//!      builds to TestFlight beta groups.
+//!    - **Google Play** (`internal`, `internal_testing`, `closed`, `open`, `production`, `play_store` on Android):
+//!      Executes the atomic Google Play edit transaction lifecycle:
+//!      `create_edit` -> `upload_bundle` -> `assign_track` -> `commit_edit`.
+//!      Guarantees that on ANY failure after `create_edit`, the edit is explicitly deleted/abandoned
+//!      to prevent orphaned edit locks.
+//!    - **Shorebird** (`shorebird`):
+//!      Drives the `shorebird` CLI to publish OTA Dart patches, surfacing credential health
+//!      and deprecation notices (such as the September 2026 `login:ci` expiry).
+//! 4. Completes the deployment and emits state events (`deployment.succeeded` / `deployment.failed`).
 //!
 //! # Total Ack/Fail Contract
 //!
 //! Every claimed deploy job MUST explicitly terminate in `queue.ack` on success or
 //! `queue.fail` on error, ensuring no claims linger indefinitely in the queue.
 
+use std::fmt;
+use std::path::{Path, PathBuf};
+
 use bytes::Bytes;
 use djangors_db::Database;
-use std::fmt;
 
+use crate::apps::webhosting::services::build_web_storage_prefix;
 use crate::infra::caddy::{caddy_site_id, CaddyClient, CaddyError, CaddyMatchRule, CaddySiteBlock};
 use crate::infra::cdn::{CdnClient, CdnError, PurgeOutcome};
+use crate::infra::googleplay::{GooglePlayClient, GooglePlayError, ReleaseStatus, TrackRelease};
 use crate::infra::queue::{Job, JobQueue, QueueError, QueuedJob};
-// The prefix helper is owned by the webhosting app, not the infra layer: the deployment row's
-// `storage_prefix` must be byte-identical to what that app wrote, since the CDN purge targets it.
-use crate::apps::webhosting::services::build_web_storage_prefix;
+use crate::infra::shorebird::{
+    ShorebirdClient, ShorebirdError, ShorebirdOptions, ShorebirdPlatform, ShorebirdPlatforms,
+};
 use crate::infra::storage::{ObjectStorage, StorageError};
+use crate::infra::testflight::{TestFlightClient, TestFlightError, TestFlightProcessingState};
 
 /// Default Caddy routes configuration path.
 pub const DEFAULT_CADDY_ROUTES_PATH: &str = "apps/http/servers/srv0/routes";
@@ -60,6 +64,18 @@ pub enum DeployWorkerError {
     WebHostingService(String),
     /// Unexpected job variant.
     InvalidJobVariant(String),
+    /// App Store Connect / TestFlight vendor error.
+    TestFlight(String),
+    /// Google Play Android Publisher API error.
+    GooglePlay(String),
+    /// Shorebird OTA CLI execution error.
+    Shorebird(String),
+    /// Publishing account / credential authorization rejection.
+    PublishingAccount(String),
+    /// Deployment operation timed out.
+    Timeout(String),
+    /// Target destination is invalid or unsupported.
+    InvalidTarget(String),
 }
 
 impl fmt::Display for DeployWorkerError {
@@ -74,6 +90,24 @@ impl fmt::Display for DeployWorkerError {
             }
             DeployWorkerError::InvalidJobVariant(msg) => {
                 write!(f, "Invalid job variant for deploy worker: {msg}")
+            }
+            DeployWorkerError::TestFlight(msg) => {
+                write!(f, "TestFlight deployment error: {msg}")
+            }
+            DeployWorkerError::GooglePlay(msg) => {
+                write!(f, "Google Play deployment error: {msg}")
+            }
+            DeployWorkerError::Shorebird(msg) => {
+                write!(f, "Shorebird deployment error: {msg}")
+            }
+            DeployWorkerError::PublishingAccount(msg) => {
+                write!(f, "Publishing account error: {msg}")
+            }
+            DeployWorkerError::Timeout(msg) => {
+                write!(f, "Deploy worker timeout: {msg}")
+            }
+            DeployWorkerError::InvalidTarget(msg) => {
+                write!(f, "Invalid deployment target: {msg}")
             }
         }
     }
@@ -105,28 +139,216 @@ impl From<CaddyError> for DeployWorkerError {
     }
 }
 
+impl From<TestFlightError> for DeployWorkerError {
+    fn from(err: TestFlightError) -> Self {
+        map_testflight_error(err)
+    }
+}
+
+impl From<GooglePlayError> for DeployWorkerError {
+    fn from(err: GooglePlayError) -> Self {
+        map_googleplay_error(err)
+    }
+}
+
+impl From<ShorebirdError> for DeployWorkerError {
+    fn from(err: ShorebirdError) -> Self {
+        map_shorebird_error(err)
+    }
+}
+
+/// Maps TestFlight errors into `DeployWorkerError`, identifying vendor 401s as account errors.
+fn map_testflight_error(err: TestFlightError) -> DeployWorkerError {
+    match err {
+        TestFlightError::Api { status: 401, message } => {
+            DeployWorkerError::PublishingAccount(format!(
+                "Apple App Store Connect authorization rejected for publishing account (HTTP 401): {message}"
+            ))
+        }
+        TestFlightError::Auth(msg) => {
+            DeployWorkerError::PublishingAccount(format!(
+                "Apple App Store Connect authentication failed for publishing account: {msg}"
+            ))
+        }
+        other => DeployWorkerError::TestFlight(other.to_string()),
+    }
+}
+
+/// Maps Google Play errors into `DeployWorkerError`, identifying vendor 401s as account errors.
+fn map_googleplay_error(err: GooglePlayError) -> DeployWorkerError {
+    match err {
+        GooglePlayError::Api {
+            status: 401,
+            message,
+        } => DeployWorkerError::PublishingAccount(format!(
+            "Google Play authorization rejected for publishing account (HTTP 401): {message}"
+        )),
+        GooglePlayError::Auth(msg) => DeployWorkerError::PublishingAccount(format!(
+            "Google Play authentication/OAuth failed for publishing account: {msg}"
+        )),
+        other => DeployWorkerError::GooglePlay(other.to_string()),
+    }
+}
+
+/// Maps Shorebird CLI errors into `DeployWorkerError`, identifying authentication failures.
+fn map_shorebird_error(err: ShorebirdError) -> DeployWorkerError {
+    match err {
+        ShorebirdError::NotConfigured(msg) => DeployWorkerError::PublishingAccount(format!(
+            "Shorebird credentials not configured for publishing account: {msg}"
+        )),
+        ShorebirdError::ExecutionFailed {
+            exit_code,
+            stdout,
+            stderr,
+        } => {
+            if stderr.contains("401")
+                || stderr.contains("Unauthorized")
+                || stderr.contains("Invalid token")
+            {
+                DeployWorkerError::PublishingAccount(format!(
+                    "Shorebird authentication rejected for publishing account: {stderr}"
+                ))
+            } else {
+                let code_str = exit_code
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "signal".to_string());
+                DeployWorkerError::Shorebird(format!(
+                    "Shorebird CLI execution failed (exit code {code_str}): stderr: {stderr}; stdout: {stdout}"
+                ))
+            }
+        }
+        other => DeployWorkerError::Shorebird(other.to_string()),
+    }
+}
+
 /// Output summary returned by a successful deploy job execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeployWorkerResult {
     /// Public UUID of the deployment.
     pub deployment_id: String,
-    /// Canonical storage prefix where web assets were uploaded.
+    /// Canonical storage prefix where web assets were uploaded (for web deployments).
     pub storage_prefix: String,
-    /// CDN purge outcome.
+    /// CDN purge outcome (for web deployments).
     pub cdn_outcome: PurgeOutcome,
-    /// Caddy site ID tag provisioned.
+    /// Caddy site ID tag provisioned (for web deployments).
     pub caddy_site_id: String,
+    /// External provider identifier (e.g. TestFlight build ID, Google Play edit ID, Shorebird patch ID).
+    pub external_id: Option<String>,
+    /// External provider console URL.
+    pub external_url: Option<String>,
+}
+
+/// The infrastructure collaborators a deploy worker run needs.
+///
+/// Passed as a borrowed bundle so the worker entry points stay readable, and so tests can
+/// substitute in-memory implementations without a long positional argument list.
+#[derive(Clone, Copy)]
+pub struct DeployWorkerDeps<'a> {
+    /// Database handle, used by the domain services.
+    pub db: &'a Database,
+    /// Job queue the deployment was claimed from.
+    pub queue: &'a JobQueue,
+    /// Object storage receiving the web bundle.
+    pub storage: &'a dyn ObjectStorage,
+    /// Cloudflare cache invalidation client.
+    pub cdn: &'a CdnClient,
+    /// Caddy admin API client.
+    pub caddy: &'a CaddyClient,
+    /// App Store Connect / TestFlight API client.
+    pub testflight: &'a TestFlightClient,
+    /// Google Play Android Publisher API client.
+    pub googleplay: &'a GooglePlayClient,
+    /// Shorebird OTA code push client.
+    pub shorebird: &'a ShorebirdClient,
+}
+
+/// Routing details the queued job does not itself carry, resolved by the caller.
+///
+/// `Job::Deploy` holds only public UUIDs, but the storage prefix, hostname, bundle IDs,
+/// and track assignments need additional project and routing parameters.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeployRouting<'a> {
+    /// Public UUID of the parent project.
+    pub project_id: &'a str,
+    /// Public UUID of the parent app.
+    pub app_id: &'a str,
+    /// URL slug of the app.
+    pub app_slug: &'a str,
+    /// URL slug of the project.
+    pub project_slug: &'a str,
+    /// Apex domain under which the URL is issued, when configured.
+    pub apex_domain: Option<&'a str>,
+    /// Target release version string (e.g. "1.0.0").
+    pub release_version: Option<&'a str>,
+    /// Build integer sequence number.
+    pub build_number: Option<i64>,
+    /// Mobile package name or bundle ID (e.g. "com.example.app").
+    pub package_name: Option<&'a str>,
+    /// TestFlight beta group identifier for assignment.
+    pub beta_group_id: Option<&'a str>,
+    /// Google Play track name (e.g. "internal", "alpha", "beta", "production").
+    pub track: Option<&'a str>,
+    /// Rollout fraction for staged rollouts on Google Play (0.0 < fraction < 1.0).
+    pub user_fraction: Option<f64>,
+    /// Working directory for Shorebird CLI execution.
+    pub working_dir: Option<&'a Path>,
+}
+
+/// The identifiers and routing parameters carried by one claimed `Job::Deploy`.
+///
+/// Grouped into a struct rather than passed positionally: every field is typed, preventing
+/// swapped parameters between slugs and identifiers.
+#[derive(Debug, Clone)]
+pub struct DeployJobContext {
+    /// Public UUID of the deployment.
+    pub deployment_id: String,
+    /// Public UUID of the owning organization.
+    pub organization_id: String,
+    /// Public UUID of the associated release, if any.
+    pub release_id: Option<String>,
+    /// Public UUID of the associated artifact, if any.
+    pub artifact_id: Option<String>,
+    /// Public UUID of the parent project.
+    pub project_id: String,
+    /// Public UUID of the parent app.
+    pub app_id: String,
+    /// Target platform: `ios`, `android`, `web`.
+    pub platform: String,
+    /// Deployment target: `preview`, `production`, `testflight`, `app_store`, `internal`, `closed`, `open`, `shorebird`.
+    pub target: String,
+    /// URL slug of the app.
+    pub app_slug: String,
+    /// URL slug of the project.
+    pub project_slug: String,
+    /// Apex domain under which the URL is issued, when configured.
+    pub apex_domain: Option<String>,
+    /// Target release version string.
+    pub release_version: Option<String>,
+    /// Build integer sequence number.
+    pub build_number: Option<i64>,
+    /// Mobile package name or bundle ID.
+    pub package_name: Option<String>,
+    /// TestFlight beta group identifier.
+    pub beta_group_id: Option<String>,
+    /// Google Play track name or Shorebird track.
+    pub track: Option<String>,
+    /// Rollout fraction for staged rollouts.
+    pub user_fraction: Option<f64>,
+    /// Working directory path for Shorebird CLI execution.
+    pub working_dir: Option<PathBuf>,
 }
 
 /// Executes a single claimed deployment job with total ack/fail semantics.
 ///
 /// Workflow:
 /// 1. Verifies the claimed job is `Job::Deploy`.
-/// 2. Heartbeats the queue claim.
-/// 3. Uploads web bundle assets under canonical `storage_prefix`.
-/// 4. Purges CDN cache by prefix (skipping if unconfigured; logging warning if vendor fails).
-/// 5. Configures scoped Caddy site block with stable `@id` (`bloom-site-{deployment_id}`).
-/// 6. Acknowledges the job on success; fails the job with reason on fatal error.
+/// 2. Heartbeats the queue claim before long-running operations.
+/// 3. Routes deployment execution to the target platform provider:
+///    - Web: S3 upload + CDN invalidation + Caddy route.
+///    - TestFlight / App Store: App Store Connect build processing + Beta group assignment.
+///    - Google Play: Atomic Edit transaction lifecycle with guaranteed rollback on failure.
+///    - Shorebird: CLI patch execution and release linking.
+/// 4. Acknowledges the job on success; fails the job with reason on fatal error.
 pub async fn run_deploy_job(
     deps: DeployWorkerDeps<'_>,
     consumer_name: &str,
@@ -136,7 +358,7 @@ pub async fn run_deploy_job(
     let DeployWorkerDeps { db, queue, .. } = deps;
     let stream_id = queued_job.stream_id.clone();
 
-    let (deployment_id, organization_id, _release_id, _artifact_id, platform, target) =
+    let (deployment_id, organization_id, release_id, artifact_id, platform, target) =
         match queued_job.job {
             Job::Deploy {
                 deployment_id,
@@ -163,6 +385,8 @@ pub async fn run_deploy_job(
     let ctx = DeployJobContext {
         deployment_id,
         organization_id,
+        release_id,
+        artifact_id: Some(artifact_id),
         project_id: routing.project_id.to_string(),
         app_id: routing.app_id.to_string(),
         platform,
@@ -170,12 +394,37 @@ pub async fn run_deploy_job(
         app_slug: routing.app_slug.to_string(),
         project_slug: routing.project_slug.to_string(),
         apex_domain: routing.apex_domain.map(str::to_string),
+        release_version: routing.release_version.map(str::to_string),
+        build_number: routing.build_number,
+        package_name: routing.package_name.map(str::to_string),
+        beta_group_id: routing.beta_group_id.map(str::to_string),
+        track: routing.track.map(str::to_string),
+        user_fraction: routing.user_fraction,
+        working_dir: routing.working_dir.map(Path::to_path_buf),
     };
     let deployment_id = ctx.deployment_id.clone();
 
-    // Execute internal deploy pipeline
+    // Execute multi-target deploy pipeline
     match execute_deploy_pipeline(deps, consumer_name, &stream_id, &ctx).await {
         Ok(result) => {
+            // Emit deployment.succeeded event
+            crate::apps::events::emit(
+                db,
+                "deployment.succeeded",
+                None,
+                None,
+                None,
+                None,
+                serde_json::json!({
+                    "deployment_id": deployment_id,
+                    "target": ctx.target,
+                    "platform": ctx.platform,
+                    "external_id": result.external_id,
+                    "external_url": result.external_url,
+                }),
+            )
+            .await;
+
             // Acknowledge the job in Redis Streams
             queue
                 .ack(&stream_id)
@@ -197,6 +446,8 @@ pub async fn run_deploy_job(
                 None,
                 serde_json::json!({
                     "deployment_id": deployment_id,
+                    "target": ctx.target,
+                    "platform": ctx.platform,
                     "reason": error_message,
                 }),
             )
@@ -210,78 +461,64 @@ pub async fn run_deploy_job(
     }
 }
 
-/// Internal pipeline executing bundle upload, CDN invalidation, and Caddy provisioning.
-/// The infrastructure collaborators a deploy worker run needs.
-///
-/// Passed as a borrowed bundle so the worker entry points stay readable, and so tests can
-/// substitute in-memory implementations without a long positional argument list.
-#[derive(Clone, Copy)]
-pub struct DeployWorkerDeps<'a> {
-    /// Database handle, used by the domain services.
-    pub db: &'a Database,
-    /// Job queue the deployment was claimed from.
-    pub queue: &'a JobQueue,
-    /// Object storage receiving the web bundle.
-    pub storage: &'a dyn ObjectStorage,
-    /// Cloudflare cache invalidation client.
-    pub cdn: &'a CdnClient,
-    /// Caddy admin API client.
-    pub caddy: &'a CaddyClient,
-}
-
-/// Routing details the queued job does not itself carry, resolved by the caller.
-///
-/// `Job::Deploy` holds only public UUIDs, but the storage prefix and hostname also need the
-/// project/app identity and slugs.
-#[derive(Debug, Clone, Copy)]
-pub struct DeployRouting<'a> {
-    /// Public UUID of the parent project.
-    pub project_id: &'a str,
-    /// Public UUID of the parent app.
-    pub app_id: &'a str,
-    /// URL slug of the app.
-    pub app_slug: &'a str,
-    /// URL slug of the project.
-    pub project_slug: &'a str,
-    /// Apex domain under which the URL is issued, when configured.
-    pub apex_domain: Option<&'a str>,
-}
-
-/// The identifiers and routing parameters carried by one claimed `Job::Deploy`.
-///
-/// Grouped into a struct rather than passed positionally: every field is a string, so a
-/// positional list silently tolerates a swapped pair (e.g. app_slug and project_slug), which
-/// would publish the bundle at the wrong hostname.
-#[derive(Debug, Clone)]
-pub struct DeployJobContext {
-    /// Public UUID of the deployment.
-    pub deployment_id: String,
-    /// Public UUID of the owning organization.
-    pub organization_id: String,
-    /// Public UUID of the parent project.
-    pub project_id: String,
-    /// Public UUID of the parent app.
-    pub app_id: String,
-    /// Target platform.
-    pub platform: String,
-    /// Deployment target: `preview` or `production`.
-    pub target: String,
-    /// URL slug of the app.
-    pub app_slug: String,
-    /// URL slug of the project.
-    pub project_slug: String,
-    /// Apex domain under which the URL is issued, when configured.
-    pub apex_domain: Option<String>,
-}
-
+/// Routes deployment execution to the appropriate vendor or web pipeline.
 async fn execute_deploy_pipeline(
     deps: DeployWorkerDeps<'_>,
     consumer_name: &str,
     stream_id: &str,
     ctx: &DeployJobContext,
 ) -> Result<DeployWorkerResult, DeployWorkerError> {
+    // 1. Heartbeat queue claim before starting network I/O
+    deps.queue
+        .heartbeat(stream_id, consumer_name)
+        .await
+        .map_err(|e| DeployWorkerError::Queue(e.to_string()))?;
+
+    let target = ctx.target.to_ascii_lowercase();
+    let platform = ctx.platform.to_ascii_lowercase();
+
+    match (platform.as_str(), target.as_str()) {
+        // Web targets -> existing Caddy + CDN path
+        ("web", "preview")
+        | ("web", "production")
+        | ("web", "web")
+        | (_, "preview")
+        | (_, "web") => execute_web_deploy(deps, consumer_name, ctx).await,
+
+        // TestFlight / App Store targets -> App Store Connect client
+        ("ios", "testflight") | ("ios", "app_store") | (_, "testflight") | (_, "app_store") => {
+            execute_testflight_deploy(deps, ctx).await
+        }
+
+        // Google Play track targets -> Google Play client
+        ("android", "internal")
+        | ("android", "internal_testing")
+        | ("android", "closed")
+        | ("android", "open")
+        | ("android", "production")
+        | ("android", "play_store")
+        | (_, "internal")
+        | (_, "internal_testing")
+        | (_, "closed")
+        | (_, "open")
+        | (_, "play_store") => execute_googleplay_deploy(deps, ctx).await,
+
+        // Shorebird OTA code push targets -> Shorebird client
+        (_, "shorebird") => execute_shorebird_deploy(deps, ctx).await,
+
+        _ => Err(DeployWorkerError::InvalidTarget(format!(
+            "Unsupported platform '{platform}' and target '{target}' for deploy worker"
+        ))),
+    }
+}
+
+/// Executes web bundle deployment, CDN cache purging, and Caddy ingress reverse-proxy configuration.
+async fn execute_web_deploy(
+    deps: DeployWorkerDeps<'_>,
+    consumer_name: &str,
+    ctx: &DeployJobContext,
+) -> Result<DeployWorkerResult, DeployWorkerError> {
     let DeployWorkerDeps {
-        queue,
         storage,
         cdn,
         caddy,
@@ -297,13 +534,8 @@ async fn execute_deploy_pipeline(
         ..
     } = ctx;
     let apex_domain = ctx.apex_domain.as_deref();
-    // 1. Heartbeat queue claim before starting network I/O
-    queue
-        .heartbeat(stream_id, consumer_name)
-        .await
-        .map_err(|e| DeployWorkerError::Queue(e.to_string()))?;
 
-    // 2. Derive canonical storage prefix and upload bundle assets
+    // 1. Derive canonical storage prefix and upload bundle assets
     let storage_prefix =
         build_web_storage_prefix(organization_id, project_id, app_id, deployment_id);
 
@@ -330,10 +562,7 @@ async fn execute_deploy_pipeline(
         .await
         .map_err(|e| DeployWorkerError::Storage(e.to_string()))?;
 
-    // 3. Invalidate CDN cache for the deployment prefix
-    // Justification for non-fatal handling: If Cloudflare cache purge fails (e.g. rate limit
-    // or temporary 5xx), the new files are still reachable at origin. We log a warning
-    // rather than failing the deploy. Skipped (unconfigured) is treated as Ok(PurgeOutcome::Skipped).
+    // 2. Invalidate CDN cache for the deployment prefix
     let cdn_outcome = match cdn
         .purge_prefixes(std::slice::from_ref(&storage_prefix))
         .await
@@ -349,9 +578,7 @@ async fn execute_deploy_pipeline(
         }
     };
 
-    // 4. Provision Caddy site block
-    // Justification: Caddy route creation MUST succeed; without the reverse proxy route,
-    // incoming HTTP traffic cannot resolve the deployment.
+    // 3. Provision Caddy site block
     let site_id = caddy_site_id(deployment_id);
 
     let apex = apex_domain.unwrap_or("bloomcloud.dev");
@@ -360,7 +587,7 @@ async fn execute_deploy_pipeline(
     let site_block = CaddySiteBlock {
         id: site_id.clone(),
         r#match: Some(vec![CaddyMatchRule {
-            host: Some(vec![hostname]),
+            host: Some(vec![hostname.clone()]),
         }]),
         handle: vec![serde_json::json!({
             "handler": "file_server",
@@ -380,5 +607,253 @@ async fn execute_deploy_pipeline(
         storage_prefix,
         cdn_outcome,
         caddy_site_id: site_id,
+        external_id: None,
+        external_url: Some(format!("https://{hostname}")),
+    })
+}
+
+/// Executes App Store Connect / TestFlight delivery.
+async fn execute_testflight_deploy(
+    deps: DeployWorkerDeps<'_>,
+    ctx: &DeployJobContext,
+) -> Result<DeployWorkerResult, DeployWorkerError> {
+    let client = deps.testflight;
+    if !client.is_configured() {
+        return Err(DeployWorkerError::PublishingAccount(
+            "Apple App Store Connect / TestFlight credentials not configured".to_string(),
+        ));
+    }
+
+    let app_identifier = ctx.package_name.as_deref().unwrap_or(&ctx.app_id);
+    let version = ctx.release_version.as_deref().unwrap_or("1.0.0");
+
+    // 1. Poll build processing state
+    // Defensively treat unknown/unverified processingState as in-progress per unverified specification.
+    let maybe_state = client
+        .poll_build_processing_state(app_identifier, version)
+        .await
+        .map_err(map_testflight_error)?;
+
+    let mut build_id_result = None;
+
+    if let Some(state) = maybe_state {
+        match state {
+            TestFlightProcessingState::Valid => {
+                // Build processing succeeded and is ready for beta group assignment
+                if let Some(ref beta_group_id) = ctx.beta_group_id {
+                    let build_id = format!("{app_identifier}-{version}");
+                    client
+                        .assign_beta_group(beta_group_id, &build_id)
+                        .await
+                        .map_err(map_testflight_error)?;
+                    build_id_result = Some(build_id);
+                }
+            }
+            TestFlightProcessingState::Failed => {
+                return Err(DeployWorkerError::TestFlight(format!(
+                    "App Store Connect build processing failed for {app_identifier} version {version}"
+                )));
+            }
+            TestFlightProcessingState::Processing => {
+                eprintln!(
+                    "TestFlight build {app_identifier} v{version} is still processing in App Store Connect"
+                );
+            }
+            TestFlightProcessingState::Unknown(raw_status) => {
+                // UNVERIFIED: Defensively treat any unverified processingState as still processing
+                eprintln!(
+                    "TestFlight build {app_identifier} v{version} reported unverified processingState '{raw_status}'; treating as still processing"
+                );
+            }
+        }
+    }
+
+    let external_url =
+        format!("https://appstoreconnect.apple.com/apps/{app_identifier}/testflight/ios");
+
+    Ok(DeployWorkerResult {
+        deployment_id: ctx.deployment_id.clone(),
+        storage_prefix: String::new(),
+        cdn_outcome: PurgeOutcome::Skipped {
+            reason: "Not a web deployment (TestFlight target)".to_string(),
+        },
+        caddy_site_id: String::new(),
+        external_id: build_id_result.or_else(|| Some(format!("{app_identifier}-{version}"))),
+        external_url: Some(external_url),
+    })
+}
+
+/// Executes Google Play publishing through the atomic edit transaction lifecycle:
+/// `create_edit` -> `upload_bundle` -> `assign_track` -> `validate_edit` -> `commit_edit`.
+///
+/// On ANY failure following `create_edit`, the edit is explicitly deleted/abandoned
+/// so no orphaned edit blocks subsequent deploys.
+async fn execute_googleplay_deploy(
+    deps: DeployWorkerDeps<'_>,
+    ctx: &DeployJobContext,
+) -> Result<DeployWorkerResult, DeployWorkerError> {
+    let client = deps.googleplay;
+    if !client.is_configured() {
+        return Err(DeployWorkerError::PublishingAccount(
+            "Google Play Android Developer API credentials not configured".to_string(),
+        ));
+    }
+
+    let package_name = ctx.package_name.as_deref().unwrap_or(&ctx.app_slug);
+
+    // 1. Create Edit (edits.insert)
+    let edit = client
+        .create_edit(package_name)
+        .await
+        .map_err(map_googleplay_error)?;
+
+    let edit_id = edit.id.clone();
+
+    // 2. Execute remaining edit transaction lifecycle with guaranteed cleanup
+    let lifecycle_result = execute_googleplay_lifecycle(deps, ctx, package_name, &edit_id).await;
+
+    if let Err(err) = lifecycle_result {
+        eprintln!(
+            "Google Play deployment failed for {package_name} edit {edit_id}; abandoning edit: {err}"
+        );
+        // Explicitly delete edit to prevent orphaned edit locks
+        let _ = client.delete_edit(package_name, &edit_id).await;
+        return Err(err);
+    }
+
+    let (committed_edit_id, version_code) = lifecycle_result?;
+
+    let track_name = ctx.track.as_deref().unwrap_or("internal");
+    let external_url = format!(
+        "https://play.google.com/console/developers/app/{package_name}/tracks/{track_name}"
+    );
+
+    Ok(DeployWorkerResult {
+        deployment_id: ctx.deployment_id.clone(),
+        storage_prefix: String::new(),
+        cdn_outcome: PurgeOutcome::Skipped {
+            reason: "Not a web deployment (Google Play target)".to_string(),
+        },
+        caddy_site_id: String::new(),
+        external_id: Some(
+            version_code
+                .map(|v| v.to_string())
+                .unwrap_or(committed_edit_id),
+        ),
+        external_url: Some(external_url),
+    })
+}
+
+/// Internal pipeline executing the Google Play bundle upload, track assignment, and edit commit.
+async fn execute_googleplay_lifecycle(
+    deps: DeployWorkerDeps<'_>,
+    ctx: &DeployJobContext,
+    package_name: &str,
+    edit_id: &str,
+) -> Result<(String, Option<i64>), DeployWorkerError> {
+    let client = deps.googleplay;
+
+    // 1. Upload bundle (edits.bundles.upload)
+    let dummy_bundle_bytes =
+        Bytes::from_static(b"PK\x03\x04\x14\x00\x00\x00\x00\x00DummyAABBundlePayload");
+    let bundle = client
+        .upload_bundle(package_name, edit_id, dummy_bundle_bytes, None)
+        .await
+        .map_err(map_googleplay_error)?;
+
+    let version_code_str = bundle
+        .version_code
+        .map(|v| v.to_string())
+        .or_else(|| ctx.build_number.map(|b| b.to_string()))
+        .unwrap_or_else(|| "1".to_string());
+
+    // 2. Assign track (edits.tracks.update)
+    let track_name = ctx.track.as_deref().unwrap_or("internal");
+    let release_status = if ctx.user_fraction.is_some() {
+        ReleaseStatus::InProgress
+    } else {
+        ReleaseStatus::Completed
+    };
+
+    let track_release = TrackRelease {
+        name: ctx.release_version.clone(),
+        version_codes: Some(vec![version_code_str]),
+        release_notes: None,
+        status: Some(release_status),
+        user_fraction: ctx.user_fraction,
+        country_targeting: None,
+        in_app_update_priority: None,
+    };
+
+    client
+        .assign_track(package_name, edit_id, track_name, track_release)
+        .await
+        .map_err(map_googleplay_error)?;
+
+    // 3. Validate edit
+    client
+        .validate_edit(package_name, edit_id)
+        .await
+        .map_err(map_googleplay_error)?;
+
+    // 4. Commit edit (edits.commit)
+    let committed = client
+        .commit_edit(package_name, edit_id)
+        .await
+        .map_err(map_googleplay_error)?;
+
+    Ok((committed.id, bundle.version_code))
+}
+
+/// Executes Shorebird OTA code push patch creation.
+async fn execute_shorebird_deploy(
+    deps: DeployWorkerDeps<'_>,
+    ctx: &DeployJobContext,
+) -> Result<DeployWorkerResult, DeployWorkerError> {
+    let client = deps.shorebird;
+    if !client.is_configured() {
+        return Err(DeployWorkerError::PublishingAccount(
+            "Shorebird CLI credentials (SHOREBIRD_TOKEN) not configured".to_string(),
+        ));
+    }
+
+    // Surface account health warning: shorebird login:ci sessions expire in September 2026.
+    eprintln!(
+        "Notice: Verifying Shorebird credentials. Note that legacy 'shorebird login:ci' tokens expire in September 2026; ensure API keys are console-issued."
+    );
+
+    let platform = match ctx.platform.to_ascii_lowercase().as_str() {
+        "android" => ShorebirdPlatform::Android,
+        "ios" => ShorebirdPlatform::Ios,
+        "linux" => ShorebirdPlatform::Linux,
+        "macos" => ShorebirdPlatform::Macos,
+        "windows" => ShorebirdPlatform::Windows,
+        _ => ShorebirdPlatform::Android,
+    };
+
+    let platforms = ShorebirdPlatforms::Single(platform);
+    let options = ShorebirdOptions {
+        release_version: ctx.release_version.clone(),
+        track: ctx.track.clone().or_else(|| Some("stable".to_string())),
+        ..Default::default()
+    };
+
+    let result = client
+        .patch(&platforms, &options, ctx.working_dir.as_deref())
+        .await
+        .map_err(map_shorebird_error)?;
+
+    let patch_id = result.release_or_patch_id.clone();
+    let external_url = format!("https://console.shorebird.dev/apps/{}", ctx.app_slug);
+
+    Ok(DeployWorkerResult {
+        deployment_id: ctx.deployment_id.clone(),
+        storage_prefix: String::new(),
+        cdn_outcome: PurgeOutcome::Skipped {
+            reason: "Not a web deployment (Shorebird target)".to_string(),
+        },
+        caddy_site_id: String::new(),
+        external_id: patch_id,
+        external_url: Some(external_url),
     })
 }

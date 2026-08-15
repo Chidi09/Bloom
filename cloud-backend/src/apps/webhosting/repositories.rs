@@ -178,6 +178,11 @@ pub async fn insert_custom_domain(
     domain.save(db).await
 }
 
+/// Update an existing `CustomDomain` record.
+pub async fn update_custom_domain(db: &Database, domain: &CustomDomain) -> Result<(), OrmError> {
+    domain.update(db).await
+}
+
 /// Delete a `CustomDomain` record by internal primary key.
 pub async fn delete_custom_domain_by_id(db: &Database, id: i64) -> Result<u64, OrmError> {
     CustomDomain::objects()
@@ -452,9 +457,6 @@ fn release_summary(r: crate::apps::releases::models::Release) -> ReleaseSummary 
 }
 
 /// Look up a release summary by its internal primary key.
-///
-/// `WebDeployment::release_id` stores an internal `i64`, so this is the lookup the
-/// deployment read paths use.
 pub async fn release_summary_by_id(
     db: &Database,
     release_id: i64,

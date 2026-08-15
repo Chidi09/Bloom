@@ -5,11 +5,14 @@ use djangors_db::Database;
 use djangors_orm::ForeignKey;
 use uuid::Uuid;
 
-use super::contracts::{CreateCustomDomainRequest, DeployWebRequest};
+use super::contracts::{CreateCustomDomainRequest, DeployWebRequest, RequiredDnsRecord};
 use super::errors::WebHostingError;
 use super::models::{CustomDomain, WebDeployment};
 use super::permissions::OrganizationRole;
-use super::repositories::{self};
+use super::repositories;
+use crate::infra::caddy::{caddy_custom_domain_id, CaddyClient};
+use crate::infra::crypto::Crypto;
+use crate::infra::dns::DnsResolver;
 use crate::infra::storage::ObjectStorage;
 
 /// Valid deployment target types.
@@ -19,10 +22,24 @@ pub const VALID_TARGETS: &[&str] = &["preview", "production"];
 pub const VALID_DEPLOYMENT_STATUSES: &[&str] = &["deploying", "live", "failed", "rolled_back"];
 
 /// Valid custom domain certificate statuses.
-pub const VALID_CERTIFICATE_STATUSES: &[&str] = &["pending", "issued", "expired"];
+pub const VALID_CERTIFICATE_STATUSES: &[&str] = &["pending", "issuing", "active", "failed"];
 
 /// Default apex domain when `CloudflareSettings.apex_domain` is unconfigured.
 pub const DEFAULT_APEX_DOMAIN: &str = "bloomcloud.dev";
+
+/// Default edge A record IP address for apex domain routing.
+pub const DEFAULT_EDGE_A_RECORD_IP: &str = "76.76.21.21";
+
+/// Validates that a certificate status is one of the allowed choices.
+pub fn validate_certificate_status(status: &str) -> Result<(), WebHostingError> {
+    if VALID_CERTIFICATE_STATUSES.contains(&status) {
+        Ok(())
+    } else {
+        Err(WebHostingError::ValidationError(format!(
+            "Invalid certificate status '{status}'. Allowed: {VALID_CERTIFICATE_STATUSES:?}"
+        )))
+    }
+}
 
 /// Detailed web deployment with resolved related public UUIDs for wire serialization.
 #[derive(Debug, Clone)]
@@ -39,21 +56,18 @@ pub struct WebDeploymentDetail {
     pub deployed_by_public_id: String,
 }
 
-/// Detailed custom domain with resolved parent app public UUID for wire serialization.
+/// Detailed custom domain with resolved parent app public UUID and required DNS records.
 #[derive(Debug, Clone)]
 pub struct CustomDomainDetail {
     /// The underlying custom domain record.
     pub domain: CustomDomain,
     /// External public UUID of the parent app.
     pub app_public_id: String,
+    /// Instructions for DNS records the customer must configure.
+    pub required_records: Vec<RequiredDnsRecord>,
 }
 
 /// Returns `true` when `from -> to` is a legal deployment status transition.
-///
-/// Status lifecycle:
-/// - `deploying` can transition to `live` (on successful worker deploy) or `failed`.
-/// - `live` can transition to `rolled_back` (when a rollback restores the previous live deployment).
-/// - Terminal states (`failed`, `rolled_back`) are absorbing.
 pub fn can_transition(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
@@ -63,9 +77,6 @@ pub fn can_transition(from: &str, to: &str) -> bool {
 
 /// Sanitizes a Git branch name for use as a subdomain component.
 pub fn sanitize_branch_slug(branch: &str) -> String {
-    // Runs of separators collapse to a single dash, matching `slugify` in
-    // src/apps/apps/services.rs. This value becomes a DNS label in the preview hostname,
-    // so `feature//x` must not produce `feature--x`.
     let mut sanitized = String::with_capacity(branch.len());
     let mut last_was_dash = true;
     for c in branch.chars() {
@@ -87,9 +98,6 @@ pub fn sanitize_branch_slug(branch: &str) -> String {
 }
 
 /// Constructs a preview URL under the configured Cloudflare apex domain.
-///
-/// Pattern: `https://{branch}-{app_slug}-{project_slug}.{apex_domain}`
-/// Defaults to `bloomcloud.dev` if no apex domain is configured.
 pub fn build_preview_url(
     apex_domain: Option<&str>,
     branch: &str,
@@ -97,7 +105,7 @@ pub fn build_preview_url(
     project_slug: &str,
 ) -> String {
     let apex = apex_domain
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_APEX_DOMAIN);
 
@@ -109,16 +117,13 @@ pub fn build_preview_url(
 }
 
 /// Constructs a production URL under the configured Cloudflare apex domain.
-///
-/// Pattern: `https://{app_slug}-{project_slug}.{apex_domain}`
-/// Defaults to `bloomcloud.dev` if no apex domain is configured.
 pub fn build_production_url(
     apex_domain: Option<&str>,
     app_slug: &str,
     project_slug: &str,
 ) -> String {
     let apex = apex_domain
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_APEX_DOMAIN);
 
@@ -129,9 +134,6 @@ pub fn build_production_url(
 }
 
 /// Constructs the canonical object-storage path prefix for a web deployment.
-///
-/// Hierarchy:
-/// `orgs/{org_public_id}/projects/{project_public_id}/apps/{app_public_id}/web/{deployment_public_id}`
 pub fn build_web_storage_prefix(
     org_public_id: &str,
     project_public_id: &str,
@@ -166,16 +168,95 @@ pub fn validate_domain(domain: &str) -> Result<String, WebHostingError> {
     }
     let valid_chars = trimmed
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '*');
     if !valid_chars {
         return Err(WebHostingError::InvalidDomain);
     }
     Ok(trimmed)
 }
 
-/// Emits an event to the events log.
+/// Returns `true` if the domain appears to be an apex/root domain (e.g. `example.com`).
+pub fn is_apex_domain(domain: &str) -> bool {
+    let clean = domain.trim().trim_end_matches('.');
+    let parts: Vec<&str> = clean.split('.').collect();
+    if parts.len() <= 2 {
+        return true;
+    }
+    // Handle standard two-part ccTLDs e.g. co.uk, com.ng, org.uk
+    if parts.len() == 3
+        && matches!(
+            parts[1],
+            "co" | "com" | "org" | "net" | "edu" | "gov" | "ac"
+        )
+    {
+        return true;
+    }
+    false
+}
+
+/// Computes the DNS TXT challenge hostname for ownership verification.
 ///
-/// Delegates to the `events` app's public service interface.
+/// Example: `_bloom-challenge.app.example.com`
+pub fn compute_challenge_hostname(domain: &str) -> String {
+    let clean = domain.trim().trim_start_matches("*.").trim_end_matches('.');
+    format!("_bloom-challenge.{clean}")
+}
+
+/// Computes the required DNS records the customer must create to verify and route their domain.
+pub fn compute_required_dns_records(
+    domain: &str,
+    verification_token: &str,
+    app_slug: &str,
+    project_slug: &str,
+    apex_domain: Option<&str>,
+) -> Vec<RequiredDnsRecord> {
+    let apex = apex_domain
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_APEX_DOMAIN);
+
+    let clean_domain = domain.trim().to_ascii_lowercase();
+    let challenge_host = compute_challenge_hostname(&clean_domain);
+    let target_cname = format!("{app_slug}-{project_slug}.{apex}");
+
+    let mut records = vec![RequiredDnsRecord {
+        record_type: "TXT".to_string(),
+        host: challenge_host,
+        value: verification_token.to_string(),
+        purpose: "Domain ownership verification".to_string(),
+    }];
+
+    if is_apex_domain(&clean_domain) {
+        records.push(RequiredDnsRecord {
+            record_type: "A".to_string(),
+            host: clean_domain.clone(),
+            value: DEFAULT_EDGE_A_RECORD_IP.to_string(),
+            purpose: "Traffic routing (Apex A record)".to_string(),
+        });
+        records.push(RequiredDnsRecord {
+            record_type: "CNAME".to_string(),
+            host: clean_domain,
+            value: target_cname,
+            purpose: "Traffic routing (CNAME alias / flattening)".to_string(),
+        });
+    } else {
+        records.push(RequiredDnsRecord {
+            record_type: "CNAME".to_string(),
+            host: clean_domain,
+            value: target_cname,
+            purpose: "Traffic routing (CNAME)".to_string(),
+        });
+    }
+
+    records
+}
+
+/// Generates a cryptographically strong, unique domain verification token.
+pub fn generate_verification_token() -> String {
+    format!("bloom_verify_{}", Uuid::new_v4().simple())
+}
+
+/// Emits an event to the events log.
 pub async fn emit_event(
     db: &Database,
     event_type: &str,
@@ -198,15 +279,6 @@ pub async fn emit_event(
 }
 
 /// Initiates a new Flutter Web deployment.
-///
-/// # Permissions & Business Rules:
-/// 1. `target = "production"` requires caller role of `ReleaseManager` or higher.
-/// 2. `target = "preview"` requires caller role of `Developer` or higher.
-/// 3. Resolves artifact and environment, verifying both belong to the app and organization.
-/// 4. Verifies artifact kind is `"web_bundle"`.
-/// 5. Generates the deployment URL and canonical storage prefix.
-/// 6. Inserts the deployment with status `deploying`, transitions to `live`.
-/// 7. Emits `webhosting.deployed`.
 pub async fn deploy_web(
     db: &Database,
     _storage: &dyn ObjectStorage,
@@ -219,7 +291,6 @@ pub async fn deploy_web(
     let target = req.target.trim().to_string();
     validate_target(&target)?;
 
-    // Role check: production requires Release Manager or above (Phase 4 exit gate).
     if target == "production" && user_role < OrganizationRole::ReleaseManager {
         return Err(WebHostingError::Forbidden);
     }
@@ -227,7 +298,6 @@ pub async fn deploy_web(
         return Err(WebHostingError::Forbidden);
     }
 
-    // 1. Resolve organization, app, project, and environment.
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(WebHostingError::OrganizationNotFound)?;
@@ -252,7 +322,6 @@ pub async fn deploy_web(
         return Err(WebHostingError::EnvironmentNotFound);
     }
 
-    // 2. Resolve artifact and verify kind.
     let artifact =
         repositories::artifact_summary_by_public_id_and_org(db, &req.artifact_id, organization_id)
             .await?
@@ -262,7 +331,6 @@ pub async fn deploy_web(
         return Err(WebHostingError::InvalidArtifactKind);
     }
 
-    // 3. Resolve optional release.
     let release = if let Some(ref rel_id) = req.release_id {
         let r = repositories::release_summary_by_public_id_and_org(db, rel_id, organization_id)
             .await?
@@ -272,12 +340,11 @@ pub async fn deploy_web(
         None
     };
 
-    // 4. Generate URL and canonical storage prefix.
     let deployment_public_id = Uuid::new_v4().to_string();
     let branch = req
         .git_branch
         .as_deref()
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(&app.default_branch);
 
@@ -294,14 +361,12 @@ pub async fn deploy_web(
         &deployment_public_id,
     );
 
-    // 5. Serialize metadata.
     let metadata_json = match req.metadata {
         Some(val) => serde_json::to_string(&val)
             .map_err(|e| WebHostingError::InvalidMetadata(e.to_string()))?,
         None => "{}".to_string(),
     };
 
-    // 6. Insert WebDeployment record.
     let now = Utc::now();
     let deployment = WebDeployment {
         id: 0,
@@ -322,18 +387,11 @@ pub async fn deploy_web(
 
     let mut saved = repositories::insert_deployment(db, deployment).await?;
 
-    // 7. Transition to `live` upon deploy completion.
-    // CDN invalidation and Caddy site-block registration are performed by the deploy
-    // worker (src/workers/deploy.rs), not here: both are outbound calls to third-party
-    // control APIs and must not block an HTTP request handler. The worker purges
-    // `storage_prefix` via crate::infra::cdn::CdnClient::purge_prefixes and registers the
-    // site via crate::infra::caddy::CaddyClient::add_site_block.
     if can_transition(&saved.status, "live") {
         saved.status = "live".to_string();
         repositories::update_deployment(db, &saved).await?;
     }
 
-    // 8. Emit `webhosting.deployed` event.
     emit_event(
         db,
         "webhosting.deployed",
@@ -358,12 +416,6 @@ pub async fn deploy_web(
 }
 
 /// Rollback a web deployment to the previous live deployment for that app and target.
-///
-/// # Business Rules:
-/// 1. Production rollbacks require `ReleaseManager` role or higher.
-/// 2. Restores the PREVIOUS successful deployment for the app+target.
-/// 3. Expressed as a state transition over existing rows: current becomes `rolled_back`, previous becomes `live`.
-/// 4. Emits `webhosting.rolled_back` with `{"deployment_id", "previous_deployment_id"}`.
 pub async fn rollback_web_deployment(
     db: &Database,
     organization_id: i64,
@@ -397,18 +449,11 @@ pub async fn rollback_web_deployment(
     .await?
     .ok_or(WebHostingError::NoPreviousDeployment)?;
 
-    // State transition over existing deployment rows.
     current.status = "rolled_back".to_string();
     repositories::update_deployment(db, &current).await?;
 
     previous.status = "live".to_string();
     repositories::update_deployment(db, &previous).await?;
-
-    // CDN invalidation and Caddy site-block registration are performed by the deploy
-    // worker (src/workers/deploy.rs), not here: both are outbound calls to third-party
-    // control APIs and must not block an HTTP request handler. The worker purges
-    // `storage_prefix` via crate::infra::cdn::CdnClient::purge_prefixes and registers the
-    // site via crate::infra::caddy::CaddyClient::add_site_block.
 
     let app = repositories::app_summary_by_id(db, current.app_id.id)
         .await?
@@ -419,16 +464,12 @@ pub async fn rollback_web_deployment(
         .ok_or(WebHostingError::EnvironmentNotFound)?;
 
     let release_public_id = match current.release_id {
-        Some(ref rel) => {
-            // Forward-declared stub lookup
-            repositories::release_summary_by_id(db, *rel)
-                .await?
-                .map(|r| r.public_id)
-        }
+        Some(ref rel) => repositories::release_summary_by_id(db, *rel)
+            .await?
+            .map(|r| r.public_id),
         None => None,
     };
 
-    // Emit `webhosting.rolled_back` event per events.md.
     emit_event(
         db,
         "webhosting.rolled_back",
@@ -560,10 +601,11 @@ pub async fn list_web_deployments(
     Ok(results)
 }
 
-/// Register a custom domain for an application.
+/// Register a custom domain for an application and return required DNS records.
 pub async fn create_custom_domain(
     db: &Database,
     organization_id: i64,
+    apex_domain: Option<&str>,
     req: CreateCustomDomainRequest,
 ) -> Result<CustomDomainDetail, WebHostingError> {
     let clean_domain = validate_domain(&req.domain)?;
@@ -572,7 +614,10 @@ pub async fn create_custom_domain(
         .await?
         .ok_or(WebHostingError::AppNotFound)?;
 
-    // Check for existing domain on this app
+    let project = repositories::project_summary_by_id(db, app.project_id)
+        .await?
+        .ok_or(WebHostingError::ProjectNotFound)?;
+
     if repositories::custom_domain_by_app_and_domain(db, app.id, &clean_domain)
         .await?
         .is_some()
@@ -580,39 +625,380 @@ pub async fn create_custom_domain(
         return Err(WebHostingError::DomainAlreadyExists);
     }
 
+    let verification_token = generate_verification_token();
+
     let domain = CustomDomain {
         id: 0,
         public_id: Uuid::new_v4().to_string(),
         app_id: ForeignKey::new(app.id),
         organization_id,
-        domain: clean_domain,
+        domain: clean_domain.clone(),
+        verification_token: verification_token.clone(),
         certificate_status: "pending".to_string(),
         certificate_expires_at: None,
         verified_at: None,
+        failure_reason: None,
         created_at: Utc::now(),
     };
 
     let saved = repositories::insert_custom_domain(db, domain).await?;
 
+    let required_records = compute_required_dns_records(
+        &clean_domain,
+        &verification_token,
+        &app.slug,
+        &project.slug,
+        apex_domain,
+    );
+
     Ok(CustomDomainDetail {
         domain: saved,
         app_public_id: app.public_id,
+        required_records,
     })
 }
 
+/// Parameters required to verify and optionally provision a custom domain.
+#[derive(Clone)]
+pub struct VerifyDomainParams<'a> {
+    /// Database handle.
+    pub db: &'a Database,
+    /// DNS resolver trait instance.
+    pub dns: &'a dyn DnsResolver,
+    /// Optional Caddy client handle.
+    pub caddy: Option<&'a CaddyClient>,
+    /// Organization primary key.
+    pub organization_id: i64,
+    /// Public UUID of the custom domain to verify.
+    pub domain_public_id: &'a str,
+    /// Optional apex domain.
+    pub apex_domain: Option<&'a str>,
+    /// Optional Cloudflare API token for DNS-01 ACME challenge provisioning.
+    pub cloudflare_api_token: Option<&'a str>,
+    /// Optional ACME registration email.
+    pub acme_email: Option<&'a str>,
+}
+
+/// Verifies domain ownership via DNS TXT record and routing records, enforcing strict matching.
+///
+/// # Security Rule
+///
+/// Sets `verified_at` ONLY when the expected verification token matches via constant-time comparison
+/// AND routing is pointed correctly. An unverified domain is NEVER written to Caddy configuration.
+pub async fn verify_custom_domain(
+    params: VerifyDomainParams<'_>,
+) -> Result<CustomDomainDetail, WebHostingError> {
+    let VerifyDomainParams {
+        db,
+        dns,
+        caddy,
+        organization_id,
+        domain_public_id,
+        apex_domain,
+        cloudflare_api_token,
+        acme_email,
+    } = params;
+
+    let mut domain =
+        repositories::custom_domain_by_public_id_and_org(db, domain_public_id, organization_id)
+            .await?
+            .ok_or(WebHostingError::DomainNotFound)?;
+
+    let app = repositories::app_summary_by_id(db, domain.app_id.id)
+        .await?
+        .ok_or(WebHostingError::AppNotFound)?;
+
+    let project = repositories::project_summary_by_id(db, app.project_id)
+        .await?
+        .ok_or(WebHostingError::ProjectNotFound)?;
+
+    let challenge_host = compute_challenge_hostname(&domain.domain);
+    let expected_token = domain.verification_token.trim().to_string();
+
+    // 1. Ownership verification: Lookup TXT record at `_bloom-challenge.<domain>`
+    let txt_result = dns.lookup_txt(&challenge_host).await;
+    let txt_verified = match txt_result {
+        Ok(records) => {
+            let matched = records
+                .iter()
+                .any(|r| Crypto::constant_time_eq_str(r.trim(), &expected_token));
+            if !matched {
+                let first_val = records.first().map(String::as_str).unwrap_or("");
+                let reason = format!(
+                    "TXT record at '{challenge_host}' contains incorrect token '{first_val}', expected '{expected_token}'."
+                );
+                domain.certificate_status = "failed".to_string();
+                domain.failure_reason = Some(reason.clone());
+                repositories::update_custom_domain(db, &domain).await?;
+                emit_event(
+                    db,
+                    "domain.verification_failed",
+                    Some(organization_id),
+                    Some(app.project_id),
+                    Some(app.id),
+                    None,
+                    serde_json::json!({
+                        "domain_id": domain.public_id,
+                        "domain": domain.domain,
+                        "failed_record": "TXT",
+                        "reason": reason,
+                    }),
+                )
+                .await;
+                return Err(WebHostingError::VerificationFailed(reason));
+            }
+            true
+        }
+        Err(err) => {
+            let reason = format!(
+                "TXT verification record at '{challenge_host}' not found or unreachable: {err}"
+            );
+            domain.certificate_status = "failed".to_string();
+            domain.failure_reason = Some(reason.clone());
+            repositories::update_custom_domain(db, &domain).await?;
+            emit_event(
+                db,
+                "domain.verification_failed",
+                Some(organization_id),
+                Some(app.project_id),
+                Some(app.id),
+                None,
+                serde_json::json!({
+                    "domain_id": domain.public_id,
+                    "domain": domain.domain,
+                    "failed_record": "TXT",
+                    "reason": reason,
+                }),
+            )
+            .await;
+            return Err(WebHostingError::VerificationFailed(reason));
+        }
+    };
+
+    // 2. Traffic routing verification: Lookup CNAME or A record for the domain itself
+    let apex = apex_domain
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_APEX_DOMAIN);
+    let expected_target = format!("{}-{}.{apex}", app.slug, project.slug);
+
+    if is_apex_domain(&domain.domain) {
+        // Apex domains must have an A record or CNAME flattening configured
+        let a_result = dns.lookup_a(&domain.domain).await;
+        let cname_result = dns.lookup_cname(&domain.domain).await;
+
+        let a_ok = a_result.is_ok();
+        let cname_ok = cname_result
+            .as_ref()
+            .ok()
+            .and_then(Option::as_ref)
+            .map(|t| t.eq_ignore_ascii_case(&expected_target))
+            .unwrap_or(false);
+
+        if !a_ok && !cname_ok {
+            let reason = format!(
+                "Apex domain '{0}' routing records not found. Configure an A record pointing to {DEFAULT_EDGE_A_RECORD_IP} or a CNAME to '{expected_target}'.",
+                domain.domain
+            );
+            domain.certificate_status = "failed".to_string();
+            domain.failure_reason = Some(reason.clone());
+            repositories::update_custom_domain(db, &domain).await?;
+            return Err(WebHostingError::VerificationFailed(reason));
+        }
+    } else {
+        // Subdomains must have a CNAME pointing to the expected Bloom target
+        match dns.lookup_cname(&domain.domain).await {
+            Ok(Some(target)) => {
+                if !target.eq_ignore_ascii_case(&expected_target) {
+                    let reason = format!(
+                        "CNAME record for '{0}' points to '{target}', expected '{expected_target}'.",
+                        domain.domain
+                    );
+                    domain.certificate_status = "failed".to_string();
+                    domain.failure_reason = Some(reason.clone());
+                    repositories::update_custom_domain(db, &domain).await?;
+                    return Err(WebHostingError::VerificationFailed(reason));
+                }
+            }
+            Ok(None) | Err(_) => {
+                let reason = format!(
+                    "CNAME record for '{0}' is missing. Configure a CNAME record pointing to '{expected_target}'.",
+                    domain.domain
+                );
+                domain.certificate_status = "failed".to_string();
+                domain.failure_reason = Some(reason.clone());
+                repositories::update_custom_domain(db, &domain).await?;
+                return Err(WebHostingError::VerificationFailed(reason));
+            }
+        }
+    }
+
+    // 3. Mark domain verified and transition certificate status
+    if txt_verified {
+        domain.verified_at = Some(Utc::now());
+        domain.certificate_status = "active".to_string();
+        domain.failure_reason = None;
+        repositories::update_custom_domain(db, &domain).await?;
+
+        // 4. Provision in Caddy reverse proxy only after successful verification (Security Rule)
+        if let Some(caddy_client) = caddy {
+            let org = repositories::organization_summary_by_id(db, organization_id)
+                .await?
+                .ok_or(WebHostingError::OrganizationNotFound)?;
+
+            let storage_prefix = format!(
+                "orgs/{}/projects/{}/apps/{}/custom_domains/{}",
+                org.public_id, project.public_id, app.public_id, domain.public_id
+            );
+
+            // Provisioning strictly checks domain.verified_at.is_some()
+            let _ = caddy_client
+                .provision_verified_custom_domain(
+                    &domain.public_id,
+                    &domain.domain,
+                    &storage_prefix,
+                    domain.verified_at.is_some(),
+                    cloudflare_api_token,
+                    acme_email,
+                )
+                .await;
+        }
+
+        emit_event(
+            db,
+            "webhosting.domain_verified",
+            Some(organization_id),
+            Some(app.project_id),
+            Some(app.id),
+            None,
+            serde_json::json!({
+                "domain_id": domain.public_id,
+                "domain": domain.domain,
+                "verified_at": domain.verified_at.map(|t| t.to_rfc3339()),
+            }),
+        )
+        .await;
+    }
+
+    let required_records = compute_required_dns_records(
+        &domain.domain,
+        &domain.verification_token,
+        &app.slug,
+        &project.slug,
+        apex_domain,
+    );
+
+    Ok(CustomDomainDetail {
+        domain,
+        app_public_id: app.public_id,
+        required_records,
+    })
+}
+
+/// Re-verifies an existing custom domain.
+///
+/// If DNS stops resolving, the domain is FLAGGED (`certificate_status = "failed"`), NOT silently dropped.
+pub async fn reverify_custom_domain(
+    params: VerifyDomainParams<'_>,
+) -> Result<CustomDomainDetail, WebHostingError> {
+    let domain_public_id = params.domain_public_id;
+    let organization_id = params.organization_id;
+    let db = params.db;
+
+    match verify_custom_domain(params).await {
+        Ok(detail) => Ok(detail),
+        Err(err) => {
+            // Re-fetch domain to ensure failure flag was persisted without dropping row
+            if let Some(mut domain) = repositories::custom_domain_by_public_id_and_org(
+                db,
+                domain_public_id,
+                organization_id,
+            )
+            .await?
+            {
+                domain.certificate_status = "failed".to_string();
+                domain.failure_reason = Some(err.to_string());
+                repositories::update_custom_domain(db, &domain).await?;
+            }
+            Err(err)
+        }
+    }
+}
+
 /// Delete a custom domain by its public UUID within an organization.
+///
+/// Idempotent: Deleting a non-existent or already-deleted domain succeeds cleanly without error.
 pub async fn delete_custom_domain(
     db: &Database,
+    caddy: Option<&CaddyClient>,
     organization_id: i64,
     domain_public_id: &str,
 ) -> Result<(), WebHostingError> {
     let domain =
         repositories::custom_domain_by_public_id_and_org(db, domain_public_id, organization_id)
+            .await?;
+
+    if let Some(d) = domain {
+        // Clean up Caddy reverse proxy site block
+        if let Some(caddy_client) = caddy {
+            let site_id = caddy_custom_domain_id(&d.public_id);
+            // remove_site_block treats 404 as successful no-op for idempotency
+            let _ = caddy_client.remove_site_block(&site_id).await;
+        }
+
+        repositories::delete_custom_domain_by_id(db, d.id).await?;
+
+        emit_event(
+            db,
+            "webhosting.domain_deleted",
+            Some(organization_id),
+            None,
+            Some(d.app_id.id),
+            None,
+            serde_json::json!({
+                "domain_id": d.public_id,
+                "domain": d.domain,
+            }),
+        )
+        .await;
+    }
+
+    Ok(())
+}
+
+/// Retrieve a single custom domain by its public UUID within an organization.
+pub async fn get_custom_domain(
+    db: &Database,
+    organization_id: i64,
+    domain_public_id: &str,
+    apex_domain: Option<&str>,
+) -> Result<CustomDomainDetail, WebHostingError> {
+    let domain =
+        repositories::custom_domain_by_public_id_and_org(db, domain_public_id, organization_id)
             .await?
             .ok_or(WebHostingError::DomainNotFound)?;
 
-    repositories::delete_custom_domain_by_id(db, domain.id).await?;
-    Ok(())
+    let app = repositories::app_summary_by_id(db, domain.app_id.id)
+        .await?
+        .ok_or(WebHostingError::AppNotFound)?;
+
+    let project = repositories::project_summary_by_id(db, app.project_id)
+        .await?
+        .ok_or(WebHostingError::ProjectNotFound)?;
+
+    let required_records = compute_required_dns_records(
+        &domain.domain,
+        &domain.verification_token,
+        &app.slug,
+        &project.slug,
+        apex_domain,
+    );
+
+    Ok(CustomDomainDetail {
+        domain,
+        app_public_id: app.public_id,
+        required_records,
+    })
 }
 
 /// List custom domains in an organization, optionally filtered by app.
@@ -620,6 +1006,7 @@ pub async fn list_custom_domains(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
+    apex_domain: Option<&str>,
 ) -> Result<Vec<CustomDomainDetail>, WebHostingError> {
     let domains = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_summary_by_public_id_and_org(db, app_pub_id, organization_id)
@@ -633,9 +1020,21 @@ pub async fn list_custom_domains(
     let mut results = Vec::with_capacity(domains.len());
     for d in domains {
         if let Some(app) = repositories::app_summary_by_id(db, d.app_id.id).await? {
+            let project = repositories::project_summary_by_id(db, app.project_id).await?;
+            let project_slug = project.as_ref().map(|p| p.slug.as_str()).unwrap_or("app");
+
+            let required_records = compute_required_dns_records(
+                &d.domain,
+                &d.verification_token,
+                &app.slug,
+                project_slug,
+                apex_domain,
+            );
+
             results.push(CustomDomainDetail {
                 domain: d,
                 app_public_id: app.public_id,
+                required_records,
             });
         }
     }

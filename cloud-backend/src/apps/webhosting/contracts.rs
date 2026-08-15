@@ -25,6 +25,19 @@ pub struct WebDeploymentResponse {
     pub created_at: String,
 }
 
+/// A DNS record required to verify and route a custom domain.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RequiredDnsRecord {
+    /// Record type: `TXT`, `CNAME`, or `A`.
+    pub record_type: String,
+    /// Host / name to configure (e.g. `_bloom-challenge.app.example.com`).
+    pub host: String,
+    /// Expected value / target (e.g. verification token or CNAME target).
+    pub value: String,
+    /// Human-readable purpose of this record (e.g. "Domain ownership verification").
+    pub purpose: String,
+}
+
 /// Wire response representation for a [`crate::apps::webhosting::models::CustomDomain`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomDomainResponse {
@@ -34,12 +47,19 @@ pub struct CustomDomainResponse {
     pub app_id: String,
     /// Fully qualified domain name.
     pub domain: String,
-    /// TLS certificate status: `pending`, `issued`, or `expired`.
+    /// Verification token required in DNS TXT record `_bloom-challenge.<domain>`.
+    pub verification_token: String,
+    /// TLS certificate status: `pending`, `issuing`, `active`, or `failed`.
     pub certificate_status: String,
     /// Optional ISO-8601 certificate expiration timestamp.
     pub certificate_expires_at: Option<String>,
     /// Optional ISO-8601 verification timestamp.
     pub verified_at: Option<String>,
+    /// Optional failure reason explaining verification or issuance failure.
+    pub failure_reason: Option<String>,
+    /// Required DNS records the customer must configure.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_records: Vec<RequiredDnsRecord>,
 }
 
 /// Request body for initiating a new web deployment.

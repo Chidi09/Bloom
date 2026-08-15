@@ -9,6 +9,7 @@ pub mod builds;
 pub mod common;
 pub mod credentials;
 pub mod deployments;
+pub mod emails;
 pub mod environments;
 pub mod events;
 pub mod git_connections;

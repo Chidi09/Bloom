@@ -8,12 +8,18 @@
 //! - [`caddy`]: Caddy admin API client managing per-deployment site blocks.
 //! - [`googleplay`]: Google Play Developer API v3 edit/upload/track/commit client.
 //! - [`testflight`]: App Store Connect API client for build polling and beta group assignment.
+//! - [`executor`]: sandboxed command execution behind a trait, so build stages run real processes
+//!   in production and scripted ones in tests.
+//! - [`toolchain`]: Flutter SDK version resolution and the canonical build cache keys.
 
 pub mod caddy;
 pub mod cdn;
 pub mod crypto;
+pub mod dns;
+pub mod executor;
 pub mod googleplay;
 pub mod queue;
 pub mod shorebird;
 pub mod storage;
 pub mod testflight;
+pub mod toolchain;

@@ -1,9 +1,10 @@
-//! Caddy reverse proxy admin API client.
+//! Caddy reverse proxy admin API client and automatic TLS/ACME configuration.
 //!
 //! # Architecture & Scope
 //!
 //! Caddy fronts deployed web applications and custom domains. This client dynamically
-//! provisions, updates, and tears down site blocks via Caddy's RESTful Admin API:
+//! provisions, updates, and tears down site blocks and TLS automation policies via
+//! Caddy's RESTful Admin API:
 //!
 //! ```text
 //! Base URL: http://localhost:2019 (configurable via BloomSettings / CaddySettings)
@@ -21,12 +22,22 @@
 //! - Specific config paths: `/config/<path>`
 //!
 //! Every site block managed by Bloom Cloud is assigned a stable `@id` derived from the
-//! deployment's public UUID (via [`caddy_site_id`]).
+//! deployment or domain's public UUID (via [`caddy_site_id`]).
 //!
-//! # Array Expansion
+//! # Automatic HTTPS & ACME Policy Architecture (Phase 12)
 //!
-//! When a path ends in `/...` and points at an array, `POST` appends elements individually
-//! per Caddy API specifications.
+//! Caddy automatically provisions certificates for qualifying hostnames configured in
+//! routes. For custom domains requiring wildcard certificates (`*.domain.com`) or apex
+//! domains without open inbound port 80/443, Caddy uses the ACME DNS-01 challenge via
+//! TLS automation policies registered under `/config/apps/tls/automation/policies/...`.
+//!
+//! # Security Rule (Strictly Enforced in Code)
+//!
+//! **ONLY VERIFIED DOMAINS ARE EVER WRITTEN INTO THE CADDY CONFIGURATION.**
+//!
+//! Writing an unverified domain to the edge reverse proxy exposes Bloom Cloud to open-redirect
+//! attacks and consumes public ACME CA rate limits. Every provisioning path in this module
+//! validates verification status before dispatching API requests.
 
 use std::fmt;
 use std::time::Duration;
@@ -39,7 +50,13 @@ use crate::settings::CaddySettings;
 /// Default HTTP request timeout for Caddy admin API requests (10 seconds).
 pub const DEFAULT_CADDY_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Errors arising from Caddy admin API operations.
+/// Default Caddy routes configuration path.
+pub const DEFAULT_CADDY_ROUTES_PATH: &str = "apps/http/servers/srv0/routes";
+
+/// Default Caddy TLS automation policies configuration path.
+pub const DEFAULT_CADDY_TLS_POLICIES_PATH: &str = "apps/tls/automation/policies";
+
+/// Errors arising from Caddy admin API operations and validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaddyError {
     /// Caddy client configuration error or invalid URL.
@@ -48,6 +65,8 @@ pub enum CaddyError {
     Serialization(String),
     /// HTTP or network transport failure.
     Http(String),
+    /// Security rule violation (e.g. attempting to provision an unverified domain).
+    SecurityViolation(String),
     /// Caddy Admin API returned a non-success HTTP status code.
     Api {
         /// HTTP status code returned by Caddy.
@@ -63,6 +82,7 @@ impl fmt::Display for CaddyError {
             CaddyError::Config(msg) => write!(f, "Caddy configuration error: {msg}"),
             CaddyError::Serialization(msg) => write!(f, "Caddy serialization error: {msg}"),
             CaddyError::Http(msg) => write!(f, "Caddy HTTP transport error: {msg}"),
+            CaddyError::SecurityViolation(msg) => write!(f, "Caddy security violation: {msg}"),
             CaddyError::Api { status, message } => {
                 write!(f, "Caddy Admin API error (HTTP {status}): {message}")
             }
@@ -75,9 +95,13 @@ impl std::error::Error for CaddyError {}
 /// Derives a stable, unique `@id` tag for addressing a site block in Caddy.
 ///
 /// Uses the deployment or domain's public UUID string: `bloom-site-{deployment_public_id}`.
-/// Authorised by EXTERNAL_APIS.txt lines 75-79.
 pub fn caddy_site_id(deployment_public_id: &str) -> String {
     format!("bloom-site-{}", deployment_public_id.trim())
+}
+
+/// Derives a stable, unique `@id` tag for addressing a custom domain in Caddy.
+pub fn caddy_custom_domain_id(domain_public_id: &str) -> String {
+    format!("bloom-domain-{}", domain_public_id.trim())
 }
 
 /// Static file server configuration for Caddy `file_server` handler.
@@ -138,11 +162,104 @@ pub struct CaddyRoute {
     pub terminal: Option<bool>,
 }
 
-/// Complete site block payload registered under Caddy config.
+// ---------------------------------------------------------------------------
+// TLS Automation & ACME Configuration Data Structures
+// Verified against real Caddy JSON documentation (https://caddyserver.com/docs/json/apps/tls/)
+// and Automatic HTTPS documentation (https://caddyserver.com/docs/automatic-https).
+// ---------------------------------------------------------------------------
+
+/// ACME DNS-01 challenge provider configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CaddyDnsProvider {
+    /// DNS provider module name (e.g. `"cloudflare"`).
+    pub name: String,
+    /// API token for DNS provider API authentication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_token: Option<String>,
+}
+
+/// DNS challenge settings for ACME issuers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CaddyDnsChallenge {
+    /// DNS challenge provider configuration.
+    pub provider: CaddyDnsProvider,
+}
+
+/// HTTP-01 challenge settings for ACME issuers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CaddyHttpChallenge {
+    /// Whether the HTTP-01 challenge is disabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+}
+
+/// TLS-ALPN-01 challenge settings for ACME issuers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CaddyTlsAlpnChallenge {
+    /// Whether the TLS-ALPN-01 challenge is disabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+}
+
+/// ACME challenge configurations supported by Caddy.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CaddyAcmeChallenges {
+    /// DNS-01 challenge configuration for wildcard certificates and DNS automation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dns: Option<CaddyDnsChallenge>,
+    /// HTTP-01 challenge configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http: Option<CaddyHttpChallenge>,
+    /// TLS-ALPN-01 challenge configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_alpn: Option<CaddyTlsAlpnChallenge>,
+}
+
+/// ACME issuer specification within Caddy TLS automation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CaddyAcmeIssuer {
+    /// Module discriminator (always `"acme"`).
+    pub module: String,
+    /// Optional directory URL of the ACME CA (e.g. Let's Encrypt / ZeroSSL).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ca: Option<String>,
+    /// Account email address for ACME registration and expiry notices.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Challenge configurations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub challenges: Option<CaddyAcmeChallenges>,
+}
+
+impl Default for CaddyAcmeIssuer {
+    fn default() -> Self {
+        Self {
+            module: "acme".to_string(),
+            ca: None,
+            email: None,
+            challenges: None,
+        }
+    }
+}
+
+/// TLS automation policy governing certificate issuance for specific subjects.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CaddyAutomationPolicy {
+    /// Subjects (domains or wildcards e.g. `["*.example.com"]`) to which this policy applies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subjects: Option<Vec<String>>,
+    /// Ordered list of ACME issuers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issuers: Option<Vec<CaddyAcmeIssuer>>,
+    /// On-demand TLS flag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_demand: Option<bool>,
+}
+
+/// Complete site block payload registered under Caddy HTTP routes.
 ///
 /// Embeds `"@id"` so that it can be addressed, patched, and deleted directly
 /// without walking or replacing the overall config tree.
-/// Authorised by EXTERNAL_APIS.txt lines 75-79.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CaddySiteBlock {
     /// Unique stable identifier for scoped addressing (`/id/<@id>/...`).
@@ -159,7 +276,76 @@ pub struct CaddySiteBlock {
     pub terminal: Option<bool>,
 }
 
-/// Caddy Admin API client for dynamic route management.
+/// Builds a site block for a verified custom domain, enforcing the verified-only security rule.
+///
+/// Returns an error if `is_verified` is `false`.
+pub fn build_verified_custom_domain_site_block(
+    site_id: &str,
+    domain: &str,
+    storage_prefix: &str,
+    is_verified: bool,
+) -> Result<CaddySiteBlock, CaddyError> {
+    if !is_verified {
+        return Err(CaddyError::SecurityViolation(format!(
+            "Security rule violation: custom domain '{domain}' is not verified and cannot be added to Caddy configuration."
+        )));
+    }
+
+    let clean_domain = domain.trim().to_ascii_lowercase();
+
+    Ok(CaddySiteBlock {
+        id: site_id.to_string(),
+        r#match: Some(vec![CaddyMatchRule {
+            host: Some(vec![clean_domain]),
+        }]),
+        handle: vec![serde_json::json!({
+            "handler": "file_server",
+            "root": format!("/var/bloom/web/{storage_prefix}"),
+            "index_names": ["index.html"]
+        })],
+        terminal: Some(true),
+    })
+}
+
+/// Builds a TLS automation policy for wildcard or custom DNS-01 ACME challenge resolution.
+pub fn build_dns_challenge_automation_policy(
+    domain: &str,
+    cloudflare_api_token: Option<&str>,
+    acme_email: Option<&str>,
+) -> CaddyAutomationPolicy {
+    let clean_domain = domain.trim().to_ascii_lowercase();
+    let subjects = if clean_domain.starts_with("*.") {
+        vec![clean_domain]
+    } else {
+        vec![clean_domain.clone(), format!("*.{clean_domain}")]
+    };
+
+    let challenges = cloudflare_api_token.map(|token| CaddyAcmeChallenges {
+        dns: Some(CaddyDnsChallenge {
+            provider: CaddyDnsProvider {
+                name: "cloudflare".to_string(),
+                api_token: Some(token.to_string()),
+            },
+        }),
+        http: None,
+        tls_alpn: None,
+    });
+
+    let issuer = CaddyAcmeIssuer {
+        module: "acme".to_string(),
+        ca: None,
+        email: acme_email.map(str::to_string),
+        challenges,
+    };
+
+    CaddyAutomationPolicy {
+        subjects: Some(subjects),
+        issuers: Some(vec![issuer]),
+        on_demand: None,
+    }
+}
+
+/// Caddy Admin API client for dynamic route and TLS policy management.
 #[derive(Clone)]
 pub struct CaddyClient {
     http: reqwest::Client,
@@ -214,26 +400,17 @@ impl CaddyClient {
     }
 
     /// Constructs the scoped URL for addressing an `@id` tagged object.
-    ///
-    /// Example: `http://localhost:2019/id/bloom-site-123`
-    /// Authorised by EXTERNAL_APIS.txt line 77.
     pub fn id_endpoint_url(&self, id: &str) -> String {
         format!("{}/id/{}", self.admin_url, id.trim())
     }
 
     /// Constructs the scoped URL for addressing a subpath of an `@id` tagged object.
-    ///
-    /// Example: `http://localhost:2019/id/bloom-site-123/handle`
-    /// Authorised by EXTERNAL_APIS.txt line 77.
     pub fn id_subpath_endpoint_url(&self, id: &str, path: &str) -> String {
         let clean_path = path.trim().trim_start_matches('/');
         format!("{}/id/{}/{}", self.admin_url, id.trim(), clean_path)
     }
 
     /// Constructs a config path URL.
-    ///
-    /// Example: `http://localhost:2019/config/apps/http/servers/srv0/routes/...`
-    /// Authorised by EXTERNAL_APIS.txt lines 68-72.
     pub fn config_endpoint_url(&self, path: &str) -> String {
         let clean_path = path.trim().trim_start_matches('/');
         format!("{}/config/{}", self.admin_url, clean_path)
@@ -256,8 +433,6 @@ impl CaddyClient {
     }
 
     /// Gets configuration at a specific config path.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt line 68 (`GET /config/[path]`).
     pub async fn get_config(&self, path: &str) -> Result<serde_json::Value, CaddyError> {
         let url = self.config_endpoint_url(path);
         let headers = self.build_headers()?;
@@ -287,8 +462,6 @@ impl CaddyClient {
     }
 
     /// Gets an object directly by its `@id`.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt line 77 (`GET /id/<@id>`).
     pub async fn get_by_id(&self, id: &str) -> Result<serde_json::Value, CaddyError> {
         let url = self.id_endpoint_url(id);
         let headers = self.build_headers()?;
@@ -318,10 +491,6 @@ impl CaddyClient {
     }
 
     /// Adds a new site block to Caddy routes array.
-    ///
-    /// Appends the site block using `POST /config/[routes_path]/...`.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt lines 69, 75-79, 81-86.
     pub async fn add_site_block(
         &self,
         routes_path: &str,
@@ -359,10 +528,6 @@ impl CaddyClient {
     }
 
     /// Updates or replaces an existing site block addressed by its `@id`.
-    ///
-    /// Uses `PATCH /id/<@id>`.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt lines 71, 75-79.
     pub async fn update_site_block(
         &self,
         site_id: &str,
@@ -394,9 +559,7 @@ impl CaddyClient {
 
     /// Removes a site block addressed by its `@id`.
     ///
-    /// Uses `DELETE /id/<@id>`.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt lines 72, 75-79.
+    /// If the site block is already absent (HTTP 404), this operation succeeds idempotently.
     pub async fn remove_site_block(&self, site_id: &str) -> Result<(), CaddyError> {
         let url = self.id_endpoint_url(site_id);
         let headers = self.build_headers()?;
@@ -405,6 +568,37 @@ impl CaddyClient {
             .http
             .delete(&url)
             .headers(headers)
+            .send()
+            .await
+            .map_err(|e| CaddyError::Http(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        // 404 is treated as a successful no-op for idempotent deletion
+        if !response.status().is_success() && status != 404 {
+            let body = response.text().await.unwrap_or_default();
+            return Err(CaddyError::Api {
+                status,
+                message: body,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Adds a TLS automation policy to Caddy configuration.
+    pub async fn add_tls_automation_policy(
+        &self,
+        policy: &CaddyAutomationPolicy,
+    ) -> Result<(), CaddyError> {
+        let path = format!("{DEFAULT_CADDY_TLS_POLICIES_PATH}/...");
+        let url = self.config_endpoint_url(&path);
+        let headers = self.build_headers()?;
+
+        let response = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .json(policy)
             .send()
             .await
             .map_err(|e| CaddyError::Http(e.to_string()))?;
@@ -421,9 +615,54 @@ impl CaddyClient {
         Ok(())
     }
 
-    /// Inserts a value strictly at a specific path or array index using PUT.
+    /// Provisions a custom domain route and ACME TLS automation in Caddy.
     ///
-    /// Authorised by EXTERNAL_APIS.txt line 70 (`PUT /config/[path]`).
+    /// # Security Rule
+    ///
+    /// Validates `is_verified` before touching Caddy. If unverified, immediately returns
+    /// `CaddyError::SecurityViolation` without modifying the live reverse proxy configuration.
+    pub async fn provision_verified_custom_domain(
+        &self,
+        domain_public_id: &str,
+        domain: &str,
+        storage_prefix: &str,
+        is_verified: bool,
+        cloudflare_api_token: Option<&str>,
+        acme_email: Option<&str>,
+    ) -> Result<String, CaddyError> {
+        if !is_verified {
+            return Err(CaddyError::SecurityViolation(format!(
+                "Security rule violation: domain '{domain}' is not verified. Unverified domains cannot be added to Caddy."
+            )));
+        }
+
+        let site_id = caddy_custom_domain_id(domain_public_id);
+        let site_block =
+            build_verified_custom_domain_site_block(&site_id, domain, storage_prefix, is_verified)?;
+
+        // 1. If wildcard, register DNS-01 ACME automation policy
+        if domain.starts_with("*.") || cloudflare_api_token.is_some() {
+            let policy =
+                build_dns_challenge_automation_policy(domain, cloudflare_api_token, acme_email);
+            // Tolerant of policy addition if already exists or path created
+            let _ = self.add_tls_automation_policy(&policy).await;
+        }
+
+        // 2. Add or update the site block route in Caddy
+        match self
+            .add_site_block(DEFAULT_CADDY_ROUTES_PATH, &site_block)
+            .await
+        {
+            Ok(()) => Ok(site_id),
+            Err(CaddyError::Api { status: 409, .. }) => {
+                self.update_site_block(&site_id, &site_block).await?;
+                Ok(site_id)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Inserts a value strictly at a specific path or array index using PUT.
     pub async fn put_config<T: Serialize>(
         &self,
         path: &str,
@@ -454,8 +693,6 @@ impl CaddyClient {
     }
 
     /// Converts a raw Caddy config to JSON without loading it using POST /adapt.
-    ///
-    /// Authorised by EXTERNAL_APIS.txt line 73 (`POST /adapt`).
     pub async fn adapt_config(&self, config_body: &str) -> Result<serde_json::Value, CaddyError> {
         let url = format!("{}/adapt", self.admin_url);
         let mut headers = HeaderMap::new();
