@@ -63,3 +63,13 @@ subtle = "2.5"
 bytes = "1.6"
 async-trait = "0.1"
 aws-sdk-s3 = "1"
+
+# --- test-only -----------------------------------------------------------------
+# The billing tests build a Paystack HMAC-SHA512 webhook signature to check that a
+# forged one is rejected. Production code never needs these: SHA-256 HMAC lives in
+# Crypto::hmac_sha256_hex, and provider signatures are verified by
+# djangors-contrib-payments itself. Both crates are already in the tree through that
+# crate, so this adds no new supply-chain surface.
+[dev-dependencies]
+hmac = "0.12"
+hex = "0.4"

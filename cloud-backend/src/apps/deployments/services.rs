@@ -183,6 +183,12 @@ pub async fn create_deployment(
         .await?
         .ok_or(DeploymentError::OrganizationNotFound)?;
 
+    // Billing gate (PHASES.md Phase 7): the target decides which plan feature flag applies.
+    // Only a hard lock refuses; soft blocks and warnings proceed.
+    crate::apps::billing::services::ensure_deployment_allowed(db, organization_id, &target)
+        .await
+        .map_err(|e| DeploymentError::BillingBlocked(e.to_string()))?;
+
     // 2. Resolve environment.
     let env = repositories::environment_summary_by_public_id_and_org(
         db,

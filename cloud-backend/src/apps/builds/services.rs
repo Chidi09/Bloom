@@ -187,6 +187,19 @@ pub async fn create_build(
         .await?
         .ok_or(BuildError::OrganizationNotFound)?;
 
+    // Billing gate (PHASES.md Phase 7): refuse the build only on a hard lock. A soft block or
+    // warning still queues, so a free-tier org inside its grace period is nudged, not stopped.
+    // ESTIMATED_BUILD_MINUTES is the projection charged against the monthly quota up front; the
+    // real duration is metered on completion.
+    const ESTIMATED_BUILD_MINUTES: i64 = 10;
+    crate::apps::billing::services::ensure_build_allowed(
+        db,
+        organization_id,
+        ESTIMATED_BUILD_MINUTES,
+    )
+    .await
+    .map_err(|e| BuildError::BillingBlocked(e.to_string()))?;
+
     let project_public_id = repositories::project_public_id_by_id(db, app.project_id)
         .await?
         .ok_or(BuildError::AppNotFound)?;

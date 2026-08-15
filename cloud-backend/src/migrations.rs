@@ -94,6 +94,16 @@ pub const MIGRATIONS: &[MigrationRef] = &[
         app: "workflows",
         path: "migrations/workflows",
     },
+    // Phases 7-8: billing subscriptions reference organizations and plans; marketplace
+    // templates reference organizations. Both apply last.
+    MigrationRef {
+        app: "billing",
+        path: "migrations/billing",
+    },
+    MigrationRef {
+        app: "marketplace",
+        path: "migrations/marketplace",
+    },
 ];
 
 /// Applies all pending database migrations in registered sequence.

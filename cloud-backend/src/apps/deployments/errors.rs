@@ -46,6 +46,8 @@ pub enum DeploymentError {
     QueueError(String),
     /// Database query/persistence operation failed.
     OrmError(String),
+    /// The organization's plan entitlements refuse this deployment target (billing hard lock).
+    BillingBlocked(String),
 }
 
 impl fmt::Display for DeploymentError {
@@ -78,6 +80,7 @@ impl fmt::Display for DeploymentError {
             Self::ValidationError(msg) => write!(f, "Validation error: {msg}"),
             Self::QueueError(msg) => write!(f, "Job queue error: {msg}"),
             Self::OrmError(msg) => write!(f, "Database error: {msg}"),
+            Self::BillingBlocked(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -168,6 +171,9 @@ impl From<DeploymentError> for DjangorsError {
                 "database_error",
                 msg.clone(),
             ),
+            DeploymentError::BillingBlocked(msg) => {
+                DjangorsError::api(StatusCode::PAYMENT_REQUIRED, "billing_blocked", msg.clone())
+            }
         }
     }
 }

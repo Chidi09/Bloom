@@ -4,6 +4,7 @@
 pub mod accounts;
 pub mod apps;
 pub mod artifacts;
+pub mod billing;
 pub mod builds;
 pub mod common;
 pub mod credentials;
@@ -11,6 +12,7 @@ pub mod deployments;
 pub mod environments;
 pub mod events;
 pub mod git_connections;
+pub mod marketplace;
 pub mod observability;
 pub mod organizations;
 pub mod projects;

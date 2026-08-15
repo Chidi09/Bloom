@@ -27,6 +27,8 @@ pub enum BuildError {
     InvalidJobToken,
     /// Underlying database error.
     Database(String),
+    /// The organization's plan quota or entitlements refuse this build (billing hard lock).
+    BillingBlocked(String),
 }
 
 impl std::fmt::Display for BuildError {
@@ -43,6 +45,7 @@ impl std::fmt::Display for BuildError {
             Self::Storage(msg) => write!(f, "Storage error: {msg}"),
             Self::InvalidJobToken => write!(f, "Invalid worker job token."),
             Self::Database(msg) => write!(f, "Database error: {msg}"),
+            Self::BillingBlocked(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -94,6 +97,9 @@ impl From<BuildError> for DjangorsError {
             ),
             BuildError::Database(msg) => {
                 DjangorsError::api(StatusCode::INTERNAL_SERVER_ERROR, "database_error", msg)
+            }
+            BuildError::BillingBlocked(msg) => {
+                DjangorsError::api(StatusCode::PAYMENT_REQUIRED, "billing_blocked", msg)
             }
         }
     }

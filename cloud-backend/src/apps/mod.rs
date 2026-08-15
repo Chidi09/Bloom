@@ -4,6 +4,7 @@ pub mod accounts;
 #[allow(clippy::module_inception)]
 pub mod apps;
 pub mod artifacts;
+pub mod billing;
 pub mod builds;
 pub mod common;
 pub mod credentials;
@@ -11,6 +12,7 @@ pub mod deployments;
 pub mod environments;
 pub mod events;
 pub mod git_connections;
+pub mod marketplace;
 pub mod observability;
 pub mod organizations;
 pub mod projects;
@@ -50,4 +52,7 @@ pub fn urls() -> Router {
         // Phase 6: git connections drive workflow runs, so both mount together.
         .mount("", git_connections::urls())
         .mount("", workflows::urls())
+        // Phases 7-8: metered billing, and the templates/marketplace foundation.
+        .mount("", billing::urls())
+        .mount("", marketplace::urls())
 }
