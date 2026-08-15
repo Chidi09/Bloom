@@ -226,3 +226,50 @@ Sequenced by blast radius, not by effort.
 Items 1–4 should land before the frontend consumes these endpoints; item 6
 determines the console's data layer shape, so it should land before tables are
 built.
+
+---
+
+## V1 — ViewSet migration is blocked in djangors-rest 0.7.0
+
+Investigated 2026-08-15 while attempting to mount the 315 in-app routes through
+`ScopedViewSet` instead of hand-written handlers. The migration cannot proceed
+as-is. Three facts, each verified in the crate source:
+
+1. **Detail paths are hardcoded to the integer primary key.** Every route helper
+   builds `format!("{clean_base}/{{pk:i64}}")` (`viewsets.rs:1095`, and the same
+   line in each sibling helper). There is no `lookup_field` option in 0.7.0.
+   Our wire contract is the opposite: internal `i64` PKs never cross the API
+   boundary, and all 315 of our detail routes are keyed by public UUID
+   (`/releases/{id}`). We have zero `pk:i64` routes.
+
+2. **The scoped helpers accept no serializer and no permission.**
+   `scoped_viewset_routes_with_config` takes only `ViewSetConfig` and hardcodes
+   `IsAuthenticated` (`viewsets.rs:1101`). The helper that does accept a custom
+   serializer and an explicit permission — `viewset_routes_with_options<M, P>`
+   (`viewsets.rs:1209`) — is built on the unscoped `ViewSet<M>`, so it applies no
+   tenant row filter. Using it in a multi-tenant system would expose rows across
+   organizations. The combination we need (scoped + serializer + role permission)
+   does not exist.
+
+3. **The default serializer emits raw foreign-key integers.** `serializers.rs:11`:
+   "Relation fields serialize as their raw related id integer/null." Our
+   responses embed the *related object's* `public_id` (`app_public_id`,
+   `organization_public_id`, …). Mounting the default serializer would both break
+   the contract asserted by 557 tests and leak internal PKs.
+
+Point 1 alone blocks every detail route; point 2 blocks every write route on a
+role-guarded resource; point 3 blocks every list route.
+
+**This is not an argument against ViewSets.** The 45 `Scoped` impls are already
+written and correct. Unblocking needs one of:
+
+- a `lookup_field` (or `lookup: Uuid`) option on the viewset helpers, plus a
+  `scoped_viewset_routes_with_options` that takes `ViewSetOptions` and a
+  `Permission` — a framework change; or
+- accepting `i64` PKs in URLs — a breaking wire-contract change we should not
+  make silently; or
+- leaving these routes hand-written, which is the current state and is correct,
+  just verbose.
+
+Until one is chosen, hand-written handlers are the right call and the duplication
+removed in `088d253` and `263738b` is the realistic win.
