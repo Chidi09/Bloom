@@ -14,8 +14,8 @@ use super::contracts::{
 };
 use super::errors::MarketplaceError;
 use super::models::{
-    ReviewReport, SellerAccount, Template, TemplateInstall, TemplateInstallDedup, TemplatePurchase,
-    TemplateReview, TemplateVersion,
+    ReviewReport, SellerAccount, Template, TemplateInstallDedup, TemplatePurchase, TemplateReview,
+    TemplateVersion,
 };
 use super::repositories;
 use crate::infra::stripe::{
@@ -2356,50 +2356,33 @@ pub async fn record_template_install(
         date_bucket,
         created_at: Utc::now(),
     };
-    repositories::insert_install_dedup(db, dedup_record)
-        .await
-        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+    // Everything below is one transaction. The dedup row is what makes this install
+    // un-repeatable, so if it commits while a counter update fails, the install is lost
+    // permanently: the retry sees the dedup row and returns early, and the count never moves.
+    //
+    // Counters are incremented in the database (`install_count = install_count + 1`) rather
+    // than read-modify-written from the row fetched earlier. Two installs racing on the same
+    // template would otherwise both read the same starting value and one increment would be
+    // silently dropped.
+    let version_for_tx = version.as_ref().map(|v| (v.id, v.public_id.clone()));
+    let template_id = template.id;
+    let install_actor = actor_org_id.zip(actor_id);
 
-    // Increment durable template aggregate counter
+    repositories::record_install_atomically(
+        db,
+        dedup_record,
+        template_id,
+        version_for_tx.as_ref().map(|(id, _)| *id),
+        install_actor,
+    )
+    .await
+    .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    let version_pub = version_for_tx.map(|(_, public_id)| public_id);
+
+    // Reflect the increment in the value returned to the caller. The authoritative count now
+    // lives in the database; this is the local copy fetched before the transaction.
     template.install_count = template.install_count.saturating_add(1);
-    template.updated_at = Utc::now();
-    repositories::update_template(db, &template)
-        .await
-        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-
-    // Increment version install counter if version is present
-    let version_pub = if let Some(mut ver) = version {
-        ver.install_count = ver.install_count.saturating_add(1);
-        ver.updated_at = Utc::now();
-        repositories::update_version(db, &ver)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-        Some(ver.public_id)
-    } else {
-        None
-    };
-
-    // If installed by an authenticated buyer organization, record durable verified install record
-    if let (Some(buyer_org_id), Some(user_id)) = (actor_org_id, actor_id) {
-        let has_install = repositories::verified_install_exists(db, template.id, buyer_org_id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-
-        if !has_install {
-            let install_record = TemplateInstall {
-                id: 0,
-                public_id: Uuid::new_v4().to_string(),
-                template_id: ForeignKey::new(template.id),
-                template_version_id: None,
-                buyer_organization_id: ForeignKey::new(buyer_org_id),
-                installed_by_user_id: user_id,
-                created_at: Utc::now(),
-            };
-            repositories::insert_template_install(db, install_record)
-                .await
-                .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-        }
-    }
 
     emit_event(
         db,

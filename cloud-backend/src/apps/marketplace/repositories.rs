@@ -573,6 +573,91 @@ pub async fn verified_install_by_template_and_buyer_org(
         .await
 }
 
+/// Records an install as a single atomic unit: the deduplication row, the template counter,
+/// the optional version counter, and the optional verified-install row.
+///
+/// These must commit together. The dedup row is what makes an install un-repeatable, so a
+/// partial commit that stores it without moving the counters loses the install permanently —
+/// the retry sees the dedup row, returns early, and the count never catches up.
+///
+/// # Why this bypasses the model helpers
+///
+/// The `Model` derive generates `save(&self, db: &Database)` and `update(&self, db: &Database)`,
+/// both hardcoded to `&Database`. A transaction hands the closure a `&mut Conn`, which is not a
+/// `&Database`, so neither helper can be called inside one. The `QuerySet` write paths
+/// (`bulk_create`, `update`) are generic over `DbExecutor` and are the supported way to write
+/// transactionally. This is a framework constraint, not a preference.
+///
+/// Counters use `SetExpr::FieldOp`, so the increment happens in the database. Reading the row
+/// and writing back `count + 1` would drop increments whenever two installs race.
+pub async fn record_install_atomically(
+    db: &Database,
+    dedup: TemplateInstallDedup,
+    template_id: i64,
+    version_id: Option<i64>,
+    verified_install_actor: Option<(i64, i64)>,
+) -> Result<(), OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::expr::{ArithOp, SetExpr, Value};
+    use djangors_orm::QuerySet;
+
+    db.transaction_conn(|conn| {
+        Box::pin(async move {
+            QuerySet::<TemplateInstallDedup>::bulk_create(conn.conn(), &[dedup]).await?;
+
+            let increment = || {
+                vec![(
+                    "install_count",
+                    SetExpr::FieldOp {
+                        field: "install_count",
+                        op: ArithOp::Add,
+                        operand: Value::I64(1),
+                    },
+                )]
+            };
+
+            Template::objects()
+                .filter(q!(id = template_id))?
+                .update(conn.conn(), increment())
+                .await?;
+
+            if let Some(ver_id) = version_id {
+                TemplateVersion::objects()
+                    .filter(q!(id = ver_id))?
+                    .update(conn.conn(), increment())
+                    .await?;
+            }
+
+            if let Some((buyer_org_id, user_id)) = verified_install_actor {
+                // Checked inside the transaction so a concurrent install cannot slip a second
+                // verified row past the check between here and the insert.
+                let already = TemplateInstall::objects()
+                    .filter(q!(template_id = template_id))?
+                    .filter(q!(buyer_organization_id = buyer_org_id))?
+                    .exists(conn.conn())
+                    .await?;
+
+                if !already {
+                    let install = TemplateInstall {
+                        id: 0,
+                        public_id: uuid::Uuid::new_v4().to_string(),
+                        template_id: djangors_orm::ForeignKey::new(template_id),
+                        template_version_id: None,
+                        buyer_organization_id: djangors_orm::ForeignKey::new(buyer_org_id),
+                        installed_by_user_id: user_id,
+                        created_at: chrono::Utc::now(),
+                    };
+                    QuerySet::<TemplateInstall>::bulk_create(conn.conn(), &[install]).await?;
+                }
+            }
+
+            Ok::<(), OrmError>(())
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}
+
 /// Insert a new [`TemplateInstall`] record.
 pub async fn insert_template_install(
     db: &Database,
