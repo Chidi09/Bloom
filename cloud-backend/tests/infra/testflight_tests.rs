@@ -1,10 +1,19 @@
-//! Unit tests for App Store Connect / TestFlight infra client.
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use async_trait::async_trait;
+use bloom_cloud_backend::infra::executor::{
+    CommandExecutor, CommandOutput, CommandSpec, ExecutorError,
+};
 use bloom_cloud_backend::infra::testflight::{
+    build_altool_upload_args, classify_altool_error, extract_json_from_output,
+    parse_altool_errors_from_output, AltoolJsonResponse, AltoolProductError, AltoolUploadOptions,
     AppStoreBuildResource, AppStoreBuildsResponse, AppStoreJwtClaims, AppStoreJwtHeader,
     BetaGroupBuildLinkage, BetaGroupBuildsRequest, TestFlightClient, TestFlightConfig,
-    TestFlightError, TestFlightProcessingState, APP_STORE_CONNECT_AUDIENCE,
-    DEFAULT_APP_STORE_CONNECT_BASE_URL, DEFAULT_JWT_LIFETIME_SECS, MAX_JWT_LIFETIME_SECS,
+    TestFlightError, TestFlightPlatform, TestFlightProcessingState, ALTOOL_PASSWORD_ENV_VAR,
+    APP_STORE_CONNECT_AUDIENCE, DEFAULT_APP_STORE_CONNECT_BASE_URL, DEFAULT_JWT_LIFETIME_SECS,
+    IPA_UPLOAD_TIMEOUT, MAX_JWT_LIFETIME_SECS,
 };
 use bloom_cloud_backend::settings::TestFlightSettings;
 
@@ -331,4 +340,683 @@ fn test_unconfigured_client() {
 
     let client_unconfigured = TestFlightClient::unconfigured();
     assert!(!client_unconfigured.is_configured());
+}
+
+/// Test fake CommandExecutor recording invocations and playing back responses.
+#[derive(Clone, Default)]
+struct FakeCommandExecutor {
+    recorded: Arc<Mutex<Vec<CommandSpec>>>,
+    responses: Arc<Mutex<Vec<Result<CommandOutput, ExecutorError>>>>,
+}
+
+impl FakeCommandExecutor {
+    fn new() -> Self {
+        Self {
+            recorded: Arc::new(Mutex::new(Vec::new())),
+            responses: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn push_success(&self, stdout: impl Into<String>, stderr: impl Into<String>) {
+        self.responses.lock().unwrap().push(Ok(CommandOutput {
+            exit_code: Some(0),
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+            duration: Duration::from_millis(10),
+        }));
+    }
+
+    fn push_error(&self, err: ExecutorError) {
+        self.responses.lock().unwrap().push(Err(err));
+    }
+
+    fn recorded_specs(&self) -> Vec<CommandSpec> {
+        self.recorded.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl CommandExecutor for FakeCommandExecutor {
+    async fn run(&self, spec: &CommandSpec) -> Result<CommandOutput, ExecutorError> {
+        self.recorded.lock().unwrap().push(spec.clone());
+        let mut responses = self.responses.lock().unwrap();
+        if !responses.is_empty() {
+            responses.remove(0)
+        } else {
+            Ok(CommandOutput {
+                exit_code: Some(0),
+                stdout: String::new(),
+                stderr: String::new(),
+                duration: Duration::from_millis(10),
+            })
+        }
+    }
+}
+
+#[test]
+fn test_altool_platform_constants_and_parsing() {
+    assert_eq!(IPA_UPLOAD_TIMEOUT, Duration::from_secs(1800));
+    assert_eq!(ALTOOL_PASSWORD_ENV_VAR, "ALTOOL_PASSWORD");
+
+    assert_eq!(TestFlightPlatform::Ios.as_str(), "ios");
+    assert_eq!(TestFlightPlatform::Macos.as_str(), "macos");
+    assert_eq!(TestFlightPlatform::AppletvOs.as_str(), "appletvos");
+    assert_eq!(TestFlightPlatform::VisionOs.as_str(), "visionos");
+
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("ios"),
+        Some(TestFlightPlatform::Ios)
+    );
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("iOS"),
+        Some(TestFlightPlatform::Ios)
+    );
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("macos"),
+        Some(TestFlightPlatform::Macos)
+    );
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("appletvos"),
+        Some(TestFlightPlatform::AppletvOs)
+    );
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("tvos"),
+        Some(TestFlightPlatform::AppletvOs)
+    );
+    assert_eq!(
+        TestFlightPlatform::from_str_opt("visionos"),
+        Some(TestFlightPlatform::VisionOs)
+    );
+    assert_eq!(TestFlightPlatform::from_str_opt("android"), None);
+}
+
+#[test]
+fn test_altool_argv_construction_platforms() {
+    // 1. iOS
+    let args_ios = build_altool_upload_args(
+        "/tmp/build/Runner.ipa",
+        TestFlightPlatform::Ios,
+        "dev@example.com",
+        ALTOOL_PASSWORD_ENV_VAR,
+    );
+    assert_eq!(
+        args_ios,
+        vec![
+            "altool",
+            "--upload-app",
+            "-f",
+            "/tmp/build/Runner.ipa",
+            "-t",
+            "ios",
+            "-u",
+            "dev@example.com",
+            "-p",
+            "@env:ALTOOL_PASSWORD",
+            "--output-format",
+            "json"
+        ]
+    );
+
+    // 2. macOS
+    let args_macos = build_altool_upload_args(
+        "/tmp/build/App.pkg",
+        TestFlightPlatform::Macos,
+        "dev@example.com",
+        ALTOOL_PASSWORD_ENV_VAR,
+    );
+    assert_eq!(
+        args_macos,
+        vec![
+            "altool",
+            "--upload-app",
+            "-f",
+            "/tmp/build/App.pkg",
+            "-t",
+            "macos",
+            "-u",
+            "dev@example.com",
+            "-p",
+            "@env:ALTOOL_PASSWORD",
+            "--output-format",
+            "json"
+        ]
+    );
+
+    // 3. tvOS
+    let args_tvos = build_altool_upload_args(
+        "/tmp/build/TvApp.ipa",
+        TestFlightPlatform::AppletvOs,
+        "dev@example.com",
+        ALTOOL_PASSWORD_ENV_VAR,
+    );
+    assert_eq!(
+        args_tvos,
+        vec![
+            "altool",
+            "--upload-app",
+            "-f",
+            "/tmp/build/TvApp.ipa",
+            "-t",
+            "appletvos",
+            "-u",
+            "dev@example.com",
+            "-p",
+            "@env:ALTOOL_PASSWORD",
+            "--output-format",
+            "json"
+        ]
+    );
+
+    // 4. visionOS
+    let args_visionos = build_altool_upload_args(
+        "/tmp/build/VisionApp.ipa",
+        TestFlightPlatform::VisionOs,
+        "dev@example.com",
+        ALTOOL_PASSWORD_ENV_VAR,
+    );
+    assert_eq!(
+        args_visionos,
+        vec![
+            "altool",
+            "--upload-app",
+            "-f",
+            "/tmp/build/VisionApp.ipa",
+            "-t",
+            "visionos",
+            "-u",
+            "dev@example.com",
+            "-p",
+            "@env:ALTOOL_PASSWORD",
+            "--output-format",
+            "json"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn test_altool_password_in_env_never_in_argv() {
+    let executor = FakeCommandExecutor::new();
+    executor.push_success(
+        r#"{"tool-version":"16.0","os-version":"15.0","product-errors":[]}"#,
+        "",
+    );
+
+    let client = TestFlightClient::unconfigured();
+    let secret_password = "app-specific-secret-password-xyz-987";
+
+    let result = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "apple-dev@example.com",
+            secret_password,
+        )
+        .await;
+
+    assert!(result.is_ok());
+
+    let specs = executor.recorded_specs();
+    assert_eq!(specs.len(), 1);
+    let spec = &specs[0];
+
+    // Program must be xcrun
+    assert_eq!(spec.program, "xcrun");
+
+    // Argv check: must contain "@env:ALTOOL_PASSWORD", and MUST NEVER contain the actual password
+    assert!(spec.args.contains(&"@env:ALTOOL_PASSWORD".to_string()));
+    for arg in &spec.args {
+        assert!(
+            !arg.contains(secret_password),
+            "Secret password leaked into argv argument: {arg}"
+        );
+    }
+
+    // Environment check: password appears in env overlay
+    assert_eq!(
+        spec.env,
+        vec![(
+            ALTOOL_PASSWORD_ENV_VAR.to_string(),
+            secret_password.to_string()
+        )]
+    );
+
+    // CommandSpec manual Debug redaction verification
+    let debug_repr = format!("{spec:?}");
+    assert!(
+        !debug_repr.contains(secret_password),
+        "Secret password leaked in CommandSpec Debug representation: {debug_repr}"
+    );
+    assert!(debug_repr.contains("[redacted]"));
+}
+
+#[tokio::test]
+async fn test_altool_successful_upload_json() {
+    let executor = FakeCommandExecutor::new();
+    executor.push_success(
+        r#"{
+            "tool-version": "16.0",
+            "os-version": "15.0",
+            "tool-path": "/Applications/Xcode.app/Contents/SharedFrameworks/ContentDeliveryServices.framework",
+            "product-errors": []
+        }"#,
+        "",
+    );
+
+    let client = TestFlightClient::unconfigured();
+    let res = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await;
+
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_altool_binary_rejected_entitlement_error() {
+    let executor = FakeCommandExecutor::new();
+    let failure_json = r#"{
+        "product-errors": [
+            {
+                "code": 90034,
+                "message": "Missing or invalid entitlement for push notifications (ITMS-90034).",
+                "userInfo": {
+                    "NSLocalizedDescription": "Missing or invalid entitlement for push notifications (ITMS-90034)."
+                }
+            }
+        ]
+    }"#;
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(1),
+        stderr: failure_json.to_string(),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::BinaryRejected { code, message } => {
+            assert_eq!(code.as_deref(), Some("90034"));
+            assert!(message.contains("Missing or invalid entitlement"));
+        }
+        other => panic!("Expected BinaryRejected error variant, got: {other:?}"),
+    }
+
+    assert!(!err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_binary_rejected_bundle_id_and_provisioning() {
+    let executor = FakeCommandExecutor::new();
+    let failure_json = r#"{
+        "product-errors": [
+            {
+                "code": "ITMS-90189",
+                "message": "Redundant or invalid provisioning profile detected.",
+                "userInfo": {
+                    "NSLocalizedDescription": "Redundant or invalid provisioning profile detected."
+                }
+            }
+        ]
+    }"#;
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(1),
+        stderr: failure_json.to_string(),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::BinaryRejected { code, message } => {
+            assert_eq!(code.as_deref(), Some("ITMS-90189"));
+            assert!(message.contains("Redundant or invalid provisioning profile"));
+        }
+        other => panic!("Expected BinaryRejected error variant, got: {other:?}"),
+    }
+
+    assert!(!err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_auth_rejected_error() {
+    let executor = FakeCommandExecutor::new();
+    let auth_failure_json = r#"{
+        "product-errors": [
+            {
+                "code": -1011,
+                "message": "Unable to authenticate with App Store Connect.",
+                "userInfo": {
+                    "NSLocalizedDescription": "Unable to authenticate with App Store Connect.",
+                    "NSLocalizedFailureReason": "Invalid Apple ID username or App-Specific Password."
+                }
+            }
+        ]
+    }"#;
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(1),
+        stderr: auth_failure_json.to_string(),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::Auth(msg) => {
+            assert!(msg.contains("Unable to authenticate"));
+        }
+        other => panic!("Expected Auth error variant, got: {other:?}"),
+    }
+
+    assert!(!err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_transport_retryable_error() {
+    // The code below is deliberately NOT in the numerically-matched transient set: retry
+    // classification must come from the message text, because Apple publishes no exhaustive
+    // list of transient upload codes.
+    let executor = FakeCommandExecutor::new();
+    let transport_json = r#"{
+        "product-errors": [
+            {
+                "code": 1519,
+                "message": "Connection to the ingest server timed out. Please try again later.",
+                "userInfo": {
+                    "NSLocalizedDescription": "Connection to the ingest server timed out. Please try again later."
+                }
+            }
+        ]
+    }"#;
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(1),
+        stderr: transport_json.to_string(),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::Transport { message, retryable } => {
+            assert!(*retryable);
+            assert!(message.contains("timed out"));
+        }
+        other => panic!("Expected Transport error variant, got: {other:?}"),
+    }
+
+    assert!(err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_executor_timeout_retryable() {
+    let executor = FakeCommandExecutor::new();
+    executor.push_error(ExecutorError::Timeout { seconds: 1800 });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::Transport { message, retryable } => {
+            assert!(*retryable);
+            assert!(message.contains("1800 seconds"));
+        }
+        other => panic!("Expected Transport error variant, got: {other:?}"),
+    }
+
+    assert!(err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_tooling_absent_maps_to_not_configured() {
+    // 1. Spawn failure (binary missing)
+    let exec1 = FakeCommandExecutor::new();
+    exec1.push_error(ExecutorError::Spawn(
+        "Failed to spawn 'xcrun': No such file or directory".to_string(),
+    ));
+
+    let client = TestFlightClient::unconfigured();
+    let err1 = client
+        .upload_ipa_tooling(&exec1, "/tmp/app.ipa", "dev@example.com", "app-spec-pass")
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err1, TestFlightError::NotConfigured(_)));
+
+    // 2. xcrun error diagnostic in stderr
+    let exec2 = FakeCommandExecutor::new();
+    exec2.push_error(ExecutorError::NonZeroExit {
+        code: Some(72),
+        stderr: "xcrun: error: unable to find utility \"altool\", not a developer tool or in PATH"
+            .to_string(),
+    });
+
+    let err2 = client
+        .upload_ipa_tooling(&exec2, "/tmp/app.ipa", "dev@example.com", "app-spec-pass")
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err2, TestFlightError::NotConfigured(_)));
+}
+
+#[tokio::test]
+async fn test_altool_non_zero_exit_unparseable_output() {
+    let executor = FakeCommandExecutor::new();
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(137),
+        stderr: "FATAL: Process killed by SIGKILL (OOM or runner signal)".to_string(),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "dev@example.com",
+            "app-spec-pass",
+        )
+        .await
+        .unwrap_err();
+
+    match &err {
+        TestFlightError::ExecutionFailed { exit_code, stderr } => {
+            assert_eq!(*exit_code, Some(137));
+            assert_eq!(
+                stderr,
+                "FATAL: Process killed by SIGKILL (OOM or runner signal)"
+            );
+        }
+        other => panic!("Expected ExecutionFailed error variant, got: {other:?}"),
+    }
+
+    assert!(!err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_altool_credential_redacted_from_error_strings() {
+    let secret_pwd = "super-secret-cleartext-password-999";
+    let executor = FakeCommandExecutor::new();
+    executor.push_error(ExecutorError::NonZeroExit {
+        code: Some(1),
+        stderr: format!(
+            "Authentication failed for user developer@example.com with password {secret_pwd}."
+        ),
+    });
+
+    let client = TestFlightClient::unconfigured();
+    let err = client
+        .upload_ipa_tooling(
+            &executor,
+            "/tmp/app.ipa",
+            "developer@example.com",
+            secret_pwd,
+        )
+        .await
+        .unwrap_err();
+
+    let display_str = err.to_string();
+    let debug_str = format!("{err:?}");
+
+    assert!(
+        !display_str.contains(secret_pwd),
+        "Secret password leaked in TestFlightError Display: {display_str}"
+    );
+    assert!(
+        !debug_str.contains(secret_pwd),
+        "Secret password leaked in TestFlightError Debug: {debug_str}"
+    );
+    assert!(display_str.contains("[redacted]"));
+}
+
+#[tokio::test]
+async fn test_altool_empty_inputs_validation() {
+    let executor = FakeCommandExecutor::new();
+    let client = TestFlightClient::unconfigured();
+
+    // 1. Empty IPA path
+    let err_path = client
+        .upload_ipa_tooling(&executor, "   ", "dev@example.com", "pass")
+        .await;
+    assert!(matches!(
+        err_path,
+        Err(TestFlightError::BinaryRejected { .. })
+    ));
+
+    // 2. Empty Apple ID
+    let err_id = client
+        .upload_ipa_tooling(&executor, "/tmp/app.ipa", "   ", "pass")
+        .await;
+    assert!(matches!(err_id, Err(TestFlightError::Auth(_))));
+
+    // 3. Empty password
+    let err_pwd = client
+        .upload_ipa_tooling(&executor, "/tmp/app.ipa", "dev@example.com", "   ")
+        .await;
+    assert!(matches!(err_pwd, Err(TestFlightError::Auth(_))));
+
+    // Executor was never invoked for input validation failures
+    assert_eq!(executor.recorded_specs().len(), 0);
+}
+
+#[tokio::test]
+async fn test_altool_custom_options() {
+    let executor = FakeCommandExecutor::new();
+    executor.push_success(
+        r#"{"tool-version":"16.0","os-version":"15.0","product-errors":[]}"#,
+        "",
+    );
+
+    let client = TestFlightClient::unconfigured();
+    let options = AltoolUploadOptions {
+        platform: TestFlightPlatform::Macos,
+        working_dir: Some(PathBuf::from("/tmp/workspace")),
+        timeout: Duration::from_secs(600),
+    };
+
+    let result = client
+        .upload_ipa_tooling_with_options(
+            &executor,
+            "/tmp/app.pkg",
+            "dev@example.com",
+            "app-specific-pass",
+            &options,
+        )
+        .await;
+
+    assert!(result.is_ok());
+
+    let specs = executor.recorded_specs();
+    assert_eq!(specs.len(), 1);
+    let spec = &specs[0];
+
+    assert_eq!(spec.args[5], "macos");
+    assert_eq!(spec.working_dir, PathBuf::from("/tmp/workspace"));
+    assert_eq!(spec.timeout, Duration::from_secs(600));
+}
+
+#[test]
+fn test_altool_json_extraction_and_classification() {
+    // 1. JSON extraction with surrounding log noise
+    let noisy_output = "2026-08-15 12:00:00 altool[123:456] Logging...\n{\n  \"tool-version\": \"16.0\",\n  \"product-errors\": [\n    {\n      \"code\": 90189,\n      \"message\": \"Invalid profile\"\n    }\n  ]\n}\nFinished.";
+    let json_extracted = extract_json_from_output(noisy_output).expect("extract JSON");
+    assert!(json_extracted.starts_with('{'));
+    assert!(json_extracted.ends_with('}'));
+
+    let errors = parse_altool_errors_from_output(noisy_output, "").expect("parse product errors");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].code_str().as_deref(), Some("90189"));
+    assert_eq!(errors[0].resolved_message(), "Invalid profile");
+
+    let classified = classify_altool_error(&errors[0]);
+    match classified {
+        TestFlightError::BinaryRejected { code, message } => {
+            assert_eq!(code.as_deref(), Some("90189"));
+            assert_eq!(message, "Invalid profile");
+        }
+        other => panic!("Expected BinaryRejected, got: {other:?}"),
+    }
+
+    // 2. Direct AltoolJsonResponse deserialization
+    let raw_json =
+        r#"{"tool-version":"16.0","os-version":"15.0","success-message":"UPLOAD SUCCEEDED"}"#;
+    let parsed: AltoolJsonResponse = serde_json::from_str(raw_json).expect("deserialize JSON");
+    assert_eq!(parsed.tool_version.as_deref(), Some("16.0"));
+    assert_eq!(parsed.success_message.as_deref(), Some("UPLOAD SUCCEEDED"));
+
+    // 3. UserInfo fallback message resolution
+    let err_with_userinfo = AltoolProductError {
+        code: Some(serde_json::json!(-1011)),
+        message: None,
+        user_info: Some(serde_json::json!({
+            "NSLocalizedFailureReason": "Authentication rejected by upstream server."
+        })),
+    };
+    assert_eq!(
+        err_with_userinfo.resolved_message(),
+        "Authentication rejected by upstream server."
+    );
+    let classified_auth = classify_altool_error(&err_with_userinfo);
+    assert!(matches!(classified_auth, TestFlightError::Auth(_)));
 }

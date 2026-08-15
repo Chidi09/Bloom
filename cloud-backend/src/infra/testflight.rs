@@ -42,11 +42,13 @@
 //! implements custom `Debug` redaction.
 
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 
+use crate::infra::executor::{redact, CommandExecutor, CommandSpec, ExecutorError};
 use crate::settings::TestFlightSettings;
 
 /// Default base URL for App Store Connect API v1.
@@ -66,14 +68,160 @@ pub const DEFAULT_JWT_LIFETIME_SECS: u64 = 900;
 /// Standard HTTP request timeout for App Store Connect API calls (30 seconds).
 pub const DEFAULT_TESTFLIGHT_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Extended execution timeout for IPA binary uploads via Apple tooling (30 minutes / 1800 seconds).
+///
+/// Binary IPA payloads can exceed 100MB+ and require chunked validation by Apple's ingestion servers.
+/// A 30-minute ceiling guarantees slow network uplinks complete without prematurely failing valid builds.
+pub const IPA_UPLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+/// Environment variable name used to pass the App-Specific Password to `xcrun altool`.
+///
+/// Apple's `man altool` specifies `-p @env:<VAR_NAME>` to securely read credentials from the
+/// environment rather than placing plaintext secrets on argv or in shell history.
+pub const ALTOOL_PASSWORD_ENV_VAR: &str = "ALTOOL_PASSWORD";
+
 /// Expected audience claim for App Store Connect API JWT tokens.
 /// Authorised by EXTERNAL_APIS.txt line 163.
 pub const APP_STORE_CONNECT_AUDIENCE: &str = "appstoreconnect-v1";
 
+/// Target platform for Apple tooling binary uploads.
+///
+/// Authorised by `man altool` (`--type {macos | ios | appletvos | visionos}`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TestFlightPlatform {
+    /// iOS platform (`ios`).
+    #[default]
+    Ios,
+    /// macOS platform (`macos`).
+    Macos,
+    /// Apple tvOS platform (`appletvos`).
+    AppletvOs,
+    /// Apple visionOS platform (`visionos`).
+    VisionOs,
+}
+
+impl TestFlightPlatform {
+    /// Returns the canonical CLI platform identifier string for `xcrun altool --type`.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TestFlightPlatform::Ios => "ios",
+            TestFlightPlatform::Macos => "macos",
+            TestFlightPlatform::AppletvOs => "appletvos",
+            TestFlightPlatform::VisionOs => "visionos",
+        }
+    }
+
+    /// Parses a platform string into a [`TestFlightPlatform`] variant.
+    pub fn from_str_opt(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "ios" => Some(TestFlightPlatform::Ios),
+            "macos" => Some(TestFlightPlatform::Macos),
+            "appletvos" | "tvos" => Some(TestFlightPlatform::AppletvOs),
+            "visionos" => Some(TestFlightPlatform::VisionOs),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for TestFlightPlatform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// Options for configuring an `xcrun altool` binary upload invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltoolUploadOptions {
+    /// Target platform type (defaults to [`TestFlightPlatform::Ios`]).
+    pub platform: TestFlightPlatform,
+    /// Custom working directory for the command.
+    pub working_dir: Option<PathBuf>,
+    /// Execution timeout for the upload operation.
+    pub timeout: Duration,
+}
+
+impl Default for AltoolUploadOptions {
+    fn default() -> Self {
+        Self {
+            platform: TestFlightPlatform::Ios,
+            working_dir: None,
+            timeout: IPA_UPLOAD_TIMEOUT,
+        }
+    }
+}
+
+/// Individual error entry returned in `xcrun altool` JSON output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AltoolProductError {
+    /// Numeric or string error code from Apple (e.g. -1011, 90034, 1190).
+    #[serde(default)]
+    pub code: Option<serde_json::Value>,
+    /// Human-readable error message.
+    #[serde(default)]
+    pub message: Option<String>,
+    /// Additional context dictionary from Apple foundation tooling.
+    #[serde(rename = "userInfo", default)]
+    pub user_info: Option<serde_json::Value>,
+}
+
+impl AltoolProductError {
+    /// Returns the string representation of the error code, if present.
+    pub fn code_str(&self) -> Option<String> {
+        match &self.code {
+            Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+            Some(serde_json::Value::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    /// Returns the resolved error message combining the primary message and user info details.
+    pub fn resolved_message(&self) -> String {
+        if let Some(ref msg) = self.message {
+            if !msg.trim().is_empty() {
+                return msg.clone();
+            }
+        }
+        if let Some(serde_json::Value::Object(map)) = &self.user_info {
+            for key in [
+                "NSLocalizedDescription",
+                "NSLocalizedFailureReason",
+                "description",
+            ] {
+                if let Some(serde_json::Value::String(val)) = map.get(key) {
+                    if !val.trim().is_empty() {
+                        return val.clone();
+                    }
+                }
+            }
+        }
+        "Unknown Apple tooling error".to_string()
+    }
+}
+
+/// Root JSON envelope emitted by `xcrun altool --output-format json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AltoolJsonResponse {
+    /// Version of the altool utility.
+    #[serde(rename = "tool-version", default)]
+    pub tool_version: Option<String>,
+    /// Operating system version.
+    #[serde(rename = "os-version", default)]
+    pub os_version: Option<String>,
+    /// Array of product validation or upload errors.
+    #[serde(rename = "product-errors", default)]
+    pub product_errors: Option<Vec<AltoolProductError>>,
+    /// Generic errors array fallback.
+    #[serde(default)]
+    pub errors: Option<Vec<AltoolProductError>>,
+    /// Success confirmation message if present.
+    #[serde(rename = "success-message", default)]
+    pub success_message: Option<String>,
+}
+
 /// Errors arising from App Store Connect / TestFlight operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestFlightError {
-    /// Client or API credentials are not configured.
+    /// Client or API credentials are not configured, or Apple tooling is not installed.
     NotConfigured(String),
     /// Request payload serialization or response parsing failure.
     Serialization(String),
@@ -90,6 +238,38 @@ pub enum TestFlightError {
         /// Error message or body from the API.
         message: String,
     },
+    /// Apple rejected the uploaded IPA binary (e.g. bad bundle ID, missing entitlement, invalid provisioning profile).
+    BinaryRejected {
+        /// Vendor error code if available (e.g. "ITMS-90034", "90189", "-1190").
+        code: Option<String>,
+        /// Descriptive message from Apple tooling or validation logs.
+        message: String,
+    },
+    /// Transient network or timeout failure during upload (retryable).
+    Transport {
+        /// Details of the transport failure or timeout.
+        message: String,
+        /// Whether the failure is transient and retryable.
+        retryable: bool,
+    },
+    /// Upload process or command execution failed with non-zero exit status and unparseable output.
+    ExecutionFailed {
+        /// Process exit code if available.
+        exit_code: Option<i32>,
+        /// Redacted standard error output.
+        stderr: String,
+    },
+}
+
+impl TestFlightError {
+    /// Returns `true` if the error represents a transient network or timeout condition that can be retried.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            TestFlightError::Transport { retryable, .. } => *retryable,
+            TestFlightError::Http(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for TestFlightError {
@@ -108,6 +288,27 @@ impl fmt::Display for TestFlightError {
             }
             TestFlightError::Api { status, message } => {
                 write!(f, "App Store Connect API error (HTTP {status}): {message}")
+            }
+            TestFlightError::BinaryRejected { code, message } => match code {
+                Some(c) => write!(f, "Apple binary rejected ({c}): {message}"),
+                None => write!(f, "Apple binary rejected: {message}"),
+            },
+            TestFlightError::Transport { message, retryable } => {
+                let r_str = if *retryable {
+                    "retryable"
+                } else {
+                    "non-retryable"
+                };
+                write!(f, "TestFlight transport failure ({r_str}): {message}")
+            }
+            TestFlightError::ExecutionFailed { exit_code, stderr } => {
+                let code_str = exit_code
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "signal".to_string());
+                write!(
+                    f,
+                    "Apple tooling execution failed (exit code {code_str}): {stderr}"
+                )
             }
         }
     }
@@ -683,20 +884,295 @@ impl TestFlightClient {
         Self::create_signed_jwt(issuer_id, key_id, private_key_p8_pem, now_unix_secs)
     }
 
-    /// Uploads an IPA binary payload via Apple's native command-line tooling.
+    /// Uploads an IPA binary payload via Apple's native command-line tooling (`xcrun altool --upload-app`).
     ///
-    /// Note: Apple does not provide a REST endpoint for uploading binary IPAs.
-    /// Authorised by EXTERNAL_APIS.txt lines 171-176.
+    /// The app-specific password is provided to the child process exclusively through the
+    /// environment (`@env:ALTOOL_PASSWORD`), ensuring credentials never appear on argv.
+    ///
+    /// # Parameters
+    /// - `executor`: Sandboxed command executor seam ([`CommandExecutor`]).
+    /// - `ipa_path`: Path to the `.ipa` or `.pkg` binary artifact on disk.
+    /// - `apple_id`: Apple ID username (email address).
+    /// - `app_specific_password`: Dedicated App-Specific Password for App Store Connect.
     pub async fn upload_ipa_tooling(
         &self,
-        _ipa_path: &str,
-        _apple_id: &str,
-        _app_specific_password: &str,
+        executor: &dyn CommandExecutor,
+        ipa_path: &str,
+        apple_id: &str,
+        app_specific_password: &str,
     ) -> Result<(), TestFlightError> {
-        // TODO(spec): Apple accepts binary uploads only via xcrun altool --upload-app or iTMSTransporter; there is no REST upload endpoint.
-        Err(TestFlightError::NotConfigured(
-            "IPA binary upload requires local xcrun altool or iTMSTransporter tooling execution"
-                .to_string(),
-        ))
+        self.upload_ipa_tooling_with_options(
+            executor,
+            ipa_path,
+            apple_id,
+            app_specific_password,
+            &AltoolUploadOptions::default(),
+        )
+        .await
+    }
+
+    /// Uploads an IPA binary payload with customized platform and timeout options.
+    ///
+    /// # Parameters
+    /// - `executor`: Sandboxed command executor seam ([`CommandExecutor`]).
+    /// - `ipa_path`: Path to the `.ipa` or `.pkg` binary artifact on disk.
+    /// - `apple_id`: Apple ID username (email address).
+    /// - `app_specific_password`: Dedicated App-Specific Password for App Store Connect.
+    /// - `options`: Upload parameters including target platform, working dir, and timeout.
+    pub async fn upload_ipa_tooling_with_options(
+        &self,
+        executor: &dyn CommandExecutor,
+        ipa_path: &str,
+        apple_id: &str,
+        app_specific_password: &str,
+        options: &AltoolUploadOptions,
+    ) -> Result<(), TestFlightError> {
+        let trimmed_path = ipa_path.trim();
+        if trimmed_path.is_empty() {
+            return Err(TestFlightError::BinaryRejected {
+                code: None,
+                message: "IPA binary file path cannot be empty".to_string(),
+            });
+        }
+
+        let trimmed_id = apple_id.trim();
+        if trimmed_id.is_empty() {
+            return Err(TestFlightError::Auth(
+                "Apple ID username cannot be empty".to_string(),
+            ));
+        }
+
+        let trimmed_pwd = app_specific_password.trim();
+        if trimmed_pwd.is_empty() {
+            return Err(TestFlightError::Auth(
+                "App-specific password cannot be empty".to_string(),
+            ));
+        }
+
+        let working_dir = options
+            .working_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let args = build_altool_upload_args(
+            trimmed_path,
+            options.platform,
+            trimmed_id,
+            ALTOOL_PASSWORD_ENV_VAR,
+        );
+
+        let spec = CommandSpec::new("xcrun", working_dir)
+            .with_args(args)
+            .with_env_var(ALTOOL_PASSWORD_ENV_VAR, trimmed_pwd)
+            .with_timeout(options.timeout);
+
+        let output_res = executor.run(&spec).await;
+
+        match output_res {
+            Ok(output) => {
+                let clean_stdout = redact(&output.stdout, &[trimmed_pwd]);
+                let clean_stderr = redact(&output.stderr, &[trimmed_pwd]);
+
+                if let Some(errors) = parse_altool_errors_from_output(&clean_stdout, &clean_stderr)
+                {
+                    if let Some(first_err) = errors.first() {
+                        return Err(classify_altool_error(first_err));
+                    }
+                }
+
+                // LocalExecutor converts a non-zero exit into ExecutorError::NonZeroExit, so an
+                // Ok here normally implies success. That is the executor's behaviour, not a
+                // guarantee of the CommandExecutor trait, and reporting a successful upload is
+                // exactly the claim that must never be fabricated -- so verify it explicitly
+                // rather than inferring it from the absence of a parsed error.
+                if !output.is_success() {
+                    return Err(TestFlightError::ExecutionFailed {
+                        exit_code: output.exit_code,
+                        stderr: clean_stderr,
+                    });
+                }
+
+                Ok(())
+            }
+            Err(ExecutorError::Spawn(e)) => Err(TestFlightError::NotConfigured(format!(
+                "Apple tooling (xcrun/altool) is not available: {e}"
+            ))),
+            Err(ExecutorError::Timeout { seconds }) => Err(TestFlightError::Transport {
+                message: format!("IPA binary upload timed out after {seconds} seconds"),
+                retryable: true,
+            }),
+            Err(ExecutorError::Io(e)) => Err(TestFlightError::Transport {
+                message: format!("I/O error executing Apple upload tooling: {e}"),
+                retryable: true,
+            }),
+            Err(ExecutorError::NonZeroExit { code, stderr }) => {
+                let clean_stderr = redact(&stderr, &[trimmed_pwd]);
+
+                if let Some(errors) = parse_altool_errors_from_output("", &clean_stderr) {
+                    if let Some(first_err) = errors.first() {
+                        return Err(classify_altool_error(first_err));
+                    }
+                }
+
+                let stderr_lower = clean_stderr.to_ascii_lowercase();
+
+                // Check for missing xcrun / altool tooling
+                if clean_stderr.contains("xcrun: error:")
+                    || clean_stderr.contains("unable to find utility")
+                    || stderr_lower.contains("command not found")
+                    || stderr_lower.contains("no such file or directory")
+                {
+                    return Err(TestFlightError::NotConfigured(clean_stderr));
+                }
+
+                // Check for auth rejection in raw text
+                if stderr_lower.contains("authenticate")
+                    || stderr_lower.contains("authentication")
+                    || stderr_lower.contains("credentials")
+                    || stderr_lower.contains("unauthorized")
+                    || stderr_lower.contains("password")
+                {
+                    return Err(TestFlightError::Auth(clean_stderr));
+                }
+
+                // Check for transport / network errors in raw text
+                if stderr_lower.contains("timed out")
+                    || stderr_lower.contains("timeout")
+                    || stderr_lower.contains("connection reset")
+                    || stderr_lower.contains("connection refused")
+                    || stderr_lower.contains("network")
+                {
+                    return Err(TestFlightError::Transport {
+                        message: clean_stderr,
+                        retryable: true,
+                    });
+                }
+
+                Err(TestFlightError::ExecutionFailed {
+                    exit_code: code,
+                    stderr: clean_stderr,
+                })
+            }
+        }
+    }
+}
+
+/// Constructs the pure, unit-testable argv list for `xcrun altool --upload-app`.
+///
+/// Passes arguments directly without shell interpretation to avoid command injection.
+/// The password secret is referenced via the `@env:<VAR_NAME>` syntax and never placed on argv.
+/// Authorised by `man altool` and EXTERNAL_APIS.txt lines 171-176.
+pub fn build_altool_upload_args(
+    ipa_path: &str,
+    platform: TestFlightPlatform,
+    apple_id: &str,
+    env_password_var: &str,
+) -> Vec<String> {
+    vec![
+        "altool".to_string(),
+        "--upload-app".to_string(),
+        "-f".to_string(),
+        ipa_path.to_string(),
+        "-t".to_string(),
+        platform.as_str().to_string(),
+        "-u".to_string(),
+        apple_id.to_string(),
+        "-p".to_string(),
+        format!("@env:{env_password_var}"),
+        "--output-format".to_string(),
+        "json".to_string(),
+    ]
+}
+
+/// Extracts structured JSON substring from raw CLI output if present.
+pub fn extract_json_from_output(output: &str) -> Option<&str> {
+    let start = output.find('{')?;
+    let end = output.rfind('}')?;
+    if start <= end {
+        Some(&output[start..=end])
+    } else {
+        None
+    }
+}
+
+/// Parses `altool` JSON output and extracts errors if present.
+pub fn parse_altool_errors_from_output(
+    stdout: &str,
+    stderr: &str,
+) -> Option<Vec<AltoolProductError>> {
+    for stream in [stdout, stderr] {
+        if let Some(json_str) = extract_json_from_output(stream) {
+            if let Ok(parsed) = serde_json::from_str::<AltoolJsonResponse>(json_str) {
+                if let Some(errors) = parsed.product_errors {
+                    if !errors.is_empty() {
+                        return Some(errors);
+                    }
+                }
+                if let Some(errors) = parsed.errors {
+                    if !errors.is_empty() {
+                        return Some(errors);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Classifies an [`AltoolProductError`] into a strongly-typed [`TestFlightError`].
+pub fn classify_altool_error(error: &AltoolProductError) -> TestFlightError {
+    let code_str = error.code_str();
+    let msg = error.resolved_message();
+    let msg_lower = msg.to_ascii_lowercase();
+
+    // 1. Authentication errors.
+    //
+    // -1011 is the documented "failed to authenticate for session" code and is confirmed against
+    // Apple Developer Forums threads 706894 and 722946. The remaining classification is by
+    // message text, which is what actually carries the signal here: Apple's auth failures are
+    // reported under several codes (-24169, -18000, -22014 all appear in the wild) and no
+    // published exhaustive list exists, so matching text is more reliable than guessing codes.
+    let is_auth_code = matches!(code_str.as_deref(), Some("-1011") | Some("401"));
+    let is_auth_text = msg_lower.contains("authenticate")
+        || msg_lower.contains("authentication")
+        || msg_lower.contains("invalid username or password")
+        || msg_lower.contains("credentials")
+        || msg_lower.contains("unauthorized")
+        || msg_lower.contains("password");
+
+    if is_auth_code || is_auth_text {
+        return TestFlightError::Auth(msg);
+    }
+
+    // 2. Transient transport / timeout errors.
+    //
+    // Only HTTP-derived status codes are matched numerically. A previous revision also listed
+    // 1519 as a transient Apple code; that value could not be substantiated against any primary
+    // source and has been removed rather than left in as a guess. Retry classification here is
+    // driven by message text, and a misclassification is safe in the conservative direction:
+    // an unmatched error falls through to BinaryRejected, which is not retried.
+    let is_transient_code = matches!(
+        code_str.as_deref(),
+        Some("500") | Some("502") | Some("503") | Some("504")
+    );
+    let is_transient_text = msg_lower.contains("timed out")
+        || msg_lower.contains("timeout")
+        || msg_lower.contains("connection reset")
+        || msg_lower.contains("connection refused")
+        || msg_lower.contains("network")
+        || msg_lower.contains("temporarily unavailable")
+        || msg_lower.contains("try again");
+
+    if is_transient_code || is_transient_text {
+        return TestFlightError::Transport {
+            message: msg,
+            retryable: true,
+        };
+    }
+
+    // 3. Apple rejected binary (bad bundle ID, missing entitlement, invalid provisioning profile, SDK version, etc.)
+    TestFlightError::BinaryRejected {
+        code: code_str,
+        message: msg,
     }
 }
