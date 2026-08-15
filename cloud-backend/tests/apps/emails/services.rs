@@ -488,6 +488,44 @@ fn test_tampered_unsubscribe_token_rejected() {
     assert!(verify_unsubscribe_token(&tampered_cat, key).is_err());
 }
 
+#[test]
+fn test_unsubscribe_token_verifies_under_configured_key_and_fails_under_different_key() {
+    let configured_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let different_hex = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+
+    let mut configured_key = [0u8; 32];
+    let mut different_key = [0u8; 32];
+    for i in 0..32 {
+        configured_key[i] = u8::from_str_radix(&configured_hex[i * 2..i * 2 + 2], 16).unwrap();
+        different_key[i] = u8::from_str_radix(&different_hex[i * 2..i * 2 + 2], 16).unwrap();
+    }
+
+    let user_pub_id = "550e8400-e29b-41d4-a716-446655440000";
+    let category = "product";
+    let issued_at = 1723700000_i64;
+
+    // Token minted under configured key
+    let token = mint_unsubscribe_token(user_pub_id, category, issued_at, &configured_key);
+
+    // 1. Verifies under configured key
+    let res_ok = verify_unsubscribe_token(&token, &configured_key);
+    assert!(
+        res_ok.is_ok(),
+        "Token signed with configured key must verify"
+    );
+    let payload = res_ok.unwrap();
+    assert_eq!(payload.user_public_id, user_pub_id);
+    assert_eq!(payload.category, category);
+    assert_eq!(payload.issued_at, issued_at);
+
+    // 2. Fails verification under a different key
+    let res_diff = verify_unsubscribe_token(&token, &different_key);
+    assert!(
+        res_diff.is_err(),
+        "Token signed with configured key MUST NOT verify under a different key"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Holdout Group Tests
 // ---------------------------------------------------------------------------

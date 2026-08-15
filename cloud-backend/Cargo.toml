@@ -64,6 +64,13 @@ djangors-mail = "=0.7.0"
 # djangors-tasks for ordinary background side effects, a custom Redis queue for
 # build/deploy jobs.
 redis = { version = "1", features = ["tokio-comp"] }
+
+# djangors-cache backs djangors-rest's `Throttle`, which is a get/set/delete KV use and
+# therefore exactly what the Cache trait is for -- this does not revisit the queue decision
+# above. The `redis` feature is enabled because we run more than one worker process and an
+# in-memory counter would undercount across instances, letting an attacker multiply their
+# rate limit by the number of instances.
+djangors-cache = { version = "=0.7.0", features = ["redis"] }
 aes-gcm = "0.10"
 base64 = "0.22"
 subtle = "2.5"

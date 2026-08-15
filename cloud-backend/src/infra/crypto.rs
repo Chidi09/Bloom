@@ -478,8 +478,12 @@ fn parse_versioned_ciphertext(ciphertext: &str) -> Result<(&str, &str), CryptoEr
     Ok((parts[0], parts[1]))
 }
 
-/// Helper to decode a 64-hex-character string into a 32-byte key array.
-fn decode_hex_key(hex_key: &str) -> Result<[u8; KEY_SIZE_BYTES], CryptoError> {
+/// Decodes a 64-hex-character string into a 32-byte key array.
+///
+/// Public so that every consumer of the master key decodes it the same way. Hand-rolling a
+/// second hex loop elsewhere risks the two disagreeing about length or case handling, and a
+/// key that decodes differently in two places is a silent data-corruption bug.
+pub fn decode_hex_key(hex_key: &str) -> Result<[u8; KEY_SIZE_BYTES], CryptoError> {
     let trimmed = hex_key.trim();
     if trimmed.len() != KEY_SIZE_BYTES * 2 {
         return Err(CryptoError::InvalidKey(format!(

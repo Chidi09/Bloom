@@ -33,6 +33,13 @@ fn get_settings(req: &Request) -> (String, String) {
 
 /// POST `/api/v1/auth/register` — Register a new user account and profile.
 pub async fn register(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
+    // Rate limit: 5 requests per minute per IP to prevent registration abuse, mass account creation,
+    // and automated spam bot registrations.
+    let cache = req.require_state::<std::sync::Arc<dyn djangors_cache::Cache>>()?;
+    let throttle = djangors_rest::Throttle::new("register", "5/minute", cache.clone())
+        .ok_or_else(|| DjangorsError::Internal("invalid throttle rate".to_string()))?;
+    throttle.check(&req).await?;
+
     let db = get_db(&req)?;
     let Json(body) = Json::<RegisterRequest>::from_request(&req).await?;
 
@@ -46,6 +53,19 @@ pub async fn register(req: Request, _params: PathParams) -> Result<Response, Dja
 
 /// POST `/api/v1/auth/login` — Authenticate with username and password.
 pub async fn login(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
+    // Rate limit: 10 requests per minute per IP / caller.
+    //
+    // Tradeoff analysis on keying strategy:
+    // We intentionally use Throttle's standard keying (ByUserOrIp: authenticated user, falling back to IP)
+    // rather than keying solely on the submitted username. Keying by username alone creates an account
+    // lockout vector (denial of service), where an attacker could flood failed attempts with a victim's
+    // username and lock the legitimate user out of logging in. Keying by IP/caller ensures credential stuffing
+    // and brute-force attacks across many accounts from one source are constrained, without creating a single-user DoS.
+    let cache = req.require_state::<std::sync::Arc<dyn djangors_cache::Cache>>()?;
+    let throttle = djangors_rest::Throttle::new("login", "10/minute", cache.clone())
+        .ok_or_else(|| DjangorsError::Internal("invalid throttle rate".to_string()))?;
+    throttle.check(&req).await?;
+
     let db = get_db(&req)?;
     let (secret, _) = get_settings(&req);
     let Json(body) = Json::<LoginRequest>::from_request(&req).await?;
@@ -77,6 +97,19 @@ pub async fn device_flow_poll(
     req: Request,
     _params: PathParams,
 ) -> Result<Response, DjangorsError> {
+    // Rate limit: 60 requests per minute per IP (1 request per second).
+    //
+    // Justification:
+    // The CLI device flow has a recommended polling cadence of DEVICE_FLOW_POLL_INTERVAL_SECS (5 seconds),
+    // which corresponds to ~12 polls per minute during normal authorization. Setting the limit to 60/minute
+    // (1 poll/sec) provides a 5x safety margin accommodating tight polling loops, retry bursts, or multiple
+    // simultaneous CLI sessions from the same corporate IP/NAT, while effectively defending against runaway
+    // grinding loops or aggressive polling DDoS.
+    let cache = req.require_state::<std::sync::Arc<dyn djangors_cache::Cache>>()?;
+    let throttle = djangors_rest::Throttle::new("device_flow_poll", "60/minute", cache.clone())
+        .ok_or_else(|| DjangorsError::Internal("invalid throttle rate".to_string()))?;
+    throttle.check(&req).await?;
+
     let db = get_db(&req)?;
     let (secret, _) = get_settings(&req);
 
@@ -143,6 +176,13 @@ pub async fn revoke_api_token(req: Request, params: PathParams) -> Result<Respon
 
 /// POST `/api/v1/auth/refresh` — Refresh access token using a refresh token.
 pub async fn refresh_token(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
+    // Rate limit: 20 requests per minute per IP / user to prevent token grinding,
+    // refresh token enumeration, and replay abuse.
+    let cache = req.require_state::<std::sync::Arc<dyn djangors_cache::Cache>>()?;
+    let throttle = djangors_rest::Throttle::new("refresh", "20/minute", cache.clone())
+        .ok_or_else(|| DjangorsError::Internal("invalid throttle rate".to_string()))?;
+    throttle.check(&req).await?;
+
     let db = get_db(&req)?;
     let (secret, _) = get_settings(&req);
     let Json(body) = Json::<RefreshRequest>::from_request(&req).await?;

@@ -17,6 +17,8 @@ use super::permissions::{
 };
 use super::{repositories, serializers, services};
 
+use crate::settings::BloomSettings;
+
 /// Retrieve database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
     req.require_state::<Database>()
@@ -53,14 +55,17 @@ async fn get_org_public_id(
     Ok(summary.public_id)
 }
 
-/// Retrieve canonical signing key for token verification.
-fn get_signing_key() -> Vec<u8> {
-    std::env::var("BLOOM_ENCRYPTION_KEY")
-        .or_else(|_| std::env::var("ENCRYPTION_KEY"))
-        .unwrap_or_else(|_| {
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string()
-        })
-        .into_bytes()
+/// Retrieve canonical 32-byte signing key for token verification from typed settings.
+fn get_signing_key(req: &Request) -> Result<Vec<u8>, DjangorsError> {
+    let settings = req.require_state::<BloomSettings>()?;
+
+    // Decode through crypto.rs rather than a second hex loop here: the master key must be
+    // interpreted identically everywhere it is read, and two independent decoders can drift
+    // on length or case handling without anything failing loudly.
+    let key = crate::infra::crypto::decode_hex_key(settings.encryption_key.trim())
+        .map_err(|e| DjangorsError::Internal(format!("invalid encryption_key: {e}")))?;
+
+    Ok(key.to_vec())
 }
 
 /// GET `/api/v1/notifications/preferences/` — List notification preferences for current user in organization.
@@ -127,7 +132,7 @@ pub async fn unsubscribe(req: Request, _params: PathParams) -> Result<Response, 
         .await
         .map_err(|e| DjangorsError::api(StatusCode::BAD_REQUEST, "invalid_json", e.to_string()))?;
 
-    let signing_key = get_signing_key();
+    let signing_key = get_signing_key(&req)?;
     let payload = services::process_unsubscribe(db, &body.token, &signing_key)
         .await
         .map_err(DjangorsError::from)?;

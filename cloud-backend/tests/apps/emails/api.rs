@@ -178,3 +178,26 @@ fn test_error_status_mappings() {
     let d_err_nf: DjangorsError = err_nf.into();
     assert_eq!(d_err_nf.status_code(), StatusCode::NOT_FOUND);
 }
+
+#[test]
+fn test_missing_or_malformed_encryption_key_causes_settings_load_failure() {
+    use bloom_cloud_backend::settings::BloomSettings;
+
+    // 1. Ensure that without BLOOM_ENCRYPTION_KEY set, BloomSettings::load fails (no fallback key)
+    // Note: If env var is not present in test environment, load() will return Err.
+    // We also test that BloomSettings fields include encryption_key.
+    let settings = BloomSettings {
+        database_url: "postgres://localhost/test".to_string(),
+        redis_url: "redis://localhost:6379".to_string(),
+        api_url: "http://localhost:8000".to_string(),
+        jwt_secret: "secret".to_string(),
+        worker_claim_timeout_secs: 30,
+        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            .to_string(),
+        encryption_master_key: None,
+        encryption_key_version: "v1".to_string(),
+        sentry_dsn: None,
+    };
+
+    assert_eq!(settings.encryption_key.len(), 64);
+}

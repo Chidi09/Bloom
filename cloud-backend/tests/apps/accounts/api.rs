@@ -70,3 +70,114 @@ fn test_accounts_error_mapping_status_codes() {
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "weak_password");
 }
+
+#[tokio::test]
+async fn test_rate_limiter_n_requests_pass_n_plus_one_returns_429_with_retry_after() {
+    use bytes::Bytes;
+    use hyper::http::{HeaderMap, HeaderValue, Method, Uri};
+    use std::sync::Arc;
+
+    let store: Arc<dyn djangors_cache::Cache> = Arc::new(djangors_cache::InMemoryCache::new(100));
+    // Test rate limiter with 3 requests per minute
+    let throttle = djangors_rest::Throttle::new("login", "3/minute", store.clone())
+        .expect("Throttle::new with '3/minute' should be valid");
+
+    let mut headers = HeaderMap::new();
+    headers.insert("x-forwarded-for", HeaderValue::from_static("192.168.1.50"));
+    let req = djangors_core::Request::new(
+        Method::POST,
+        Uri::from_static("/api/v1/auth/login"),
+        headers,
+        Bytes::new(),
+    );
+
+    // 1st request -> Pass
+    assert!(throttle.check(&req).await.is_ok());
+    // 2nd request -> Pass
+    assert!(throttle.check(&req).await.is_ok());
+    // 3rd request -> Pass
+    assert!(throttle.check(&req).await.is_ok());
+
+    // 4th request (N+1) -> Returns 429 TooManyRequests
+    let err = throttle.check(&req).await.unwrap_err();
+    assert_eq!(err.status_code(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        matches!(err, DjangorsError::TooManyRequests(_)),
+        "Expected TooManyRequests error, got: {err:?}"
+    );
+
+    // Verify response rendering produces 429 status code
+    let resp = err.into_response();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn test_rate_limiter_two_different_ips_do_not_share_bucket() {
+    use bytes::Bytes;
+    use hyper::http::{HeaderMap, HeaderValue, Method, Uri};
+    use std::sync::Arc;
+
+    let store: Arc<dyn djangors_cache::Cache> = Arc::new(djangors_cache::InMemoryCache::new(100));
+    let throttle = djangors_rest::Throttle::new("login", "2/minute", store.clone())
+        .expect("Throttle::new should succeed");
+
+    // Request from Client IP A
+    let mut headers_a = HeaderMap::new();
+    headers_a.insert("x-forwarded-for", HeaderValue::from_static("10.0.0.1"));
+    let req_a = djangors_core::Request::new(
+        Method::POST,
+        Uri::from_static("/api/v1/auth/login"),
+        headers_a,
+        Bytes::new(),
+    );
+
+    // Request from Client IP B
+    let mut headers_b = HeaderMap::new();
+    headers_b.insert("x-forwarded-for", HeaderValue::from_static("10.0.0.2"));
+    let req_b = djangors_core::Request::new(
+        Method::POST,
+        Uri::from_static("/api/v1/auth/login"),
+        headers_b,
+        Bytes::new(),
+    );
+
+    // Exhaust bucket for IP A (2 requests)
+    assert!(throttle.check(&req_a).await.is_ok());
+    assert!(throttle.check(&req_a).await.is_ok());
+    assert!(throttle.check(&req_a).await.is_err());
+
+    // IP B still has full allowance (independent bucket)
+    assert!(throttle.check(&req_b).await.is_ok());
+    assert!(throttle.check(&req_b).await.is_ok());
+    assert!(throttle.check(&req_b).await.is_err());
+}
+
+#[tokio::test]
+async fn test_device_poll_rate_limit_permits_cli_real_polling_cadence() {
+    use bytes::Bytes;
+    use hyper::http::{HeaderMap, HeaderValue, Method, Uri};
+    use std::sync::Arc;
+
+    let store: Arc<dyn djangors_cache::Cache> = Arc::new(djangors_cache::InMemoryCache::new(100));
+    // device_flow_poll rate limit: 60/minute (1 req/sec)
+    let throttle = djangors_rest::Throttle::new("device_flow_poll", "60/minute", store.clone())
+        .expect("Throttle::new should succeed");
+
+    let mut headers = HeaderMap::new();
+    headers.insert("x-forwarded-for", HeaderValue::from_static("172.16.0.5"));
+    let req = djangors_core::Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/auth/device/token?device_code=test_dev_code"),
+        headers,
+        Bytes::new(),
+    );
+
+    // The CLI recommended interval is 5 seconds (12 requests / minute).
+    // Simulate 12 polls (1 full minute of polling at regular 5s cadence)
+    for _ in 0..12 {
+        assert!(
+            throttle.check(&req).await.is_ok(),
+            "CLI polling at regular 5-second interval must comfortably pass rate limit"
+        );
+    }
+}

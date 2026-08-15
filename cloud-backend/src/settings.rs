@@ -52,6 +52,10 @@ pub struct BloomSettings {
     #[djangors(default = 30)]
     pub worker_claim_timeout_secs: u64,
 
+    /// Master 256-bit encryption key (hex-encoded) for cryptographic signing and AES-256-GCM encryption.
+    /// Required for application boot.
+    pub encryption_key: String,
+
     /// Master key (base64) for AES-256-GCM encryption of secrets and credentials.
     /// Consumed by `crate::infra::crypto`.
     pub encryption_master_key: Option<String>,

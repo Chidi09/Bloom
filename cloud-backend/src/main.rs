@@ -76,9 +76,22 @@ async fn main() -> Result<(), DjangorsError> {
         }
     };
 
+    // Rate-limit counters for djangors-rest's `Throttle`. Backed by Redis rather than an
+    // in-process cache because the control plane runs multiple instances: an in-memory
+    // counter is per-process, so an attacker would get the configured limit multiplied by
+    // the number of instances. A throttle that silently scales with the deployment is not
+    // a throttle. This is a get/set/delete KV use and does not revisit the decision to
+    // drive the build/deploy queue through raw Redis Streams.
+    let throttle_cache: Arc<dyn djangors_cache::Cache> = Arc::new(
+        djangors_cache::RedisCache::new(&bloom_settings.redis_url).map_err(|e| {
+            DjangorsError::Internal(format!("Failed to open Redis throttle cache: {e}"))
+        })?,
+    );
+
     let mut router = urls::root()
         .with_state(db)
         .with_state(queue)
+        .with_state(throttle_cache)
         .with_state(bloom_settings);
 
     if let Some(storage) = storage {
