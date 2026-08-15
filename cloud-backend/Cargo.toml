@@ -49,6 +49,13 @@ jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
 # maintained fork of it and keeps the same serde-based API.
 serde_norway = "0.9.42"
 
+# Email rendering and delivery (PHASES-FINAL.md Phase 13). djangors-mail has no
+# template integration of its own -- Message.body and .html_body are plain
+# Strings -- so djangors-template does the rendering and infra/mail.rs joins the
+# two. Both are the framework's own crates; do not hand-roll SMTP or a renderer.
+djangors-template = "=0.7.0"
+djangors-mail = "=0.7.0"
+
 # --- infra layer (src/infra) -------------------------------------------------
 # Redis is used directly rather than via djangors-cache because the build/deploy
 # queue needs Redis Streams consumer groups (XADD/XREADGROUP/XCLAIM) for exclusive

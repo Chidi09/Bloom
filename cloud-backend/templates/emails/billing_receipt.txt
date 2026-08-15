@@ -1,0 +1,30 @@
+BLOOM — RECEIPT {{ receipt_number }}
+
+{{ total }} paid — thank you.
+
+This receipt covers {{ organization_name }} for {{ period_start }} to {{ period_end }}.
+A PDF copy is attached and is always available from your billing page.
+
+DESCRIPTION                                                        AMOUNT
+{% for item in line_items %}{{ item.description }}{% if item.detail %}
+  {{ item.detail }}{% endif %}
+                                                          {{ item.amount }}
+{% endfor %}
+  Subtotal                                                {{ subtotal }}
+{% for tax in tax_lines %}  {{ tax.label }} ({{ tax.rate }})                                {{ tax.amount }}
+{% endfor %}
+  TOTAL PAID                                              {{ total }}
+  {{ currency_code }} · paid with {{ payment_method }}
+
+Download the PDF receipt:
+{{ receipt_pdf_url }}
+
+Issued {{ issue_date }} to {{ billing_email }}.
+Payment reference {{ provider_reference }}.
+
+--
+You received this because it is a receipt for a payment made by
+{{ organization_name }}. Billing and security emails are always sent and
+cannot be turned off.
+Manage email preferences: {{ preferences_url }}
+{{ company_legal_name }}, {{ company_address }}

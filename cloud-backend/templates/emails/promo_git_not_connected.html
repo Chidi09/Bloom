@@ -1,0 +1,58 @@
+{% extends "_base.html" %}
+{#-
+  campaign_key: promo.git_not_connected
+  Promotional. MUST carry List-Unsubscribe and List-Unsubscribe-Post headers
+  (RFC 8058) and a visible unsubscribe link -- the base template renders the
+  link whenever `unsubscribe_url` is present, and the send path refuses to
+  dispatch any campaign email without it.
+
+  Trigger: >= 3 manual builds and no git_connection on the organization.
+  Context: first_name, organization_name, manual_build_count, app_name,
+           connect_url, docs_url, unsubscribe_url, preferences_url
+-#}
+
+{% block heading_text %}Stop running builds by hand{% endblock %}
+{% block preheader %}You have run {{ manual_build_count }} builds manually. Connecting Git makes every push build itself.{% endblock %}
+
+{% block eyebrow %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;"><tr>
+  <td bgcolor="#FFF4EC" style="background-color:#FFF4EC; padding:5px 11px; border-radius:20px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#C2571F;">Tip</td>
+</tr></table>
+{% endblock %}
+
+{% block heading %}You have started {{ manual_build_count }} builds by hand{% endblock %}
+
+{% block lede %}
+<p style="margin:0; color:#5B5670;">Every one of those was a command you typed. Connect {{ organization_name }} to a Git provider and Bloom builds {{ app_name }} on every push, comments the preview URL on the pull request, and keeps the two in step without you asking.</p>
+{% endblock %}
+
+{% block content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; background-color:#FAF9FD; border-radius:10px;">
+  <tr><td style="padding:20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; line-height:22px; color:#5B5670;">
+      <tr>
+        <td width="26" style="padding:0 0 12px 0; color:#8B5CF6; font-weight:700; vertical-align:top;">1</td>
+        <td style="padding:0 0 12px 0;">Authorize GitHub, GitLab, or Bitbucket &mdash; about thirty seconds.</td>
+      </tr>
+      <tr>
+        <td width="26" style="padding:0; color:#8B5CF6; font-weight:700; vertical-align:top;">2</td>
+        <td style="padding:0;">Pick the repository and branch for each environment. That is the whole setup.</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+{% endblock %}
+
+{% block cta %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td bgcolor="#8B5CF6" style="background-color:#8B5CF6; border-radius:8px;">
+    <a href="{{ connect_url|safe }}" style="display:inline-block; padding:13px 26px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:8px;">Connect a repository</a>
+  </td>
+  <td width="10" style="font-size:0; line-height:0;">&nbsp;</td>
+  <td style="border:1px solid #E8E4F0; border-radius:8px;">
+    <a href="{{ docs_url|safe }}" style="display:inline-block; padding:12px 22px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#5B5670; text-decoration:none; border-radius:8px;">Read the guide</a>
+  </td>
+</tr></table>
+{% endblock %}
+
+{% block footer_reason %}You received this because you opted into product tips for {{ organization_name }}. We send at most one of these a week, and never while a build or billing issue is open.{% endblock %}

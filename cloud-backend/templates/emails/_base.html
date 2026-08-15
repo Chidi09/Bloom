@@ -1,0 +1,121 @@
+{#-
+  Bloom transactional/lifecycle email base layout.
+
+  Design constraints are load-bearing, not stylistic (PHASES-FINAL.md §13.2):
+  tables for layout, every rule inlined on the element, 600px single column,
+  no web fonts, no flexbox/grid/custom-properties, explicit background AND
+  color on every text-bearing element so dark-mode clients cannot invert us
+  into unreadable. Total rendered size must stay under 102KB or Gmail clips
+  the message and hides the footer, unsubscribe link included.
+
+  The five-cell petal band below the header is the brand device. It is table
+  cells with bgcolor, not an image, so the identity survives with images
+  disabled -- which is the default in a large share of mail clients.
+
+  Blocks: preheader, eyebrow, heading, lede, content, cta, aside.
+  Context: see each concrete template. `footer` vars are supplied by
+  crate::infra::email_templates for every send.
+-#}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>{% block heading_text %}Bloom{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; width:100%; background-color:#F7F5FB;">
+
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F7F5FB;">{% block preheader %}{% endblock %}&#8203;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; background-color:#F7F5FB;">
+<tr><td align="center" style="padding:32px 12px;">
+
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:14px; overflow:hidden;">
+
+  <tr>
+    <td cellpadding="0" cellspacing="0" style="padding:0; font-size:0; line-height:0;">
+      {#- The five petals, as a rule. Fixed pixel widths rather than percentages: a percentage
+          on an empty cell collapses in several renderers, and the band is the one piece of
+          brand identity that must survive with images disabled.
+
+          Both the `bgcolor` attribute and the CSS property on every coloured cell -- Outlook
+          honours the attribute, most other clients the property, and a renderer that reads
+          only one of the two drops the colour entirely. -#}
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; table-layout:fixed;">
+        <tr style="height:4px;">
+          <td width="120" height="4" bgcolor="#8B5CF6" style="width:120px; height:4px; background-color:#8B5CF6; font-size:0; line-height:0;">&nbsp;</td>
+          <td width="120" height="4" bgcolor="#FF4B8B" style="width:120px; height:4px; background-color:#FF4B8B; font-size:0; line-height:0;">&nbsp;</td>
+          <td width="120" height="4" bgcolor="#FF884D" style="width:120px; height:4px; background-color:#FF884D; font-size:0; line-height:0;">&nbsp;</td>
+          <td width="120" height="4" bgcolor="#20C9B0" style="width:120px; height:4px; background-color:#20C9B0; font-size:0; line-height:0;">&nbsp;</td>
+          <td width="120" height="4" bgcolor="#2563EB" style="width:120px; height:4px; background-color:#2563EB; font-size:0; line-height:0;">&nbsp;</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:28px 40px 0 40px;">
+      {#- The site navigation lockup (bloom-website/src/components/common/Navbar.astro): the petal
+          mark, lowercase `bloom` in black weight, and beneath it BUILD · SHIP · BLOOM in mono
+          caps, each word in its own petal colour. Kept identical here so an email and the site
+          read as the same product. -#}
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td width="34" style="padding:0 11px 0 0; vertical-align:middle;">
+            {#- `|safe` because autoescape turns the slashes of a URL into `&#x2f;`. Browsers
+                decode that, but not every mail client does. These URLs are configuration, never
+                user input. -#}
+            <img src="{{ asset_base_url|safe }}/bloom-petal.png" width="34" height="34" alt="bloom" style="display:block; width:34px; height:34px; border:0;" />
+          </td>
+          <td style="vertical-align:middle;">
+            <div style="font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:900; letter-spacing:-0.8px; line-height:22px; color:#14121A;">bloom</div>
+            <div style="margin-top:3px; font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:9px; font-weight:800; letter-spacing:1.8px; line-height:11px; color:#8A85A0;"><span style="color:#A855F7;">BUILD</span> <span style="color:#EC4899;">&bull;</span> <span style="color:#3B82F6;">SHIP</span> <span style="color:#06B6D4;">&bull;</span> <span style="color:#F97316;">BLOOM</span></div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:24px 40px 8px 40px;">
+      {% block eyebrow %}{% endblock %}
+      <h1 style="margin:0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:23px; line-height:31px; font-weight:700; letter-spacing:-0.5px; color:#14121A;">{% block heading %}{% endblock %}</h1>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:0 40px 4px 40px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:24px; color:#5B5670;">
+      {% block lede %}{% endblock %}
+    </td>
+  </tr>
+
+  <tr><td style="padding:20px 40px 0 40px;">{% block content %}{% endblock %}</td></tr>
+
+  <tr><td style="padding:28px 40px 0 40px;">{% block cta %}{% endblock %}</td></tr>
+
+  <tr><td style="padding:24px 40px 0 40px;">{% block aside %}{% endblock %}</td></tr>
+
+  <tr>
+    <td style="padding:32px 40px 0 40px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr><td height="1" bgcolor="#E8E4F0" style="height:1px; background-color:#E8E4F0; font-size:0; line-height:0;">&nbsp;</td></tr></table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:20px 40px 34px 40px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:19px; color:#8A85A0;">
+      <p style="margin:0 0 8px 0; color:#8A85A0;">{% block footer_reason %}You received this because you are a member of <span style="color:#5B5670; font-weight:600;">{{ organization_name }}</span> on Bloom.{% endblock %}</p>
+      <p style="margin:0 0 8px 0; color:#8A85A0;">
+        <a href="{{ preferences_url|safe }}" style="color:#8B5CF6; text-decoration:underline;">Manage email preferences</a>{% if unsubscribe_url %} &nbsp;&middot;&nbsp; <a href="{{ unsubscribe_url|safe }}" style="color:#8B5CF6; text-decoration:underline;">Unsubscribe</a>{% endif %}
+      </p>
+      <p style="margin:0; color:#B4AFC6;">{{ company_legal_name }}, {{ company_address }}</p>
+    </td>
+  </tr>
+
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>

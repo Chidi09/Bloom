@@ -1,0 +1,164 @@
+<title>Bloom Mail Kit</title>
+<style>
+  :root {
+    --paper: #FFFFFF;
+    --canvas: #F6F4FB;
+    --ink: #14121A;
+    --slate: #57526B;
+    --muted: #8A85A0;
+    --line: #E6E2F0;
+    --accent: #8B5CF6;
+    --code: #F3F0FA;
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #191623;
+      --canvas: #110F18;
+      --ink: #F3F1F8;
+      --slate: #A9A3BE;
+      --muted: #7C7692;
+      --line: #2A2538;
+      --accent: #A98BFF;
+      --code: #201C2C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #191623;
+    --canvas: #110F18;
+    --ink: #F3F1F8;
+    --slate: #A9A3BE;
+    --muted: #7C7692;
+    --line: #2A2538;
+    --accent: #A98BFF;
+    --code: #201C2C;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.86em; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px 100px; }
+
+  .band { display: flex; height: 4px; }
+  .band i { flex: 1; }
+
+  header.top { padding: 56px 0 40px; border-bottom: 1px solid var(--line); }
+  header.top h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -0.9px; text-wrap: balance; }
+  header.top p { margin: 0; max-width: 62ch; color: var(--slate); }
+  .lead-note { margin-top: 22px; padding: 14px 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; font-size: 13.5px; color: var(--slate); }
+  .lead-note b { color: var(--ink); }
+
+  h2.sec { margin: 56px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); }
+  h2.sec + p { margin: 0 0 22px; color: var(--slate); font-size: 14px; max-width: 66ch; }
+
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 26px; }
+  .meta { padding: 18px 22px 16px; border-bottom: 1px solid var(--line); }
+  .key { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+  .meta dl { margin: 0; display: grid; gap: 5px; }
+  .meta dl > div { display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: baseline; }
+  .meta dt { font-size: 11px; font-weight: 700; letter-spacing: 0.9px; text-transform: uppercase; color: var(--muted); }
+  .meta dd { margin: 0; font-size: 13.5px; color: var(--ink); }
+  .count { color: var(--muted); font-size: 12px; }
+  .tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+  .tag-on { background: rgba(32,201,176,0.16); color: #0D8F7C; }
+  .tag-off { background: var(--code); color: var(--muted); }
+  .tag-size { background: var(--code); color: var(--slate); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag-on { color: #4FE3C6; } }
+  :root[data-theme="dark"] .tag-on { color: #4FE3C6; }
+
+  .tabs { display: flex; gap: 2px; padding: 10px 22px 0; }
+  .tabs button {
+    appearance: none; border: 0; background: none; cursor: pointer;
+    padding: 7px 13px; border-radius: 7px 7px 0 0;
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted);
+  }
+  .tabs button.on { background: var(--code); color: var(--ink); }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stage { padding: 16px 22px 24px; background: var(--code); }
+  iframe.pane { width: 100%; max-width: 640px; margin: 0 auto; display: block; border: 0; background: transparent; }
+  pre.pane {
+    margin: 0; padding: 20px; max-width: 640px; margin-inline: auto;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12px; line-height: 1.65; color: var(--slate);
+    white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+  }
+  [hidden] { display: none !important; }
+
+  .doc { background: var(--code); border: 1px solid var(--line); border-radius: 14px; padding: 22px; overflow-x: auto; }
+  .doc iframe { display: block; width: 794px; height: 1123px; border: 0; margin: 0 auto; background: #fff; box-shadow: 0 8px 30px rgba(20,18,26,0.16); }
+
+  ul.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  ul.rules li { padding-left: 26px; position: relative; color: var(--slate); font-size: 14px; }
+  ul.rules li::before { content: ""; position: absolute; left: 8px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  ul.rules b { color: var(--ink); font-weight: 600; }
+</style>
+
+<div class="band"><i style="background:#8B5CF6"></i><i style="background:#FF4B8B"></i><i style="background:#FF884D"></i><i style="background:#20C9B0"></i><i style="background:#2563EB"></i></div>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Bloom Mail Kit</h1>
+    <p>Every template below was rendered by MiniJinja through <span class="mono">djangors_template::TemplateEngine</span> — the same engine that will render them in production — with fixture data. Nothing here is a mockup.</p>
+    <div class="lead-note">
+      The <b>five-petal rule</b> at the top of every message is the brand device, built from table cells with <span class="mono">bgcolor</span> rather than an image, so the identity survives in clients that block images by default. Semantic colors are taken from the logo's own petals: <b>pink</b> for failure, <b>cyan</b> for success, <b>orange</b> for advisory, <b>purple</b> for billing, <b>blue</b> for invitations.
+    </div>
+  </header>
+
+  <h2 class="sec">Email templates</h2>
+  <p>Each renders both an HTML and a plain-text body. Toggle between them to check the text version reads on its own — a text-only client must still get the whole message.</p>
+
+  <!--SECTIONS-->
+
+  <h2 class="sec">Receipt document</h2>
+  <p>A4, rendered once at payment confirmation and stored immutably. Unlike the emails this is rendered by a print engine, so real CSS is available — but still no web fonts, so the PDF is byte-stable across machines.</p>
+  <div class="doc"><iframe title="Receipt BLM-2026-000148" srcdoc="RECEIPT_SRCDOC"></iframe></div>
+
+  <h2 class="sec">Rules this kit enforces</h2>
+  <ul class="rules">
+    <li><b>Subject lines stay under 60 characters</b> and front-load the specific object, so the failing app is visible in a notification preview.</li>
+    <li><b>Every message carries a preheader</b> — the hidden 40–90 character line a client shows next to the subject. Left unset, clients fall back to whatever text comes first.</li>
+    <li><b>Promotional mail carries List-Unsubscribe; transactional mail does not.</b> A receipt is not opt-out, and offering to unsubscribe from one is a dark pattern in reverse.</li>
+    <li><b>Every rendered body stays under 102KB.</b> Above that Gmail clips the message and hides the footer, taking the unsubscribe link with it. This is asserted at render time, not hoped for.</li>
+    <li><b>Money is never computed here.</b> Values arrive pre-formatted from Rust, rendered from integer minor units with the invoice currency's own exponent.</li>
+    <li><b>No web fonts, no flexbox, no grid, no custom properties</b> in the emails — tables and inline styles only, because Outlook and Gmail strip the rest.</li>
+    <li><b>Backgrounds and text colors are always set together</b>, so a dark-mode client cannot invert one without the other and leave unreadable text.</li>
+  </ul>
+</div>
+
+<script>
+  document.querySelectorAll('.tabs').forEach(function (tabs) {
+    var card = tabs.closest('.card');
+    tabs.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      tabs.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+      card.querySelectorAll('.pane').forEach(function (p) {
+        p.hidden = !p.classList.contains(btn.dataset.t);
+      });
+    });
+  });
+  function fit(f) {
+    try {
+      var d = f.contentDocument;
+      if (d && d.body) f.style.height = Math.max(d.body.scrollHeight, d.documentElement.scrollHeight) + 'px';
+    } catch (err) { f.style.height = '900px'; }
+  }
+  document.querySelectorAll('iframe.pane').forEach(function (f) {
+    f.addEventListener('load', function () { fit(f); });
+    fit(f);
+    setTimeout(function () { fit(f); }, 120);
+  });
+  window.addEventListener('resize', function () {
+    document.querySelectorAll('iframe.pane').forEach(fit);
+  });
+</script>

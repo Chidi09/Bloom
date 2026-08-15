@@ -1,0 +1,90 @@
+{% extends "_base.html" %}
+{#-
+  template_key: billing.receipt
+  Transactional. Never carries an unsubscribe link (PHASES-FINAL.md §13.2):
+  a receipt is not opt-out, and is sent regardless of marketing preferences.
+
+  Every money value arrives pre-formatted as a string from Rust, rendered from
+  integer minor units with the invoice's own currency exponent. No arithmetic,
+  no division, and no float ever occurs in this template.
+
+  Context: receipt_number, issue_date, period_start, period_end,
+           organization_name, billing_email, currency_code,
+           line_items (list of {description, detail, quantity, unit_amount, amount}),
+           subtotal, tax_lines (list of {label, rate, amount}), total,
+           amount_paid, payment_method, provider_reference, receipt_pdf_url
+-#}
+
+{% block heading_text %}Receipt {{ receipt_number }}{% endblock %}
+{% block preheader %}{{ total }} paid for {{ organization_name }}, covering {{ period_start }} to {{ period_end }}.{% endblock %}
+
+{% block eyebrow %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;"><tr>
+  <td bgcolor="#F3EEFF" style="background-color:#F3EEFF; padding:5px 11px; border-radius:20px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#6D3BD6;">Receipt {{ receipt_number }}</td>
+</tr></table>
+{% endblock %}
+
+{% block heading %}{{ total }} paid &mdash; thank you{% endblock %}
+
+{% block lede %}
+<p style="margin:0; color:#5B5670;">This receipt covers <span style="color:#14121A; font-weight:600;">{{ organization_name }}</span> for {{ period_start }} to {{ period_end }}. Keep it for your records &mdash; a PDF copy is attached and always available from your billing page.</p>
+{% endblock %}
+
+{% block content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr>
+    <td style="padding:0 0 8px 0; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#8A85A0;">Description</td>
+    <td align="right" style="padding:0 0 8px 0; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#8A85A0;">Amount</td>
+  </tr>
+  <tr><td colspan="2" height="1" bgcolor="#E8E4F0" style="background-color:#E8E4F0; height:1px; font-size:0; line-height:0;">&nbsp;</td></tr>
+
+  {% for item in line_items %}
+  <tr>
+    <td style="padding:13px 12px 13px 0; font-size:14px; line-height:20px; color:#14121A; vertical-align:top;">
+      <span style="font-weight:600;">{{ item.description }}</span>
+      {% if item.detail %}<br /><span style="font-size:12px; line-height:18px; color:#8A85A0;">{{ item.detail }}</span>{% endif %}
+    </td>
+    <td align="right" style="padding:13px 0; font-size:14px; line-height:20px; color:#14121A; font-weight:600; vertical-align:top; white-space:nowrap;">{{ item.amount }}</td>
+  </tr>
+  <tr><td colspan="2" height="1" bgcolor="#F1EEF8" style="background-color:#F1EEF8; height:1px; font-size:0; line-height:0;">&nbsp;</td></tr>
+  {% endfor %}
+
+  <tr>
+    <td style="padding:13px 12px 5px 0; font-size:14px; color:#5B5670;">Subtotal</td>
+    <td align="right" style="padding:13px 0 5px 0; font-size:14px; color:#5B5670; white-space:nowrap;">{{ subtotal }}</td>
+  </tr>
+  {% for tax in tax_lines %}
+  <tr>
+    <td style="padding:0 12px 5px 0; font-size:14px; color:#5B5670;">{{ tax.label }} <span style="color:#8A85A0;">({{ tax.rate }})</span></td>
+    <td align="right" style="padding:0 0 5px 0; font-size:14px; color:#5B5670; white-space:nowrap;">{{ tax.amount }}</td>
+  </tr>
+  {% endfor %}
+
+  <tr><td colspan="2" height="1" bgcolor="#E8E4F0" style="background-color:#E8E4F0; height:1px; font-size:0; line-height:0; padding-top:6px;">&nbsp;</td></tr>
+  <tr>
+    <td style="padding:14px 12px 0 0; font-size:16px; font-weight:700; color:#14121A;">Total paid</td>
+    <td align="right" style="padding:14px 0 0 0; font-size:20px; font-weight:700; letter-spacing:-0.4px; color:#14121A; white-space:nowrap;">{{ total }}</td>
+  </tr>
+  <tr>
+    <td colspan="2" align="right" style="padding:2px 0 0 0; font-size:12px; color:#8A85A0;">{{ currency_code }} &middot; paid with {{ payment_method }}</td>
+  </tr>
+</table>
+{% endblock %}
+
+{% block cta %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td bgcolor="#8B5CF6" style="background-color:#8B5CF6; border-radius:8px;">
+    <a href="{{ receipt_pdf_url|safe }}" style="display:inline-block; padding:13px 26px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:8px;">Download PDF receipt</a>
+  </td>
+</tr></table>
+{% endblock %}
+
+{% block aside %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; background-color:#FAF9FD; border-radius:10px;">
+  <tr><td style="padding:14px 18px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:19px; color:#8A85A0;">
+    Issued {{ issue_date }} to {{ billing_email }}. Payment reference <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; color:#5B5670;">{{ provider_reference }}</span>.
+  </td></tr>
+</table>
+{% endblock %}
+
+{% block footer_reason %}You received this because it is a receipt for a payment made by {{ organization_name }}. Billing and security emails are always sent and cannot be turned off.{% endblock %}

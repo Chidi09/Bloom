@@ -1,0 +1,26 @@
+BLOOM — BUILD FAILED
+
+Build #{{ build_number }} failed at the {{ failed_stage }} stage.
+
+{{ app_name }} stopped after {{ duration_human }} while running {{ failed_stage }}.
+The commit below was not deployed, so {{ environment_name }} is still serving
+the previous build.
+
+  Environment  {{ environment_name }}
+  Platform     {{ platform }}
+  Branch       {{ git_branch }}
+  Commit       {{ commit_short }}  {{ commit_message }}
+
+LAST OUTPUT
+{% for line in log_excerpt %}  {{ line.text }}
+{% endfor %}
+View the full log:
+{{ build_url }}
+{% if collapsed_count > 0 %}
+{{ collapsed_count }} further {{ 'failure' if collapsed_count == 1 else 'failures' }} on {{ environment_name }} {{ 'has' if collapsed_count == 1 else 'have' }} been grouped
+into this email. We will write again when the build recovers.
+{% endif %}
+--
+You received this because you are a member of {{ organization_name }} on Bloom.
+Manage email preferences: {{ preferences_url }}
+{{ company_legal_name }}, {{ company_address }}

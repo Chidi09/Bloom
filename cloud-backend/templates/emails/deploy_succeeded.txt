@@ -1,0 +1,21 @@
+BLOOM — DEPLOYED
+
+{{ app_name }} {{ release_version }} is live on {{ environment_name }}.
+
+The deployment finished in {{ duration_human }}. {{ environment_name }} was
+serving {{ previous_version }} and is now serving {{ release_version }}.
+
+LIVE AT
+{{ deployment_url }}
+
+  Target       {{ target }}
+  Platform     {{ platform }}
+  Commit       {{ commit_short }}
+
+Roll back from the dashboard:
+{{ dashboard_url }}
+
+--
+You received this because you are a member of {{ organization_name }} on Bloom.
+Manage email preferences: {{ preferences_url }}
+{{ company_legal_name }}, {{ company_address }}

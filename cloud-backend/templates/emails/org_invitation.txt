@@ -1,0 +1,21 @@
+BLOOM — INVITATION
+
+{{ inviter_name }} invited you to join {{ organization_name }}.
+
+You have been invited as {{ role }}, which lets you {{ role_description }}.
+The invitation expires in {{ expires_in_human }}.
+
+  Organization {{ organization_name }}
+  Invited by   {{ inviter_name }} · {{ inviter_email }}
+  Team         {{ member_count }} {{ 'member' if member_count == 1 else 'members' }} · {{ project_count }} {{ 'project' if project_count == 1 else 'projects' }}
+
+Accept the invitation:
+{{ accept_url }}
+
+If you were not expecting this, you can ignore this email — nothing happens
+until you accept, and the link stops working in {{ expires_in_human }}.
+
+--
+You received this because {{ inviter_email }} invited this address to
+{{ organization_name }} on Bloom.
+{{ company_legal_name }}, {{ company_address }}

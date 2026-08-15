@@ -1,0 +1,57 @@
+{% extends "_base.html" %}
+{#-
+  template_key: org.invitation
+  Context: inviter_name, inviter_email, organization_name, role,
+           role_description, accept_url, expires_in_human, project_count,
+           member_count
+-#}
+
+{% block heading_text %}{{ inviter_name }} invited you to {{ organization_name }}{% endblock %}
+{% block preheader %}Join {{ organization_name }} on Bloom as {{ role }}. The invitation expires in {{ expires_in_human }}.{% endblock %}
+
+{% block eyebrow %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;"><tr>
+  <td bgcolor="#EEF3FE" style="background-color:#EEF3FE; padding:5px 11px; border-radius:20px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#1D4FD8;">Invitation</td>
+</tr></table>
+{% endblock %}
+
+{% block heading %}{{ inviter_name }} invited you to join {{ organization_name }}{% endblock %}
+
+{% block lede %}
+<p style="margin:0; color:#5B5670;">You have been invited as <span style="color:#14121A; font-weight:600;">{{ role }}</span>, which lets you {{ role_description }}. The invitation expires in {{ expires_in_human }}.</p>
+{% endblock %}
+
+{% block content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; background-color:#FAF9FD; border-radius:10px;">
+  <tr><td style="padding:18px 20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:20px;">
+      <tr>
+        <td width="130" style="padding:0 14px 9px 0; color:#8A85A0;">Organization</td>
+        <td style="padding:0 0 9px 0; color:#14121A; font-weight:600;">{{ organization_name }}</td>
+      </tr>
+      <tr>
+        <td style="padding:0 14px 9px 0; color:#8A85A0;">Invited by</td>
+        <td style="padding:0 0 9px 0; color:#14121A;">{{ inviter_name }} <span style="color:#8A85A0;">&middot; {{ inviter_email }}</span></td>
+      </tr>
+      <tr>
+        <td style="padding:0 14px 0 0; color:#8A85A0;">Team</td>
+        <td style="padding:0; color:#14121A;">{{ member_count }} {{ 'member' if member_count == 1 else 'members' }} &middot; {{ project_count }} {{ 'project' if project_count == 1 else 'projects' }}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+{% endblock %}
+
+{% block cta %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td bgcolor="#8B5CF6" style="background-color:#8B5CF6; border-radius:8px;">
+    <a href="{{ accept_url|safe }}" style="display:inline-block; padding:13px 26px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:8px;">Accept the invitation</a>
+  </td>
+</tr></table>
+{% endblock %}
+
+{% block aside %}
+<p style="margin:0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:21px; color:#8A85A0;">If you were not expecting this, you can ignore this email &mdash; nothing happens until you accept, and the link stops working in {{ expires_in_human }}.</p>
+{% endblock %}
+
+{% block footer_reason %}You received this because {{ inviter_email }} invited this address to {{ organization_name }} on Bloom.{% endblock %}

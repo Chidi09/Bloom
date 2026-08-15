@@ -1,0 +1,24 @@
+BLOOM — TIP
+
+You have started {{ manual_build_count }} builds by hand.
+
+Every one of those was a command you typed. Connect {{ organization_name }} to a
+Git provider and Bloom builds {{ app_name }} on every push, comments the preview
+URL on the pull request, and keeps the two in step without you asking.
+
+  1. Authorize GitHub, GitLab, or Bitbucket — about thirty seconds.
+  2. Pick the repository and branch for each environment. That is the whole setup.
+
+Connect a repository:
+{{ connect_url }}
+
+Read the guide:
+{{ docs_url }}
+
+--
+You received this because you opted into product tips for {{ organization_name }}.
+We send at most one of these a week, and never while a build or billing issue
+is open.
+Manage email preferences: {{ preferences_url }}
+Unsubscribe: {{ unsubscribe_url }}
+{{ company_legal_name }}, {{ company_address }}

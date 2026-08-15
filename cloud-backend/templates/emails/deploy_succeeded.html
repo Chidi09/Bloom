@@ -1,0 +1,60 @@
+{% extends "_base.html" %}
+{#-
+  template_key: deploy.succeeded
+  Context: app_name, environment_name, platform, target, release_version,
+           commit_short, duration_human, deployment_url, dashboard_url,
+           previous_version, organization_name
+-#}
+
+{% block heading_text %}{{ app_name }} {{ release_version }} is live{% endblock %}
+{% block preheader %}{{ release_version }} deployed to {{ environment_name }} in {{ duration_human }}, replacing {{ previous_version }}.{% endblock %}
+
+{% block eyebrow %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;"><tr>
+  <td bgcolor="#E9FBF7" style="background-color:#E9FBF7; padding:5px 11px; border-radius:20px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#0D8F7C;">Deployed</td>
+</tr></table>
+{% endblock %}
+
+{% block heading %}{{ app_name }} {{ release_version }} is live on {{ environment_name }}{% endblock %}
+
+{% block lede %}
+<p style="margin:0; color:#5B5670;">The deployment finished in {{ duration_human }}. {{ environment_name }} was serving {{ previous_version }} and is now serving <span style="color:#14121A; font-weight:600;">{{ release_version }}</span>.</p>
+{% endblock %}
+
+{% block content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; border:1px solid #E8E4F0; border-radius:10px;">
+  <tr><td style="padding:18px 20px;">
+    <p style="margin:0 0 6px 0; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:#8A85A0;">Live at</p>
+    <a href="{{ deployment_url|safe }}" style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:14px; line-height:22px; color:#8B5CF6; text-decoration:none; font-weight:600; word-break:break-all;">{{ deployment_url }}</a>
+  </td></tr>
+  <tr><td style="padding:0 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr><td height="1" bgcolor="#E8E4F0" style="background-color:#E8E4F0; height:1px; font-size:0; line-height:0;">&nbsp;</td></tr></table></td></tr>
+  <tr><td style="padding:16px 20px 18px 20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:20px;">
+      <tr>
+        <td width="130" style="padding:0 14px 9px 0; color:#8A85A0;">Target</td>
+        <td style="padding:0 0 9px 0; color:#14121A; font-weight:600;">{{ target }}</td>
+      </tr>
+      <tr>
+        <td style="padding:0 14px 9px 0; color:#8A85A0;">Platform</td>
+        <td style="padding:0 0 9px 0; color:#14121A; font-weight:600;">{{ platform }}</td>
+      </tr>
+      <tr>
+        <td style="padding:0 14px 0 0; color:#8A85A0;">Commit</td>
+        <td style="padding:0;"><span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:12px; color:#8B5CF6; font-weight:600;">{{ commit_short }}</span></td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+{% endblock %}
+
+{% block cta %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td bgcolor="#8B5CF6" style="background-color:#8B5CF6; border-radius:8px;">
+    <a href="{{ deployment_url|safe }}" style="display:inline-block; padding:13px 26px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:8px;">Open the deployment</a>
+  </td>
+  <td width="10" style="font-size:0; line-height:0;">&nbsp;</td>
+  <td style="border:1px solid #E8E4F0; border-radius:8px;">
+    <a href="{{ dashboard_url|safe }}" style="display:inline-block; padding:12px 22px; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; font-weight:700; color:#5B5670; text-decoration:none; border-radius:8px;">Roll back</a>
+  </td>
+</tr></table>
+{% endblock %}
