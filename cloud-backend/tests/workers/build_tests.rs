@@ -7,8 +7,10 @@ use bloom_cloud_backend::infra::executor::{redact, CommandExecutor, CommandSpec,
 use bloom_cloud_backend::infra::queue::{InMemoryJobQueue, Job};
 use bloom_cloud_backend::infra::storage::{artifact_storage_key, build_log_storage_key};
 use bloom_cloud_backend::workers::build::{
-    project_declares_builders, BuildWorkerError, BUILD_STAGES,
+    parse_pubspec_version, project_declares_builders, resolve_and_verify_build_artifact,
+    BuildWorkerError, BUILD_STAGES,
 };
+use sha2::{Digest, Sha256};
 
 use crate::infra::executor::RecordingExecutor;
 
@@ -308,4 +310,98 @@ async fn test_retried_build_worker_does_not_wake_parent_run_twice() {
 
     // Queue still has exactly 1 job
     assert_eq!(queue.pending_count().await, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Real artifact resolution: the worker must upload what the build produced,
+// with a checksum computed over those bytes, and must fail rather than invent
+// a value when the output is absent.
+// ---------------------------------------------------------------------------
+
+/// Creates a temp working dir containing `relative_path` with `contents`.
+fn temp_project_with_file(relative_path: &str, contents: &[u8]) -> PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "bloom-build-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let full = root.join(relative_path);
+    std::fs::create_dir_all(full.parent().expect("path has a parent")).expect("create dirs");
+    std::fs::write(&full, contents).expect("write artifact");
+    root
+}
+
+#[test]
+fn test_resolved_artifact_checksum_is_computed_over_the_real_bytes() {
+    let contents = b"not a real aab, but these exact bytes are what must be hashed";
+    let root = temp_project_with_file("build/app/outputs/bundle/release/app-release.aab", contents);
+
+    let resolved = resolve_and_verify_build_artifact(&root, "android", "release")
+        .expect("artifact resolves when the build output exists");
+
+    // Compute the expectation here rather than hardcoding a digest literal: a
+    // hardcoded digest is exactly the bug this test exists to catch.
+    let mut hasher = Sha256::new();
+    hasher.update(contents);
+    let expected = format!("{:x}", hasher.finalize());
+
+    assert_eq!(resolved.checksum, expected);
+    assert_eq!(resolved.file_size, contents.len() as i64);
+    assert_eq!(resolved.bytes, contents);
+    assert_eq!(resolved.file_name, "app-release.aab");
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn test_missing_build_output_fails_instead_of_substituting_a_placeholder() {
+    // A project directory with no build output at all.
+    let root = temp_project_with_file("pubspec.yaml", b"name: demo\n");
+
+    let err = resolve_and_verify_build_artifact(&root, "android", "release")
+        .expect_err("a missing build output must fail the build");
+
+    match err {
+        BuildWorkerError::StageFailed { stage, reason, .. } => {
+            assert_eq!(stage, "upload");
+            assert!(
+                reason.contains("app-release.aab") || reason.contains("Failed to read"),
+                "error must name the path it looked for, got: {reason}"
+            );
+        }
+        other => panic!("expected StageFailed, got {other:?}"),
+    }
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn test_pubspec_version_parsing() {
+    let root = temp_project_with_file("pubspec.yaml", b"name: demo\nversion: 2.4.1+37\n");
+    assert_eq!(
+        parse_pubspec_version(&root),
+        Some(("2.4.1".to_string(), Some(37)))
+    );
+    std::fs::remove_dir_all(&root).ok();
+
+    // A version with no build number must report None rather than defaulting to 1.
+    let root = temp_project_with_file("pubspec.yaml", b"name: demo\nversion: 2.4.1\n");
+    assert_eq!(
+        parse_pubspec_version(&root),
+        Some(("2.4.1".to_string(), None))
+    );
+    std::fs::remove_dir_all(&root).ok();
+
+    // No version field at all.
+    let root = temp_project_with_file("pubspec.yaml", b"name: demo\n");
+    assert_eq!(parse_pubspec_version(&root), None);
+    std::fs::remove_dir_all(&root).ok();
+
+    // An indented `version:` belongs to a dependency and must not be read as the app's.
+    let root = temp_project_with_file(
+        "pubspec.yaml",
+        b"name: demo\ndependencies:\n  foo:\n    version: 9.9.9+1\n",
+    );
+    assert_eq!(parse_pubspec_version(&root), None);
+    std::fs::remove_dir_all(&root).ok();
 }

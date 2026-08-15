@@ -41,6 +41,8 @@ use chrono::Utc;
 use djangors_db::Database;
 use djangors_orm::{q, Model};
 
+use sha2::{Digest, Sha256};
+
 use crate::apps::artifacts::contracts::ArtifactRegisterRequest;
 use crate::apps::artifacts::services as artifact_services;
 use crate::apps::builds::contracts::{CompleteBuildRequest, StageUpdateRequest};
@@ -361,6 +363,298 @@ pub async fn run_build_job(
             Err(err)
         }
     }
+}
+
+/// Describes a resolved build output artifact on local disk ready for storage upload.
+#[derive(Debug, Clone)]
+pub struct ResolvedArtifact {
+    /// Local filesystem path to the artifact file.
+    pub local_path: PathBuf,
+    /// Destination filename (e.g. `app-release.aab`, `Runner.ipa`, `web-bundle.tar.gz`).
+    pub file_name: String,
+    /// Artifact kind classification (`aab`, `ipa`, `web_bundle`, `apk`).
+    pub kind: String,
+    /// MIME content type.
+    pub content_type: &'static str,
+    /// Raw byte contents.
+    pub bytes: Vec<u8>,
+    /// SHA-256 hex digest of the raw byte contents.
+    pub checksum: String,
+    /// Byte length.
+    pub file_size: i64,
+}
+
+/// Locates and prepares the platform-specific build artifact produced by Flutter compilation.
+///
+/// If the expected output file does not exist on disk, returns `Err(BuildWorkerError::StageFailed)`
+/// naming the exact missing filesystem path. Never substitutes a placeholder.
+pub fn resolve_and_verify_build_artifact(
+    working_dir: &Path,
+    platform: &str,
+    build_profile: &str,
+) -> Result<ResolvedArtifact, BuildWorkerError> {
+    let (artifact_path, file_name, kind, content_type) = match platform {
+        "android" => {
+            let profile_path = working_dir
+                .join("build/app/outputs/bundle")
+                .join(build_profile)
+                .join(format!("app-{build_profile}.aab"));
+            let release_path = working_dir.join("build/app/outputs/bundle/release/app-release.aab");
+
+            let target_path = if profile_path.exists() {
+                profile_path
+            } else if release_path.exists() {
+                release_path
+            } else {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "Expected build output artifact not found at '{}'",
+                        profile_path.display()
+                    ),
+                    exit_code: None,
+                });
+            };
+
+            let name = target_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "app-release.aab".to_string());
+
+            (
+                target_path,
+                name,
+                "aab".to_string(),
+                "application/octet-stream",
+            )
+        }
+        "ios" => {
+            let ipa_dir = working_dir.join("build/ios/ipa");
+            let runner_ipa = ipa_dir.join("Runner.ipa");
+
+            let target_path = if runner_ipa.exists() {
+                runner_ipa
+            } else if ipa_dir.is_dir() {
+                let found_ipa = std::fs::read_dir(&ipa_dir).ok().and_then(|entries| {
+                    entries.flatten().find_map(|e| {
+                        let p = e.path();
+                        if p.is_file() && p.extension().is_some_and(|ext| ext == "ipa") {
+                            Some(p)
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                match found_ipa {
+                    Some(p) => p,
+                    None => {
+                        return Err(BuildWorkerError::StageFailed {
+                            stage: "upload".to_string(),
+                            reason: format!(
+                                "Expected build output artifact not found in '{}'",
+                                ipa_dir.display()
+                            ),
+                            exit_code: None,
+                        });
+                    }
+                }
+            } else {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "Expected build output artifact not found at '{}'",
+                        runner_ipa.display()
+                    ),
+                    exit_code: None,
+                });
+            };
+
+            let name = target_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Runner.ipa".to_string());
+
+            (
+                target_path,
+                name,
+                "ipa".to_string(),
+                "application/octet-stream",
+            )
+        }
+        "web" => {
+            let web_dir = working_dir.join("build/web");
+            let pre_archived = working_dir.join("build/web-bundle.tar.gz");
+
+            let target_path = if pre_archived.is_file() {
+                pre_archived
+            } else if web_dir.is_dir() {
+                let archive_path = working_dir.join("build/web-bundle.tar.gz");
+                let tar_output = std::process::Command::new("tar")
+                    .args([
+                        "-czf",
+                        archive_path.to_str().unwrap(),
+                        "-C",
+                        web_dir.to_str().unwrap(),
+                        ".",
+                    ])
+                    .output();
+
+                match tar_output {
+                    Ok(out) if out.status.success() => archive_path,
+                    Ok(out) => {
+                        return Err(BuildWorkerError::StageFailed {
+                            stage: "upload".to_string(),
+                            reason: format!(
+                                "Failed to archive web bundle directory '{}': {}",
+                                web_dir.display(),
+                                String::from_utf8_lossy(&out.stderr)
+                            ),
+                            exit_code: out.status.code(),
+                        });
+                    }
+                    Err(e) => {
+                        return Err(BuildWorkerError::StageFailed {
+                            stage: "upload".to_string(),
+                            reason: format!(
+                                "Failed to execute tar to archive web directory '{}': {e}",
+                                web_dir.display()
+                            ),
+                            exit_code: None,
+                        });
+                    }
+                }
+            } else if web_dir.is_file() {
+                web_dir
+            } else {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "Expected build output directory not found at '{}'",
+                        web_dir.display()
+                    ),
+                    exit_code: None,
+                });
+            };
+
+            (
+                target_path,
+                "web-bundle.tar.gz".to_string(),
+                "web_bundle".to_string(),
+                "application/gzip",
+            )
+        }
+        "macos" => {
+            let macos_dir = working_dir
+                .join("build/macos/Build/Products")
+                .join(if build_profile == "debug" {
+                    "Debug"
+                } else {
+                    "Release"
+                })
+                .join("Runner.app");
+            if !macos_dir.exists() {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "Expected build output artifact not found at '{}'",
+                        macos_dir.display()
+                    ),
+                    exit_code: None,
+                });
+            }
+            (
+                macos_dir,
+                "Runner.app".to_string(),
+                "app".to_string(),
+                "application/octet-stream",
+            )
+        }
+        _ => {
+            let apk_profile = working_dir
+                .join("build/app/outputs/flutter-apk")
+                .join(format!("app-{build_profile}.apk"));
+            let apk_release = working_dir.join("build/app/outputs/apk/release/app-release.apk");
+            let apk_flutter_release =
+                working_dir.join("build/app/outputs/flutter-apk/app-release.apk");
+
+            let target_path = if apk_profile.exists() {
+                apk_profile
+            } else if apk_release.exists() {
+                apk_release
+            } else if apk_flutter_release.exists() {
+                apk_flutter_release
+            } else {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "Expected build output artifact not found at '{}'",
+                        apk_profile.display()
+                    ),
+                    exit_code: None,
+                });
+            };
+
+            (
+                target_path,
+                "app-release.apk".to_string(),
+                "apk".to_string(),
+                "application/vnd.android.package-archive",
+            )
+        }
+    };
+
+    let bytes = std::fs::read(&artifact_path).map_err(|e| BuildWorkerError::StageFailed {
+        stage: "upload".to_string(),
+        reason: format!(
+            "Failed to read build artifact file at '{}': {e}",
+            artifact_path.display()
+        ),
+        exit_code: None,
+    })?;
+
+    let file_size = bytes.len() as i64;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let checksum = format!("{:x}", hasher.finalize());
+
+    Ok(ResolvedArtifact {
+        local_path: artifact_path,
+        file_name,
+        kind,
+        content_type,
+        bytes,
+        checksum,
+        file_size,
+    })
+}
+
+/// Parses the `version:` line of a Flutter `pubspec.yaml` into a semantic version and
+/// build number.
+///
+/// Flutter writes the version as `version: 1.2.3+45`, where the portion after `+` is the
+/// build number. A pubspec with no build number is valid and yields `None` for it, which the
+/// caller must treat as a missing value rather than substituting a default.
+pub fn parse_pubspec_version(working_dir: &Path) -> Option<(String, Option<i64>)> {
+    let content = std::fs::read_to_string(working_dir.join("pubspec.yaml")).ok()?;
+
+    for line in content.lines() {
+        // Only a top-level `version:` counts; an indented one belongs to a dependency.
+        if let Some(rest) = line.strip_prefix("version:") {
+            let value = rest.trim();
+            if value.is_empty() {
+                return None;
+            }
+            return Some(match value.split_once('+') {
+                Some((semver, build)) => {
+                    (semver.trim().to_string(), build.trim().parse::<i64>().ok())
+                }
+                None => (value.to_string(), None),
+            });
+        }
+    }
+
+    None
 }
 
 /// Checks whether a repository declares `build_runner` or code generators.
@@ -1071,13 +1365,8 @@ async fn execute_build_pipeline(
             .await
             .map_err(|e| BuildWorkerError::Storage(e.to_string()))?;
 
-        // 2. Upload and register platform build artifact
-        let (filename, kind) = match platform.as_str() {
-            "android" => ("app-release.aab", "aab"),
-            "ios" => ("Runner.ipa", "ipa"),
-            "web" => ("web-bundle.tar.gz", "web_bundle"),
-            _ => ("artifact.bin", "apk"),
-        };
+        // 2. Locate, read, compute SHA-256, and upload real platform build artifact
+        let resolved_art = resolve_and_verify_build_artifact(working_dir, platform, build_profile)?;
 
         let artifact_temp_id = format!("art-{}", build_id);
         let art_storage_key = artifact_storage_key(
@@ -1086,35 +1375,67 @@ async fn execute_build_pipeline(
             app_id,
             build_id,
             &artifact_temp_id,
-            filename,
+            &resolved_art.file_name,
         );
-
-        let dummy_artifact_bytes = Bytes::from(format!(
-            "Bloom build output bundle for {build_id} (platform: {platform})"
-        ));
-        let dummy_size = dummy_artifact_bytes.len() as i64;
-        let dummy_checksum =
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string();
 
         storage
             .put(
                 &art_storage_key,
-                dummy_artifact_bytes,
-                "application/octet-stream",
+                Bytes::from(resolved_art.bytes),
+                resolved_art.content_type,
             )
             .await
             .map_err(|e| BuildWorkerError::Storage(e.to_string()))?;
+
+        // Verify upload success via ETag/head request (ObjectStorage::exists) before registering
+        let upload_verified = storage
+            .exists(&art_storage_key)
+            .await
+            .map_err(|e| BuildWorkerError::Storage(e.to_string()))?;
+
+        if !upload_verified {
+            return Err(BuildWorkerError::Storage(format!(
+                "Storage upload verification failed: object at '{art_storage_key}' not confirmed"
+            )));
+        }
+
+        // The version identifies the artifact to the stores and to release management, so it
+        // must come from the app being built. Registering a constant would misfile every
+        // artifact under the same version -- the same class of fabrication as the placeholder
+        // bytes this stage used to upload.
+        let (artifact_version, artifact_build_number) = match parse_pubspec_version(working_dir) {
+            Some((version, Some(build_number))) => (version, build_number),
+            Some((version, None)) => {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: format!(
+                        "pubspec.yaml declares version '{version}' with no build number \
+                         (expected 'version: x.y.z+N'); cannot register artifact"
+                    ),
+                    exit_code: None,
+                });
+            }
+            None => {
+                return Err(BuildWorkerError::StageFailed {
+                    stage: "upload".to_string(),
+                    reason: "pubspec.yaml has no top-level 'version:' field; cannot register \
+                             artifact without the app's real version"
+                        .to_string(),
+                    exit_code: None,
+                });
+            }
+        };
 
         let art_reg_req = ArtifactRegisterRequest {
             build_id: build_id.to_string(),
             organization_id: organization_id.to_string(),
             platform: platform.to_string(),
-            kind: kind.to_string(),
-            file_name: filename.to_string(),
-            file_size: dummy_size,
-            checksum: dummy_checksum,
-            version: "1.0.0".to_string(),
-            build_number: 1,
+            kind: resolved_art.kind,
+            file_name: resolved_art.file_name,
+            file_size: resolved_art.file_size,
+            checksum: resolved_art.checksum,
+            version: artifact_version,
+            build_number: artifact_build_number,
             metadata: serde_json::json!({
                 "worker": consumer_name,
                 "platform": platform,

@@ -41,6 +41,9 @@ use chrono::Utc;
 use djangors_db::Database;
 use djangors_orm::{q, Model};
 
+use sha2::{Digest, Sha256};
+
+use crate::apps::artifacts::models::Artifact;
 use crate::apps::deployments::models::Deployment;
 use crate::apps::organizations::models::Organization;
 use crate::apps::webhosting::services::build_web_storage_prefix;
@@ -48,6 +51,7 @@ use crate::apps::workflows::models::{Workflow, WorkflowRun, WorkflowRunStep};
 use crate::apps::workflows::repositories as workflow_repos;
 use crate::infra::caddy::{caddy_site_id, CaddyClient, CaddyError, CaddyMatchRule, CaddySiteBlock};
 use crate::infra::cdn::{CdnClient, CdnError, PurgeOutcome};
+use crate::infra::crypto::Crypto;
 use crate::infra::googleplay::{GooglePlayClient, GooglePlayError, ReleaseStatus, TrackRelease};
 use crate::infra::queue::{Job, JobQueue, QueueError, QueuedJob};
 use crate::infra::shorebird::{
@@ -542,7 +546,9 @@ async fn execute_web_deploy(
     consumer_name: &str,
     ctx: &DeployJobContext,
 ) -> Result<DeployWorkerResult, DeployWorkerError> {
+    let _ = consumer_name;
     let DeployWorkerDeps {
+        db,
         storage,
         cdn,
         caddy,
@@ -559,34 +565,48 @@ async fn execute_web_deploy(
     } = ctx;
     let apex_domain = ctx.apex_domain.as_deref();
 
-    // 1. Derive canonical storage prefix and upload bundle assets
+    // 1. Resolve artifact record from database
+    let art_id = ctx.artifact_id.as_deref().ok_or_else(|| {
+        DeployWorkerError::Storage("Missing artifact_id for web deployment".to_string())
+    })?;
+
+    let artifact = Artifact::objects()
+        .filter(q!(public_id = art_id.to_string()))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .ok_or_else(|| {
+            DeployWorkerError::Storage(format!("Artifact '{art_id}' not found in database"))
+        })?;
+
+    // 2. Fetch real bundle bytes from object storage
+    let bundle_bytes = storage.get(&artifact.storage_key).await.map_err(|e| {
+        DeployWorkerError::Storage(format!(
+            "Failed to download web bundle from storage at '{}': {e}",
+            artifact.storage_key
+        ))
+    })?;
+
+    // 3. Verify SHA-256 checksum integrity against recorded checksum
+    let mut hasher = Sha256::new();
+    hasher.update(&bundle_bytes);
+    let actual_checksum = format!("{:x}", hasher.finalize());
+
+    if !Crypto::constant_time_eq_str(&actual_checksum, &artifact.checksum) {
+        return Err(DeployWorkerError::Storage(format!(
+            "Web bundle checksum mismatch for '{}': expected {}, got {}. Storage corruption detected!",
+            artifact.public_id, artifact.checksum, actual_checksum
+        )));
+    }
+
+    // 4. Derive canonical storage prefix and upload bundle assets
     let storage_prefix =
         build_web_storage_prefix(organization_id, project_id, app_id, deployment_id);
 
-    let index_html_key = format!("{storage_prefix}/index.html");
-    let main_js_key = format!("{storage_prefix}/main.dart.js");
+    upload_web_bundle_assets(storage, &storage_prefix, &artifact.file_name, bundle_bytes).await?;
 
-    let dummy_html = format!(
-        "<!DOCTYPE html><html><head><title>Bloom App</title></head><body>Deployed by {} (ID: {})</body></html>",
-        consumer_name, deployment_id
-    );
-    let dummy_js = "// Flutter Web bootstrap dummy bundle\n";
-
-    storage
-        .put(&index_html_key, Bytes::from(dummy_html), "text/html")
-        .await
-        .map_err(|e| DeployWorkerError::Storage(e.to_string()))?;
-
-    storage
-        .put(
-            &main_js_key,
-            Bytes::from(dummy_js),
-            "application/javascript",
-        )
-        .await
-        .map_err(|e| DeployWorkerError::Storage(e.to_string()))?;
-
-    // 2. Invalidate CDN cache for the deployment prefix
+    // 5. Invalidate CDN cache for the deployment prefix
     let cdn_outcome = match cdn
         .purge_prefixes(std::slice::from_ref(&storage_prefix))
         .await
@@ -602,7 +622,7 @@ async fn execute_web_deploy(
         }
     };
 
-    // 3. Provision Caddy site block
+    // 6. Provision Caddy site block
     let site_id = caddy_site_id(deployment_id);
 
     let apex = apex_domain.unwrap_or("bloomcloud.dev");
@@ -777,11 +797,44 @@ async fn execute_googleplay_lifecycle(
 ) -> Result<(String, Option<i64>), DeployWorkerError> {
     let client = deps.googleplay;
 
-    // 1. Upload bundle (edits.bundles.upload)
-    let dummy_bundle_bytes =
-        Bytes::from_static(b"PK\x03\x04\x14\x00\x00\x00\x00\x00DummyAABBundlePayload");
+    // 1. Resolve artifact record from database
+    let art_id = ctx.artifact_id.as_deref().ok_or_else(|| {
+        DeployWorkerError::Storage("Missing artifact_id for Google Play deployment".to_string())
+    })?;
+
+    let artifact = Artifact::objects()
+        .filter(q!(public_id = art_id.to_string()))
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .first(deps.db)
+        .await
+        .map_err(|e| DeployWorkerError::WebHostingService(e.to_string()))?
+        .ok_or_else(|| {
+            DeployWorkerError::Storage(format!("Artifact '{art_id}' not found in database"))
+        })?;
+
+    // 2. Download bundle bytes from storage
+    let bundle_bytes = deps.storage.get(&artifact.storage_key).await.map_err(|e| {
+        DeployWorkerError::Storage(format!(
+            "Failed to download bundle from storage at '{}': {e}",
+            artifact.storage_key
+        ))
+    })?;
+
+    // 3. Verify SHA-256 integrity against recorded checksum
+    let mut hasher = Sha256::new();
+    hasher.update(&bundle_bytes);
+    let actual_checksum = format!("{:x}", hasher.finalize());
+
+    if !Crypto::constant_time_eq_str(&actual_checksum, &artifact.checksum) {
+        return Err(DeployWorkerError::Storage(format!(
+            "Artifact checksum mismatch for '{}': expected {}, got {}. Storage corruption detected!",
+            artifact.public_id, artifact.checksum, actual_checksum
+        )));
+    }
+
+    // 4. Upload verified real bundle bytes (edits.bundles.upload)
     let bundle = client
-        .upload_bundle(package_name, edit_id, dummy_bundle_bytes, None)
+        .upload_bundle(package_name, edit_id, bundle_bytes, None)
         .await
         .map_err(map_googleplay_error)?;
 
@@ -1005,4 +1058,164 @@ pub async fn resume_parent_workflow_run(
         .map_err(|e| DeployWorkerError::Queue(e.to_string()))?;
 
     Ok(())
+}
+
+/// Helper to unpack or upload web bundle assets into object storage under `storage_prefix`.
+async fn upload_web_bundle_assets(
+    storage: &dyn ObjectStorage,
+    storage_prefix: &str,
+    filename: &str,
+    bundle_bytes: Bytes,
+) -> Result<(), DeployWorkerError> {
+    // If bundle is gzip compressed tar archive
+    if bundle_bytes.starts_with(&[0x1f, 0x8b]) {
+        let temp_dir =
+            std::env::temp_dir().join(format!("bloom_web_deploy_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).map_err(|e| {
+            DeployWorkerError::Storage(format!(
+                "Failed to create temp directory for web bundle extraction: {e}"
+            ))
+        })?;
+
+        let archive_file = temp_dir.join("bundle.tar.gz");
+        if let Err(e) = std::fs::write(&archive_file, &bundle_bytes) {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(DeployWorkerError::Storage(format!(
+                "Failed to write web bundle archive to disk: {e}"
+            )));
+        }
+
+        let extract_dir = temp_dir.join("extracted");
+        if let Err(e) = std::fs::create_dir_all(&extract_dir) {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(DeployWorkerError::Storage(format!(
+                "Failed to create extraction directory: {e}"
+            )));
+        }
+
+        let tar_res = std::process::Command::new("tar")
+            .args([
+                "-xzf",
+                archive_file.to_str().unwrap(),
+                "-C",
+                extract_dir.to_str().unwrap(),
+            ])
+            .output();
+
+        let upload_result = match tar_res {
+            Ok(out) if out.status.success() => {
+                upload_directory_recursively(storage, storage_prefix, &extract_dir).await
+            }
+            Ok(out) => Err(DeployWorkerError::Storage(format!(
+                "Failed to extract web bundle tar.gz: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ))),
+            Err(e) => Err(DeployWorkerError::Storage(format!(
+                "Failed to execute tar command: {e}"
+            ))),
+        };
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        upload_result
+    } else {
+        // Single file or uncompressed bundle: upload directly under filename or index.html
+        let target_key = if filename.ends_with(".js") {
+            format!("{storage_prefix}/main.dart.js")
+        } else if filename.ends_with(".html") {
+            format!("{storage_prefix}/index.html")
+        } else {
+            format!("{storage_prefix}/{filename}")
+        };
+        let content_type = detect_content_type(&target_key);
+        storage
+            .put(&target_key, bundle_bytes, content_type)
+            .await
+            .map_err(|e| DeployWorkerError::Storage(e.to_string()))
+    }
+}
+
+/// Uploads all files in a directory recursively to object storage under a key prefix.
+async fn upload_directory_recursively(
+    storage: &dyn ObjectStorage,
+    storage_prefix: &str,
+    dir: &Path,
+) -> Result<(), DeployWorkerError> {
+    let mut stack = vec![dir.to_path_buf()];
+    let mut files_uploaded = 0;
+
+    while let Some(current_dir) = stack.pop() {
+        let entries = std::fs::read_dir(&current_dir).map_err(|e| {
+            DeployWorkerError::Storage(format!(
+                "Failed to read directory '{}': {e}",
+                current_dir.display()
+            ))
+        })?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                DeployWorkerError::Storage(format!("Failed reading directory entry: {e}"))
+            })?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.is_file() {
+                let rel_path = path.strip_prefix(dir).map_err(|e| {
+                    DeployWorkerError::Storage(format!("Failed computing relative path: {e}"))
+                })?;
+                let rel_str = rel_path.to_string_lossy().replace('\\', "/");
+                let key = format!("{storage_prefix}/{rel_str}");
+                let content_type = detect_content_type(&rel_str);
+                let bytes = std::fs::read(&path).map_err(|e| {
+                    DeployWorkerError::Storage(format!(
+                        "Failed reading file '{}': {e}",
+                        path.display()
+                    ))
+                })?;
+
+                storage
+                    .put(&key, Bytes::from(bytes), content_type)
+                    .await
+                    .map_err(|e| DeployWorkerError::Storage(e.to_string()))?;
+                files_uploaded += 1;
+            }
+        }
+    }
+
+    if files_uploaded == 0 {
+        return Err(DeployWorkerError::Storage(format!(
+            "Web bundle extraction produced no files in '{}'",
+            dir.display()
+        )));
+    }
+
+    Ok(())
+}
+
+/// Detects the MIME content type from a file path or extension.
+fn detect_content_type(path: &str) -> &'static str {
+    if path.ends_with(".html") || path.ends_with(".htm") {
+        "text/html"
+    } else if path.ends_with(".js") || path.ends_with(".mjs") {
+        "application/javascript"
+    } else if path.ends_with(".css") {
+        "text/css"
+    } else if path.ends_with(".json") {
+        "application/json"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else if path.ends_with(".wasm") {
+        "application/wasm"
+    } else if path.ends_with(".ico") {
+        "image/x-icon"
+    } else if path.ends_with(".map") {
+        "application/json"
+    } else if path.ends_with(".tar.gz") || path.ends_with(".tgz") {
+        "application/gzip"
+    } else {
+        "application/octet-stream"
+    }
 }
