@@ -4,36 +4,16 @@ use std::str::FromStr;
 
 use djangors_core::extract::{FromRequest, Json};
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
-use djangors_db::Database;
 use djangors_rest::Permission;
 
 use super::contracts::{WorkflowApproveRequest, WorkflowCreateRequest, WorkflowRunCreateRequest};
 use super::errors::WorkflowError;
-use super::permissions::{
-    CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
-};
+use super::permissions::{CurrentOrganizationRole, OrganizationPermission, OrganizationRole};
 use super::{repositories, serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
+use crate::apps::common::request::{get_db, get_org_id};
 use crate::infra::queue::JobQueue;
 use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
-
-/// Retrieve the active organization ID from request extensions.
-fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
-    req.ext::<CurrentOrganizationId>()
-        .map(|ext| ext.0)
-        .ok_or_else(|| {
-            DjangorsError::api(
-                StatusCode::FORBIDDEN,
-                "organization_required",
-                "No organization selected.",
-            )
-        })
-}
 
 /// Extract the user's role in the active organization.
 fn get_user_role(req: &Request) -> OrganizationRole {

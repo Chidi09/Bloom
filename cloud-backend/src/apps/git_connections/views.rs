@@ -14,15 +14,11 @@ use super::permissions::{
 use super::services::WebhookDeliveryOutcome;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
+use crate::apps::common::request::get_db;
 use crate::apps::organizations::models::{Organization, UserOrganizationMembership};
 use crate::apps::organizations::repositories as org_repos;
 use crate::settings::GitHubSettings;
 use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
 
 /// Resolve the active organization and verify the user's membership.
 async fn resolve_org_context(

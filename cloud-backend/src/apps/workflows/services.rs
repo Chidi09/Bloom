@@ -103,30 +103,6 @@ pub fn can_step_transition(from: &str, to: &str) -> bool {
     )
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to `crate::apps::events::emit`, which swallows and logs failures.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Synthesized step template parsed from a workflow definition.
 #[derive(Debug, Clone)]
 pub struct WorkflowStepTemplate {
@@ -370,7 +346,7 @@ pub async fn create_workflow(
     let saved_workflow = repositories::insert_workflow(db, workflow).await?;
 
     // 4. Emit `workflow.created` event per docs/events.md.
-    emit_event(
+    crate::apps::events::emit(
         db,
         "workflow.created",
         Some(organization_id),
@@ -593,7 +569,7 @@ pub async fn create_workflow_run(
     }
 
     // 3. Emit `workflowrun.started` event per docs/events.md
-    emit_event(
+    crate::apps::events::emit(
         db,
         "workflowrun.started",
         Some(organization_id),
@@ -609,7 +585,7 @@ pub async fn create_workflow_run(
 
     // 4. Emit `workflowrun.step.started` for the first step
     if let Some(first_step) = saved_steps.first() {
-        emit_event(
+        crate::apps::events::emit(
             db,
             "workflowrun.step.started",
             Some(organization_id),
@@ -848,7 +824,7 @@ pub async fn approve_workflow_run(
         steps[gate_idx].finished_at = Some(now);
         repositories::update_workflow_run_step(db, &steps[gate_idx]).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "workflowrun.step.completed",
             Some(organization_id),
@@ -877,7 +853,7 @@ pub async fn approve_workflow_run(
                 next_step.started_at = Some(now);
                 repositories::update_workflow_run_step(db, next_step).await?;
 
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "workflowrun.step.started",
                     Some(organization_id),
@@ -898,7 +874,7 @@ pub async fn approve_workflow_run(
             run.finished_at = Some(now);
             repositories::update_workflow_run(db, &run).await?;
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "workflowrun.completed",
                 Some(organization_id),
@@ -925,7 +901,7 @@ pub async fn approve_workflow_run(
         steps[gate_idx].log_snippet = req.reason.clone();
         repositories::update_workflow_run_step(db, &steps[gate_idx]).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "workflowrun.step.completed",
             Some(organization_id),
@@ -953,7 +929,7 @@ pub async fn approve_workflow_run(
         run.updated_at = now;
         repositories::update_workflow_run(db, &run).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "workflow.rejected",
             Some(organization_id),
@@ -969,7 +945,7 @@ pub async fn approve_workflow_run(
         )
         .await;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "workflowrun.completed",
             Some(organization_id),

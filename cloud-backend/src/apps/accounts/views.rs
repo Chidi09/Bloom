@@ -2,7 +2,6 @@
 
 use djangors_core::extract::{FromRequest, Json};
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
-use djangors_db::Database;
 use serde_json::json;
 
 use super::contracts::{
@@ -10,12 +9,8 @@ use super::contracts::{
 };
 use super::errors::AccountError;
 use super::{permissions, serializers, services};
+use crate::apps::common::request::get_db;
 use crate::settings::BloomSettings;
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
 
 /// Retrieve the JWT secret key and API base URL from settings.
 fn get_settings(req: &Request) -> (String, String) {

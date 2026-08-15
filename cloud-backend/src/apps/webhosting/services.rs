@@ -256,28 +256,6 @@ pub fn generate_verification_token() -> String {
     format!("bloom_verify_{}", Uuid::new_v4().simple())
 }
 
-/// Emits an event to the events log.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Initiates a new Flutter Web deployment.
 pub async fn deploy_web(
     db: &Database,
@@ -392,7 +370,7 @@ pub async fn deploy_web(
         repositories::update_deployment(db, &saved).await?;
     }
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "webhosting.deployed",
         Some(organization_id),
@@ -470,7 +448,7 @@ pub async fn rollback_web_deployment(
         None => None,
     };
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "webhosting.rolled_back",
         Some(organization_id),
@@ -784,7 +762,7 @@ pub async fn verify_custom_domain(
                 domain.certificate_status = "failed".to_string();
                 domain.failure_reason = Some(reason.clone());
                 repositories::update_custom_domain(db, &domain).await?;
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "domain.verification_failed",
                     Some(organization_id),
@@ -810,7 +788,7 @@ pub async fn verify_custom_domain(
             domain.certificate_status = "failed".to_string();
             domain.failure_reason = Some(reason.clone());
             repositories::update_custom_domain(db, &domain).await?;
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "domain.verification_failed",
                 Some(organization_id),
@@ -918,7 +896,7 @@ pub async fn verify_custom_domain(
                 .await;
         }
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "webhosting.domain_verified",
             Some(organization_id),
@@ -1002,7 +980,7 @@ pub async fn delete_custom_domain(
 
         repositories::delete_custom_domain_by_id(db, d.id).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "webhosting.domain_deleted",
             Some(organization_id),

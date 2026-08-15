@@ -14,31 +14,6 @@ use super::repositories::{self, AppSummary, EnvironmentSummary, OrganizationSumm
 use crate::infra::queue::{Job, JobQueue};
 use crate::infra::storage::{build_log_storage_key, ObjectStorage, DEFAULT_PRESIGNED_EXPIRY};
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Valid target platforms.
 pub const VALID_PLATFORMS: &[&str] = &["android", "ios", "web", "all"];
 
@@ -320,7 +295,7 @@ pub async fn create_build(
     }
 
     // 6. Emit build.created
-    emit_event(
+    crate::apps::events::emit(
         db,
         "build.created",
         Some(organization_id),
@@ -359,7 +334,7 @@ pub async fn create_build(
     queued.updated_at = Utc::now();
     repositories::update_build(db, &queued).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "build.queued",
         Some(organization_id),
@@ -583,7 +558,7 @@ pub async fn cancel_build(
             updated.updated_at = Utc::now();
             repositories::update_build(db, &updated).await?;
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "build.cancelled",
                 Some(organization_id),
@@ -611,7 +586,7 @@ pub async fn cancel_build(
         "running" => {
             // The worker must observe the cancel request between stages and ack by
             // reporting `cancelled` via complete_build.
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "build.cancelled",
                 Some(organization_id),
@@ -736,7 +711,7 @@ pub async fn update_stage(
         updated.updated_at = now;
         repositories::update_build(db, &updated).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "build.started",
             Some(build.organization_id),
@@ -782,7 +757,7 @@ pub async fn update_stage(
     };
 
     if let Some((event_type, payload)) = stage_event {
-        emit_event(
+        crate::apps::events::emit(
             db,
             event_type,
             Some(build.organization_id),
@@ -851,7 +826,7 @@ pub async fn complete_build(
         ),
     };
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         event_type,
         Some(updated.organization_id),

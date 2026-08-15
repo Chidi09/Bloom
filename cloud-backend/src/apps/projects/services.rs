@@ -47,31 +47,6 @@ pub async fn generate_unique_slug_in_org(
     Ok(format!("{base}-{}", random_suffix.to_lowercase()))
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Create a new project within an organization.
 pub async fn create_project(
     db: &Database,
@@ -124,7 +99,7 @@ pub async fn create_project(
 
     let saved_project = repositories::insert_project(db, project).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "project.created",
         Some(organization_id),
@@ -217,7 +192,7 @@ pub async fn update_project(
         project.updated_at = Utc::now();
         repositories::update_project(db, project).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "project.updated",
             Some(project.organization_id.id),
@@ -243,7 +218,7 @@ pub async fn delete_project(db: &Database, project: &Project) -> Result<(), Proj
 
     repositories::delete_project_by_id(db, project.id).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "project.deleted",
         Some(project.organization_id.id),

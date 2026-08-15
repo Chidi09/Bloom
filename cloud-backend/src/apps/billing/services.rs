@@ -451,28 +451,6 @@ pub enum WebhookDeliveryOutcome {
 // Event emission helper
 // ---------------------------------------------------------------------------
 
-/// Emit an event to the `events` app log.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 // ---------------------------------------------------------------------------
 // High-level billing service operations
 // ---------------------------------------------------------------------------
@@ -560,7 +538,7 @@ pub async fn get_or_create_subscription(
     let saved_sub = repositories::insert_subscription(db, new_sub).await?;
     let entitlements = parse_entitlements_json(&plan.entitlements);
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "billing.subscription.created",
         Some(organization_id),
@@ -624,7 +602,7 @@ pub async fn subscribe_to_plan(
         apply_free_downgrade(&mut sub, target_plan.id, now, period_end);
         repositories::update_subscription(db, &sub).await?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "billing.subscription.updated",
             Some(organization_id),
@@ -714,7 +692,7 @@ pub async fn subscribe_to_plan(
     apply_charge_initiation(&mut sub, target_plan.id, &reference, now)?;
     repositories::update_subscription(db, &sub).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "billing.subscription.updated",
         Some(organization_id),
@@ -764,7 +742,7 @@ pub async fn cancel_subscription(
     sub.updated_at = now;
     repositories::update_subscription(db, &sub).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "billing.subscription.cancelled",
         Some(organization_id),
@@ -928,7 +906,7 @@ pub async fn record_usage(
 
     let saved = repositories::insert_usage_record(db, record).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "billing.usage.recorded",
         Some(organization_id),
@@ -1002,7 +980,7 @@ pub async fn handle_bachs_webhook(
                 if apply_payment_success(&mut sub, now, period_end) {
                     repositories::update_subscription(db, &sub).await?;
 
-                    emit_event(
+                    crate::apps::events::emit(
                         db,
                         "billing.subscription.activated",
                         Some(sub.organization_id.id),
@@ -1025,7 +1003,7 @@ pub async fn handle_bachs_webhook(
                     inv.paid_at = Some(Utc::now());
                     repositories::update_invoice(db, &inv).await?;
 
-                    emit_event(
+                    crate::apps::events::emit(
                         db,
                         "billing.invoice.paid",
                         Some(inv.organization_id.id),
@@ -1106,7 +1084,7 @@ pub async fn handle_paystack_webhook(
                 if apply_payment_success(&mut sub, now, period_end) {
                     repositories::update_subscription(db, &sub).await?;
 
-                    emit_event(
+                    crate::apps::events::emit(
                         db,
                         "billing.subscription.activated",
                         Some(sub.organization_id.id),
@@ -1129,7 +1107,7 @@ pub async fn handle_paystack_webhook(
                     inv.paid_at = Some(Utc::now());
                     repositories::update_invoice(db, &inv).await?;
 
-                    emit_event(
+                    crate::apps::events::emit(
                         db,
                         "billing.invoice.paid",
                         Some(inv.organization_id.id),

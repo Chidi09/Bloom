@@ -2,7 +2,6 @@
 
 use djangors_core::extract::{FromRequest, Json};
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
-use djangors_db::Database;
 use serde_json::json;
 
 use super::contracts::{
@@ -13,11 +12,7 @@ use super::errors::OrganizationError;
 use super::permissions::CurrentOrganizationPublicId;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
+use crate::apps::common::request::get_db;
 
 /// GET `/api/v1/organizations` — List all organizations the authenticated user belongs to.
 ///

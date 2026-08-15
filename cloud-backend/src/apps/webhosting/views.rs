@@ -6,40 +6,21 @@ use std::sync::Arc;
 use djangors_auth::User;
 use djangors_core::extract::{FromRequest, Json};
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
-use djangors_db::Database;
 use djangors_rest::Permission;
 
 use super::contracts::{CreateCustomDomainRequest, DeployWebRequest};
 use super::errors::WebHostingError;
 use super::permissions::{
-    require_authenticated, CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission,
-    OrganizationRole,
+    require_authenticated, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
 };
 use super::services::VerifyDomainParams;
 use super::{serializers, services};
+use crate::apps::common::request::{get_db, get_org_id};
 use crate::infra::caddy::CaddyClient;
 use crate::infra::dns::{DnsResolver, SystemDnsResolver};
 use crate::infra::storage::{InMemoryStorage, ObjectStorage};
 use crate::settings::{CaddySettings, CloudflareSettings};
 use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
-
-/// Retrieve the active organization ID from request extensions.
-fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
-    req.ext::<CurrentOrganizationId>()
-        .map(|ext| ext.0)
-        .ok_or_else(|| {
-            DjangorsError::api(
-                StatusCode::FORBIDDEN,
-                "organization_required",
-                "No organization selected.",
-            )
-        })
-}
 
 /// Retrieve the object-storage backend from request state, with fallback to in-memory storage.
 fn get_storage(req: &Request) -> Arc<dyn ObjectStorage> {

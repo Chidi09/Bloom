@@ -56,12 +56,11 @@ use djangors_orm::{q, Model};
 use serde::{Deserialize, Serialize};
 
 use crate::apps::deployments::permissions::OrganizationRole;
+use crate::apps::events::emit as emit_event;
 use crate::apps::workflows::errors::WorkflowError;
 use crate::apps::workflows::models::{WorkflowRun, WorkflowRunStep};
 use crate::apps::workflows::repositories::{self, AppSummary};
-use crate::apps::workflows::services::{
-    can_run_transition, can_step_transition, emit_event, VALID_STEP_KINDS,
-};
+use crate::apps::workflows::services::{can_run_transition, can_step_transition, VALID_STEP_KINDS};
 use crate::infra::executor::{CommandExecutor, CommandSpec, ExecutorError};
 use crate::infra::queue::{Job, JobQueue, QueueError, QueuedJob};
 

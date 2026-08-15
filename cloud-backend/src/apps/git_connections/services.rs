@@ -42,30 +42,6 @@ pub enum WebhookDeliveryOutcome {
     },
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs failures.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Headers and parameters for verifying and handling GitLab webhook deliveries.
 #[derive(Debug, Clone, Default)]
 pub struct GitLabWebhookHeaders<'a> {
@@ -373,7 +349,7 @@ pub async fn create_connection(
     let saved = repositories::insert_connection(db, connection).await?;
 
     // Emit git.connected event per docs/events.md
-    emit_event(
+    crate::apps::events::emit(
         db,
         "git.connected",
         Some(organization_id),
@@ -422,7 +398,7 @@ pub async fn delete_connection(
     repositories::delete_connection_by_id(db, connection.id).await?;
 
     // Emit git.disconnected event per docs/events.md
-    emit_event(
+    crate::apps::events::emit(
         db,
         "git.disconnected",
         Some(connection.organization_id.id),
@@ -608,7 +584,7 @@ pub async fn handle_github_webhook(
                 .to_string();
 
             // Emit git.push event per docs/events.md
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.push",
                 org_id_opt,
@@ -651,7 +627,7 @@ pub async fn handle_github_webhook(
                 .to_string();
 
             // Emit git.pull_request event per docs/events.md
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.pull_request",
                 org_id_opt,
@@ -801,7 +777,7 @@ pub async fn handle_gitlab_webhook(
                 .unwrap_or("HEAD")
                 .to_string();
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.push",
                 org_id_opt,
@@ -845,7 +821,7 @@ pub async fn handle_gitlab_webhook(
                 .unwrap_or("open")
                 .to_string();
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.pull_request",
                 org_id_opt,
@@ -997,7 +973,7 @@ pub async fn handle_bitbucket_webhook(
                 })
                 .unwrap_or_else(|| ("refs/heads/main".to_string(), "HEAD".to_string()));
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.push",
                 org_id_opt,
@@ -1043,7 +1019,7 @@ pub async fn handle_bitbucket_webhook(
             }
             .to_string();
 
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "git.pull_request",
                 org_id_opt,

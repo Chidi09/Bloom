@@ -48,31 +48,6 @@ pub fn validate_key_format(key: &str) -> Result<(), SecretError> {
     Ok(())
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Emits an audit log record with redacted before/after snapshots for sensitive state changes.
 /// Values and ciphertexts are NEVER recorded in the audit log.
 pub async fn emit_audit_log(
@@ -91,7 +66,7 @@ pub async fn emit_audit_log(
         "before": before_snapshot,
         "after": after_snapshot,
     });
-    emit_event(
+    crate::apps::events::emit(
         db,
         &format!("audit.secret.{action}"),
         Some(organization_id),
@@ -177,7 +152,7 @@ pub async fn create_or_update_secret(
         repositories::insert_secret_version(db, secret_version).await?;
 
         // Emit secret.updated event
-        emit_event(
+        crate::apps::events::emit(
             db,
             "secret.updated",
             Some(organization_id),
@@ -235,7 +210,7 @@ pub async fn create_or_update_secret(
         repositories::insert_secret_version(db, secret_version).await?;
 
         // Emit secret.created event
-        emit_event(
+        crate::apps::events::emit(
             db,
             "secret.created",
             Some(organization_id),
@@ -393,7 +368,7 @@ pub async fn update_secret(
     }
 
     if updated {
-        emit_event(
+        crate::apps::events::emit(
             db,
             "secret.updated",
             Some(organization_id),
@@ -464,7 +439,7 @@ pub async fn rollback_secret(
     repositories::insert_secret_version(db, new_history_entry).await?;
 
     // Emit secret.rolled_back event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "secret.rolled_back",
         Some(organization_id),
@@ -508,7 +483,7 @@ pub async fn delete_secret(
     repositories::delete_secret_by_id(db, secret.id).await?;
 
     // Emit secret.deleted event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "secret.deleted",
         Some(organization_id),

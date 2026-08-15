@@ -66,31 +66,6 @@ pub fn build_artifact_storage_key(
     )
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Returns `true` when the artifact belongs to `organization_id`.
 pub fn artifact_belongs_to_org(artifact: &Artifact, organization_id: i64) -> bool {
     artifact.organization_id == organization_id
@@ -236,7 +211,7 @@ pub async fn register_artifact(
     let saved = repositories::insert_artifact(db, artifact).await?;
 
     // 7. Emit artifact events (payload keys per docs/events.md).
-    emit_event(
+    crate::apps::events::emit(
         db,
         "artifact.created",
         Some(org.id),
@@ -252,7 +227,7 @@ pub async fn register_artifact(
     )
     .await;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "artifact.uploaded",
         Some(org.id),

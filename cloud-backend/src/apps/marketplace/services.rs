@@ -50,28 +50,6 @@ pub const VALID_FEATURED_TYPES: &[&str] = &["none", "editorial", "paid"];
 /// Valid review abuse report status identifiers.
 pub const VALID_REPORT_STATUSES: &[&str] = &["pending", "reviewed", "dismissed", "actioned"];
 
-/// Emits an event to the system events log.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Calculated platform fee and seller payout breakdown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SplitAmounts {
@@ -536,7 +514,7 @@ pub async fn get_or_create_seller_account(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.seller.created",
         Some(organization_id),
@@ -612,7 +590,7 @@ pub async fn refresh_seller_payout_status(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.seller.refreshed",
         Some(organization_id),
@@ -724,7 +702,7 @@ pub async fn create_template(
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
         .ok_or(MarketplaceError::OrganizationNotFound)?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.created",
         Some(organization_id),
@@ -840,7 +818,7 @@ pub async fn update_template(
     let latest_version = versions.first().map(|v| v.version.clone());
     let versions_count = versions.len() as i64;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.updated",
         Some(organization_id),
@@ -927,7 +905,7 @@ pub async fn publish_template(
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
     let latest_version = versions.first().map(|v| v.version.clone());
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.published",
         Some(organization_id),
@@ -980,7 +958,7 @@ pub async fn archive_template(
     let latest_version = versions.first().map(|v| v.version.clone());
     let versions_count = versions.len() as i64;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.archived",
         Some(organization_id),
@@ -1018,7 +996,7 @@ pub async fn delete_template(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.deleted",
         Some(organization_id),
@@ -1258,7 +1236,7 @@ pub async fn create_template_version(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.version_created",
         Some(organization_id),
@@ -1381,7 +1359,7 @@ pub async fn delete_template_version(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.version_deleted",
         Some(organization_id),
@@ -1547,7 +1525,7 @@ pub async fn purchase_template(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.purchase.created",
         Some(buyer_organization_id),
@@ -1839,7 +1817,7 @@ pub async fn refund_purchase(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.purchase.refunded",
         Some(purchase.buyer_organization_id.id),
@@ -1964,7 +1942,7 @@ pub async fn create_or_update_review(
             .await
             .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "marketplace.review.updated",
             Some(template.organization_id.id),
@@ -2002,7 +1980,7 @@ pub async fn create_or_update_review(
             .await
             .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-        emit_event(
+        crate::apps::events::emit(
             db,
             "marketplace.review.created",
             Some(template.organization_id.id),
@@ -2174,7 +2152,7 @@ pub async fn author_reply_to_review(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.review.author_replied",
         Some(author_org_id),
@@ -2240,7 +2218,7 @@ pub async fn report_review_abuse(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.review.reported",
         Some(reporter_org_id),
@@ -2297,7 +2275,7 @@ pub async fn moderate_review(
 
     recalculate_template_rating_aggregate(db, &mut template).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.review.moderated",
         Some(template.organization_id.id),
@@ -2507,7 +2485,7 @@ pub async fn record_template_install(
     // lives in the database; this is the local copy fetched before the transaction.
     template.install_count = template.install_count.saturating_add(1);
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.installed",
         Some(template.organization_id.id),
@@ -2566,7 +2544,7 @@ pub async fn curate_template_featuring(
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "marketplace.template.featured",
         Some(template.organization_id.id),

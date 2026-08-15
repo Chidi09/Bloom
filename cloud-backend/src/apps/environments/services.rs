@@ -66,31 +66,6 @@ pub async fn generate_unique_slug(
     Ok(format!("{base}-{}", random_suffix.to_lowercase()))
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Create a new `Environment` entity scoped to an app and organization.
 pub async fn create_environment(
     db: &Database,
@@ -186,7 +161,7 @@ pub async fn create_environment(
     let saved_env = repositories::insert_environment(db, env).await?;
 
     // 6. Emit environment.created event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "environment.created",
         Some(organization_id),
@@ -365,7 +340,7 @@ pub async fn update_environment(
     repositories::update_environment(db, &env).await?;
 
     // Emit environment.updated event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "environment.updated",
         Some(organization_id),
@@ -394,7 +369,7 @@ pub async fn delete_environment(
     repositories::delete_environment_by_id(db, env.id).await?;
 
     // Emit environment.deleted event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "environment.deleted",
         Some(organization_id),

@@ -92,31 +92,6 @@ pub fn validate_provider_and_metadata(
     serde_json::to_string(metadata).map_err(|e| CredentialError::InvalidMetadata(e.to_string()))
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Create a new encrypted platform credential within an organization.
 pub async fn create_credential(
     db: &Database,
@@ -174,7 +149,7 @@ pub async fn create_credential(
 
     let saved = repositories::insert_credential(db, credential).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "credential.created",
         Some(organization_id),
@@ -221,7 +196,7 @@ pub async fn delete_credential(
 ) -> Result<(), CredentialError> {
     repositories::delete_credential_by_id(db, credential.id).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "credential.deleted",
         Some(credential.organization_id.id),
@@ -321,7 +296,7 @@ pub async fn test_credential(
     let now = Utc::now();
     let _ = repositories::update_credential_last_used(db, credential.id, now).await;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "credential.tested",
         Some(credential.organization_id.id),

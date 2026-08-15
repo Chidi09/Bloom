@@ -145,30 +145,6 @@ pub fn is_production_target(target: &str) -> bool {
     matches!(target, "production" | "app_store")
 }
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs failures.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Create and enqueue a new deployment.
 ///
 /// # Business Logic & Exit Gates:
@@ -325,7 +301,7 @@ pub async fn create_deployment(
     }
 
     // 7. Emit `deployment.created` event per docs/events.md.
-    emit_event(
+    crate::apps::events::emit(
         db,
         "deployment.created",
         Some(organization_id),
@@ -433,7 +409,7 @@ pub async fn update_deployment_status(
     // Emit events according to status
     match new_status {
         "running" => {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "deployment.started",
                 Some(organization_id),
@@ -448,7 +424,7 @@ pub async fn update_deployment_status(
             .await;
         }
         "processing" => {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "deployment.processing",
                 Some(organization_id),
@@ -464,7 +440,7 @@ pub async fn update_deployment_status(
             .await;
 
             if deployment.platform == "ios" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "testflight.processing",
                     Some(organization_id),
@@ -478,7 +454,7 @@ pub async fn update_deployment_status(
                 )
                 .await;
             } else if deployment.platform == "android" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "google_play.processing",
                     Some(organization_id),
@@ -494,7 +470,7 @@ pub async fn update_deployment_status(
             }
         }
         "ready" => {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "deployment.completed",
                 Some(organization_id),
@@ -509,7 +485,7 @@ pub async fn update_deployment_status(
             .await;
 
             if deployment.platform == "ios" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "testflight.ready",
                     Some(organization_id),
@@ -525,7 +501,7 @@ pub async fn update_deployment_status(
             }
         }
         "live" => {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "deployment.completed",
                 Some(organization_id),
@@ -540,7 +516,7 @@ pub async fn update_deployment_status(
             .await;
 
             if deployment.platform == "android" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "google_play.live",
                     Some(organization_id),
@@ -557,7 +533,7 @@ pub async fn update_deployment_status(
             }
         }
         "failed" => {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "deployment.failed",
                 Some(organization_id),
@@ -642,7 +618,7 @@ pub async fn rollback_deployment(
         .unwrap_or_else(|| user_id.to_string());
 
     // Emit `deployment.rolled_back` event per docs/events.md
-    emit_event(
+    crate::apps::events::emit(
         db,
         "deployment.rolled_back",
         Some(organization_id),

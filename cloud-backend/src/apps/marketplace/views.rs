@@ -19,17 +19,13 @@ use super::permissions::{
 };
 use super::{repositories, serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
+use crate::apps::common::request::get_db;
 use crate::apps::organizations::models::{Organization, UserOrganizationMembership};
 use crate::apps::organizations::repositories as org_repos;
 use crate::infra::stripe::{HttpStripeClient, MockStripeClient, StripeClient};
 use djangors_rest::pagination::{
     CursorPagination, PageNumberPagination, Pagination, REST_PER_PAGE,
 };
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
 
 /// Retrieve the Stripe client from request state or initialize from environment/mock fallback.
 fn get_stripe_client(req: &Request) -> Arc<dyn StripeClient> {

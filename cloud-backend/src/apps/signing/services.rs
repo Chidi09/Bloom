@@ -15,31 +15,6 @@ use super::repositories::{self, OrganizationSummary};
 use super::serializers::is_identity_expiring;
 use crate::infra::crypto::Crypto;
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Emits an audit log record with redacted before/after snapshots for sensitive state changes.
 /// Values, raw material, and ciphertexts are NEVER recorded in the audit log.
 pub async fn emit_audit_log(
@@ -58,7 +33,7 @@ pub async fn emit_audit_log(
         "before": before_snapshot,
         "after": after_snapshot,
     });
-    emit_event(
+    crate::apps::events::emit(
         db,
         &format!("audit.signing.{action}"),
         Some(organization_id),
@@ -241,7 +216,7 @@ pub async fn upload_signing_identity(
     let saved = repositories::insert_signing_identity(db, identity).await?;
 
     // Emit signing.created event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "signing.created",
         Some(organization_id),
@@ -258,7 +233,7 @@ pub async fn upload_signing_identity(
 
     // If already expiring or expired at creation time, emit signing.expiring warning event
     if is_identity_expiring(saved.expires_at) {
-        emit_event(
+        crate::apps::events::emit(
             db,
             "signing.expiring",
             Some(organization_id),
@@ -358,7 +333,7 @@ pub async fn delete_signing_identity(
     repositories::delete_signing_identity_by_id(db, identity.id).await?;
 
     // Emit signing.deleted event
-    emit_event(
+    crate::apps::events::emit(
         db,
         "signing.deleted",
         Some(organization_id),
@@ -459,7 +434,7 @@ pub async fn check_and_emit_expiry_warnings(
 
     for identity in identities {
         if is_identity_expiring(identity.expires_at) {
-            emit_event(
+            crate::apps::events::emit(
                 db,
                 "signing.expiring",
                 Some(organization_id),

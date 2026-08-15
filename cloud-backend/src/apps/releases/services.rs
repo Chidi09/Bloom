@@ -14,31 +14,6 @@ use super::permissions::OrganizationRole;
 use super::repositories;
 use crate::apps::artifacts::contracts::ArtifactResponse;
 
-/// Emits an event to the events log.
-///
-/// Delegates to the `events` app's public service interface, which swallows and logs any
-/// recording failure so that emitting an event never fails this app's own write.
-pub async fn emit_event(
-    db: &Database,
-    event_type: &str,
-    organization_id: Option<i64>,
-    project_id: Option<i64>,
-    app_id: Option<i64>,
-    actor_id: Option<i64>,
-    payload: serde_json::Value,
-) {
-    crate::apps::events::emit(
-        db,
-        event_type,
-        organization_id,
-        project_id,
-        app_id,
-        actor_id,
-        payload,
-    )
-    .await;
-}
-
 /// Valid platforms for releases.
 pub const VALID_PLATFORMS: &[&str] = &["ios", "android", "web"];
 
@@ -318,7 +293,7 @@ pub async fn create_release(
     let saved_release = repositories::insert_release(db, release).await?;
 
     // 6. Emit `release.created` event.
-    emit_event(
+    crate::apps::events::emit(
         db,
         "release.created",
         Some(organization_id),
@@ -375,7 +350,7 @@ pub async fn approve_release(
     repositories::update_release(db, &updated).await?;
 
     if req.approved {
-        emit_event(
+        crate::apps::events::emit(
             db,
             "release.approved",
             Some(organization_id),
@@ -389,7 +364,7 @@ pub async fn approve_release(
         )
         .await;
     } else {
-        emit_event(
+        crate::apps::events::emit(
             db,
             "release.rejected",
             Some(organization_id),
@@ -442,7 +417,7 @@ pub async fn rollback_release(
     updated.updated_at = Utc::now();
     repositories::update_release(db, &updated).await?;
 
-    emit_event(
+    crate::apps::events::emit(
         db,
         "release.rolled_back",
         Some(organization_id),
@@ -643,7 +618,7 @@ pub async fn update_release(
             status_changed = true;
 
             if target == "released" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "release.deployed",
                     Some(organization_id),
@@ -657,7 +632,7 @@ pub async fn update_release(
                 )
                 .await;
             } else if target == "expired" {
-                emit_event(
+                crate::apps::events::emit(
                     db,
                     "release.expired",
                     Some(organization_id),

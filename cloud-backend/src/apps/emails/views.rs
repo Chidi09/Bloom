@@ -11,31 +11,13 @@ use super::contracts::{
 };
 use super::errors::EmailsError;
 use super::permissions::{
-    require_authenticated, require_staff, CurrentOrganizationId, CurrentOrganizationPublicId,
-    OrganizationPermission,
+    require_authenticated, require_staff, CurrentOrganizationPublicId, OrganizationPermission,
 };
 use super::{repositories, serializers, services};
 
+use crate::apps::common::request::{get_db, get_org_id};
 use crate::settings::BloomSettings;
 use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
-
-/// Retrieve database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
-
-/// Retrieve active organization ID from request extensions.
-fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
-    req.ext::<CurrentOrganizationId>()
-        .map(|ext| ext.0)
-        .ok_or_else(|| {
-            DjangorsError::api(
-                StatusCode::FORBIDDEN,
-                "organization_required",
-                "No organization selected.",
-            )
-        })
-}
 
 /// Retrieve active organization public ID from request extensions or repository lookup.
 async fn get_org_public_id(

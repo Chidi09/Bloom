@@ -1,7 +1,6 @@
 //! HTTP view handlers for the `events` domain app.
 
 use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
-use djangors_db::Database;
 use djangors_orm::Model;
 use djangors_rest::Scoped;
 
@@ -11,11 +10,7 @@ use super::permissions::CurrentOrganizationId;
 use super::repositories;
 use super::services;
 use crate::apps::accounts::permissions::require_authenticated;
-
-/// Retrieve the database handle from request state.
-fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
-    req.require_state::<Database>()
-}
+use crate::apps::common::request::get_db;
 
 /// Resolve the active organization's internal id from the request extensions.
 fn current_organization_id(req: &Request) -> Result<i64, DjangorsError> {
