@@ -646,6 +646,7 @@ dependencies = [
  "hyper 1.11.0",
  "rand 0.8.7",
  "redis",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.9",

@@ -1,9 +1,9 @@
 //! Unit tests for job payload serialization, queue semantics, claim timeouts, and dead-letter queue.
 
-use std::time::Duration;
 use serde_json::json;
+use std::time::Duration;
 
-use bloom_cloud_backend::infra::queue::{InMemoryJobQueue, Job, QueuedJob};
+use bloom_cloud_backend::infra::queue::{InMemoryJobQueue, Job};
 
 #[test]
 fn test_job_payload_build_serialization_roundtrip() {
@@ -117,8 +117,7 @@ async fn test_in_memory_queue_claim_and_ack() {
 #[tokio::test]
 async fn test_in_memory_queue_retry_and_dead_letter() {
     // Queue configured with max 2 retries
-    let queue = InMemoryJobQueue::new()
-        .with_max_retries(2);
+    let queue = InMemoryJobQueue::new().with_max_retries(2);
 
     let job = Job::Webhook {
         delivery_id: "del-999".to_string(),
@@ -133,7 +132,13 @@ async fn test_in_memory_queue_retry_and_dead_letter() {
     let claim1 = queue.claim("worker-1").await.unwrap().expect("claimed 1");
     assert_eq!(claim1.retry_count, 0);
     // Worker 1 fails
-    queue.fail(&claim1.stream_id, "Network timeout connecting to git provider").await.unwrap();
+    queue
+        .fail(
+            &claim1.stream_id,
+            "Network timeout connecting to git provider",
+        )
+        .await
+        .unwrap();
     assert_eq!(queue.dead_letter_count().await, 0);
     assert_eq!(queue.pending_count().await, 1);
 
@@ -145,7 +150,10 @@ async fn test_in_memory_queue_retry_and_dead_letter() {
         Some("Network timeout connecting to git provider".to_string())
     );
     // Worker 2 fails again (total attempts now 2 == max_retries)
-    queue.fail(&claim2.stream_id, "Git provider 500 Internal Error").await.unwrap();
+    queue
+        .fail(&claim2.stream_id, "Git provider 500 Internal Error")
+        .await
+        .unwrap();
 
     // Now moved to dead letter queue
     assert_eq!(queue.pending_count().await, 0);
@@ -155,8 +163,7 @@ async fn test_in_memory_queue_retry_and_dead_letter() {
 #[tokio::test]
 async fn test_in_memory_queue_claim_timeout_recovery() {
     // Short claim timeout for testing (50ms)
-    let queue = InMemoryJobQueue::new()
-        .with_claim_timeout(Duration::from_millis(50));
+    let queue = InMemoryJobQueue::new().with_claim_timeout(Duration::from_millis(50));
 
     let job = Job::Deploy {
         deployment_id: "dep-timeout-test".to_string(),
@@ -170,7 +177,11 @@ async fn test_in_memory_queue_claim_timeout_recovery() {
     queue.push(job.clone()).await.expect("push job");
 
     // Worker 1 claims job
-    let claim1 = queue.claim("worker-1").await.unwrap().expect("claimed by worker 1");
+    let claim1 = queue
+        .claim("worker-1")
+        .await
+        .unwrap()
+        .expect("claimed by worker 1");
     assert_eq!(claim1.claimed_by, Some("worker-1".to_string()));
 
     // Worker 2 immediately tries to claim -> None
@@ -180,7 +191,11 @@ async fn test_in_memory_queue_claim_timeout_recovery() {
     tokio::time::sleep(Duration::from_millis(60)).await;
 
     // Worker 2 claims -> reclaims the abandoned job!
-    let claim2 = queue.claim("worker-2").await.unwrap().expect("reclaimed by worker 2");
+    let claim2 = queue
+        .claim("worker-2")
+        .await
+        .unwrap()
+        .expect("reclaimed by worker 2");
     assert_eq!(claim2.stream_id, claim1.stream_id);
     assert_eq!(claim2.claimed_by, Some("worker-2".to_string()));
 }

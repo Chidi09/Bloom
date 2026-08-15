@@ -6,3 +6,4 @@ pub mod migrations;
 pub mod settings;
 pub mod urls;
 pub mod views;
+pub mod workers;

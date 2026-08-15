@@ -11,5 +11,7 @@ pub mod environments;
 pub mod events;
 pub mod organizations;
 pub mod projects;
+pub mod releases;
 pub mod secrets;
 pub mod signing;
+pub mod webhosting;

@@ -64,6 +64,16 @@ pub const MIGRATIONS: &[MigrationRef] = &[
         app: "artifacts",
         path: "migrations/artifacts",
     },
+    // Phase 4: releases reference artifacts; webhosting deployments reference both an
+    // artifact and (optionally) a release, so it applies last.
+    MigrationRef {
+        app: "releases",
+        path: "migrations/releases",
+    },
+    MigrationRef {
+        app: "webhosting",
+        path: "migrations/webhosting",
+    },
 ];
 
 /// Applies all pending database migrations in registered sequence.

@@ -1,11 +1,11 @@
 //! Unit tests for object storage abstraction and InMemoryStorage backend.
 
-use std::time::Duration;
 use bytes::Bytes;
+use std::time::Duration;
 
 use bloom_cloud_backend::infra::storage::{
-    artifact_storage_key, build_log_storage_key, web_bundle_storage_key,
-    InMemoryStorage, ObjectStorage, StorageConfig, StorageError,
+    artifact_storage_key, build_log_storage_key, web_bundle_storage_key, InMemoryStorage,
+    ObjectStorage, StorageConfig, StorageError,
 };
 
 #[tokio::test]
@@ -19,7 +19,10 @@ async fn test_in_memory_storage_crud_roundtrip() {
     assert!(!storage.exists(key).await.expect("exists check"));
 
     // 2. Put object
-    storage.put(key, data.clone(), content_type).await.expect("put succeeds");
+    storage
+        .put(key, data.clone(), content_type)
+        .await
+        .expect("put succeeds");
 
     // 3. Exists is true
     assert!(storage.exists(key).await.expect("exists check"));
@@ -50,7 +53,10 @@ async fn test_in_memory_storage_presigned_url() {
     assert!(matches!(presign_err, Err(StorageError::NotFound(_))));
 
     // Put data
-    storage.put(key, data, "text/plain").await.expect("put succeeds");
+    storage
+        .put(key, data, "text/plain")
+        .await
+        .expect("put succeeds");
 
     // Presign on existing key succeeds and contains bucket and key
     let url = storage

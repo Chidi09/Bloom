@@ -11,8 +11,10 @@ pub mod environments;
 pub mod events;
 pub mod organizations;
 pub mod projects;
+pub mod releases;
 pub mod secrets;
 pub mod signing;
+pub mod webhosting;
 
 use djangors_core::Router;
 
@@ -35,4 +37,7 @@ pub fn urls() -> Router {
         .mount("", events::urls())
         .mount("", builds::urls())
         .mount("", artifacts::urls())
+        // Phase 4: releases group artifacts; webhosting deploys the web bundle.
+        .mount("", releases::urls())
+        .mount("", webhosting::urls())
 }

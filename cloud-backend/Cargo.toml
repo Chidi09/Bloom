@@ -32,6 +32,13 @@ rand = "0.8"
 # Version tracks djangors-core's own hyper 1.10.1 so the types are identical.
 hyper = { version = "1.10.1", features = ["full"] }
 
+# HTTP client for the third-party control APIs Bloom Cloud drives directly:
+# Cloudflare cache purge and the Caddy admin API. Payment providers do NOT go
+# through this — djangors-contrib-payments owns Bachs/Paystack natively.
+# Version and feature set track djangors-contrib-payments so only one reqwest
+# and one TLS backend are compiled.
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
 # --- infra layer (src/infra) -------------------------------------------------
 # Redis is used directly rather than via djangors-cache because the build/deploy
 # queue needs Redis Streams consumer groups (XADD/XREADGROUP/XCLAIM) for exclusive

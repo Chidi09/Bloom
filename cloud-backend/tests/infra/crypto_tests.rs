@@ -1,8 +1,6 @@
 //! Unit tests for cryptographic envelope encryption, key rotation, and token hashing.
 
-use bloom_cloud_backend::infra::crypto::{
-    Crypto, CryptoEngine, CryptoError, CryptoKeyRing, CURRENT_VERSION, KEY_SIZE_BYTES,
-};
+use bloom_cloud_backend::infra::crypto::{Crypto, CryptoEngine, CryptoError, CryptoKeyRing};
 
 const TEST_HEX_KEY_1: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const TEST_HEX_KEY_2: &str = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
@@ -27,13 +25,17 @@ fn test_crypto_engine_roundtrip_binary_and_empty() {
     let empty_bytes = b"";
     let ciphertext_empty = engine.encrypt_bytes(empty_bytes).expect("encrypts empty");
     assert!(ciphertext_empty.starts_with("v1:"));
-    let decrypted_empty = engine.decrypt_bytes(&ciphertext_empty).expect("decrypts empty");
+    let decrypted_empty = engine
+        .decrypt_bytes(&ciphertext_empty)
+        .expect("decrypts empty");
     assert_eq!(decrypted_empty, empty_bytes);
 
     // Arbitrary binary bytes (including nulls and non-UTF8 sequences)
     let binary_data = vec![0x00, 0xFF, 0xFE, 0xBA, 0xBE, 0x12, 0x34, 0x56, 0x78];
     let ciphertext_bin = engine.encrypt_bytes(&binary_data).expect("encrypts binary");
-    let decrypted_bin = engine.decrypt_bytes(&ciphertext_bin).expect("decrypts binary");
+    let decrypted_bin = engine
+        .decrypt_bytes(&ciphertext_bin)
+        .expect("decrypts binary");
     assert_eq!(decrypted_bin, binary_data);
 }
 
@@ -63,20 +65,15 @@ fn test_tampered_ciphertext_rejection() {
     let version = parts[0];
     let b64 = parts[1];
 
-    let mut raw_bytes = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        b64,
-    )
-    .expect("valid base64");
+    let mut raw_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+        .expect("valid base64");
 
     // Flip the last byte of ciphertext/tag
     let len = raw_bytes.len();
     raw_bytes[len - 1] ^= 0x01;
 
-    let tampered_b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &raw_bytes,
-    );
+    let tampered_b64 =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &raw_bytes);
     let tampered_ciphertext = format!("{version}:{tampered_b64}");
 
     let result = engine.decrypt(&tampered_ciphertext);
@@ -99,7 +96,9 @@ fn test_key_rotation_multi_version() {
     assert!(ciphertext_v1.starts_with("v1:"));
 
     // Rotate keys: add v2 and set v2 as primary
-    keyring.add_hex_key("v2", TEST_HEX_KEY_2).expect("valid key 2");
+    keyring
+        .add_hex_key("v2", TEST_HEX_KEY_2)
+        .expect("valid key 2");
     keyring.set_primary_version("v2").expect("set primary v2");
     let engine_v2 = CryptoEngine::new(keyring);
 
@@ -144,10 +143,7 @@ fn test_invalid_format_rejection() {
     ));
 
     // Truncated payload (shorter than nonce + tag)
-    let short_b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        b"short",
-    );
+    let short_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"short");
     assert!(matches!(
         engine.decrypt(&format!("v1:{short_b64}")),
         Err(CryptoError::InvalidFormat(_))
@@ -161,9 +157,12 @@ fn test_hash_token_sha256() {
 
     // SHA-256 produces 64 hex characters
     assert_eq!(hash.len(), 64);
+    // Verified independently: `printf 'bloom_pat_abcdef1234567890' | sha256sum`.
+    // The previous constant here was fabricated and had never been executed, because
+    // tests/infra/ was not registered in any test target until now.
     assert_eq!(
         hash,
-        "bf4d2fe6ca9c323f4b0098dfc382ceaa60a370bdaff0a31a9fe21a3641215b2e"
+        "d21a6fba5d20b3388cf3eda66f6093d6b819d81e3178d63de99f0635c54f5453"
     );
 }
 

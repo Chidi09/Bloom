@@ -1,0 +1,296 @@
+//! HTTP view handlers for the `webhosting` domain app.
+
+use std::str::FromStr;
+use std::sync::Arc;
+
+use djangors_auth::User;
+use djangors_core::extract::{FromRequest, Json};
+use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
+use djangors_db::Database;
+use djangors_rest::Permission;
+
+use super::contracts::{CreateCustomDomainRequest, DeployWebRequest};
+use super::errors::WebHostingError;
+use super::permissions::{
+    require_authenticated, CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission,
+    OrganizationRole,
+};
+use super::{serializers, services};
+use crate::infra::storage::{InMemoryStorage, ObjectStorage};
+use crate::settings::CloudflareSettings;
+
+/// Retrieve the database handle from request state.
+fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
+    req.require_state::<Database>()
+}
+
+/// Retrieve the active organization ID from request extensions.
+fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
+    req.ext::<CurrentOrganizationId>()
+        .map(|ext| ext.0)
+        .ok_or_else(|| {
+            DjangorsError::api(
+                StatusCode::FORBIDDEN,
+                "organization_required",
+                "No organization selected.",
+            )
+        })
+}
+
+/// Retrieve the object-storage backend from request state, with fallback to in-memory storage.
+fn get_storage(req: &Request) -> Arc<dyn ObjectStorage> {
+    req.state::<Arc<dyn ObjectStorage>>()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(InMemoryStorage::new()))
+}
+
+/// Retrieve the configured Cloudflare apex domain from request state if available.
+fn get_apex_domain(req: &Request) -> Option<String> {
+    req.state::<CloudflareSettings>()
+        .and_then(|s| s.apex_domain.clone())
+}
+
+/// Resolves the authenticated user's organization role.
+fn get_user_role(req: &Request, user: &User) -> OrganizationRole {
+    if user.is_superuser {
+        return OrganizationRole::Owner;
+    }
+    if let Some(role_ext) = req.ext::<CurrentOrganizationRole>() {
+        if let Ok(role) = OrganizationRole::from_str(&role_ext.0) {
+            return role;
+        }
+    }
+    OrganizationRole::Viewer
+}
+
+/// GET `/api/v1/webhosting/deployments` — List web deployments in current organization.
+pub async fn list_web_deployments(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::viewer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+
+    let app_filter = req.query("app_id");
+    let env_filter = req.query("environment_id");
+    let target_filter = req.query("target");
+    let status_filter = req.query("status");
+
+    let details = services::list_web_deployments(
+        db,
+        org_id,
+        app_filter,
+        env_filter,
+        target_filter,
+        status_filter,
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let payload: Vec<_> = details
+        .iter()
+        .map(|d| {
+            serializers::serialize_web_deployment(
+                &d.deployment,
+                &d.app_public_id,
+                &d.environment_public_id,
+                d.release_public_id.as_deref(),
+                &d.deployed_by_public_id,
+            )
+        })
+        .collect();
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/webhosting/deployments` — Initiate a new web deployment.
+pub async fn deploy_web(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+    let storage = get_storage(&req);
+    let apex_domain = get_apex_domain(&req);
+    let user_role = get_user_role(&req, &user);
+
+    let Json(body) = Json::<DeployWebRequest>::from_request(&req).await?;
+
+    let is_production = body.target.trim().eq_ignore_ascii_case("production");
+    if is_production {
+        let perm = OrganizationPermission::release_manager();
+        if !perm.has_permission(&req).await {
+            return Err(DjangorsError::from(WebHostingError::Forbidden));
+        }
+    } else {
+        let perm = OrganizationPermission::developer();
+        if !perm.has_permission(&req).await {
+            return Err(DjangorsError::from(WebHostingError::Forbidden));
+        }
+    }
+
+    let detail = services::deploy_web(
+        db,
+        &*storage,
+        org_id,
+        user.id,
+        user_role,
+        apex_domain.as_deref(),
+        body,
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_web_deployment(
+        &detail.deployment,
+        &detail.app_public_id,
+        &detail.environment_public_id,
+        detail.release_public_id.as_deref(),
+        &detail.deployed_by_public_id,
+    );
+
+    Response::json(StatusCode::CREATED, &payload)
+}
+
+/// GET `/api/v1/webhosting/deployments/{id}` — Retrieve a web deployment by public UUID.
+pub async fn retrieve_web_deployment(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::viewer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+
+    let deployment_id = params
+        .get("id")
+        .ok_or_else(|| WebHostingError::ValidationError("Missing deployment id".to_string()))?;
+
+    let detail = services::get_web_deployment(db, org_id, deployment_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_web_deployment(
+        &detail.deployment,
+        &detail.app_public_id,
+        &detail.environment_public_id,
+        detail.release_public_id.as_deref(),
+        &detail.deployed_by_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/webhosting/deployments/{id}/rollback` — Rollback to the previous live deployment.
+pub async fn rollback_web_deployment(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+    let user_role = get_user_role(&req, &user);
+
+    let deployment_id = params
+        .get("id")
+        .ok_or_else(|| WebHostingError::ValidationError("Missing deployment id".to_string()))?;
+
+    let detail = services::rollback_web_deployment(db, org_id, user.id, user_role, deployment_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_web_deployment(
+        &detail.deployment,
+        &detail.app_public_id,
+        &detail.environment_public_id,
+        detail.release_public_id.as_deref(),
+        &detail.deployed_by_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// GET `/api/v1/webhosting/domains` — List custom domains in current organization.
+pub async fn list_custom_domains(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::viewer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+
+    let app_filter = req.query("app_id");
+
+    let details = services::list_custom_domains(db, org_id, app_filter)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload: Vec<_> = details
+        .iter()
+        .map(|d| serializers::serialize_custom_domain(&d.domain, &d.app_public_id))
+        .collect();
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/webhosting/domains` — Register a custom domain.
+pub async fn create_custom_domain(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::developer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+
+    let Json(body) = Json::<CreateCustomDomainRequest>::from_request(&req).await?;
+
+    let detail = services::create_custom_domain(db, org_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_custom_domain(&detail.domain, &detail.app_public_id);
+    Response::json(StatusCode::CREATED, &payload)
+}
+
+/// DELETE `/api/v1/webhosting/domains/{id}` — Delete a custom domain.
+pub async fn delete_custom_domain(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let _user = require_authenticated(&req).await?;
+    let perm = OrganizationPermission::developer();
+    if !perm.has_permission(&req).await {
+        return Err(DjangorsError::from(WebHostingError::Forbidden));
+    }
+
+    let db = get_db(&req)?;
+    let org_id = get_org_id(&req)?;
+
+    let domain_id = params
+        .get("id")
+        .ok_or_else(|| WebHostingError::ValidationError("Missing domain id".to_string()))?;
+
+    services::delete_custom_domain(db, org_id, domain_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    Ok(Response::text(StatusCode::NO_CONTENT, ""))
+}
