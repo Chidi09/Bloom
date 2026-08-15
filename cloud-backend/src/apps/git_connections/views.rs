@@ -284,43 +284,121 @@ pub async fn github_webhook(req: Request, _params: PathParams) -> Result<Respons
     Response::json(StatusCode::OK, &response_dto)
 }
 
-/// POST `/webhooks/gitlab` — Inbound GitLab webhook endpoint (unverified signature rejected).
+/// POST `/webhooks/gitlab` — Inbound GitLab webhook endpoint.
+///
+/// Route is unauthenticated, but requests are strictly signature-verified via
+/// GitLab Standard Webhooks (HMAC-SHA256) or Legacy token (constant-time comparison)
+/// and deduplicated by delivery GUID.
 pub async fn gitlab_webhook(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let db = get_db(&req)?;
+
+    let token_header = req.header("x-gitlab-token").and_then(|v| v.to_str().ok());
+
+    let webhook_id = req.header("webhook-id").and_then(|v| v.to_str().ok());
+
+    let webhook_timestamp = req
+        .header("webhook-timestamp")
+        .and_then(|v| v.to_str().ok());
+
+    let webhook_signature = req
+        .header("webhook-signature")
+        .and_then(|v| v.to_str().ok());
+
+    let event_header = req.header("x-gitlab-event").and_then(|v| v.to_str().ok());
+
+    let delivery_header = webhook_id
+        .or_else(|| {
+            req.header("x-gitlab-delivery")
+                .and_then(|v| v.to_str().ok())
+        })
+        .or_else(|| req.header("x-request-id").and_then(|v| v.to_str().ok()));
+
+    let headers = services::GitLabWebhookHeaders {
+        token: token_header,
+        webhook_id,
+        webhook_timestamp,
+        webhook_signature,
+        event_type: event_header,
+        delivery_id: delivery_header,
+    };
+
     let body_bytes = req.body_bytes().await;
 
-    services::handle_gitlab_webhook(db, body_bytes)
+    let outcome = services::handle_gitlab_webhook(db, None, headers, body_bytes)
         .await
         .map_err(DjangorsError::from)?;
 
-    Response::json(
-        StatusCode::OK,
-        &WebhookResponse {
+    let response_dto = match outcome {
+        WebhookDeliveryOutcome::Processed { message, .. } => WebhookResponse {
             success: true,
-            message: "GitLab webhook received".to_string(),
-            delivery_id: None,
+            message,
+            delivery_id: delivery_header.map(|s| s.to_string()),
         },
-    )
+        WebhookDeliveryOutcome::AlreadyProcessed { delivery_id } => WebhookResponse {
+            success: true,
+            message: "Delivery already processed".to_string(),
+            delivery_id: Some(delivery_id),
+        },
+        WebhookDeliveryOutcome::Ignored { event_type } => WebhookResponse {
+            success: true,
+            message: format!("Event '{event_type}' ignored"),
+            delivery_id: delivery_header.map(|s| s.to_string()),
+        },
+    };
+
+    Response::json(StatusCode::OK, &response_dto)
 }
 
-/// POST `/webhooks/bitbucket` — Inbound Bitbucket webhook endpoint (unverified signature rejected).
+/// POST `/webhooks/bitbucket` — Inbound Bitbucket webhook endpoint.
+///
+/// Route is unauthenticated, but requests are strictly signature-verified via HMAC-SHA256
+/// against raw request body bytes and deduplicated by delivery GUID.
+/// (Missing signature headers are rejected).
 pub async fn bitbucket_webhook(
     req: Request,
     _params: PathParams,
 ) -> Result<Response, DjangorsError> {
     let db = get_db(&req)?;
+
+    let signature_header = req.header("x-hub-signature").and_then(|v| v.to_str().ok());
+
+    let delivery_header = req
+        .header("x-request-uuid")
+        .or_else(|| req.header("x-hook-uuid"))
+        .and_then(|v| v.to_str().ok());
+
+    let event_header = req.header("x-event-key").and_then(|v| v.to_str().ok());
+
     let body_bytes = req.body_bytes().await;
 
-    services::handle_bitbucket_webhook(db, body_bytes)
-        .await
-        .map_err(DjangorsError::from)?;
-
-    Response::json(
-        StatusCode::OK,
-        &WebhookResponse {
-            success: true,
-            message: "Bitbucket webhook received".to_string(),
-            delivery_id: None,
-        },
+    let outcome = services::handle_bitbucket_webhook(
+        db,
+        None,
+        signature_header,
+        delivery_header,
+        event_header,
+        body_bytes,
     )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let response_dto = match outcome {
+        WebhookDeliveryOutcome::Processed { message, .. } => WebhookResponse {
+            success: true,
+            message,
+            delivery_id: delivery_header.map(|s| s.to_string()),
+        },
+        WebhookDeliveryOutcome::AlreadyProcessed { delivery_id } => WebhookResponse {
+            success: true,
+            message: "Delivery already processed".to_string(),
+            delivery_id: Some(delivery_id),
+        },
+        WebhookDeliveryOutcome::Ignored { event_type } => WebhookResponse {
+            success: true,
+            message: format!("Event '{event_type}' ignored"),
+            delivery_id: delivery_header.map(|s| s.to_string()),
+        },
+    };
+
+    Response::json(StatusCode::OK, &response_dto)
 }

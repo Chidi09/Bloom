@@ -47,6 +47,12 @@ pub const DEFAULT_GOOGLE_PLAY_BASE_URL: &str = "https://androidpublisher.googlea
 /// Authorised by EXTERNAL_APIS.txt line 108.
 pub const ANDROID_PUBLISHER_SCOPE: &str = "https://www.googleapis.com/auth/androidpublisher";
 
+/// OAuth 2.0 token endpoint URL for Google Service Account authentication.
+pub const GOOGLE_OAUTH2_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
+
+/// Maximum token / JWT assertion lifetime permitted by Google OAuth2 (1 hour / 3600 seconds).
+pub const GOOGLE_JWT_LIFETIME_SECS: i64 = 3600;
+
 /// Extended HTTP request timeout for binary AAB bundle uploads (150 seconds / 2.5 minutes).
 /// Google explicitly requires at least 2 minutes for binary uploads.
 /// Authorised by EXTERNAL_APIS.txt lines 127-128.
@@ -244,6 +250,66 @@ pub struct Bundle {
     pub sha256: Option<String>,
 }
 
+/// Google Service Account Key JSON credentials structure.
+///
+/// Holds the parsed attributes from the service account credentials JSON file.
+/// Key material is strictly redacted in [`fmt::Debug`].
+#[derive(Deserialize)]
+pub struct GoogleServiceAccountKey {
+    /// Service account client email (e.g. `xyz@project.iam.gserviceaccount.com`).
+    pub client_email: Option<String>,
+    /// Private key in PKCS#8 PEM format.
+    pub private_key: Option<String>,
+    /// Private key identifier / fingerprint.
+    pub private_key_id: Option<String>,
+    /// Optional custom token URI (defaults to [`GOOGLE_OAUTH2_TOKEN_URL`]).
+    pub token_uri: Option<String>,
+}
+
+impl fmt::Debug for GoogleServiceAccountKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleServiceAccountKey")
+            .field("client_email", &self.client_email)
+            .field("private_key_id", &self.private_key_id)
+            .field("token_uri", &self.token_uri)
+            .field(
+                "private_key",
+                &self.private_key.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
+}
+
+/// OAuth 2.0 JWT Claims payload for Google Service Account assertion authentication.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleServiceAccountClaims {
+    /// Issuer claim (client email of the service account).
+    pub iss: String,
+    /// OAuth 2.0 scope claim (`https://www.googleapis.com/auth/androidpublisher`).
+    pub scope: String,
+    /// Audience claim (`https://oauth2.googleapis.com/token`).
+    pub aud: String,
+    /// Issued-at timestamp in seconds since unix epoch.
+    pub iat: i64,
+    /// Expiration timestamp in seconds since unix epoch (`iat + 3600`).
+    pub exp: i64,
+}
+
+/// Google OAuth 2.0 token response envelope.
+#[derive(Debug, Deserialize)]
+struct GoogleTokenResponse {
+    /// Bearer access token string.
+    access_token: String,
+    /// Token type (typically "Bearer").
+    #[serde(default)]
+    #[allow(dead_code)]
+    token_type: Option<String>,
+    /// Token lifetime in seconds.
+    #[serde(default)]
+    #[allow(dead_code)]
+    expires_in: Option<i64>,
+}
+
 /// Configuration credentials for Google Play Android Publisher API.
 #[derive(Clone, PartialEq, Eq)]
 pub struct GooglePlayConfig {
@@ -429,7 +495,7 @@ impl GooglePlayClient {
     }
 
     /// Constructs URL for uploading a bundle:
-    /// `POST https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{packageName}/edits/{editId}/bundles`
+    /// `POST https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{packageName}/edits/{editId}/bundles?uploadType=media`
     /// Authorised by EXTERNAL_APIS.txt lines 123-126.
     pub fn bundle_upload_url(
         base_url: &str,
@@ -449,14 +515,14 @@ impl GooglePlayClient {
         };
 
         let mut url = format!(
-            "{}/androidpublisher/v3/applications/{}/edits/{}/bundles",
+            "{}/androidpublisher/v3/applications/{}/edits/{}/bundles?uploadType=media",
             host,
             package_name.trim(),
             edit_id.trim()
         );
 
         if let Some(tier_id) = device_tier_config_id {
-            url.push_str("?deviceTierConfigId=");
+            url.push_str("&deviceTierConfigId=");
             url.push_str(tier_id.trim());
         }
 
@@ -598,8 +664,9 @@ impl GooglePlayClient {
         Ok(edit)
     }
 
-    /// Deletes an App Edit.
+    /// Deletes (abandons) an App Edit.
     ///
+    /// Abandoning an uncommitted edit frees resources and ensures orphaned edits do not block subsequent deploys.
     /// Authorised by EXTERNAL_APIS.txt line 149 (`DELETE /androidpublisher/v3/applications/{packageName}/edits/{editId}`).
     pub async fn delete_edit(
         &self,
@@ -631,6 +698,17 @@ impl GooglePlayClient {
         }
 
         Ok(())
+    }
+
+    /// Abandons an App Edit (alias for [`delete_edit`](GooglePlayClient::delete_edit)).
+    ///
+    /// An orphaned edit blocks the next deploy for that app; abandoning it ensures the deploy pipeline remains clear.
+    pub async fn abandon_edit(
+        &self,
+        package_name: &str,
+        edit_id: &str,
+    ) -> Result<(), GooglePlayError> {
+        self.delete_edit(package_name, edit_id).await
     }
 
     /// Uploads an Android App Bundle (`.aab`) to the edit.
@@ -858,17 +936,138 @@ impl GooglePlayClient {
         Ok(edit)
     }
 
+    /// Creates a signed RS256 JWT assertion for Google OAuth2 service account token exchange.
+    ///
+    /// Headers: `{ "alg": "RS256", "typ": "JWT", "kid": "<private_key_id>" }`
+    /// Claims:
+    /// - `iss`: Service account `client_email`
+    /// - `scope`: `https://www.googleapis.com/auth/androidpublisher`
+    /// - `aud`: `https://oauth2.googleapis.com/token`
+    /// - `iat`: `now_unix_secs`
+    /// - `exp`: `now_unix_secs + 3600` (Google's maximum lifetime ceiling)
+    pub fn create_service_account_assertion(
+        client_email: &str,
+        private_key_id: &str,
+        private_key_pem: &str,
+        now_unix_secs: i64,
+    ) -> Result<String, GooglePlayError> {
+        if client_email.trim().is_empty() {
+            return Err(GooglePlayError::Auth(
+                "Service account client_email cannot be empty".to_string(),
+            ));
+        }
+        if private_key_id.trim().is_empty() {
+            return Err(GooglePlayError::Auth(
+                "Service account private_key_id cannot be empty".to_string(),
+            ));
+        }
+        if private_key_pem.trim().is_empty() {
+            return Err(GooglePlayError::Auth(
+                "Service account private_key PEM cannot be empty".to_string(),
+            ));
+        }
+
+        let claims = GoogleServiceAccountClaims {
+            iss: client_email.trim().to_string(),
+            scope: ANDROID_PUBLISHER_SCOPE.to_string(),
+            aud: GOOGLE_OAUTH2_TOKEN_URL.to_string(),
+            iat: now_unix_secs,
+            exp: now_unix_secs + GOOGLE_JWT_LIFETIME_SECS,
+        };
+
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+        header.kid = Some(private_key_id.trim().to_string());
+        header.typ = Some("JWT".to_string());
+
+        let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
+            .map_err(|e| {
+                GooglePlayError::Auth(format!("Failed to parse RSA private key PEM: {e}"))
+            })?;
+
+        jsonwebtoken::encode(&header, &claims, &encoding_key)
+            .map_err(|e| GooglePlayError::Auth(format!("Failed to sign RS256 JWT assertion: {e}")))
+    }
+
     /// Mints a fresh Google OAuth2 access token from a service account key JSON.
     ///
-    /// Authorised by EXTERNAL_APIS.txt lines 107-110.
+    /// Parses the service account JSON, generates an RS256 signed JWT assertion, and
+    /// exchanges it at `https://oauth2.googleapis.com/token` via `urn:ietf:params:oauth:grant-type:jwt-bearer`.
+    ///
+    /// Authorised by EXTERNAL_APIS.txt lines 107-110 and Google Identity docs.
     pub async fn mint_service_account_token(
         &self,
-        _service_account_json: &str,
+        service_account_json: &str,
     ) -> Result<String, GooglePlayError> {
-        // TODO(spec): needs crate jsonwebtoken for RS256 JWT signing of Google OAuth2 service account assertions; reviewer must add it to Cargo.toml
-        Err(GooglePlayError::Auth(
-            "Service account token minting requires RS256 JWT signing crate (jsonwebtoken)"
-                .to_string(),
-        ))
+        let sa: GoogleServiceAccountKey =
+            serde_json::from_str(service_account_json).map_err(|e| {
+                GooglePlayError::Auth(format!("Failed to parse service account JSON: {e}"))
+            })?;
+
+        let client_email = sa
+            .client_email
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                GooglePlayError::Auth(
+                    "Service account JSON missing required field 'client_email'".to_string(),
+                )
+            })?;
+
+        let private_key_pem = sa
+            .private_key
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                GooglePlayError::Auth(
+                    "Service account JSON missing required field 'private_key'".to_string(),
+                )
+            })?;
+
+        let private_key_id = sa
+            .private_key_id
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| {
+                GooglePlayError::Auth(
+                    "Service account JSON missing required field 'private_key_id'".to_string(),
+                )
+            })?;
+
+        let token_url = sa.token_uri.as_deref().unwrap_or(GOOGLE_OAUTH2_TOKEN_URL);
+
+        let now = chrono::Utc::now().timestamp();
+        let assertion = Self::create_service_account_assertion(
+            &client_email,
+            &private_key_id,
+            &private_key_pem,
+            now,
+        )?;
+
+        let params = [
+            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+            ("assertion", &assertion),
+        ];
+
+        let response = self
+            .http
+            .post(token_url)
+            .form(&params)
+            .send()
+            .await
+            .map_err(|e| GooglePlayError::Http(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(GooglePlayError::Api {
+                status,
+                message: body,
+            });
+        }
+
+        let token_resp: GoogleTokenResponse = response.json().await.map_err(|e| {
+            GooglePlayError::Serialization(format!(
+                "Failed parsing Google OAuth2 token response: {e}"
+            ))
+        })?;
+
+        Ok(token_resp.access_token)
     }
 }

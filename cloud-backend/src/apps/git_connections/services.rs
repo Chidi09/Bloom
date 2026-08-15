@@ -1,5 +1,7 @@
 //! Business logic, HMAC signature verification, idempotency deduplication, and operations for `git_connections`.
 
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use chrono::Utc;
 use djangors_db::Database;
 use djangors_orm::ForeignKey;
@@ -13,6 +15,10 @@ use crate::infra::crypto::Crypto;
 
 /// Allowed Git provider identifiers.
 pub const ALLOWED_PROVIDERS: &[&str] = &["github", "gitlab", "bitbucket"];
+
+/// Maximum allowed timestamp age/drift for GitLab Standard Webhook signatures in seconds (5 minutes).
+/// Webhook deliveries whose timestamp drifts further than this tolerance are rejected to prevent replay attacks.
+pub const GITLAB_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS: i64 = 300;
 
 /// Outcome of processing an inbound webhook delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,13 +66,53 @@ pub async fn emit_event(
     .await;
 }
 
+/// Headers and parameters for verifying and handling GitLab webhook deliveries.
+#[derive(Debug, Clone, Default)]
+pub struct GitLabWebhookHeaders<'a> {
+    /// Value of `X-Gitlab-Token` header (Legacy plain secret scheme).
+    pub token: Option<&'a str>,
+    /// Value of `webhook-id` header (Standard Webhooks scheme).
+    pub webhook_id: Option<&'a str>,
+    /// Value of `webhook-timestamp` header (Standard Webhooks scheme).
+    pub webhook_timestamp: Option<&'a str>,
+    /// Value of `webhook-signature` header (Standard Webhooks scheme).
+    pub webhook_signature: Option<&'a str>,
+    /// Value of `X-Gitlab-Event` header.
+    pub event_type: Option<&'a str>,
+    /// Delivery ID or unique request GUID.
+    pub delivery_id: Option<&'a str>,
+}
+
+/// Helper to decode a 64-character lowercase hex string into a 32-byte array.
+fn hex_to_32_bytes(hex: &str) -> Option<[u8; 32]> {
+    let trimmed = hex.trim();
+    if trimmed.len() != 64 {
+        return None;
+    }
+    let mut bytes = [0u8; 32];
+    for i in 0..32 {
+        bytes[i] = u8::from_str_radix(&trimmed[i * 2..i * 2 + 2], 16).ok()?;
+    }
+    Some(bytes)
+}
+
 /// Computes HMAC-SHA256 hex digest over raw message bytes with the given secret.
 ///
 /// Implements RFC 2104 / FIPS 198 HMAC-SHA256 without third-party wrapper dependencies.
 pub fn compute_hmac_sha256(secret: &[u8], message: &[u8]) -> String {
-    // Delegates to the single HMAC implementation in the crypto layer. This used to carry its
-    // own copy of RFC 2104, as did src/workers/webhook.rs.
+    // Delegates to the single HMAC implementation in the crypto layer.
     Crypto::hmac_sha256_hex(secret, message)
+}
+
+/// Computes HMAC-SHA256 over message bytes using the provided secret key, returning the Base64 digest string.
+pub fn compute_hmac_sha256_base64(
+    secret: &[u8],
+    message: &[u8],
+) -> Result<String, GitConnectionError> {
+    let hex_digest = Crypto::hmac_sha256_hex(secret, message);
+    let raw_bytes =
+        hex_to_32_bytes(&hex_digest).ok_or(GitConnectionError::InvalidSignatureFormat)?;
+    Ok(BASE64_STANDARD.encode(raw_bytes))
 }
 
 /// Verify GitHub webhook signature against raw request body bytes.
@@ -101,6 +147,174 @@ pub fn verify_github_signature(
         Ok(())
     } else {
         Err(GitConnectionError::InvalidSignature)
+    }
+}
+
+/// Verify Bitbucket Cloud webhook signature against raw request body bytes.
+///
+/// Security Boundary Requirements:
+/// - Header must be `X-Hub-Signature`, value format: `sha256=<hex_digest>`.
+/// - Must take raw `&[u8]` body bytes, NOT re-serialized JSON.
+/// - Compares digests using constant-time comparison via [`Crypto::constant_time_eq`].
+/// - Rejects immediately on missing secret, missing signature, or digest mismatch.
+///
+/// *** Critical Security Detail: Bitbucket Cloud does NOT sign by default. The secret is optional,
+/// and when no secret is configured Bitbucket OMITS the `X-Hub-Signature` header entirely.
+/// Therefore, a MISSING signature header MUST be treated as REJECT, never as accepting unverified deliveries. ***
+pub fn verify_bitbucket_signature(
+    secret: &str,
+    signature_header: Option<&str>,
+    body: &[u8],
+) -> Result<(), GitConnectionError> {
+    if secret.trim().is_empty() {
+        return Err(GitConnectionError::MissingSecret);
+    }
+
+    // Critical security check: Bitbucket Cloud omits the header when no secret is configured.
+    // An absent signature header is strictly REJECTED to prevent unauthenticated push forgery.
+    let raw_sig = match signature_header {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return Err(GitConnectionError::MissingSignature),
+    };
+
+    let hex_sig = match raw_sig.strip_prefix("sha256=") {
+        Some(h) if !h.is_empty() => h,
+        _ => return Err(GitConnectionError::InvalidSignatureFormat),
+    };
+
+    let expected_hex = compute_hmac_sha256(secret.as_bytes(), body);
+
+    if Crypto::constant_time_eq(hex_sig.as_bytes(), expected_hex.as_bytes()) {
+        Ok(())
+    } else {
+        Err(GitConnectionError::InvalidSignature)
+    }
+}
+
+/// Verify GitLab legacy webhook `X-Gitlab-Token` header.
+///
+/// The header value is the secret itself in plain text (no digest).
+/// Comparison is performed strictly in constant time via [`Crypto::constant_time_eq_str`]
+/// to prevent timing oracle attacks.
+pub fn verify_gitlab_legacy_token(
+    secret: &str,
+    token_header: Option<&str>,
+) -> Result<(), GitConnectionError> {
+    let sec_trimmed = secret.trim();
+    if sec_trimmed.is_empty() {
+        return Err(GitConnectionError::MissingSecret);
+    }
+
+    let raw_tok = match token_header {
+        Some(t) if !t.trim().is_empty() => t.trim(),
+        _ => return Err(GitConnectionError::MissingSignature),
+    };
+
+    if Crypto::constant_time_eq_str(sec_trimmed, raw_tok) {
+        Ok(())
+    } else {
+        Err(GitConnectionError::InvalidSignature)
+    }
+}
+
+/// Verify GitLab Standard Webhook (GitLab 19.0+, GA in 19.1) signature.
+///
+/// # Security Requirements
+/// - Secret starts with prefix `"whsec_"`. Prefix is stripped and remainder is Base64-decoded into raw HMAC key bytes.
+/// - String to sign: `"{webhook-id}.{webhook-timestamp}.{raw_body}"` joined literally with `.` characters.
+/// - Digest: HMAC-SHA256 over string to sign, formatted as `"v1,<base64 digest>"`.
+/// - Supports secret rotation: `webhook-signature` header may carry multiple space-separated signatures; accepts if any matches.
+/// - Replay protection: `webhook-timestamp` must be within [`GITLAB_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS`].
+/// - Comparison is strictly performed in constant time via [`Crypto::constant_time_eq_str`].
+pub fn verify_gitlab_standard_signature(
+    secret: &str,
+    webhook_id: Option<&str>,
+    webhook_timestamp: Option<&str>,
+    webhook_signature: Option<&str>,
+    body: &[u8],
+) -> Result<(), GitConnectionError> {
+    let secret_trimmed = secret.trim();
+    if secret_trimmed.is_empty() {
+        return Err(GitConnectionError::MissingSecret);
+    }
+
+    let base64_part = match secret_trimmed.strip_prefix("whsec_") {
+        Some(b64) if !b64.is_empty() => b64.trim(),
+        _ => return Err(GitConnectionError::InvalidSignatureFormat),
+    };
+
+    let key_bytes = BASE64_STANDARD
+        .decode(base64_part)
+        .map_err(|_| GitConnectionError::InvalidSignatureFormat)?;
+
+    if key_bytes.is_empty() {
+        return Err(GitConnectionError::MissingSecret);
+    }
+
+    let w_id = match webhook_id {
+        Some(id) if !id.trim().is_empty() => id.trim(),
+        _ => return Err(GitConnectionError::MissingSignature),
+    };
+
+    let w_ts = match webhook_timestamp {
+        Some(ts) if !ts.trim().is_empty() => ts.trim(),
+        _ => return Err(GitConnectionError::MissingSignature),
+    };
+
+    let w_sig = match webhook_signature {
+        Some(sig) if !sig.trim().is_empty() => sig.trim(),
+        _ => return Err(GitConnectionError::MissingSignature),
+    };
+
+    // Replay protection
+    let ts_num: i64 = w_ts
+        .parse()
+        .map_err(|_| GitConnectionError::InvalidSignatureFormat)?;
+    let now = Utc::now().timestamp();
+    if (now - ts_num).abs() > GITLAB_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS {
+        return Err(GitConnectionError::InvalidSignature);
+    }
+
+    // String to sign
+    let mut string_to_sign = Vec::with_capacity(w_id.len() + 1 + w_ts.len() + 1 + body.len());
+    string_to_sign.extend_from_slice(w_id.as_bytes());
+    string_to_sign.push(b'.');
+    string_to_sign.extend_from_slice(w_ts.as_bytes());
+    string_to_sign.push(b'.');
+    string_to_sign.extend_from_slice(body);
+
+    let expected_b64 = compute_hmac_sha256_base64(&key_bytes, &string_to_sign)?;
+    let expected_sig = format!("v1,{expected_b64}");
+
+    for candidate in w_sig.split_whitespace() {
+        if Crypto::constant_time_eq_str(candidate, &expected_sig) {
+            return Ok(());
+        }
+    }
+
+    Err(GitConnectionError::InvalidSignature)
+}
+
+/// Verify GitLab webhook delivery supporting both Standard Webhooks and Legacy token schemes.
+pub fn verify_gitlab_webhook(
+    secret: &str,
+    headers: &GitLabWebhookHeaders<'_>,
+    body: &[u8],
+) -> Result<(), GitConnectionError> {
+    if headers.webhook_signature.is_some()
+        || (headers.webhook_id.is_some() && headers.webhook_timestamp.is_some())
+    {
+        verify_gitlab_standard_signature(
+            secret,
+            headers.webhook_id,
+            headers.webhook_timestamp,
+            headers.webhook_signature,
+            body,
+        )
+    } else if headers.token.is_some() {
+        verify_gitlab_legacy_token(secret, headers.token)
+    } else {
+        Err(GitConnectionError::MissingSignature)
     }
 }
 
@@ -467,24 +681,395 @@ pub async fn handle_github_webhook(
     }
 }
 
-/// Handle GitLab webhook delivery (unverified signature scheme is safely rejected).
+/// Handles an incoming GitLab webhook delivery.
+///
+/// Steps:
+/// 1. Verify GitLab signature via Standard Webhooks or Legacy token in constant time.
+/// 2. Deduplicate delivery GUID using database unique constraint.
+/// 3. If duplicate, return [`WebhookDeliveryOutcome::AlreadyProcessed`] (idempotent no-op).
+/// 4. Dispatch event (`ping`, `push`, `tag_push`, `merge_request`) and emit appropriate domain event per `events.md`.
+///
+/// Verified against GitLab webhook documentation.
 pub async fn handle_gitlab_webhook(
-    _db: &Database,
-    _raw_body: &[u8],
+    db: &Database,
+    webhook_secret: Option<&str>,
+    headers: GitLabWebhookHeaders<'_>,
+    raw_body: &[u8],
 ) -> Result<WebhookDeliveryOutcome, GitConnectionError> {
-    // TODO(spec): gitlab signature scheme unverified
-    Err(GitConnectionError::UnverifiedProviderSignature(
-        "gitlab".to_string(),
-    ))
+    // 1. Webhook signature verification (Security Boundary)
+    let secret = webhook_secret.ok_or(GitConnectionError::MissingSecret)?;
+    verify_gitlab_webhook(secret, &headers, raw_body)?;
+
+    // 2. Validate delivery GUID
+    let delivery_guid = headers
+        .delivery_id
+        .or(headers.webhook_id)
+        .filter(|d| !d.trim().is_empty())
+        .map(|d| d.trim().to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let event_type = headers.event_type.unwrap_or("push").trim();
+
+    // 3. Deduplicate delivery ID (Phase 6 Exit Gate: Idempotency)
+    if repositories::delivery_exists(db, &delivery_guid).await? {
+        return Ok(WebhookDeliveryOutcome::AlreadyProcessed {
+            delivery_id: delivery_guid,
+        });
+    }
+
+    let payload_str = String::from_utf8_lossy(raw_body).to_string();
+    let delivery = WebhookDelivery {
+        id: 0,
+        public_id: Uuid::new_v4().to_string(),
+        provider: "gitlab".to_string(),
+        delivery_id: delivery_guid.clone(),
+        event_type: event_type.to_string(),
+        payload: payload_str,
+        status: "received".to_string(),
+        created_at: Utc::now(),
+    };
+
+    let saved_delivery = match repositories::insert_delivery(db, delivery).await {
+        Ok(d) => d,
+        Err(_) => {
+            return Ok(WebhookDeliveryOutcome::AlreadyProcessed {
+                delivery_id: delivery_guid,
+            });
+        }
+    };
+
+    // 4. Parse payload JSON
+    let parsed_json: serde_json::Value = serde_json::from_slice(raw_body)
+        .map_err(|e| GitConnectionError::InvalidPayload(e.to_string()))?;
+
+    // Look up optional connection by project ID or path
+    let project_id_str = parsed_json
+        .get("project_id")
+        .or_else(|| parsed_json.get("project").and_then(|p| p.get("id")))
+        .and_then(|id| {
+            if id.is_number() {
+                Some(id.to_string())
+            } else {
+                id.as_str().map(|s| s.to_string())
+            }
+        });
+
+    let connection_opt = if let Some(ref pid) = project_id_str {
+        repositories::connection_by_provider_and_installation(db, "gitlab", pid).await?
+    } else {
+        None
+    };
+
+    let connection_public_id = connection_opt
+        .as_ref()
+        .map(|c| c.public_id.clone())
+        .unwrap_or_else(|| "gitlab".to_string());
+
+    let org_id_opt = connection_opt.as_ref().map(|c| c.organization_id.id);
+
+    // 5. Handle event types
+    match event_type {
+        "ping" => {
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "ping".to_string(),
+                message: "GitLab ping acknowledged successfully".to_string(),
+            })
+        }
+        "push" | "tag_push" | "Push Hook" | "Tag Push Hook" => {
+            let repository = parsed_json
+                .get("project")
+                .and_then(|p| p.get("path_with_namespace").or_else(|| p.get("name")))
+                .or_else(|| parsed_json.get("repository").and_then(|r| r.get("name")))
+                .and_then(|n| n.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let git_ref = parsed_json
+                .get("ref")
+                .and_then(|r| r.as_str())
+                .unwrap_or("refs/heads/main")
+                .to_string();
+
+            let commit_sha = parsed_json
+                .get("after")
+                .or_else(|| parsed_json.get("checkout_sha"))
+                .and_then(|c| c.as_str())
+                .unwrap_or("HEAD")
+                .to_string();
+
+            emit_event(
+                db,
+                "git.push",
+                org_id_opt,
+                None,
+                None,
+                None,
+                serde_json::json!({
+                    "connection_id": connection_public_id,
+                    "repository": repository,
+                    "ref": git_ref,
+                    "commit": commit_sha,
+                }),
+            )
+            .await;
+
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "push".to_string(),
+                message: "GitLab push webhook processed and git.push event emitted".to_string(),
+            })
+        }
+        "merge_request" | "Merge Request Hook" => {
+            let repository = parsed_json
+                .get("project")
+                .and_then(|p| p.get("path_with_namespace").or_else(|| p.get("name")))
+                .and_then(|n| n.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let pr_number = parsed_json
+                .get("object_attributes")
+                .and_then(|a| a.get("iid").or_else(|| a.get("id")))
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0);
+
+            let action = parsed_json
+                .get("object_attributes")
+                .and_then(|a| a.get("action"))
+                .and_then(|a| a.as_str())
+                .unwrap_or("open")
+                .to_string();
+
+            emit_event(
+                db,
+                "git.pull_request",
+                org_id_opt,
+                None,
+                None,
+                None,
+                serde_json::json!({
+                    "connection_id": connection_public_id,
+                    "repository": repository,
+                    "pr_number": pr_number,
+                    "action": action,
+                }),
+            )
+            .await;
+
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "pull_request".to_string(),
+                message:
+                    "GitLab merge request webhook processed and git.pull_request event emitted"
+                        .to_string(),
+            })
+        }
+        other => {
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "ignored").await;
+            Ok(WebhookDeliveryOutcome::Ignored {
+                event_type: other.to_string(),
+            })
+        }
+    }
 }
 
-/// Handle Bitbucket webhook delivery (unverified signature scheme is safely rejected).
+/// Handles an incoming Bitbucket webhook delivery.
+///
+/// Steps:
+/// 1. Verify `X-Hub-Signature` HMAC-SHA256 against raw body bytes in constant time.
+///    (Bitbucket omits header when no secret is configured; missing signature is rejected).
+/// 2. Deduplicate on `X-Request-UUID` GUID using database unique constraint.
+/// 3. If duplicate, return [`WebhookDeliveryOutcome::AlreadyProcessed`] (idempotent no-op).
+/// 4. Dispatch event (`ping`, `repo:push`, `pullrequest:created`, `pullrequest:updated`) and emit domain event per `events.md`.
+///
+/// Verified against Bitbucket Cloud webhook documentation.
 pub async fn handle_bitbucket_webhook(
-    _db: &Database,
-    _raw_body: &[u8],
+    db: &Database,
+    webhook_secret: Option<&str>,
+    signature_header: Option<&str>,
+    delivery_id_header: Option<&str>,
+    event_type_header: Option<&str>,
+    raw_body: &[u8],
 ) -> Result<WebhookDeliveryOutcome, GitConnectionError> {
-    // TODO(spec): bitbucket signature scheme unverified
-    Err(GitConnectionError::UnverifiedProviderSignature(
-        "bitbucket".to_string(),
-    ))
+    // 1. Webhook signature verification (Security Boundary)
+    let secret = webhook_secret.ok_or(GitConnectionError::MissingSecret)?;
+    verify_bitbucket_signature(secret, signature_header, raw_body)?;
+
+    // 2. Validate delivery GUID header
+    let delivery_guid = match delivery_id_header {
+        Some(d) if !d.trim().is_empty() => d.trim(),
+        _ => return Err(GitConnectionError::MissingDeliveryId),
+    };
+
+    let event_type = event_type_header.unwrap_or("repo:push").trim();
+
+    // 3. Deduplicate delivery ID (Phase 6 Exit Gate: Idempotency)
+    if repositories::delivery_exists(db, delivery_guid).await? {
+        return Ok(WebhookDeliveryOutcome::AlreadyProcessed {
+            delivery_id: delivery_guid.to_string(),
+        });
+    }
+
+    let payload_str = String::from_utf8_lossy(raw_body).to_string();
+    let delivery = WebhookDelivery {
+        id: 0,
+        public_id: Uuid::new_v4().to_string(),
+        provider: "bitbucket".to_string(),
+        delivery_id: delivery_guid.to_string(),
+        event_type: event_type.to_string(),
+        payload: payload_str,
+        status: "received".to_string(),
+        created_at: Utc::now(),
+    };
+
+    let saved_delivery = match repositories::insert_delivery(db, delivery).await {
+        Ok(d) => d,
+        Err(_) => {
+            return Ok(WebhookDeliveryOutcome::AlreadyProcessed {
+                delivery_id: delivery_guid.to_string(),
+            });
+        }
+    };
+
+    // 4. Parse payload JSON
+    let parsed_json: serde_json::Value = serde_json::from_slice(raw_body)
+        .map_err(|e| GitConnectionError::InvalidPayload(e.to_string()))?;
+
+    // Look up optional connection by repository UUID
+    let repo_uuid_opt = parsed_json
+        .get("repository")
+        .and_then(|r| r.get("uuid"))
+        .and_then(|u| u.as_str());
+
+    let connection_opt = if let Some(uuid) = repo_uuid_opt {
+        repositories::connection_by_provider_and_installation(db, "bitbucket", uuid).await?
+    } else {
+        None
+    };
+
+    let connection_public_id = connection_opt
+        .as_ref()
+        .map(|c| c.public_id.clone())
+        .unwrap_or_else(|| "bitbucket".to_string());
+
+    let org_id_opt = connection_opt.as_ref().map(|c| c.organization_id.id);
+
+    // 5. Handle event types
+    match event_type {
+        "ping" => {
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "ping".to_string(),
+                message: "Bitbucket ping acknowledged successfully".to_string(),
+            })
+        }
+        "repo:push" | "push" => {
+            let repository = parsed_json
+                .get("repository")
+                .and_then(|r| r.get("full_name").or_else(|| r.get("name")))
+                .and_then(|n| n.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let (git_ref, commit_sha) = parsed_json
+                .get("push")
+                .and_then(|p| p.get("changes"))
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|ch| ch.get("new"))
+                .map(|new_obj| {
+                    let branch = new_obj
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("main");
+                    let commit = new_obj
+                        .get("target")
+                        .and_then(|t| t.get("hash"))
+                        .and_then(|h| h.as_str())
+                        .unwrap_or("HEAD");
+                    (format!("refs/heads/{branch}"), commit.to_string())
+                })
+                .unwrap_or_else(|| ("refs/heads/main".to_string(), "HEAD".to_string()));
+
+            emit_event(
+                db,
+                "git.push",
+                org_id_opt,
+                None,
+                None,
+                None,
+                serde_json::json!({
+                    "connection_id": connection_public_id,
+                    "repository": repository,
+                    "ref": git_ref,
+                    "commit": commit_sha,
+                }),
+            )
+            .await;
+
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "push".to_string(),
+                message: "Bitbucket push webhook processed and git.push event emitted".to_string(),
+            })
+        }
+        "pullrequest:created" | "pullrequest:updated" | "pull_request" => {
+            let repository = parsed_json
+                .get("repository")
+                .and_then(|r| r.get("full_name").or_else(|| r.get("name")))
+                .and_then(|n| n.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let pr_number = parsed_json
+                .get("pullrequest")
+                .and_then(|p| p.get("id"))
+                .and_then(|n| n.as_i64())
+                .unwrap_or(0);
+
+            let action = if event_type.contains("created") {
+                "opened"
+            } else if event_type.contains("updated") {
+                "synchronize"
+            } else {
+                "opened"
+            }
+            .to_string();
+
+            emit_event(
+                db,
+                "git.pull_request",
+                org_id_opt,
+                None,
+                None,
+                None,
+                serde_json::json!({
+                    "connection_id": connection_public_id,
+                    "repository": repository,
+                    "pr_number": pr_number,
+                    "action": action,
+                }),
+            )
+            .await;
+
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "processed").await;
+
+            Ok(WebhookDeliveryOutcome::Processed {
+                event_type: "pull_request".to_string(),
+                message:
+                    "Bitbucket pull request webhook processed and git.pull_request event emitted"
+                        .to_string(),
+            })
+        }
+        other => {
+            let _ = repositories::update_delivery_status(db, saved_delivery.id, "ignored").await;
+            Ok(WebhookDeliveryOutcome::Ignored {
+                event_type: other.to_string(),
+            })
+        }
+    }
 }

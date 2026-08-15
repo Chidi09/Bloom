@@ -11,9 +11,9 @@
 //! - **Header**: `{ "alg": "ES256", "kid": "<Key ID, 10 chars>", "typ": "JWT" }`
 //! - **Payload**: `{ "iss": "<Issuer ID, a UUID>", "iat": <unix now>, "exp": <unix now + lifetime>, "aud": "appstoreconnect-v1" }`
 //! - **Strict 20-Minute Expiry Limit**: Apple enforces a hard maximum lifetime of **20 minutes (1200 seconds)**.
-//!   Any JWT whose `exp` is 20 minutes or more in the future is rejected with HTTP `401 Unauthorized`.
+//!   Any JWT whose `exp` is more than 20 minutes in the future is rejected with HTTP `401 Unauthorized`.
 //!   Bloom Cloud enforces a default lifetime of **15 minutes (900 seconds)** ([`DEFAULT_JWT_LIFETIME_SECS`])
-//!   and rejects any duration >= 1200 seconds ([`MAX_JWT_LIFETIME_SECS`]).
+//!   and rejects any duration > 1200 seconds ([`MAX_JWT_LIFETIME_SECS`]).
 //! - **Single-Run Minting**: Mint a fresh token per deployment run; never cache tokens across long uploads.
 //!
 //! # Binary Upload Architecture
@@ -25,12 +25,16 @@
 //! is used exclusively for querying build processing states and assigning builds to beta groups
 //! after the binary has been uploaded by the tooling.
 //!
-//! # Unverified Specification Defensiveness
+//! # Processing State Invariants
 //!
-//! Build processing state values (`processingState`) are not independently verified against live vendor docs.
-//! This client parses `processingState` as a plain `String`, checks case-insensitively for `"VALID"`,
-//! and maps any unrecognized value to [`TestFlightProcessingState::Unknown`] / still processing,
-//! rather than treating unrecognized values as failures.
+//! Build processing state values (`processingState`) are confirmed from Fastlane's spaceship `ProcessingState` module:
+//! - `PROCESSING`: still in progress
+//! - `VALID`: terminal success; the build is usable
+//! - `FAILED`: terminal failure
+//! - `INVALID`: terminal failure
+//!
+//! Unrecognised values are defensively mapped to [`TestFlightProcessingState::Unknown`] / still processing,
+//! rather than treating unrecognized values as terminal failure.
 //!
 //! # Secret Hygiene
 //!
@@ -50,7 +54,7 @@ use crate::settings::TestFlightSettings;
 pub const DEFAULT_APP_STORE_CONNECT_BASE_URL: &str = "https://api.appstoreconnect.apple.com";
 
 /// Hard maximum JWT lifetime allowed by Apple (20 minutes / 1200 seconds).
-/// Any token with exp >= 1200s from iat is rejected with HTTP 401.
+/// Any token with exp > 1200s from iat is rejected with HTTP 401.
 /// Authorised by EXTERNAL_APIS.txt lines 164-166.
 pub const MAX_JWT_LIFETIME_SECS: u64 = 1200;
 
@@ -77,7 +81,7 @@ pub enum TestFlightError {
     Http(String),
     /// Authentication or JWT signing error.
     Auth(String),
-    /// JWT expiration duration is equal to or exceeds Apple's 20-minute ceiling.
+    /// JWT expiration duration exceeds Apple's 20-minute ceiling.
     InvalidLifetime(String),
     /// App Store Connect API returned a non-success HTTP status code.
     Api {
@@ -144,7 +148,7 @@ pub struct AppStoreJwtClaims {
     pub iss: String,
     /// Issued-at timestamp in epoch seconds.
     pub iat: i64,
-    /// Expiration timestamp in epoch seconds (strictly < 20 minutes from `iat`).
+    /// Expiration timestamp in epoch seconds (strictly <= 20 minutes from `iat`).
     pub exp: i64,
     /// Audience claim, strictly `"appstoreconnect-v1"`.
     pub aud: String,
@@ -153,10 +157,10 @@ pub struct AppStoreJwtClaims {
 impl AppStoreJwtClaims {
     /// Constructs claims with explicit issued-at and expiration timestamps.
     ///
-    /// Fails if `exp - iat >= MAX_JWT_LIFETIME_SECS` (1200 seconds).
+    /// Fails if `exp - iat > MAX_JWT_LIFETIME_SECS` (1200 seconds / 20 minutes).
     pub fn new(issuer_id: impl Into<String>, iat: i64, exp: i64) -> Result<Self, TestFlightError> {
         let lifetime = exp.saturating_sub(iat);
-        if lifetime >= MAX_JWT_LIFETIME_SECS as i64 {
+        if lifetime > MAX_JWT_LIFETIME_SECS as i64 {
             return Err(TestFlightError::InvalidLifetime(format!(
                 "JWT lifetime of {lifetime}s exceeds Apple maximum of {MAX_JWT_LIFETIME_SECS}s (20 minutes)"
             )));
@@ -187,28 +191,31 @@ impl AppStoreJwtClaims {
 
 /// Build processing lifecycle state in TestFlight / App Store Connect.
 ///
-/// Note: Variants are defensively mapped per the unverified specification.
+/// Variants correspond to confirmed Fastlane spaceship `ProcessingState` values:
+/// `PROCESSING`, `VALID`, `FAILED`, `INVALID`. Unrecognized values are defensively mapped to `Unknown`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestFlightProcessingState {
-    /// Build successfully finished processing and is ready for beta assignment.
+    /// Build successfully finished processing and is ready for beta assignment (terminal success).
     Valid,
-    /// Build is still being processed by Apple.
+    /// Build is still being processed by Apple (in progress).
     Processing,
-    /// Build processing failed with errors.
+    /// Build processing failed with errors (terminal failure).
     Failed,
-    /// Unrecognized or unverified status reported by Apple; defensively mapped to still processing.
+    /// Unrecognized status reported by Apple; defensively mapped to still processing.
     Unknown(String),
 }
 
 impl TestFlightProcessingState {
-    /// Defensively parses a raw `processingState` string from App Store Connect.
+    /// Parses a raw `processingState` string from App Store Connect.
     ///
-    /// Compares case-insensitively for `"VALID"` and `"FAILED"`. Any other or unconfirmed variant
-    /// is mapped to [`TestFlightProcessingState::Unknown`] rather than treated as a fatal failure.
+    /// Confirmed variants:
+    /// - `"VALID"` -> [`TestFlightProcessingState::Valid`] (terminal success)
+    /// - `"PROCESSING"` -> [`TestFlightProcessingState::Processing`] (in progress)
+    /// - `"FAILED"` / `"INVALID"` -> [`TestFlightProcessingState::Failed`] (terminal failure)
+    /// - Unrecognized values -> [`TestFlightProcessingState::Unknown`] (treated as in progress)
     ///
-    /// Authorised by EXTERNAL_APIS.txt lines 183-188.
+    /// Authorised by EXTERNAL_APIS.txt lines 183-188 and Apple vendor tooling.
     pub fn from_raw(state: &str) -> Self {
-        // TODO(spec): processingState variants unverified per EXTERNAL_APIS.txt section 5
         let trimmed = state.trim();
         if trimmed.eq_ignore_ascii_case("VALID") {
             TestFlightProcessingState::Valid
@@ -233,6 +240,11 @@ impl TestFlightProcessingState {
             self,
             TestFlightProcessingState::Processing | TestFlightProcessingState::Unknown(_)
         )
+    }
+
+    /// Returns `true` if the build processing has terminally failed.
+    pub fn is_failed(&self) -> bool {
+        matches!(self, TestFlightProcessingState::Failed)
     }
 }
 
@@ -609,20 +621,66 @@ impl TestFlightClient {
         Ok(())
     }
 
+    /// Creates a signed ES256 JWT for App Store Connect API authentication.
+    ///
+    /// Headers: `{ "alg": "ES256", "kid": "<Key ID>", "typ": "JWT" }`
+    /// Claims:
+    /// - `iss`: `issuer_id` UUID
+    /// - `iat`: `now_unix_secs`
+    /// - `exp`: `now_unix_secs + 900` (default 15 minutes, strictly <= 1200 seconds)
+    /// - `aud`: `"appstoreconnect-v1"`
+    ///
+    /// Key: PKCS#8 EC P-256 private key PEM (`.p8`).
+    ///
+    /// Authorised by EXTERNAL_APIS.txt lines 160-166 and Apple App Store Connect API docs.
+    pub fn create_signed_jwt(
+        issuer_id: &str,
+        key_id: &str,
+        private_key_p8_pem: &str,
+        now_unix_secs: i64,
+    ) -> Result<String, TestFlightError> {
+        if issuer_id.trim().is_empty() {
+            return Err(TestFlightError::Auth(
+                "App Store Connect issuer_id cannot be empty".to_string(),
+            ));
+        }
+        if key_id.trim().is_empty() {
+            return Err(TestFlightError::Auth(
+                "App Store Connect key_id cannot be empty".to_string(),
+            ));
+        }
+        if private_key_p8_pem.trim().is_empty() {
+            return Err(TestFlightError::Auth(
+                "App Store Connect private_key PEM cannot be empty".to_string(),
+            ));
+        }
+
+        let claims = AppStoreJwtClaims::for_current_time(issuer_id.trim(), now_unix_secs)?;
+
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+        header.kid = Some(key_id.trim().to_string());
+        header.typ = Some("JWT".to_string());
+
+        let encoding_key = jsonwebtoken::EncodingKey::from_ec_pem(private_key_p8_pem.as_bytes())
+            .map_err(|e| {
+                TestFlightError::Auth(format!("Failed to parse EC private key PEM (.p8): {e}"))
+            })?;
+
+        jsonwebtoken::encode(&header, &claims, &encoding_key)
+            .map_err(|e| TestFlightError::Auth(format!("Failed to sign ES256 JWT: {e}")))
+    }
+
     /// Mints a signed ES256 JWT for App Store Connect API authentication.
     ///
     /// Authorised by EXTERNAL_APIS.txt lines 160-166.
     pub fn mint_jwt_token(
         &self,
-        _issuer_id: &str,
-        _key_id: &str,
-        _private_key_p8_pem: &str,
-        _now_unix_secs: i64,
+        issuer_id: &str,
+        key_id: &str,
+        private_key_p8_pem: &str,
+        now_unix_secs: i64,
     ) -> Result<String, TestFlightError> {
-        // TODO(spec): needs crate jsonwebtoken for ES256 JWT signing with Apple .p8 private keys; reviewer must add it to Cargo.toml
-        Err(TestFlightError::Auth(
-            "ES256 JWT signing requires ECDSA P-256 / JWT crate (jsonwebtoken)".to_string(),
-        ))
+        Self::create_signed_jwt(issuer_id, key_id, private_key_p8_pem, now_unix_secs)
     }
 
     /// Uploads an IPA binary payload via Apple's native command-line tooling.
