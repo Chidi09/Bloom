@@ -73,7 +73,7 @@ await userQuery.refetch();
 ```
 
 ### 2. Manual Invalidation
-Forces background refetch on next access or immediately:
+Marks the query as stale and triggers immediate background refetch for active queries (including queries in an error or initial loading state with no existing cache entry):
 ```dart
 userQuery.invalidate();
 ```

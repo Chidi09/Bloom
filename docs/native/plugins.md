@@ -6,13 +6,18 @@ Bloom provides a unified API for interacting with essential mobile platform capa
 
 ## 📦 Native Modules Overview
 
-| Plugin | Dart Class | Real Ecosystem Dependency | Managed Prebuild Transformations |
+All plugins are registered in `BloomPluginCatalog`. Canonical plugin IDs use lowercase underscore naming (e.g. `secure_storage`, `background_tasks`), though CLI commands also accept hyphenated names (e.g. `secure-storage`, `background-tasks`) and normalize them to canonical IDs.
+
+| Plugin ID | Dart Class | Real Ecosystem Dependency | Managed Prebuild Transformations |
 | :--- | :--- | :--- | :--- |
-| **Secure Storage** | `BloomSecureStorage` | `flutter_secure_storage: ^9.2.4` | Enables Keychain access group & Android backup rules. |
-| **Notifications** | `BloomNotifications` | `flutter_local_notifications: ^17.2.4` | Injects `POST_NOTIFICATIONS`, `VIBRATE`, notification channels. |
-| **Camera** | `BloomCamera` | `image_picker: ^1.1.2` / `MethodChannel` | Injects `CAMERA`, `RECORD_AUDIO`, `NSCameraUsageDescription`. |
-| **Deep Links** | `BloomDeepLinks` | `app_links: ^7.2.1` | Injects `<intent-filter>` schemes and `.well-known` files. |
-| **Background Tasks** | `BloomBackground` | `MethodChannel('bloom/background')` | Injects `WAKE_LOCK` and background execution policies. |
+| `secure_storage` | `BloomSecureStorage` | `flutter_secure_storage: ^9.2.4` | None (managed directly by dependency). |
+| `notifications` | `BloomNotifications` | `flutter_local_notifications: ^17.2.4` | Injects `android.permission.POST_NOTIFICATIONS`, `android.permission.VIBRATE`. |
+| `camera` | `BloomCamera` | `image_picker: ^1.1.2` / `MethodChannel` | Injects `android.permission.CAMERA`, `android.permission.RECORD_AUDIO`, `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`. |
+| `location` | `BloomPermissions` | `permission_handler: ^11.3.1` / `MethodChannel` | Injects `android.permission.ACCESS_FINE_LOCATION`, `android.permission.ACCESS_COARSE_LOCATION`, `NSLocationWhenInUseUsageDescription`. |
+| `deep_links` | `BloomDeepLinks` | `app_links: ^7.2.1` | Injects Android `<intent-filter>` schemes and iOS `CFBundleURLTypes`, and generates `.well-known` domain verification files (`assetlinks.json`, `apple-app-site-association`). |
+| `background_tasks` | `BloomBackground` | `MethodChannel('bloom/background')` | Injects `android.permission.WAKE_LOCK`, `android.permission.FOREGROUND_SERVICE`. |
+| `auth` | `BloomAuth` | Framework-level feature | None (framework-level feature, carries no platform transformations). |
+| `storage` | `BloomStorageAdapter` | Framework-level feature | None (framework-level feature, carries no platform transformations). |
 
 ---
 
@@ -64,3 +69,4 @@ if (hasCamera) {
 * **`BloomSecureStorage` & `BloomNotifications`:** Wrap industry-standard, fully functional production plugins (`flutter_secure_storage` and `flutter_local_notifications`).
 * **`BloomCamera`:** Uses real `image_picker` when available or forwards calls via `MethodChannel('bloom/camera')`. Note that custom hardware method channels require appropriate native host drivers if not using standard image picking.
 * **`BloomBackground`:** Wraps `MethodChannel('bloom/background')` for registering background worker tasks.
+* **`auth` & `storage`:** Catalogued in `BloomPluginCatalog` to allow CLI project configuration (`bloom add auth`, `bloom add storage`), but are framework-level features (`BloomAuth`, `BloomStorageAdapter`) rather than native plugins and carry no platform prebuild transformations.

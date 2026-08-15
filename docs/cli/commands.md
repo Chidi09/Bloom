@@ -13,23 +13,37 @@ Activates a native plugin or feature in `bloom.yaml` and executes prebuild synch
 bloom add <plugin_name>
 ```
 
+### Plugin Name Resolution & Validation
+`bloom add` validates `<plugin_name>` against `BloomPluginCatalog`:
+* Input names are canonicalized: trimmed, lowercased, and hyphens (`-`) converted to underscores (`_`). For example, `secure-storage`, `secure_storage`, and `Secure-Storage` all resolve to the canonical ID `secure_storage`.
+* The canonical ID is written into `bloom.yaml`.
+* If an unrecognized plugin name is provided, `bloom add` prints an error with supported plugin IDs and exits with code `1` without modifying `bloom.yaml` or running prebuild.
+
 ### Supported Plugins
-* `bloom add secure-storage`
-* `bloom add camera`
-* `bloom add notifications`
-* `bloom add background-tasks`
-* `bloom add auth`
+* `auth`
+* `background_tasks` (or `background-tasks`)
+* `camera`
+* `deep_links` (or `deep-links`)
+* `location`
+* `notifications`
+* `secure_storage` (or `secure-storage`)
+* `storage`
 
 ---
 
 ## ➖ `bloom remove`
 
-Deactivates a native plugin in `bloom.yaml` and synchronizes platform manifests.
+Deactivates a native plugin or feature in `bloom.yaml` and synchronizes platform manifests.
 
 ### Synopsis
 ```bash
 bloom remove <plugin_name>
 ```
+
+### Plugin Name Resolution & Validation
+* Validates and canonicalizes `<plugin_name>` against `BloomPluginCatalog` (matching both canonical and hyphenated forms).
+* Removes the plugin entry from `bloom.yaml` and executes prebuild synchronization.
+* If an unrecognized plugin name is provided, prints an error with supported plugin IDs and exits with code `1`.
 
 ---
 
