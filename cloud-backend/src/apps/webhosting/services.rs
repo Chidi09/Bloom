@@ -363,12 +363,7 @@ pub async fn deploy_web(
         created_at: now,
     };
 
-    let mut saved = repositories::insert_deployment(db, deployment).await?;
-
-    if can_transition(&saved.status, "live") {
-        saved.status = "live".to_string();
-        repositories::update_deployment(db, &saved).await?;
-    }
+    let saved = repositories::insert_and_activate_deployment_atomically(db, deployment).await?;
 
     crate::apps::events::emit(
         db,
@@ -428,10 +423,8 @@ pub async fn rollback_web_deployment(
     .ok_or(WebHostingError::NoPreviousDeployment)?;
 
     current.status = "rolled_back".to_string();
-    repositories::update_deployment(db, &current).await?;
-
     previous.status = "live".to_string();
-    repositories::update_deployment(db, &previous).await?;
+    repositories::rollback_deployment_pair_atomically(db, current.id, previous.id).await?;
 
     let app = repositories::app_summary_by_id(db, current.app_id.id)
         .await?

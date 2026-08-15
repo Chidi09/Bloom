@@ -94,19 +94,8 @@ pub async fn create_organization(
         updated_at: now,
     };
 
-    let saved_org = repositories::insert_organization(db, org).await?;
-
-    let membership = UserOrganizationMembership {
-        id: 0,
-        public_id: Uuid::new_v4().to_string(),
-        user_id,
-        organization_id: saved_org.id,
-        role: "owner".to_string(),
-        created_at: now,
-        updated_at: now,
-    };
-
-    repositories::insert_membership(db, membership).await?;
+    let (saved_org, _membership) =
+        repositories::create_organization_atomically(db, org, user_id).await?;
 
     Ok(saved_org)
 }
@@ -357,8 +346,8 @@ pub async fn accept_invite(
         updated_at: now,
     };
 
-    let saved_membership = repositories::insert_membership(db, membership).await?;
-    repositories::update_invite_accepted(db, invite.id, now).await?;
+    let saved_membership =
+        repositories::accept_invite_atomically(db, membership, invite.id, now).await?;
 
     Ok(saved_membership)
 }

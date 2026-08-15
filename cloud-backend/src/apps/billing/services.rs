@@ -972,51 +972,42 @@ pub async fn handle_bachs_webhook(
             .and_then(|v| v.as_str());
 
         if let Some(ref_str) = reference {
-            if let Some(mut sub) =
-                repositories::subscription_by_provider_subscription_id(db, ref_str).await?
-            {
-                let now = Utc::now();
-                let period_end = now + Duration::days(30);
-                if apply_payment_success(&mut sub, now, period_end) {
-                    repositories::update_subscription(db, &sub).await?;
+            let now = Utc::now();
+            let period_end = now + Duration::days(30);
+            let outcome =
+                repositories::apply_payment_success_atomically(db, ref_str, now, period_end)
+                    .await?;
 
-                    crate::apps::events::emit(
-                        db,
-                        "billing.subscription.activated",
-                        Some(sub.organization_id.id),
-                        None,
-                        None,
-                        None,
-                        serde_json::json!({
-                            "subscription_id": sub.public_id,
-                            "reference": ref_str,
-                        }),
-                    )
-                    .await;
-                }
+            if let Some((org_id, sub_pub_id)) = outcome.subscription_activated {
+                crate::apps::events::emit(
+                    db,
+                    "billing.subscription.activated",
+                    Some(org_id),
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({
+                        "subscription_id": sub_pub_id,
+                        "reference": ref_str,
+                    }),
+                )
+                .await;
             }
 
-            if let Some(mut inv) = repositories::invoice_by_provider_invoice_id(db, ref_str).await?
-            {
-                if inv.status != "paid" {
-                    inv.status = "paid".to_string();
-                    inv.paid_at = Some(Utc::now());
-                    repositories::update_invoice(db, &inv).await?;
-
-                    crate::apps::events::emit(
-                        db,
-                        "billing.invoice.paid",
-                        Some(inv.organization_id.id),
-                        None,
-                        None,
-                        None,
-                        serde_json::json!({
-                            "invoice_id": inv.public_id,
-                            "reference": ref_str,
-                        }),
-                    )
-                    .await;
-                }
+            if let Some((org_id, inv_pub_id)) = outcome.invoice_paid {
+                crate::apps::events::emit(
+                    db,
+                    "billing.invoice.paid",
+                    Some(org_id),
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({
+                        "invoice_id": inv_pub_id,
+                        "reference": ref_str,
+                    }),
+                )
+                .await;
             }
         }
 
@@ -1076,51 +1067,42 @@ pub async fn handle_paystack_webhook(
             .and_then(|v| v.as_str());
 
         if let Some(ref_str) = reference {
-            if let Some(mut sub) =
-                repositories::subscription_by_provider_subscription_id(db, ref_str).await?
-            {
-                let now = Utc::now();
-                let period_end = now + Duration::days(30);
-                if apply_payment_success(&mut sub, now, period_end) {
-                    repositories::update_subscription(db, &sub).await?;
+            let now = Utc::now();
+            let period_end = now + Duration::days(30);
+            let outcome =
+                repositories::apply_payment_success_atomically(db, ref_str, now, period_end)
+                    .await?;
 
-                    crate::apps::events::emit(
-                        db,
-                        "billing.subscription.activated",
-                        Some(sub.organization_id.id),
-                        None,
-                        None,
-                        None,
-                        serde_json::json!({
-                            "subscription_id": sub.public_id,
-                            "reference": ref_str,
-                        }),
-                    )
-                    .await;
-                }
+            if let Some((org_id, sub_pub_id)) = outcome.subscription_activated {
+                crate::apps::events::emit(
+                    db,
+                    "billing.subscription.activated",
+                    Some(org_id),
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({
+                        "subscription_id": sub_pub_id,
+                        "reference": ref_str,
+                    }),
+                )
+                .await;
             }
 
-            if let Some(mut inv) = repositories::invoice_by_provider_invoice_id(db, ref_str).await?
-            {
-                if inv.status != "paid" {
-                    inv.status = "paid".to_string();
-                    inv.paid_at = Some(Utc::now());
-                    repositories::update_invoice(db, &inv).await?;
-
-                    crate::apps::events::emit(
-                        db,
-                        "billing.invoice.paid",
-                        Some(inv.organization_id.id),
-                        None,
-                        None,
-                        None,
-                        serde_json::json!({
-                            "invoice_id": inv.public_id,
-                            "reference": ref_str,
-                        }),
-                    )
-                    .await;
-                }
+            if let Some((org_id, inv_pub_id)) = outcome.invoice_paid {
+                crate::apps::events::emit(
+                    db,
+                    "billing.invoice.paid",
+                    Some(org_id),
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({
+                        "invoice_id": inv_pub_id,
+                        "reference": ref_str,
+                    }),
+                )
+                .await;
             }
         }
 

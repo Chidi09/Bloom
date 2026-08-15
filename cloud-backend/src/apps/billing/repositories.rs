@@ -371,3 +371,100 @@ pub async fn user_summary_by_id(
         email: u.email,
     }))
 }
+
+/// Result outcome from atomic payment success processing.
+#[derive(Debug, Default, Clone)]
+pub struct PaymentSuccessApplied {
+    /// Subscription activated: (organization_id, subscription_public_id).
+    pub subscription_activated: Option<(i64, String)>,
+    /// Invoice marked paid: (organization_id, invoice_public_id).
+    pub invoice_paid: Option<(i64, String)>,
+}
+
+/// Atomically apply payment success to subscription and invoice in a single database transaction.
+pub async fn apply_payment_success_atomically(
+    db: &Database,
+    reference: &str,
+    now: DateTime<Utc>,
+    period_end: DateTime<Utc>,
+) -> Result<PaymentSuccessApplied, OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::expr::{SetExpr, Value};
+
+    db.transaction_conn(|conn| {
+        let reference = reference.to_string();
+        Box::pin(async move {
+            let mut outcome = PaymentSuccessApplied::default();
+
+            let sub_opt = Subscription::objects()
+                .filter(q!(stripe_subscription_id = reference.clone()))?
+                .first(conn.conn())
+                .await?;
+
+            if let Some(mut sub) = sub_opt {
+                if super::services::apply_payment_success(&mut sub, now, period_end) {
+                    let pending_val = match sub.pending_plan_id {
+                        Some(id) => Value::I64(id),
+                        None => Value::Null,
+                    };
+                    let act_val = match sub.activated_at {
+                        Some(dt) => Value::DateTime(dt),
+                        None => Value::Null,
+                    };
+
+                    let sets = vec![
+                        ("plan_id", SetExpr::Literal(Value::I64(sub.plan_id.id))),
+                        ("pending_plan_id", SetExpr::Literal(pending_val)),
+                        ("status", SetExpr::Literal(Value::Text(sub.status.clone()))),
+                        (
+                            "current_period_start",
+                            SetExpr::Literal(Value::DateTime(sub.current_period_start)),
+                        ),
+                        (
+                            "current_period_end",
+                            SetExpr::Literal(Value::DateTime(sub.current_period_end)),
+                        ),
+                        ("activated_at", SetExpr::Literal(act_val)),
+                        (
+                            "updated_at",
+                            SetExpr::Literal(Value::DateTime(sub.updated_at)),
+                        ),
+                    ];
+
+                    Subscription::objects()
+                        .filter(q!(id = sub.id))?
+                        .update(conn.conn(), sets)
+                        .await?;
+
+                    outcome.subscription_activated = Some((sub.organization_id.id, sub.public_id));
+                }
+            }
+
+            let inv_opt = Invoice::objects()
+                .filter(q!(stripe_invoice_id = reference.clone()))?
+                .first(conn.conn())
+                .await?;
+
+            if let Some(inv) = inv_opt {
+                if inv.status != "paid" {
+                    Invoice::objects()
+                        .filter(q!(id = inv.id))?
+                        .update(
+                            conn.conn(),
+                            vec![
+                                ("status", SetExpr::Literal(Value::Text("paid".to_string()))),
+                                ("paid_at", SetExpr::Literal(Value::DateTime(now))),
+                            ],
+                        )
+                        .await?;
+
+                    outcome.invoice_paid = Some((inv.organization_id.id, inv.public_id));
+                }
+            }
+
+            Ok::<PaymentSuccessApplied, OrmError>(outcome)
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}

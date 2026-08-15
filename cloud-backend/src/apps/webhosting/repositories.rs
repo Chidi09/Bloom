@@ -147,6 +147,76 @@ pub async fn insert_deployment(
     deployment.save(db).await
 }
 
+/// Insert a web deployment and immediately activate it to `live` status in a single transaction.
+pub async fn insert_and_activate_deployment_atomically(
+    db: &Database,
+    deployment: WebDeployment,
+) -> Result<WebDeployment, OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::expr::IntoSetExpr;
+    use djangors_orm::QuerySet;
+
+    db.transaction_conn(|conn| {
+        Box::pin(async move {
+            let mut dep = deployment;
+            let pks =
+                QuerySet::<WebDeployment>::bulk_create(conn.conn(), std::slice::from_ref(&dep))
+                    .await?;
+            let dep_id = pks.first().copied().unwrap_or(0);
+            dep.id = dep_id;
+
+            if dep.status == "deploying" {
+                dep.status = "live".to_string();
+                WebDeployment::objects()
+                    .filter(q!(id = dep_id))?
+                    .update(
+                        conn.conn(),
+                        vec![("status", "live".to_string().into_set_expr())],
+                    )
+                    .await?;
+            }
+
+            Ok::<WebDeployment, OrmError>(dep)
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}
+
+/// Rollback the current deployment and activate the previous deployment in a single transaction.
+pub async fn rollback_deployment_pair_atomically(
+    db: &Database,
+    current_id: i64,
+    previous_id: i64,
+) -> Result<(), OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::expr::IntoSetExpr;
+
+    db.transaction_conn(|conn| {
+        Box::pin(async move {
+            WebDeployment::objects()
+                .filter(q!(id = current_id))?
+                .update(
+                    conn.conn(),
+                    vec![("status", "rolled_back".to_string().into_set_expr())],
+                )
+                .await?;
+
+            WebDeployment::objects()
+                .filter(q!(id = previous_id))?
+                .update(
+                    conn.conn(),
+                    vec![("status", "live".to_string().into_set_expr())],
+                )
+                .await?;
+
+            Ok::<(), OrmError>(())
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}
+
 /// Update an existing `WebDeployment` record.
 pub async fn update_deployment(db: &Database, deployment: &WebDeployment) -> Result<(), OrmError> {
     deployment.update(db).await

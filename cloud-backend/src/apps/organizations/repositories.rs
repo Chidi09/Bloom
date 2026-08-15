@@ -327,3 +327,87 @@ pub async fn profiles_by_user_ids(
         .await?;
     Ok(profiles.into_iter().map(|p| (p.user_id, p)).collect())
 }
+
+/// Create an organization and its owner membership in a single transaction.
+pub async fn create_organization_atomically(
+    db: &Database,
+    org: Organization,
+    user_id: i64,
+) -> Result<(Organization, UserOrganizationMembership), OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::QuerySet;
+
+    db.transaction_conn(|conn| {
+        Box::pin(async move {
+            let mut org_to_insert = org;
+            let pks = QuerySet::<Organization>::bulk_create(
+                conn.conn(),
+                std::slice::from_ref(&org_to_insert),
+            )
+            .await?;
+            let org_id = pks.first().copied().unwrap_or(0);
+            org_to_insert.id = org_id;
+
+            let membership = UserOrganizationMembership {
+                id: 0,
+                public_id: uuid::Uuid::new_v4().to_string(),
+                user_id,
+                organization_id: org_id,
+                role: "owner".to_string(),
+                created_at: org_to_insert.created_at,
+                updated_at: org_to_insert.updated_at,
+            };
+
+            let mem_pks = QuerySet::<UserOrganizationMembership>::bulk_create(
+                conn.conn(),
+                std::slice::from_ref(&membership),
+            )
+            .await?;
+            let mut saved_membership = membership;
+            saved_membership.id = mem_pks.first().copied().unwrap_or(0);
+
+            Ok::<(Organization, UserOrganizationMembership), OrmError>((
+                org_to_insert,
+                saved_membership,
+            ))
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}
+
+/// Accept an invite and create the membership record in a single transaction.
+pub async fn accept_invite_atomically(
+    db: &Database,
+    membership: UserOrganizationMembership,
+    invite_id: i64,
+    accepted_at: DateTime<Utc>,
+) -> Result<UserOrganizationMembership, OrmError> {
+    use djangors_db::DbExecutor;
+    use djangors_orm::expr::IntoSetExpr;
+    use djangors_orm::QuerySet;
+
+    db.transaction_conn(|conn| {
+        Box::pin(async move {
+            let mem_pks = QuerySet::<UserOrganizationMembership>::bulk_create(
+                conn.conn(),
+                std::slice::from_ref(&membership),
+            )
+            .await?;
+            let mut saved_membership = membership;
+            saved_membership.id = mem_pks.first().copied().unwrap_or(0);
+
+            OrganizationInvite::objects()
+                .filter(q!(id = invite_id))?
+                .update(
+                    conn.conn(),
+                    vec![("accepted_at", accepted_at.into_set_expr())],
+                )
+                .await?;
+
+            Ok::<UserOrganizationMembership, OrmError>(saved_membership)
+        })
+    })
+    .await
+    .map_err(|e| OrmError::InvalidQuery(e.to_string()))
+}
