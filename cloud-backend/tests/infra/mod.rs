@@ -4,6 +4,7 @@ pub mod caddy_tests;
 pub mod cdn_tests;
 pub mod crypto_tests;
 pub mod dns;
+pub mod events_tests;
 pub mod executor;
 pub mod googleplay_tests;
 pub mod queue_tests;

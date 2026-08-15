@@ -646,6 +646,7 @@ dependencies = [
  "djangors-rest",
  "djangors-tasks",
  "djangors-template",
+ "futures-util",
  "hex",
  "hmac 0.12.1",
  "hyper 1.11.0",
@@ -659,6 +660,7 @@ dependencies = [
  "sha2 0.10.9",
  "subtle",
  "tokio",
+ "tokio-stream",
  "tower",
  "uuid",
 ]

@@ -71,6 +71,12 @@ redis = { version = "1", features = ["tokio-comp"] }
 # in-memory counter would undercount across instances, letting an attacker multiply their
 # rate limit by the number of instances.
 djangors-cache = { version = "=0.7.0", features = ["redis"] }
+
+# Stream combinators for the SSE event stream: merging the Redis pub/sub subscription with a
+# heartbeat interval, and filtering it per tenant. Both were already in the tree transitively;
+# they are declared here because src/infra/events.rs uses them directly.
+futures-util = "0.3"
+tokio-stream = "0.1"
 aes-gcm = "0.10"
 base64 = "0.22"
 subtle = "2.5"

@@ -46,6 +46,45 @@ pub async fn record_event(
         .map_err(Into::into)
 }
 
+/// Publishes an already-recorded event to the live channel for connected dashboards.
+///
+/// Publishing is best-effort and deliberately never fails the caller. The durable record is
+/// the row written by [`record_event`]; the channel is a liveness signal that clients
+/// reconcile against `GET /events`. Losing a publish costs a dashboard a moment of
+/// freshness, and must never cost the caller its write.
+///
+/// `organization_public_id` is required for the fan-out to be tenant-safe: it is the only
+/// field [`crate::infra::events::EventBus::subscribe_for_organization`] can filter on. An
+/// event with no organization is not published at all, because a payload the subscriber
+/// cannot attribute is one it cannot safely deliver to anyone.
+pub async fn publish_live(
+    bus: &crate::infra::events::EventBus,
+    event: &EventLog,
+    organization_public_id: Option<&str>,
+) {
+    let Some(organization_public_id) = organization_public_id else {
+        return;
+    };
+
+    let payload = serde_json::json!({
+        "id": event.public_id,
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "organization_id": organization_public_id,
+        "payload": serde_json::from_str::<serde_json::Value>(&event.payload)
+            .unwrap_or(serde_json::Value::Null),
+        "created_at": event.created_at.to_rfc3339(),
+    });
+
+    if let Err(error) = bus.publish(&payload).await {
+        // This crate has no logging framework; src/main.rs uses eprintln! for the same purpose.
+        eprintln!(
+            "failed to publish event {} to the live channel; continuing: {error}",
+            event.event_type
+        );
+    }
+}
+
 /// Record an event without propagating a failure to the caller's write path.
 ///
 /// Any recording error is logged with `tracing` and swallowed so that emitting

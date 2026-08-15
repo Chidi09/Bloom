@@ -8,5 +8,7 @@ use super::views;
 pub fn urls() -> Router {
     Router::new()
         .get("/events", views::list_events)
+        // Registered before `/events/{id}` so the literal segment is not captured as an id.
+        .sse("/events/stream", views::stream_events)
         .get("/events/{id}", views::retrieve_event)
 }

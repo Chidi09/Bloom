@@ -88,10 +88,17 @@ async fn main() -> Result<(), DjangorsError> {
         })?,
     );
 
+    // Live event fan-out for the dashboard's SSE stream. Separate from the job queue above:
+    // that uses Redis Streams for exclusive claiming, this uses pub/sub for broadcast.
+    let event_bus =
+        bloom_cloud_backend::infra::events::EventBus::from_url(&bloom_settings.redis_url)
+            .map_err(|e| DjangorsError::Internal(format!("Failed to open Redis event bus: {e}")))?;
+
     let mut router = urls::root()
         .with_state(db)
         .with_state(queue)
         .with_state(throttle_cache)
+        .with_state(event_bus)
         .with_state(bloom_settings);
 
     if let Some(storage) = storage {

@@ -16,6 +16,7 @@ pub mod caddy;
 pub mod cdn;
 pub mod crypto;
 pub mod dns;
+pub mod events;
 pub mod executor;
 pub mod googleplay;
 pub mod queue;

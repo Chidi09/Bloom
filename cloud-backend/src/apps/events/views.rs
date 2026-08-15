@@ -8,6 +8,7 @@ use djangors_rest::Scoped;
 use super::errors::EventError;
 use super::models::EventLog;
 use super::permissions::CurrentOrganizationId;
+use super::repositories;
 use super::services;
 use crate::apps::accounts::permissions::require_authenticated;
 
@@ -99,4 +100,61 @@ pub async fn retrieve_event(req: Request, params: PathParams) -> Result<Response
         .map_err(DjangorsError::from)?;
 
     Response::json(StatusCode::OK, &response)
+}
+
+/// Interval between heartbeat frames on an idle event stream.
+///
+/// Reverse proxies close idle upstream connections well before this: nginx defaults
+/// `proxy_read_timeout` to 60s and AWS ALB defaults its idle timeout to 60s. Emitting every
+/// 25s keeps at least two frames inside the tightest of those windows, so a single dropped
+/// frame does not cost the connection.
+const HEARTBEAT_INTERVAL_SECS: u64 = 25;
+
+/// GET `/api/v1/events/stream` — Live event stream for the active organization (SSE).
+///
+/// # Delivery semantics
+///
+/// This is a **liveness** channel, not a durable log. It is backed by Redis pub/sub, which is
+/// fire-and-forget: events published while a client is disconnected are never replayed, and
+/// there is no acknowledgement. A client that needs completeness must reconcile against
+/// `GET /events`, which reads the durable table. Do not treat this stream as a system of
+/// record.
+///
+/// Each frame carries the same JSON shape `GET /events` returns, so one parsed type serves
+/// both. Heartbeat frames carry `"event_type": "heartbeat"` and may be ignored.
+pub async fn stream_events(
+    req: Request,
+    _params: PathParams,
+) -> Result<djangors_core::sse::StreamingResponse, DjangorsError> {
+    use futures_util::StreamExt;
+
+    // Authenticate and resolve the tenant BEFORE opening any subscription, so an
+    // unauthenticated request never reaches Redis.
+    require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+    let organization_id = current_organization_id(&req)?;
+
+    let organization_public_id = repositories::organization_public_id(db, organization_id)
+        .await
+        .map_err(EventError::from)?
+        .ok_or(EventError::OrganizationRequired)?;
+
+    let bus = req.require_state::<crate::infra::events::EventBus>()?;
+
+    let events = bus
+        .subscribe_for_organization(organization_public_id)
+        .await
+        .map_err(|e| DjangorsError::Internal(format!("event stream unavailable: {e}")))?;
+
+    let heartbeat = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(
+        std::time::Duration::from_secs(HEARTBEAT_INTERVAL_SECS),
+    ))
+    .map(|_| serde_json::json!({ "event_type": "heartbeat" }).to_string());
+
+    // `select` polls both and ends only when both end. The heartbeat never ends, so the
+    // stream stays open until the client disconnects, at which point the response body is
+    // dropped -- which drops the Redis subscription with it, releasing the connection.
+    Ok(djangors_core::sse::StreamingResponse::sse(
+        futures_util::stream::select(events, heartbeat),
+    ))
 }
