@@ -1,11 +1,13 @@
 //! Serialization and DTO mapping for `marketplace`.
 
 use super::contracts::{
-    PurchaseResponse, RefundResponse, SellerAccountResponse, TemplateAccessResponse,
-    TemplateDetailResponse, TemplateResponse, TemplateVersionResponse,
-    TemplateVersionSummaryResponse,
+    InstallResponse, PurchaseResponse, RefundResponse, ReviewReportResponse, ReviewResponse,
+    SellerAccountResponse, TemplateAccessResponse, TemplateDetailResponse, TemplateResponse,
+    TemplateVersionResponse, TemplateVersionSummaryResponse,
 };
-use super::models::{SellerAccount, Template, TemplatePurchase, TemplateVersion};
+use super::models::{
+    ReviewReport, SellerAccount, Template, TemplatePurchase, TemplateReview, TemplateVersion,
+};
 
 /// Parse a JSON-in-TEXT string safely back to a [`serde_json::Value`].
 ///
@@ -25,6 +27,10 @@ pub fn serialize_template(
     latest_version: Option<String>,
     versions_count: i64,
 ) -> TemplateResponse {
+    let is_featured = template.featured_type != "none";
+    let is_editorial_featured = template.featured_type == "editorial";
+    let is_paid_featured = template.featured_type == "paid";
+
     TemplateResponse {
         id: template.public_id.clone(),
         organization_id: organization_public_id.to_string(),
@@ -39,6 +45,14 @@ pub fn serialize_template(
         metadata: parse_json_safely(&template.metadata),
         latest_version,
         versions_count,
+        rating_count: template.rating_count,
+        rating_bayesian_milli: template.rating_bayesian_milli,
+        install_count: template.install_count,
+        featured_type: template.featured_type.clone(),
+        is_featured,
+        is_editorial_featured,
+        is_paid_featured,
+        featured_until: template.featured_until.map(|t| t.to_rfc3339()),
         created_at: template.created_at.to_rfc3339(),
         updated_at: template.updated_at.to_rfc3339(),
     }
@@ -51,6 +65,9 @@ pub fn serialize_template_detail(
     versions: &[TemplateVersion],
 ) -> TemplateDetailResponse {
     let version_summaries = versions.iter().map(serialize_version_summary).collect();
+    let is_featured = template.featured_type != "none";
+    let is_editorial_featured = template.featured_type == "editorial";
+    let is_paid_featured = template.featured_type == "paid";
 
     TemplateDetailResponse {
         id: template.public_id.clone(),
@@ -65,6 +82,14 @@ pub fn serialize_template_detail(
         price_currency: template.price_currency.clone(),
         metadata: parse_json_safely(&template.metadata),
         versions: version_summaries,
+        rating_count: template.rating_count,
+        rating_bayesian_milli: template.rating_bayesian_milli,
+        install_count: template.install_count,
+        featured_type: template.featured_type.clone(),
+        is_featured,
+        is_editorial_featured,
+        is_paid_featured,
+        featured_until: template.featured_until.map(|t| t.to_rfc3339()),
         created_at: template.created_at.to_rfc3339(),
         updated_at: template.updated_at.to_rfc3339(),
     }
@@ -82,6 +107,7 @@ pub fn serialize_template_version(
         changelog: version.changelog.clone(),
         manifest: parse_json_safely(&version.manifest),
         readme: version.readme.clone(),
+        install_count: version.install_count,
         created_at: version.created_at.to_rfc3339(),
         updated_at: version.updated_at.to_rfc3339(),
     }
@@ -93,6 +119,7 @@ pub fn serialize_version_summary(version: &TemplateVersion) -> TemplateVersionSu
         id: version.public_id.clone(),
         version: version.version.clone(),
         changelog: version.changelog.clone(),
+        install_count: version.install_count,
         created_at: version.created_at.to_rfc3339(),
     }
 }
@@ -172,5 +199,58 @@ pub fn serialize_access(
         access_reason: reason.to_string(),
         template_id: template_public_id.to_string(),
         version_id: version_public_id,
+    }
+}
+
+/// Serialize a [`TemplateReview`] into public wire [`ReviewResponse`].
+pub fn serialize_review(
+    review: &TemplateReview,
+    template_public_id: &str,
+    buyer_org_public_id: &str,
+) -> ReviewResponse {
+    ReviewResponse {
+        id: review.public_id.clone(),
+        template_id: template_public_id.to_string(),
+        buyer_organization_id: buyer_org_public_id.to_string(),
+        rating: review.rating,
+        title: review.title.clone(),
+        comment: review.comment.clone(),
+        status: review.status.clone(),
+        author_response: review.author_response.clone(),
+        author_responded_at: review.author_responded_at.map(|t| t.to_rfc3339()),
+        created_at: review.created_at.to_rfc3339(),
+        updated_at: review.updated_at.to_rfc3339(),
+    }
+}
+
+/// Serialize a [`ReviewReport`] into [`ReviewReportResponse`].
+pub fn serialize_review_report(
+    report: &ReviewReport,
+    review_public_id: &str,
+    reporter_org_public_id: &str,
+) -> ReviewReportResponse {
+    ReviewReportResponse {
+        id: report.public_id.clone(),
+        review_id: review_public_id.to_string(),
+        reporter_organization_id: reporter_org_public_id.to_string(),
+        reason: report.reason.clone(),
+        details: report.details.clone(),
+        status: report.status.clone(),
+        created_at: report.created_at.to_rfc3339(),
+    }
+}
+
+/// Serialize an install recording outcome into [`InstallResponse`].
+pub fn serialize_install(
+    template_public_id: &str,
+    version_public_id: Option<String>,
+    install_count: i64,
+    deduplicated: bool,
+) -> InstallResponse {
+    InstallResponse {
+        template_id: template_public_id.to_string(),
+        template_version_id: version_public_id,
+        install_count,
+        deduplicated,
     }
 }

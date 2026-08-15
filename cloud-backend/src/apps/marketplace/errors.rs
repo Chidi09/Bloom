@@ -60,6 +60,33 @@ pub enum MarketplaceError {
     /// Invalid state for issuing a refund.
     InvalidRefundState(String),
 
+    /// A rating score was outside the required 1..=5 star range.
+    InvalidRating(i64),
+
+    /// A review was attempted without a verified purchase or installation entitlement.
+    ReviewNotAllowedNoPurchaseOrInstall,
+
+    /// A template author attempted to edit or delete reviews on their own template.
+    AuthorCannotModerateReviews,
+
+    /// A template author attempted to review their own template.
+    AuthorCannotReviewOwnTemplate,
+
+    /// The requested review was not found.
+    ReviewNotFound,
+
+    /// The requested review abuse report was not found.
+    ReviewReportNotFound,
+
+    /// An author reply already exists on this review.
+    AuthorReplyAlreadyExists,
+
+    /// Invalid review moderation status.
+    InvalidReviewStatus(String),
+
+    /// Invalid featured placement type.
+    InvalidFeaturedType(String),
+
     /// Stripe infrastructure error.
     Stripe(String),
 
@@ -174,6 +201,47 @@ impl From<MarketplaceError> for DjangorsError {
             ),
             MarketplaceError::InvalidRefundState(msg) => {
                 DjangorsError::api(StatusCode::BAD_REQUEST, "invalid_refund_state", msg)
+            }
+            MarketplaceError::InvalidRating(r) => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "invalid_rating",
+                format!("Rating {r} is invalid. Rating must be an integer between 1 and 5 stars."),
+            ),
+            MarketplaceError::ReviewNotAllowedNoPurchaseOrInstall => DjangorsError::api(
+                StatusCode::FORBIDDEN,
+                "review_not_allowed",
+                "Reviews require a verified purchase or recorded installation.",
+            ),
+            MarketplaceError::AuthorCannotModerateReviews => DjangorsError::api(
+                StatusCode::FORBIDDEN,
+                "author_cannot_moderate_reviews",
+                "Template authors cannot edit, hide, or delete reviews on their own templates.",
+            ),
+            MarketplaceError::AuthorCannotReviewOwnTemplate => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "author_cannot_review_own_template",
+                "Template authors cannot submit reviews for their own templates.",
+            ),
+            MarketplaceError::ReviewNotFound => DjangorsError::api(
+                StatusCode::NOT_FOUND,
+                "review_not_found",
+                "The requested review does not exist.",
+            ),
+            MarketplaceError::ReviewReportNotFound => DjangorsError::api(
+                StatusCode::NOT_FOUND,
+                "review_report_not_found",
+                "The requested review abuse report does not exist.",
+            ),
+            MarketplaceError::AuthorReplyAlreadyExists => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "author_reply_already_exists",
+                "An author reply has already been submitted for this review.",
+            ),
+            MarketplaceError::InvalidReviewStatus(msg) => {
+                DjangorsError::api(StatusCode::BAD_REQUEST, "invalid_review_status", msg)
+            }
+            MarketplaceError::InvalidFeaturedType(msg) => {
+                DjangorsError::api(StatusCode::BAD_REQUEST, "invalid_featured_type", msg)
             }
             MarketplaceError::Stripe(msg) => {
                 DjangorsError::api(StatusCode::BAD_GATEWAY, "stripe_error", msg)

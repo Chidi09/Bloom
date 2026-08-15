@@ -112,6 +112,78 @@ pub struct RefundPurchaseRequest {
     pub reason: Option<String>,
 }
 
+/// Inbound payload for submitting or editing a buyer review on a template.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewCreateRequest {
+    /// Star rating on a strict 1..=5 integer scale.
+    pub rating: i64,
+
+    /// Optional review title or headline.
+    pub title: Option<String>,
+
+    /// Optional markdown or text review comments.
+    pub comment: Option<String>,
+}
+
+/// Inbound payload for updating an existing buyer review.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct ReviewUpdateRequest {
+    /// Optional updated star rating on 1..=5 integer scale.
+    pub rating: Option<i64>,
+
+    /// Optional updated review title.
+    pub title: Option<String>,
+
+    /// Optional updated markdown or text comments.
+    pub comment: Option<String>,
+}
+
+/// Inbound payload for template author reply to a review.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewAuthorReplyRequest {
+    /// Markdown or text response from the template author.
+    pub response: String,
+}
+
+/// Inbound payload for filing a review abuse report to staff.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewReportRequest {
+    /// Reason category (e.g. `spam`, `harassment`, `misleading`, `inappropriate`).
+    pub reason: String,
+
+    /// Optional additional details.
+    pub details: Option<String>,
+}
+
+/// Inbound payload for staff moderating a review status.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewModerateRequest {
+    /// Target moderation status (`published`, `hidden`, `archived`).
+    pub status: String,
+}
+
+/// Inbound payload for recording a template install/download event.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct RecordInstallRequest {
+    /// Optional specific version public ID being installed.
+    pub template_version_id: Option<String>,
+
+    /// Client fingerprint or identifying input to be hashed with rotating daily salt.
+    pub client_fingerprint: Option<String>,
+}
+
+/// Inbound payload for staff featuring or promoting a template.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FeatureTemplateRequest {
+    /// Placement category: `editorial` (curated) or `paid` (sponsored).
+    pub featured_type: String,
+
+    /// Optional duration in days for this featured placement.
+    pub duration_days: Option<i64>,
+}
+
 /// Outbound wire representation of a project template.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateResponse {
@@ -153,6 +225,30 @@ pub struct TemplateResponse {
 
     /// Total count of published versions for this template.
     pub versions_count: i64,
+
+    /// Total count of published user reviews.
+    pub rating_count: i64,
+
+    /// Bayesian average rating in milli-stars (scale 1000..5000).
+    pub rating_bayesian_milli: i64,
+
+    /// Total durable install/download count.
+    pub install_count: i64,
+
+    /// Featured placement type: `none`, `editorial`, or `paid`.
+    pub featured_type: String,
+
+    /// Whether this template currently has active featured placement.
+    pub is_featured: bool,
+
+    /// Whether this template is editorially featured by staff.
+    pub is_editorial_featured: bool,
+
+    /// Whether this template has paid/sponsored placement (EU P2B & FTC disclosure compliance).
+    pub is_paid_featured: bool,
+
+    /// Optional ISO 8601 expiry timestamp for featured placement.
+    pub featured_until: Option<String>,
 
     /// Creation timestamp (ISO 8601).
     pub created_at: String,
@@ -200,6 +296,30 @@ pub struct TemplateDetailResponse {
     /// Summary list of all available versions.
     pub versions: Vec<TemplateVersionSummaryResponse>,
 
+    /// Total count of published user reviews.
+    pub rating_count: i64,
+
+    /// Bayesian average rating in milli-stars (scale 1000..5000).
+    pub rating_bayesian_milli: i64,
+
+    /// Total durable install/download count.
+    pub install_count: i64,
+
+    /// Featured placement type: `none`, `editorial`, or `paid`.
+    pub featured_type: String,
+
+    /// Whether this template currently has active featured placement.
+    pub is_featured: bool,
+
+    /// Whether this template is editorially featured by staff.
+    pub is_editorial_featured: bool,
+
+    /// Whether this template has paid/sponsored placement (EU P2B & FTC disclosure compliance).
+    pub is_paid_featured: bool,
+
+    /// Optional ISO 8601 expiry timestamp for featured placement.
+    pub featured_until: Option<String>,
+
     /// Creation timestamp (ISO 8601).
     pub created_at: String,
 
@@ -228,6 +348,9 @@ pub struct TemplateVersionResponse {
     /// Markdown documentation / README.
     pub readme: String,
 
+    /// Total durable install/download count for this specific version.
+    pub install_count: i64,
+
     /// Creation timestamp (ISO 8601).
     pub created_at: String,
 
@@ -246,6 +369,9 @@ pub struct TemplateVersionSummaryResponse {
 
     /// Markdown changelog.
     pub changelog: String,
+
+    /// Total install count for this version.
+    pub install_count: i64,
 
     /// Creation timestamp (ISO 8601).
     pub created_at: String,
@@ -371,4 +497,82 @@ pub struct TemplateAccessResponse {
 
     /// Version public UUID if checked for a version.
     pub version_id: Option<String>,
+}
+
+/// Outbound representation of a buyer review.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewResponse {
+    /// Review public UUID v4.
+    pub id: String,
+
+    /// Template public UUID v4.
+    pub template_id: String,
+
+    /// Reviewer buyer organization public UUID v4.
+    pub buyer_organization_id: String,
+
+    /// Rating score (1..=5 integer stars).
+    pub rating: i64,
+
+    /// Headline or title.
+    pub title: String,
+
+    /// Review comment body.
+    pub comment: String,
+
+    /// Moderation status (`published`, `hidden`, `archived`).
+    pub status: String,
+
+    /// Optional author reply text.
+    pub author_response: Option<String>,
+
+    /// Optional author reply timestamp (ISO 8601).
+    pub author_responded_at: Option<String>,
+
+    /// Creation timestamp (ISO 8601).
+    pub created_at: String,
+
+    /// Last update timestamp (ISO 8601).
+    pub updated_at: String,
+}
+
+/// Outbound representation of a review abuse report.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewReportResponse {
+    /// Report public UUID v4.
+    pub id: String,
+
+    /// Reported review public UUID v4.
+    pub review_id: String,
+
+    /// Reporting organization public UUID v4.
+    pub reporter_organization_id: String,
+
+    /// Reason category.
+    pub reason: String,
+
+    /// Report details context.
+    pub details: String,
+
+    /// Review status (`pending`, `reviewed`, `dismissed`, `actioned`).
+    pub status: String,
+
+    /// Creation timestamp (ISO 8601).
+    pub created_at: String,
+}
+
+/// Outbound response for recording a template install/download.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallResponse {
+    /// Template public UUID v4.
+    pub template_id: String,
+
+    /// Template version public UUID v4 if version-specific.
+    pub template_version_id: Option<String>,
+
+    /// Total updated install count for the template.
+    pub install_count: i64,
+
+    /// Whether this install was deduplicated within the sliding window.
+    pub deduplicated: bool,
 }

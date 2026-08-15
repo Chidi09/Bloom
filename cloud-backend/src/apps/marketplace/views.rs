@@ -8,9 +8,10 @@ use djangors_core::{DjangorsError, PathParams, Request, Response, StatusCode};
 use djangors_db::Database;
 
 use super::contracts::{
-    CreateSellerOnboardingLinkRequest, PurchaseTemplateRequest, RefundPurchaseRequest,
-    TemplateCreateRequest, TemplatePublishRequest, TemplateUpdateRequest,
-    TemplateVersionCreateRequest,
+    CreateSellerOnboardingLinkRequest, FeatureTemplateRequest, PurchaseTemplateRequest,
+    RecordInstallRequest, RefundPurchaseRequest, ReviewAuthorReplyRequest, ReviewCreateRequest,
+    ReviewModerateRequest, ReviewReportRequest, ReviewUpdateRequest, TemplateCreateRequest,
+    TemplatePublishRequest, TemplateUpdateRequest, TemplateVersionCreateRequest,
 };
 use super::errors::MarketplaceError;
 use super::permissions::{
@@ -312,7 +313,28 @@ pub async fn update_template(req: Request, params: PathParams) -> Result<Respons
     Response::json(StatusCode::OK, &payload)
 }
 
-/// POST `/api/v1/templates/{id}/publish` — Explicitly publish a template.
+/// DELETE `/api/v1/templates/{id}` — Delete an organization template.
+pub async fn delete_template(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    services::delete_template(db, org.id, user.id, template_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    Ok(Response::text(StatusCode::NO_CONTENT, ""))
+}
+
+/// POST `/api/v1/templates/{id}/publish` — Publish a draft template.
 pub async fn publish_template(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
@@ -326,7 +348,7 @@ pub async fn publish_template(req: Request, params: PathParams) -> Result<Respon
         .get("id")
         .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
 
-    let req_body = if req.body_bytes().await.is_empty() {
+    let body = if req.body_bytes().await.is_empty() {
         TemplatePublishRequest::default()
     } else {
         Json::<TemplatePublishRequest>::from_request(&req)
@@ -335,7 +357,7 @@ pub async fn publish_template(req: Request, params: PathParams) -> Result<Respon
             .unwrap_or_default()
     };
 
-    let detail = services::publish_template(db, org.id, user.id, template_id, req_body)
+    let detail = services::publish_template(db, org.id, user.id, template_id, body)
         .await
         .map_err(DjangorsError::from)?;
 
@@ -348,7 +370,7 @@ pub async fn publish_template(req: Request, params: PathParams) -> Result<Respon
     Response::json(StatusCode::OK, &payload)
 }
 
-/// POST `/api/v1/templates/{id}/archive` — Explicitly archive a template.
+/// POST `/api/v1/templates/{id}/archive` — Archive a published template.
 pub async fn archive_template(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
@@ -375,29 +397,8 @@ pub async fn archive_template(req: Request, params: PathParams) -> Result<Respon
     Response::json(StatusCode::OK, &payload)
 }
 
-/// DELETE `/api/v1/templates/{id}` — Delete a template and its versions.
-pub async fn delete_template(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
-    let user = require_authenticated(&req).await?;
-    let db = get_db(&req)?;
-
-    let (org, membership) = resolve_org_context(&req, db, user.id)
-        .await
-        .map_err(DjangorsError::from)?;
-    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
-
-    let template_id = params
-        .get("id")
-        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
-
-    services::delete_template(db, org.id, user.id, template_id)
-        .await
-        .map_err(DjangorsError::from)?;
-
-    Ok(Response::text(StatusCode::NO_CONTENT, ""))
-}
-
 // =========================================================================
-// Template Version Views
+// Organization-Scoped Template Version Views
 // =========================================================================
 
 /// GET `/api/v1/templates/{id}/versions` — List all versions of a template.
@@ -417,19 +418,19 @@ pub async fn list_template_versions(
         .get("id")
         .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
 
-    let versions = services::list_template_versions(db, org.id, template_id)
+    let details = services::list_template_versions(db, org.id, template_id)
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = versions
+    let payload: Vec<_> = details
         .iter()
-        .map(|v| serializers::serialize_template_version(&v.version, &v.template_public_id))
+        .map(|d| serializers::serialize_version_summary(&d.version))
         .collect();
 
     Response::json(StatusCode::OK, &payload)
 }
 
-/// POST `/api/v1/templates/{id}/versions` — Publish a new version for a template.
+/// POST `/api/v1/templates/{id}/versions` — Create a new version for a template.
 pub async fn create_template_version(
     req: Request,
     params: PathParams,
@@ -454,11 +455,10 @@ pub async fn create_template_version(
 
     let payload =
         serializers::serialize_template_version(&detail.version, &detail.template_public_id);
-
     Response::json(StatusCode::CREATED, &payload)
 }
 
-/// GET `/api/v1/templates/{id}/versions/{version_id}` — Retrieve a template version by public UUID.
+/// GET `/api/v1/templates/{id}/versions/{version_id}` — Retrieve a template version.
 pub async fn retrieve_template_version(
     req: Request,
     params: PathParams,
@@ -484,7 +484,6 @@ pub async fn retrieve_template_version(
 
     let payload =
         serializers::serialize_template_version(&detail.version, &detail.template_public_id);
-
     Response::json(StatusCode::OK, &payload)
 }
 
@@ -533,10 +532,9 @@ pub async fn retrieve_seller_account(
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
 
-    let account =
-        services::get_or_create_seller_account(db, stripe.as_ref(), org.id, user.id, None, None)
-            .await
-            .map_err(DjangorsError::from)?;
+    let account = services::get_or_create_seller_account(db, stripe.as_ref(), org.id, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
 
     let payload = serializers::serialize_seller_account(&account, &org.public_id);
     Response::json(StatusCode::OK, &payload)
@@ -802,6 +800,329 @@ pub async fn download_template_version(
         &decision.reason,
         &decision.template_public_id,
         decision.version_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+// =========================================================================
+// Reviews, Ratings & Moderation Views
+// =========================================================================
+
+/// GET `/api/v1/marketplace/templates/{id}/reviews` — List reviews for a template.
+pub async fn list_template_reviews(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let db = get_db(&req)?;
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let reviews = services::list_template_reviews(db, template_id, false)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload: Vec<_> = reviews
+        .iter()
+        .map(|r| {
+            serializers::serialize_review(&r.review, &r.template_public_id, &r.buyer_org_public_id)
+        })
+        .collect();
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/marketplace/templates/{id}/reviews` — Submit or update a buyer review.
+pub async fn create_or_update_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let Json(body) = Json::<ReviewCreateRequest>::from_request(&req).await?;
+
+    let outcome = services::create_or_update_review(db, org.id, user.id, template_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review(
+        &outcome.review,
+        &outcome.template_public_id,
+        &outcome.buyer_org_public_id,
+    );
+
+    Response::json(StatusCode::CREATED, &payload)
+}
+
+/// GET `/api/v1/marketplace/reviews/{id}` — Retrieve a review by ID.
+pub async fn retrieve_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let db = get_db(&req)?;
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    let outcome = services::get_template_review(db, review_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review(
+        &outcome.review,
+        &outcome.template_public_id,
+        &outcome.buyer_org_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// PATCH `/api/v1/marketplace/reviews/{id}` — Update a review by the reviewer.
+pub async fn update_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    let Json(body) = Json::<ReviewUpdateRequest>::from_request(&req).await?;
+
+    let outcome = services::update_review(db, org.id, user.id, review_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review(
+        &outcome.review,
+        &outcome.template_public_id,
+        &outcome.buyer_org_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// DELETE `/api/v1/marketplace/reviews/{id}` — Withdraw / delete a review by the reviewer.
+pub async fn delete_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    services::withdraw_review(db, org.id, user.id, review_id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    Ok(Response::text(StatusCode::NO_CONTENT, ""))
+}
+
+/// POST `/api/v1/marketplace/reviews/{id}/reply` — Author reply to a review.
+pub async fn author_reply_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Developer).map_err(DjangorsError::from)?;
+
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    let Json(body) = Json::<ReviewAuthorReplyRequest>::from_request(&req).await?;
+
+    let outcome = services::author_reply_to_review(db, org.id, user.id, review_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review(
+        &outcome.review,
+        &outcome.template_public_id,
+        &outcome.buyer_org_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+/// POST `/api/v1/marketplace/reviews/{id}/report` — Report abuse on a review.
+pub async fn report_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let (org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
+
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    let Json(body) = Json::<ReviewReportRequest>::from_request(&req).await?;
+
+    let outcome = services::report_review_abuse(db, org.id, user.id, review_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review_report(
+        &outcome.report,
+        &outcome.review_public_id,
+        &outcome.reporter_org_public_id,
+    );
+
+    Response::json(StatusCode::CREATED, &payload)
+}
+
+/// POST `/api/v1/marketplace/reviews/{id}/moderate` — Staff moderation of a review.
+pub async fn moderate_template_review(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    // Staff moderation action: only the role matters here, not the organization itself.
+    let (_org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
+
+    let review_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing review id".to_string()))?;
+
+    let Json(body) = Json::<ReviewModerateRequest>::from_request(&req).await?;
+
+    let outcome = services::moderate_review(db, user.id, review_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_review(
+        &outcome.review,
+        &outcome.template_public_id,
+        &outcome.buyer_org_public_id,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+// =========================================================================
+// Install Analytics Views
+// =========================================================================
+
+/// POST `/api/v1/marketplace/templates/{id}/install` — Record an install event with deduplication.
+pub async fn record_template_install(
+    req: Request,
+    params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let db = get_db(&req)?;
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let client_ip = req
+        .header("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("127.0.0.1");
+
+    let (actor_org_id, actor_id) = if let Ok(user) = require_authenticated(&req).await {
+        if let Ok((org, _)) = resolve_org_context(&req, db, user.id).await {
+            (Some(org.id), Some(user.id))
+        } else {
+            (None, Some(user.id))
+        }
+    } else {
+        (None, None)
+    };
+
+    let body = if req.body_bytes().await.is_empty() {
+        RecordInstallRequest::default()
+    } else {
+        Json::<RecordInstallRequest>::from_request(&req)
+            .await
+            .map(|Json(b)| b)
+            .unwrap_or_default()
+    };
+
+    let outcome =
+        services::record_template_install(db, actor_org_id, actor_id, template_id, body, client_ip)
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_install(
+        &outcome.template_public_id,
+        outcome.version_public_id,
+        outcome.install_count,
+        outcome.deduplicated,
+    );
+
+    Response::json(StatusCode::OK, &payload)
+}
+
+// =========================================================================
+// Staff Curation & Featured Placement Views
+// =========================================================================
+
+/// POST `/api/v1/marketplace/templates/{id}/feature` — Staff curate or sponsor feature a template.
+pub async fn feature_template(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
+    let user = require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    // Featuring is a staff action against any template, so only the role matters here.
+    let (_org, membership) = resolve_org_context(&req, db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+    require_role(&membership, OrganizationRole::Admin).map_err(DjangorsError::from)?;
+
+    let template_id = params
+        .get("id")
+        .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
+
+    let Json(body) = Json::<FeatureTemplateRequest>::from_request(&req).await?;
+
+    let detail = services::curate_template_featuring(db, user.id, template_id, body)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let payload = serializers::serialize_template_detail(
+        &detail.template,
+        &detail.organization_public_id,
+        &detail.versions,
     );
 
     Response::json(StatusCode::OK, &payload)

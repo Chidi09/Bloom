@@ -3,7 +3,10 @@
 use djangors_db::Database;
 use djangors_orm::{q, Model, OrmError};
 
-use super::models::{SellerAccount, Template, TemplatePurchase, TemplateVersion};
+use super::models::{
+    ReviewReport, SellerAccount, Template, TemplateInstall, TemplateInstallDedup, TemplatePurchase,
+    TemplateReview, TemplateVersion,
+};
 
 /// Lightweight summary projection of an organization from another app.
 #[derive(Debug, Clone)]
@@ -232,6 +235,11 @@ pub async fn insert_version(
     version.save(db).await
 }
 
+/// Update an existing [`TemplateVersion`] record.
+pub async fn update_version(db: &Database, version: &TemplateVersion) -> Result<(), OrmError> {
+    version.update(db).await
+}
+
 /// Delete a [`TemplateVersion`] by its internal primary key.
 pub async fn delete_version_by_id(db: &Database, id: i64) -> Result<u64, OrmError> {
     TemplateVersion::objects()
@@ -350,6 +358,227 @@ pub async fn insert_purchase(
 /// Update an existing [`TemplatePurchase`] record.
 pub async fn update_purchase(db: &Database, purchase: &TemplatePurchase) -> Result<(), OrmError> {
     purchase.update(db).await
+}
+
+// ---------------------------------------------------------------------------
+// TemplateReview Queries
+// ---------------------------------------------------------------------------
+
+/// Fetch a [`TemplateReview`] by internal primary key.
+pub async fn review_by_id(db: &Database, id: i64) -> Result<Option<TemplateReview>, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(id = id))?
+        .first(db)
+        .await
+}
+
+/// Fetch a [`TemplateReview`] by public UUID.
+pub async fn review_by_public_id(
+    db: &Database,
+    public_id: &str,
+) -> Result<Option<TemplateReview>, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(public_id = public_id.to_owned()))?
+        .first(db)
+        .await
+}
+
+/// Fetch a [`TemplateReview`] by template ID and buyer organization ID.
+pub async fn review_by_template_and_buyer_org(
+    db: &Database,
+    template_id: i64,
+    buyer_organization_id: i64,
+) -> Result<Option<TemplateReview>, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(buyer_organization_id = buyer_organization_id))?
+        .first(db)
+        .await
+}
+
+/// List all published reviews for a template, newest first.
+pub async fn published_reviews_for_template(
+    db: &Database,
+    template_id: i64,
+) -> Result<Vec<TemplateReview>, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(status = "published".to_string()))?
+        .order_by("-created_at")?
+        .all(db)
+        .await
+}
+
+/// List all reviews for a template (including hidden/archived, for staff/author views).
+pub async fn all_reviews_for_template(
+    db: &Database,
+    template_id: i64,
+) -> Result<Vec<TemplateReview>, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(template_id = template_id))?
+        .order_by("-created_at")?
+        .all(db)
+        .await
+}
+
+/// Insert a new [`TemplateReview`] record.
+pub async fn insert_review(
+    db: &Database,
+    review: TemplateReview,
+) -> Result<TemplateReview, OrmError> {
+    review.save(db).await
+}
+
+/// Update an existing [`TemplateReview`] record.
+pub async fn update_review(db: &Database, review: &TemplateReview) -> Result<(), OrmError> {
+    review.update(db).await
+}
+
+/// Delete a [`TemplateReview`] by internal primary key.
+pub async fn delete_review_by_id(db: &Database, id: i64) -> Result<u64, OrmError> {
+    TemplateReview::objects()
+        .filter(q!(id = id))?
+        .delete(db)
+        .await
+}
+
+/// Computes the published review count and star sum for a template.
+pub async fn published_reviews_aggregate_for_template(
+    db: &Database,
+    template_id: i64,
+) -> Result<(i64, i64), OrmError> {
+    let reviews = TemplateReview::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(status = "published".to_string()))?
+        .all(db)
+        .await?;
+
+    let count = reviews.len() as i64;
+    let sum: i64 = reviews.iter().map(|r| r.rating).sum();
+    Ok((count, sum))
+}
+
+/// Computes the marketplace-wide global average rating in milli-stars across all published reviews.
+pub async fn marketplace_global_rating_mean_milli(db: &Database) -> Result<i64, OrmError> {
+    let published = TemplateReview::objects()
+        .filter(q!(status = "published".to_string()))?
+        .all(db)
+        .await?;
+
+    if published.is_empty() {
+        return Ok(super::services::DEFAULT_GLOBAL_MEAN_MILLI);
+    }
+
+    let count = published.len() as i64;
+    let sum: i64 = published.iter().map(|r| r.rating).sum();
+    let mean = (sum * 1000 + count / 2) / count;
+    Ok(mean)
+}
+
+// ---------------------------------------------------------------------------
+// ReviewReport Queries
+// ---------------------------------------------------------------------------
+
+/// Fetch a [`ReviewReport`] by internal primary key.
+pub async fn review_report_by_id(db: &Database, id: i64) -> Result<Option<ReviewReport>, OrmError> {
+    ReviewReport::objects().filter(q!(id = id))?.first(db).await
+}
+
+/// Fetch a [`ReviewReport`] by public UUID.
+pub async fn review_report_by_public_id(
+    db: &Database,
+    public_id: &str,
+) -> Result<Option<ReviewReport>, OrmError> {
+    ReviewReport::objects()
+        .filter(q!(public_id = public_id.to_owned()))?
+        .first(db)
+        .await
+}
+
+/// List all reports filed for a specific review.
+pub async fn reports_for_review(
+    db: &Database,
+    review_id: i64,
+) -> Result<Vec<ReviewReport>, OrmError> {
+    ReviewReport::objects()
+        .filter(q!(review_id = review_id))?
+        .order_by("-created_at")?
+        .all(db)
+        .await
+}
+
+/// Insert a new [`ReviewReport`] record.
+pub async fn insert_review_report(
+    db: &Database,
+    report: ReviewReport,
+) -> Result<ReviewReport, OrmError> {
+    report.save(db).await
+}
+
+/// Update an existing [`ReviewReport`] record.
+pub async fn update_review_report(db: &Database, report: &ReviewReport) -> Result<(), OrmError> {
+    report.update(db).await
+}
+
+// ---------------------------------------------------------------------------
+// Install Analytics & Verification Queries
+// ---------------------------------------------------------------------------
+
+/// Checks if an install event deduplication record exists for the given template, actor hash, and date bucket.
+pub async fn install_dedup_exists(
+    db: &Database,
+    template_id: i64,
+    actor_hash: &str,
+    date_bucket: &str,
+) -> Result<bool, OrmError> {
+    TemplateInstallDedup::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(actor_hash = actor_hash.to_owned()))?
+        .filter(q!(date_bucket = date_bucket.to_owned()))?
+        .exists(db)
+        .await
+}
+
+/// Insert a new [`TemplateInstallDedup`] record.
+pub async fn insert_install_dedup(
+    db: &Database,
+    dedup: TemplateInstallDedup,
+) -> Result<TemplateInstallDedup, OrmError> {
+    dedup.save(db).await
+}
+
+/// Checks if a verified installation record exists for a template and buyer organization.
+pub async fn verified_install_exists(
+    db: &Database,
+    template_id: i64,
+    buyer_organization_id: i64,
+) -> Result<bool, OrmError> {
+    TemplateInstall::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(buyer_organization_id = buyer_organization_id))?
+        .exists(db)
+        .await
+}
+
+/// Fetch a verified installation record for a template and buyer organization.
+pub async fn verified_install_by_template_and_buyer_org(
+    db: &Database,
+    template_id: i64,
+    buyer_organization_id: i64,
+) -> Result<Option<TemplateInstall>, OrmError> {
+    TemplateInstall::objects()
+        .filter(q!(template_id = template_id))?
+        .filter(q!(buyer_organization_id = buyer_organization_id))?
+        .first(db)
+        .await
+}
+
+/// Insert a new [`TemplateInstall`] record.
+pub async fn insert_template_install(
+    db: &Database,
+    install: TemplateInstall,
+) -> Result<TemplateInstall, OrmError> {
+    install.save(db).await
 }
 
 // ---------------------------------------------------------------------------

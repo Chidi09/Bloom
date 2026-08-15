@@ -1,8 +1,10 @@
 use bloom_cloud_backend::apps::marketplace::errors::MarketplaceError;
-use bloom_cloud_backend::apps::marketplace::models::{SellerAccount, Template, TemplatePurchase};
+use bloom_cloud_backend::apps::marketplace::models::{
+    ReviewReport, SellerAccount, Template, TemplatePurchase, TemplateReview,
+};
 use bloom_cloud_backend::apps::marketplace::serializers::{
-    serialize_access, serialize_purchase, serialize_refund, serialize_seller_account,
-    serialize_template,
+    serialize_access, serialize_install, serialize_purchase, serialize_refund, serialize_review,
+    serialize_review_report, serialize_seller_account, serialize_template,
 };
 use chrono::Utc;
 use djangors_core::{DjangorsError, StatusCode};
@@ -23,6 +25,12 @@ fn test_template_response_serialization_wire_contract() {
         price_amount: 4900,
         price_currency: "usd".to_string(),
         metadata: r#"{"tags":["ecommerce","stripe"],"platform":"web"}"#.to_string(),
+        rating_count: 14,
+        rating_sum: 67,
+        rating_bayesian_milli: 4625,
+        install_count: 1250,
+        featured_type: "editorial".to_string(),
+        featured_until: Some(Utc::now()),
         created_by_id: 1,
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -44,10 +52,129 @@ fn test_template_response_serialization_wire_contract() {
     assert!(json_str.contains("\"price_currency\":\"usd\""));
     assert!(json_str.contains("\"latest_version\":\"1.2.0\""));
     assert!(json_str.contains("\"versions_count\":3"));
+    assert!(json_str.contains("\"rating_count\":14"));
+    assert!(json_str.contains("\"rating_bayesian_milli\":4625"));
+    assert!(json_str.contains("\"install_count\":1250"));
+    assert!(json_str.contains("\"featured_type\":\"editorial\""));
+    assert!(json_str.contains("\"is_featured\":true"));
+    assert!(json_str.contains("\"is_editorial_featured\":true"));
+    assert!(json_str.contains("\"is_paid_featured\":false"));
 
     // Ensure metadata is serialized as real JSON object, not a raw escaped string
     assert!(json_str.contains("\"tags\":[\"ecommerce\",\"stripe\"]"));
     assert!(!json_str.contains("public_id"));
+}
+
+#[test]
+fn test_featured_editorial_vs_paid_distinguishable_in_serialization() {
+    let mut template_editorial = Template {
+        id: 1,
+        public_id: "tmpl_editorial_123".to_string(),
+        organization_id: ForeignKey::new(10),
+        name: "Curated Starter".to_string(),
+        slug: "curated-starter".to_string(),
+        description: None,
+        visibility: "public".to_string(),
+        status: "published".to_string(),
+        is_free: true,
+        price_amount: 0,
+        price_currency: "usd".to_string(),
+        metadata: "{}".to_string(),
+        rating_count: 0,
+        rating_sum: 0,
+        rating_bayesian_milli: 0,
+        install_count: 50,
+        featured_type: "editorial".to_string(),
+        featured_until: None,
+        created_by_id: 1,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    // 1. Editorial featured response:
+    let res_editorial = serialize_template(&template_editorial, "org_1", None, 1);
+    let json_editorial = serde_json::to_string(&res_editorial).unwrap();
+    assert!(json_editorial.contains("\"featured_type\":\"editorial\""));
+    assert!(json_editorial.contains("\"is_featured\":true"));
+    assert!(json_editorial.contains("\"is_editorial_featured\":true"));
+    assert!(json_editorial.contains("\"is_paid_featured\":false"));
+
+    // 2. Paid placement response (EU P2B and FTC compliance requirement):
+    template_editorial.featured_type = "paid".to_string();
+    let res_paid = serialize_template(&template_editorial, "org_1", None, 1);
+    let json_paid = serde_json::to_string(&res_paid).unwrap();
+    assert!(json_paid.contains("\"featured_type\":\"paid\""));
+    assert!(json_paid.contains("\"is_featured\":true"));
+    assert!(json_paid.contains("\"is_editorial_featured\":false"));
+    assert!(json_paid.contains("\"is_paid_featured\":true"));
+
+    // 3. Organic non-featured response:
+    template_editorial.featured_type = "none".to_string();
+    let res_organic = serialize_template(&template_editorial, "org_1", None, 1);
+    let json_organic = serde_json::to_string(&res_organic).unwrap();
+    assert!(json_organic.contains("\"featured_type\":\"none\""));
+    assert!(json_organic.contains("\"is_featured\":false"));
+    assert!(json_organic.contains("\"is_editorial_featured\":false"));
+    assert!(json_organic.contains("\"is_paid_featured\":false"));
+}
+
+#[test]
+fn test_review_and_report_serialization() {
+    let review = TemplateReview {
+        id: 5,
+        public_id: "rev_pub_555".to_string(),
+        template_id: ForeignKey::new(10),
+        buyer_organization_id: ForeignKey::new(20),
+        reviewer_user_id: 30,
+        rating: 5,
+        title: "Outstanding Template".to_string(),
+        comment: "Flawless integration with clean code.".to_string(),
+        status: "published".to_string(),
+        author_response: Some("Glad you loved it!".to_string()),
+        author_responded_at: Some(Utc::now()),
+        author_responded_by_id: Some(1),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let r_res = serialize_review(&review, "tmpl_pub_10", "buyer_org_pub_20");
+    let r_json = serde_json::to_string(&r_res).unwrap();
+    assert!(r_json.contains("\"id\":\"rev_pub_555\""));
+    assert!(r_json.contains("\"template_id\":\"tmpl_pub_10\""));
+    assert!(r_json.contains("\"buyer_organization_id\":\"buyer_org_pub_20\""));
+    assert!(r_json.contains("\"rating\":5"));
+    assert!(r_json.contains("\"title\":\"Outstanding Template\""));
+    assert!(r_json.contains("\"comment\":\"Flawless integration with clean code.\""));
+    assert!(r_json.contains("\"status\":\"published\""));
+    assert!(r_json.contains("\"author_response\":\"Glad you loved it!\""));
+
+    let report = ReviewReport {
+        id: 1,
+        public_id: "rep_pub_777".to_string(),
+        review_id: ForeignKey::new(5),
+        reporter_organization_id: ForeignKey::new(40),
+        reporter_user_id: 50,
+        reason: "spam".to_string(),
+        details: "Promotional links in review text".to_string(),
+        status: "pending".to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let rep_res = serialize_review_report(&report, "rev_pub_555", "reporter_org_pub_40");
+    let rep_json = serde_json::to_string(&rep_res).unwrap();
+    assert!(rep_json.contains("\"id\":\"rep_pub_777\""));
+    assert!(rep_json.contains("\"review_id\":\"rev_pub_555\""));
+    assert!(rep_json.contains("\"reporter_organization_id\":\"reporter_org_pub_40\""));
+    assert!(rep_json.contains("\"reason\":\"spam\""));
+    assert!(rep_json.contains("\"status\":\"pending\""));
+
+    let install_res = serialize_install("tmpl_pub_10", Some("ver_pub_1".to_string()), 42, false);
+    let ins_json = serde_json::to_string(&install_res).unwrap();
+    assert!(ins_json.contains("\"template_id\":\"tmpl_pub_10\""));
+    assert!(ins_json.contains("\"template_version_id\":\"ver_pub_1\""));
+    assert!(ins_json.contains("\"install_count\":42"));
+    assert!(ins_json.contains("\"deduplicated\":false"));
 }
 
 #[test]
@@ -168,4 +295,29 @@ fn test_marketplace_error_mappings() {
     let dj_err: DjangorsError = err.into();
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "purchase_already_refunded");
+
+    let err = MarketplaceError::InvalidRating(6);
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_rating");
+
+    let err = MarketplaceError::ReviewNotAllowedNoPurchaseOrInstall;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::FORBIDDEN);
+    assert_eq!(dj_err.code(), "review_not_allowed");
+
+    let err = MarketplaceError::AuthorCannotModerateReviews;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::FORBIDDEN);
+    assert_eq!(dj_err.code(), "author_cannot_moderate_reviews");
+
+    let err = MarketplaceError::AuthorCannotReviewOwnTemplate;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "author_cannot_review_own_template");
+
+    let err = MarketplaceError::ReviewNotFound;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(dj_err.code(), "review_not_found");
 }

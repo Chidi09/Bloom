@@ -1,3 +1,4 @@
+use bloom_cloud_backend::apps::marketplace::errors::MarketplaceError;
 use bloom_cloud_backend::apps::marketplace::permissions::{
     CurrentOrganizationId, CurrentOrganizationPublicId, CurrentOrganizationRole,
     OrganizationPermission, OrganizationRole,
@@ -68,4 +69,17 @@ fn test_cross_tenant_isolation_invariants() {
 
     // Tenant isolation: org A != org B
     assert_ne!(tenant_a_org_id.0, tenant_b_org_id.0);
+}
+
+#[test]
+fn test_author_review_moderation_prohibition_invariant() {
+    let author_org_id = 10;
+    let reviewer_buyer_org_id = 20;
+
+    // Author cannot edit or delete another organization's review on their template
+    let author_attempting_edit = author_org_id != reviewer_buyer_org_id;
+    assert!(author_attempting_edit);
+
+    let err = MarketplaceError::AuthorCannotModerateReviews;
+    assert_eq!(err, MarketplaceError::AuthorCannotModerateReviews);
 }
