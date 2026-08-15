@@ -1034,25 +1034,41 @@ pub async fn delete_template(
     Ok(())
 }
 
-/// List all templates in an organization.
+/// List all templates in an organization with pagination.
 pub async fn list_org_templates(
     db: &Database,
     organization_id: i64,
-) -> Result<Vec<TemplateDetail>, MarketplaceError> {
-    let templates = repositories::templates_for_organization(db, organization_id)
-        .await
-        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<TemplateDetail>, i64), MarketplaceError> {
+    let (templates, total) =
+        repositories::list_org_templates_query(db, organization_id, limit, offset)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
+    if templates.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
     let org_summary = repositories::organization_summary_by_id(db, organization_id)
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
         .ok_or(MarketplaceError::OrganizationNotFound)?;
 
+    // 2. Prefetch child template versions in ONE query via prefetch_related
+    let mut versions_map = djangors_orm::prefetch_related::<Template, TemplateVersion, _>(
+        db,
+        &templates,
+        "templateversion",
+    )
+    .await
+    .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
     let mut details = Vec::with_capacity(templates.len());
     for t in templates {
-        let versions = repositories::versions_for_template(db, t.id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+        let mut versions = versions_map.remove(&t.id).unwrap_or_default();
+        versions.sort_by_key(|v| std::cmp::Reverse(v.created_at));
         let latest_version = versions.first().map(|v| v.version.clone());
         let versions_count = versions.len() as i64;
         details.push(TemplateDetail {
@@ -1064,7 +1080,7 @@ pub async fn list_org_templates(
         });
     }
 
-    Ok(details)
+    Ok((details, total))
 }
 
 /// Retrieve a template by public UUID within an organization.
@@ -1102,27 +1118,48 @@ pub async fn get_org_template(
 // Public Marketplace Discovery Workflows
 // ---------------------------------------------------------------------------
 
-/// List all public and published templates in the marketplace catalog.
+/// List all public and published templates in the marketplace catalog with pagination.
 pub async fn list_public_templates(
     db: &Database,
     search: Option<&str>,
-) -> Result<Vec<TemplateDetail>, MarketplaceError> {
-    let templates = repositories::public_published_templates(db, search)
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<TemplateDetail>, i64), MarketplaceError> {
+    let (templates, total) =
+        repositories::list_public_published_templates_query(db, search, limit, offset)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    if templates.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Batch lookup owning organizations in ONE query via id__in
+    let mut org_ids: Vec<i64> = templates.iter().map(|t| t.organization_id.id).collect();
+    org_ids.sort_unstable();
+    org_ids.dedup();
+    let org_map = repositories::organizations_by_ids(db, &org_ids)
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
+    // 2. Prefetch child template versions in ONE query via prefetch_related
+    let mut versions_map = djangors_orm::prefetch_related::<Template, TemplateVersion, _>(
+        db,
+        &templates,
+        "templateversion",
+    )
+    .await
+    .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
     let mut details = Vec::with_capacity(templates.len());
     for t in templates {
-        let org_summary = repositories::organization_summary_by_id(db, t.organization_id.id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-        let org_pub = org_summary
-            .map(|s| s.public_id)
+        let org_pub = org_map
+            .get(&t.organization_id.id)
+            .map(|s| s.public_id.clone())
             .unwrap_or_else(|| "unknown".to_string());
 
-        let versions = repositories::versions_for_template(db, t.id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+        let mut versions = versions_map.remove(&t.id).unwrap_or_default();
+        versions.sort_by_key(|v| std::cmp::Reverse(v.created_at));
         let latest_version = versions.first().map(|v| v.version.clone());
         let versions_count = versions.len() as i64;
 
@@ -1135,7 +1172,7 @@ pub async fn list_public_templates(
         });
     }
 
-    Ok(details)
+    Ok((details, total))
 }
 
 /// Retrieve a public template by its public UUID.
@@ -1242,29 +1279,34 @@ pub async fn create_template_version(
     })
 }
 
-/// List all versions of a template within an organization.
+/// List all versions of a template within an organization with pagination.
 pub async fn list_template_versions(
     db: &Database,
     organization_id: i64,
     template_public_id: &str,
-) -> Result<Vec<TemplateVersionDetail>, MarketplaceError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<TemplateVersionDetail>, i64), MarketplaceError> {
     let template =
         repositories::template_by_public_id_and_org(db, template_public_id, organization_id)
             .await
             .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
             .ok_or(MarketplaceError::TemplateNotFound)?;
 
-    let versions = repositories::versions_for_template(db, template.id)
-        .await
-        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+    let (versions, total) =
+        repositories::list_template_versions_query(db, template.id, limit, offset)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
-    Ok(versions
+    let details = versions
         .into_iter()
         .map(|v| TemplateVersionDetail {
             version: v,
             template_public_id: template.public_id.clone(),
         })
-        .collect())
+        .collect();
+
+    Ok((details, total))
 }
 
 /// Retrieve a specific template version by public UUID within an organization.
@@ -1532,21 +1574,91 @@ pub async fn purchase_template(
     })
 }
 
-/// Retrieve all purchases made by an organization.
-pub async fn list_organization_purchases(
+/// Retrieve purchases made by an organization using cursor pagination and batch entity lookups.
+pub async fn list_organization_purchases_cursor(
     db: &Database,
     buyer_org_id: i64,
-) -> Result<Vec<PurchaseOutcome>, MarketplaceError> {
-    let purchases = repositories::purchases_for_buyer_org(db, buyer_org_id)
+    cursor: Option<&str>,
+    limit: i64,
+) -> Result<(Vec<PurchaseOutcome>, Option<String>), MarketplaceError> {
+    let (purchases, next_cursor) =
+        repositories::list_purchases_cursor(db, buyer_org_id, cursor, limit)
+            .await
+            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    if purchases.is_empty() {
+        return Ok((Vec::new(), next_cursor));
+    }
+
+    // 1. Hoist loop-invariant buyer organization lookup
+    let buyer_summary = repositories::organization_summary_by_id(db, buyer_org_id)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::OrganizationNotFound)?;
+
+    // 2. Batch lookup seller organizations in ONE query
+    let mut seller_org_ids: Vec<i64> = purchases
+        .iter()
+        .map(|p| p.seller_organization_id.id)
+        .collect();
+    seller_org_ids.sort_unstable();
+    seller_org_ids.dedup();
+    let seller_org_map = repositories::organizations_by_ids(db, &seller_org_ids)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    // 3. Batch lookup templates in ONE query
+    let mut template_ids: Vec<i64> = purchases.iter().map(|p| p.template_id.id).collect();
+    template_ids.sort_unstable();
+    template_ids.dedup();
+    let template_map = repositories::templates_by_ids(db, &template_ids)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    // 4. Batch lookup template versions in ONE query
+    let mut version_ids: Vec<i64> = purchases
+        .iter()
+        .filter_map(|p| p.template_version_id)
+        .collect();
+    version_ids.sort_unstable();
+    version_ids.dedup();
+    let version_map = repositories::versions_by_ids(db, &version_ids)
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
     let mut outcomes = Vec::with_capacity(purchases.len());
     for p in purchases {
-        outcomes.push(get_purchase_outcome(db, p).await?);
+        let seller_pub = seller_org_map
+            .get(&p.seller_organization_id.id)
+            .map(|s| s.public_id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let template_pub = template_map
+            .get(&p.template_id.id)
+            .map(|t| t.public_id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let template_name = template_map
+            .get(&p.template_id.id)
+            .map(|t| t.name.clone())
+            .unwrap_or_else(|| "Template".to_string());
+
+        let version_pub = p
+            .template_version_id
+            .and_then(|vid| version_map.get(&vid).map(|v| v.public_id.clone()));
+
+        outcomes.push(PurchaseOutcome {
+            purchase: p,
+            buyer_org_public_id: buyer_summary.public_id.clone(),
+            template_public_id: template_pub,
+            template_name,
+            version_public_id: version_pub,
+            seller_org_public_id: seller_pub,
+            client_secret: None,
+        });
     }
 
-    Ok(outcomes)
+    Ok((outcomes, next_cursor))
 }
 
 /// Retrieve a specific purchase by public ID for an organization.
@@ -2215,35 +2327,46 @@ pub async fn moderate_review(
     })
 }
 
-/// List reviews for a template.
+/// List reviews for a template with pagination and batch buyer organization lookup.
 pub async fn list_template_reviews(
     db: &Database,
     template_public_id: &str,
     include_unmoderated: bool,
-) -> Result<Vec<ReviewOutcome>, MarketplaceError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<ReviewOutcome>, i64), MarketplaceError> {
     let template = repositories::template_by_public_id(db, template_public_id)
         .await
         .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
         .ok_or(MarketplaceError::TemplateNotFound)?;
 
-    let reviews = if include_unmoderated {
-        repositories::all_reviews_for_template(db, template.id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
-    } else {
-        repositories::published_reviews_for_template(db, template.id)
-            .await
-            .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
-    };
+    let (reviews, total) = repositories::list_template_reviews_query(
+        db,
+        template.id,
+        include_unmoderated,
+        limit,
+        offset,
+    )
+    .await
+    .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
+
+    if reviews.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // Batch lookup buyer organizations in ONE query via id__in
+    let mut buyer_org_ids: Vec<i64> = reviews.iter().map(|r| r.buyer_organization_id.id).collect();
+    buyer_org_ids.sort_unstable();
+    buyer_org_ids.dedup();
+    let buyer_org_map = repositories::organizations_by_ids(db, &buyer_org_ids)
+        .await
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
 
     let mut outcomes = Vec::with_capacity(reviews.len());
     for r in reviews {
-        let buyer_summary =
-            repositories::organization_summary_by_id(db, r.buyer_organization_id.id)
-                .await
-                .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?;
-        let buyer_pub = buyer_summary
-            .map(|s| s.public_id)
+        let buyer_pub = buyer_org_map
+            .get(&r.buyer_organization_id.id)
+            .map(|s| s.public_id.clone())
             .unwrap_or_else(|| "unknown".to_string());
 
         outcomes.push(ReviewOutcome {
@@ -2253,7 +2376,7 @@ pub async fn list_template_reviews(
         });
     }
 
-    Ok(outcomes)
+    Ok((outcomes, total))
 }
 
 /// Retrieve a single review by public UUID.

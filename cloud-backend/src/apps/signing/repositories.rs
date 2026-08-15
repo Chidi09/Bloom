@@ -75,6 +75,30 @@ pub async fn signing_identities_for_org_and_platform(
         .await
 }
 
+/// List signing identities with optional platform filter, and optional limit and offset.
+pub async fn list_signing_identities_query(
+    db: &Database,
+    organization_id: i64,
+    platform: Option<&str>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<SigningIdentity>, i64), OrmError> {
+    let mut qs = SigningIdentity::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(p) = platform {
+        qs = qs.filter(q!(platform = p.to_owned()))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `SigningIdentity` record.
 pub async fn insert_signing_identity(
     db: &Database,

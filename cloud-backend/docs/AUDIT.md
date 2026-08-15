@@ -1,6 +1,34 @@
 # Backend Audit — verification gaps
 
-Date: 2026-08-15. Commit: `76e3117`.
+Date: 2026-08-15. Original commit: `76e3117`.
+
+## Status
+
+| Finding | State |
+|---|---|
+| S1 fake build artifact | Fixed — `3cf1971` |
+| S2 fake deploy bundles | Fixed — `3cf1971` |
+| S3 hardcoded signing key | Fixed — `c99e5d2` |
+| S4 no rate limiting | Fixed — `c99e5d2` |
+| S5 credential validation is simulated | **Open** — needs live API calls, pairs with the integration pass |
+| C1 unbounded list endpoints | Partly fixed — `b4bcc69` covered builds/events/artifacts/deployments/releases; remaining apps in flight |
+| C2 N+1 lookups | Partly fixed — same commit and scope as C1 |
+| C3 no transactions | Partly fixed — `e3d412d` made install recording atomic; other multi-step writes still unwrapped |
+| F1 framework surface unused | Largely fixed — pagination, throttling, SSE, and djangors-tasks all adopted |
+| F2 fabricated constants | Fixed |
+
+Two findings surfaced during the fixes and are also closed:
+
+- **`slugify` was duplicated five times and had drifted**, with the marketplace copy able to
+  panic on a user-supplied name (`8e6a867`).
+- **Install counters were read-modify-written**, so concurrent installs silently lost
+  increments (`e3d412d`).
+
+One constraint worth knowing before more transactional work: the `Model` derive generates
+`save`/`update` taking `&Database`, while `transaction_conn` hands the closure a `&mut Conn`.
+Model helpers therefore cannot be used inside a transaction; the `QuerySet` write paths
+(`bulk_create`, `update`, `insert_raw`) are generic over `DbExecutor` and are the supported
+route. This is a framework constraint, not a preference.
 
 Every finding below is grepped from the tree, not inferred. Line references are real.
 

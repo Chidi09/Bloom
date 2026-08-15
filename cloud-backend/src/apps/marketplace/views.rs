@@ -17,11 +17,14 @@ use super::errors::MarketplaceError;
 use super::permissions::{
     CurrentOrganizationId, CurrentOrganizationPublicId, CurrentOrganizationRole, OrganizationRole,
 };
-use super::{serializers, services};
+use super::{repositories, serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
 use crate::apps::organizations::models::{Organization, UserOrganizationMembership};
 use crate::apps::organizations::repositories as org_repos;
 use crate::infra::stripe::{HttpStripeClient, MockStripeClient, StripeClient};
+use djangors_rest::pagination::{
+    CursorPagination, PageNumberPagination, Pagination, REST_PER_PAGE,
+};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -131,23 +134,31 @@ pub async fn list_marketplace_templates(
     let db = get_db(&req)?;
     let search = req.query("search").or_else(|| req.query("q"));
 
-    let templates = services::list_public_templates(db, search)
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (templates, total) = services::list_public_templates(db, search, Some(limit), Some(offset))
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = templates
+    let results: Vec<serde_json::Value> = templates
         .iter()
         .map(|t| {
-            serializers::serialize_template(
+            let resp = serializers::serialize_template(
                 &t.template,
                 &t.organization_public_id,
                 t.latest_version.clone(),
                 t.versions_count,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// GET `/api/v1/marketplace/templates/{id}` — Retrieve a public published template.
@@ -209,23 +220,31 @@ pub async fn list_templates(req: Request, _params: PathParams) -> Result<Respons
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
-    let templates = services::list_org_templates(db, org.id)
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (templates, total) = services::list_org_templates(db, org.id, Some(limit), Some(offset))
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = templates
+    let results: Vec<serde_json::Value> = templates
         .iter()
         .map(|t| {
-            serializers::serialize_template(
+            let resp = serializers::serialize_template(
                 &t.template,
                 &t.organization_public_id,
                 t.latest_version.clone(),
                 t.versions_count,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/templates` — Create a new template in the current organization.
@@ -418,16 +437,32 @@ pub async fn list_template_versions(
         .get("id")
         .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
 
-    let details = services::list_template_versions(db, org.id, template_id)
+    let _template = repositories::template_by_public_id_and_org(db, template_id, org.id)
         .await
-        .map_err(DjangorsError::from)?;
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::TemplateNotFound)?;
 
-    let payload: Vec<_> = details
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (details, total) =
+        services::list_template_versions(db, org.id, template_id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = details
         .iter()
-        .map(|d| serializers::serialize_version_summary(&d.version))
+        .map(|d| {
+            let resp = serializers::serialize_version_summary(&d.version);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/templates/{id}/versions` — Create a new version for a template.
@@ -644,14 +679,21 @@ pub async fn list_purchases(req: Request, _params: PathParams) -> Result<Respons
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
-    let outcomes = services::list_organization_purchases(db, org.id)
-        .await
-        .map_err(DjangorsError::from)?;
+    let pagination = CursorPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+    let limit = Pagination::page_size(&pagination, &req);
 
-    let payload: Vec<_> = outcomes
+    let (outcomes, next_cursor) =
+        services::list_organization_purchases_cursor(db, org.id, req.query("cursor"), limit)
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = outcomes
         .iter()
         .map(|o| {
-            serializers::serialize_purchase(
+            let resp = serializers::serialize_purchase(
                 &o.purchase,
                 &o.buyer_org_public_id,
                 &o.template_public_id,
@@ -659,11 +701,19 @@ pub async fn list_purchases(req: Request, _params: PathParams) -> Result<Respons
                 o.version_public_id.clone(),
                 &o.seller_org_public_id,
                 o.client_secret.clone(),
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(
+        StatusCode::OK,
+        &serde_json::json!({
+            "results": results,
+            "next_cursor": next_cursor,
+            "previous_cursor": serde_json::Value::Null,
+        }),
+    )
 }
 
 /// GET `/api/v1/marketplace/purchases/{id}` — Retrieve a purchase record.
@@ -819,18 +869,36 @@ pub async fn list_template_reviews(
         .get("id")
         .ok_or_else(|| MarketplaceError::ValidationError("Missing template id".to_string()))?;
 
-    let reviews = services::list_template_reviews(db, template_id, false)
+    let _template = repositories::template_by_public_id(db, template_id)
         .await
-        .map_err(DjangorsError::from)?;
+        .map_err(|e| MarketplaceError::DatabaseError(e.to_string()))?
+        .ok_or(MarketplaceError::TemplateNotFound)?;
 
-    let payload: Vec<_> = reviews
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (reviews, total) =
+        services::list_template_reviews(db, template_id, false, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = reviews
         .iter()
         .map(|r| {
-            serializers::serialize_review(&r.review, &r.template_public_id, &r.buyer_org_public_id)
+            let resp = serializers::serialize_review(
+                &r.review,
+                &r.template_public_id,
+                &r.buyer_org_public_id,
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/marketplace/templates/{id}/reviews` — Submit or update a buyer review.

@@ -10,7 +10,6 @@ use djangors_rest::Permission;
 use super::contracts::ArtifactRegisterRequest;
 use super::errors::ArtifactError;
 use super::permissions::{require_job_token, OrganizationPermission};
-use super::repositories;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::{require_authenticated, CurrentOrganizationId};
 use crate::infra::storage::{ObjectStorage, DEFAULT_PRESIGNED_EXPIRY};
@@ -64,22 +63,12 @@ pub async fn list_artifacts(req: Request, _params: PathParams) -> Result<Respons
     };
 
     // Preliminary count to calculate page slice
-    let total_count = repositories::list_artifacts_query(db, org_id, None, Some(0), None)
-        .await
-        .map(|(_, count)| count)
-        .unwrap_or(0);
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
 
-    let slice = pagination.slice(&req, total_count);
-
-    let (artifact_tuples, total) = services::list_artifacts(
-        db,
-        org_id,
-        build_filter,
-        Some(slice.limit),
-        Some(slice.offset),
-    )
-    .await
-    .map_err(DjangorsError::from)?;
+    let (artifact_tuples, total) =
+        services::list_artifacts(db, org_id, build_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
 
     let results: Vec<serde_json::Value> = artifact_tuples
         .iter()

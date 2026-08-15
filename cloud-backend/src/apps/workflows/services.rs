@@ -427,44 +427,68 @@ pub async fn get_workflow(
     })
 }
 
-/// List all workflows in an organization, optionally filtered by application.
+/// List all workflows in an organization with pagination and batch entity lookups.
 pub async fn list_workflows(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
-) -> Result<Vec<WorkflowDetail>, WorkflowError> {
-    let workflows = if let Some(app_pub_id) = app_public_id {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<WorkflowDetail>, i64), WorkflowError> {
+    let app_id = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_by_public_id_and_org(db, app_pub_id, organization_id)
             .await?
             .ok_or(WorkflowError::AppNotFound)?;
-        repositories::workflows_for_app(db, app.id, organization_id).await?
+        Some(app.id)
     } else {
-        repositories::workflows_for_organization(db, organization_id).await?
+        None
     };
 
+    let (workflows, total) =
+        repositories::list_workflows_query(db, organization_id, app_id, limit, offset).await?;
+
+    if workflows.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(WorkflowError::OrganizationNotFound)?;
 
+    // 2. Batch lookup apps in ONE query
+    let mut app_ids: Vec<i64> = workflows.iter().map(|w| w.app_id.id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_summaries_by_ids(db, &app_ids).await?;
+
+    // 3. Batch lookup users in ONE query
+    let mut user_ids: Vec<i64> = workflows.iter().map(|w| w.created_by_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
+
     let mut results = Vec::with_capacity(workflows.len());
     for w in workflows {
-        let app = repositories::app_summary_by_id(db, w.app_id.id)
-            .await?
-            .ok_or(WorkflowError::AppNotFound)?;
+        let app_pub_id = app_map
+            .get(&w.app_id.id)
+            .map(|a| a.public_id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
 
-        let user_pub_id = repositories::user_public_id_by_id(db, w.created_by_id)
-            .await?
+        let user_pub_id = user_map
+            .get(&w.created_by_id)
+            .cloned()
             .unwrap_or_else(|| w.created_by_id.to_string());
 
         results.push(WorkflowDetail {
             workflow: w,
-            app_public_id: app.public_id,
+            app_public_id: app_pub_id,
             organization_public_id: org.public_id.clone(),
             created_by_public_id: user_pub_id,
         });
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Trigger and enqueue a new workflow execution run.
@@ -669,12 +693,14 @@ pub async fn get_workflow_run(
     })
 }
 
-/// List all runs for a given workflow within an organization.
+/// List all runs for a given workflow within an organization with pagination and prefetch_related for steps.
 pub async fn list_workflow_runs(
     db: &Database,
     organization_id: i64,
     workflow_public_id: &str,
-) -> Result<Vec<WorkflowRunDetail>, WorkflowError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<WorkflowRunDetail>, i64), WorkflowError> {
     let workflow =
         repositories::workflow_by_public_id_and_org(db, workflow_public_id, organization_id)
             .await?
@@ -684,19 +710,45 @@ pub async fn list_workflow_runs(
         .await?
         .ok_or(WorkflowError::OrganizationNotFound)?;
 
-    let runs = repositories::workflow_runs_for_workflow(db, workflow.id, organization_id).await?;
+    let (runs, total) =
+        repositories::list_workflow_runs_query(db, workflow.id, organization_id, limit, offset)
+            .await?;
+
+    if runs.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Prefetch child workflow run steps in ONE query via prefetch_related
+    let mut steps_map = djangors_orm::prefetch_related::<
+        super::models::WorkflowRun,
+        super::models::WorkflowRunStep,
+        _,
+    >(db, &runs, "workflowrunstep")
+    .await
+    .map_err(|e| WorkflowError::Database(e.to_string()))?;
+
+    // 2. Batch lookup users (creators and approvers) in ONE query
+    let mut user_ids: Vec<i64> = runs.iter().map(|r| r.created_by_id).collect();
+    for r in &runs {
+        if let Some(approver_id) = r.approved_by_id {
+            user_ids.push(approver_id);
+        }
+    }
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
 
     let mut results = Vec::with_capacity(runs.len());
     for r in runs {
-        let steps = repositories::steps_for_workflow_run(db, r.id).await?;
-        let user_pub_id = repositories::user_public_id_by_id(db, r.created_by_id)
-            .await?
+        let mut steps = steps_map.remove(&r.id).unwrap_or_default();
+        steps.sort_by_key(|s| s.step_order);
+
+        let user_pub_id = user_map
+            .get(&r.created_by_id)
+            .cloned()
             .unwrap_or_else(|| r.created_by_id.to_string());
 
-        let approved_by_pub_id = match r.approved_by_id {
-            Some(approver_id) => repositories::user_public_id_by_id(db, approver_id).await?,
-            None => None,
-        };
+        let approved_by_pub_id = r.approved_by_id.and_then(|aid| user_map.get(&aid).cloned());
 
         results.push(WorkflowRunDetail {
             run: r,
@@ -708,7 +760,7 @@ pub async fn list_workflow_runs(
         });
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Approve or reject a workflow run waiting at an approval gate.

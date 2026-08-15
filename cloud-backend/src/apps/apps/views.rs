@@ -29,7 +29,9 @@ fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
         })
 }
 
-/// GET `/api/v1/apps` — List all apps in the current organization (optionally filtered by `project_id` query param).
+/// GET `/api/v1/apps` — List apps in the current organization (optionally filtered by `project_id` query param).
+///
+/// Uses `PageNumberPagination` for bounded browsing of applications within an organization.
 pub async fn list_apps(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let _user = require_authenticated(&req).await?;
     let perm = OrganizationPermission::viewer();
@@ -40,30 +42,30 @@ pub async fn list_apps(req: Request, _params: PathParams) -> Result<Response, Dj
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
 
-    // Parse optional query param: ?project_id=...
-    let project_filter = req.raw_query().and_then(|q| {
-        q.split('&').find_map(|pair| {
-            let mut parts = pair.split('=');
-            if parts.next() == Some("project_id") {
-                parts.next()
-            } else {
-                None
-            }
-        })
-    });
+    let project_filter = req.query("project_id");
 
-    let app_tuples = services::list_apps(db, org_id, project_filter)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = app_tuples
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (app_tuples, total) =
+        services::list_apps(db, org_id, project_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = app_tuples
         .iter()
         .map(|(app, project, org)| {
-            serializers::serialize_app(app, &project.public_id, &org.public_id)
+            let resp = serializers::serialize_app(app, &project.public_id, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/apps` — Create a new app within a project.

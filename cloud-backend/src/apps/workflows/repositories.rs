@@ -64,6 +64,30 @@ pub async fn workflows_for_organization(
         .await
 }
 
+/// List workflows with optional app filter, limit, and offset, ordered by -created_at.
+pub async fn list_workflows_query(
+    db: &Database,
+    organization_id: i64,
+    app_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Workflow>, i64), OrmError> {
+    let mut qs = Workflow::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(aid) = app_id {
+        qs = qs.filter(q!(app_id = aid))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Workflow` record.
 pub async fn insert_workflow(db: &Database, workflow: Workflow) -> Result<Workflow, OrmError> {
     workflow.save(db).await
@@ -104,6 +128,29 @@ pub async fn workflow_runs_for_workflow(
         .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List runs for a workflow with optional limit and offset, ordered by -created_at.
+pub async fn list_workflow_runs_query(
+    db: &Database,
+    workflow_id: i64,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<WorkflowRun>, i64), OrmError> {
+    let mut qs = WorkflowRun::objects()
+        .filter(q!(workflow_id = workflow_id))?
+        .filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new `WorkflowRun` record.
@@ -238,4 +285,52 @@ pub async fn user_public_id_by_id(db: &Database, user_id: i64) -> Result<Option<
         .await?;
 
     Ok(profile.map(|p| p.public_id))
+}
+
+/// Look up multiple app summaries by internal primary keys in one batch.
+pub async fn app_summaries_by_ids(
+    db: &Database,
+    app_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, AppSummary>, OrmError> {
+    if app_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let apps = crate::apps::apps::models::App::objects()
+        .filter(q!(id__in = app_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(apps.len());
+    for a in apps {
+        map.insert(
+            a.id,
+            AppSummary {
+                id: a.id,
+                public_id: a.public_id,
+                project_id: a.project_id,
+                name: a.name,
+                slug: a.slug,
+                default_branch: a.default_branch,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple user profile public IDs by user internal IDs in one batch.
+pub async fn user_public_ids_by_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let profiles = crate::apps::accounts::models::UserProfile::objects()
+        .filter(q!(user_id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(profiles.len());
+    for p in profiles {
+        map.insert(p.user_id, p.public_id);
+    }
+    Ok(map)
 }

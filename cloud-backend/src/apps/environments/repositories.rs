@@ -69,8 +69,33 @@ pub async fn environments_for_organization(
 ) -> Result<Vec<Environment>, OrmError> {
     Environment::objects()
         .filter(q!(organization_id = organization_id))?
+        .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List environments with optional app filter, and optional limit and offset.
+pub async fn list_environments_query(
+    db: &Database,
+    organization_id: i64,
+    app_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Environment>, i64), OrmError> {
+    let mut qs = Environment::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(a_id) = app_id {
+        qs = qs.filter(q!(app_id = a_id))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new `Environment` record.
@@ -156,6 +181,34 @@ pub async fn app_summary_by_id(db: &Database, app_id: i64) -> Result<Option<AppS
         name: a.name,
         slug: a.slug,
     }))
+}
+
+/// Look up multiple app summaries by their internal primary keys in one batched query.
+pub async fn app_summaries_by_ids(
+    db: &Database,
+    app_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, AppSummary>, OrmError> {
+    if app_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let apps = crate::apps::apps::models::App::objects()
+        .filter(q!(id__in = app_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(apps.len());
+    for a in apps {
+        map.insert(
+            a.id,
+            AppSummary {
+                id: a.id,
+                public_id: a.public_id,
+                organization_id: a.organization_id,
+                name: a.name,
+                slug: a.slug,
+            },
+        );
+    }
+    Ok(map)
 }
 
 /// Look up an organization summary by its internal primary key.

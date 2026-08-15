@@ -17,6 +17,7 @@ use crate::apps::accounts::permissions::require_authenticated;
 use crate::apps::organizations::models::{Organization, UserOrganizationMembership};
 use crate::apps::organizations::repositories as org_repos;
 use crate::settings::GitHubSettings;
+use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -110,16 +111,26 @@ pub async fn list_connections(
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
-    let connections = services::list_connections(db, org.id)
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (connections, total) = services::list_connections(db, org.id, Some(limit), Some(offset))
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = connections
+    let results: Vec<serde_json::Value> = connections
         .iter()
-        .map(|c| serializers::serialize_git_connection(c, &org.public_id))
+        .map(|c| {
+            let resp = serializers::serialize_git_connection(c, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/git-connections` — Create/link a new Git connection (requires Admin role).

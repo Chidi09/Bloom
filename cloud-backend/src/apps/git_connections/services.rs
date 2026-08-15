@@ -390,13 +390,16 @@ pub async fn create_connection(
     Ok(saved)
 }
 
-/// List all Git connections belonging to an organization.
+/// List all Git connections belonging to an organization with pagination.
 pub async fn list_connections(
     db: &Database,
     organization_id: i64,
-) -> Result<Vec<GitConnection>, GitConnectionError> {
-    let connections = repositories::connections_for_organization(db, organization_id).await?;
-    Ok(connections)
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<GitConnection>, i64), GitConnectionError> {
+    let (connections, total) =
+        repositories::list_connections_query(db, organization_id, limit, offset).await?;
+    Ok((connections, total))
 }
 
 /// Retrieve a single Git connection by public UUID within an organization.

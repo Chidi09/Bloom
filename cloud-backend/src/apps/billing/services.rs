@@ -477,9 +477,15 @@ pub async fn emit_event(
 // High-level billing service operations
 // ---------------------------------------------------------------------------
 
-/// List all active plans available for subscription.
-pub async fn list_plans(db: &Database) -> Result<Vec<Plan>, BillingError> {
-    repositories::active_plans(db).await.map_err(Into::into)
+/// List all active plans available for subscription with pagination.
+pub async fn list_plans(
+    db: &Database,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Plan>, i64), BillingError> {
+    repositories::list_plans_query(db, limit, offset)
+        .await
+        .map_err(Into::into)
 }
 
 /// Retrieve or create the default `free` plan subscription for an organization.
@@ -776,14 +782,38 @@ pub async fn cancel_subscription(
     Ok(sub)
 }
 
-/// List all invoices for an organization.
+/// List all invoices for an organization with pagination and batch subscription lookup.
 pub async fn list_invoices(
     db: &Database,
     organization_id: i64,
-) -> Result<Vec<Invoice>, BillingError> {
-    repositories::invoices_for_organization(db, organization_id)
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(Invoice, String)>, i64), BillingError> {
+    let (invoices, total) = repositories::list_invoices_query(db, organization_id, limit, offset)
         .await
-        .map_err(Into::into)
+        .map_err(BillingError::from)?;
+
+    if invoices.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    let mut sub_ids: Vec<i64> = invoices.iter().map(|i| i.subscription_id.id).collect();
+    sub_ids.sort_unstable();
+    sub_ids.dedup();
+    let sub_map = repositories::subscription_public_ids_by_ids(db, &sub_ids)
+        .await
+        .map_err(BillingError::from)?;
+
+    let mut results = Vec::with_capacity(invoices.len());
+    for inv in invoices {
+        let sub_pub = sub_map
+            .get(&inv.subscription_id.id)
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
+        results.push((inv, sub_pub));
+    }
+
+    Ok((results, total))
 }
 
 /// Calculate current usage summary and evaluate enforcement against plan quotas.

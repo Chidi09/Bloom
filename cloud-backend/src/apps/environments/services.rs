@@ -224,33 +224,49 @@ pub async fn get_environment(
     Ok((env, app, org))
 }
 
-/// List all environments in an organization (or optionally filtered by app).
+/// List all environments in an organization (or optionally filtered by app), with pagination and batched lookup.
 pub async fn list_environments(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
-) -> Result<Vec<(Environment, AppSummary, OrganizationSummary)>, EnvironmentError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(Environment, AppSummary, OrganizationSummary)>, i64), EnvironmentError> {
+    let app_id = if let Some(app_pub_id) = app_public_id {
+        let app = repositories::app_by_public_id_and_org(db, app_pub_id, organization_id)
+            .await?
+            .ok_or(EnvironmentError::AppNotFound)?;
+        Some(app.id)
+    } else {
+        None
+    };
+
+    let (envs, total) =
+        repositories::list_environments_query(db, organization_id, app_id, limit, offset).await?;
+
+    if envs.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(EnvironmentError::OrganizationNotFound)?;
 
-    let envs = if let Some(app_pub_id) = app_public_id {
-        let app = repositories::app_by_public_id_and_org(db, app_pub_id, organization_id)
-            .await?
-            .ok_or(EnvironmentError::AppNotFound)?;
-        repositories::environments_for_app(db, app.id, organization_id).await?
-    } else {
-        repositories::environments_for_organization(db, organization_id).await?
-    };
+    // 2. Batch-fetch all parent app summaries in ONE query
+    let mut app_ids: Vec<i64> = envs.iter().map(|e| e.app_id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_summaries_by_ids(db, &app_ids).await?;
 
     let mut results = Vec::with_capacity(envs.len());
     for env in envs {
-        if let Some(app) = repositories::app_summary_by_id(db, env.app_id).await? {
-            results.push((env, app, org.clone()));
+        if let Some(app) = app_map.get(&env.app_id) {
+            results.push((env, app.clone(), org.clone()));
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Partially update an `Environment`.

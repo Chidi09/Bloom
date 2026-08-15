@@ -21,6 +21,7 @@ use crate::infra::caddy::CaddyClient;
 use crate::infra::dns::{DnsResolver, SystemDnsResolver};
 use crate::infra::storage::{InMemoryStorage, ObjectStorage};
 use crate::settings::{CaddySettings, CloudflareSettings};
+use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -100,31 +101,43 @@ pub async fn list_web_deployments(
     let target_filter = req.query("target");
     let status_filter = req.query("status");
 
-    let details = services::list_web_deployments(
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (details, total) = services::list_web_deployments(
         db,
         org_id,
-        app_filter,
-        env_filter,
-        target_filter,
-        status_filter,
+        services::WebDeploymentListFilters {
+            app_public_id: app_filter,
+            environment_public_id: env_filter,
+            target: target_filter,
+            status: status_filter,
+        },
+        Some(limit),
+        Some(offset),
     )
     .await
     .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = details
+    let results: Vec<serde_json::Value> = details
         .iter()
         .map(|d| {
-            serializers::serialize_web_deployment(
+            let resp = serializers::serialize_web_deployment(
                 &d.deployment,
                 &d.app_public_id,
                 &d.environment_public_id,
                 d.release_public_id.as_deref(),
                 &d.deployed_by_public_id,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/webhosting/deployments` — Initiate a new web deployment.
@@ -253,22 +266,37 @@ pub async fn list_custom_domains(
 
     let app_filter = req.query("app_id");
 
-    let details = services::list_custom_domains(db, org_id, app_filter, apex_domain.as_deref())
-        .await
-        .map_err(DjangorsError::from)?;
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = details
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (details, total) = services::list_custom_domains(
+        db,
+        org_id,
+        app_filter,
+        apex_domain.as_deref(),
+        Some(limit),
+        Some(offset),
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = details
         .iter()
         .map(|d| {
-            serializers::serialize_custom_domain(
+            let resp = serializers::serialize_custom_domain(
                 &d.domain,
                 &d.app_public_id,
                 d.required_records.clone(),
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/webhosting/domains` — Register a custom domain.

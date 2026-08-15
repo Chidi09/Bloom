@@ -20,6 +20,8 @@ fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
 }
 
 /// GET `/api/v1/organizations` — List all organizations the authenticated user belongs to.
+///
+/// Uses `PageNumberPagination` for browsing organizations.
 pub async fn list_organizations(
     req: Request,
     _params: PathParams,
@@ -27,16 +29,28 @@ pub async fn list_organizations(
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
 
-    let org_pairs = services::list_user_organizations(db, user.id)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = org_pairs
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (org_pairs, total) =
+        services::list_user_organizations(db, user.id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = org_pairs
         .iter()
-        .map(|(org, membership)| serializers::serialize_organization(org, &membership.role))
+        .map(|(org, membership)| {
+            let resp = serializers::serialize_organization(org, &membership.role);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/organizations` — Create a new organization with the user as owner.
@@ -154,6 +168,8 @@ pub async fn delete_organization(
 }
 
 /// GET `/api/v1/organizations/{id}/members` — List all members of an organization.
+///
+/// Uses `PageNumberPagination` for bounded browsing of organization members.
 pub async fn list_members(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
@@ -162,27 +178,40 @@ pub async fn list_members(req: Request, params: PathParams) -> Result<Response, 
         .get("id")
         .ok_or_else(|| OrganizationError::ValidationError("Missing organization id".to_string()))?;
 
-    let members = services::list_members(db, user.id, org_id)
+    let (_org, _) = services::get_organization(db, user.id, org_id)
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = members
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (members, total) = services::list_members(db, user.id, org_id, Some(limit), Some(offset))
+        .await
+        .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = members
         .iter()
         .map(|(membership, auth_user, profile)| {
             let user_public_id = profile
                 .as_ref()
                 .map(|p| p.public_id.as_str())
                 .unwrap_or_default();
-            serializers::serialize_membership(
+            let resp = serializers::serialize_membership(
                 membership,
                 user_public_id,
                 &auth_user.email,
                 &auth_user.username,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/organizations/{id}/members` — Invite a new member to an organization.

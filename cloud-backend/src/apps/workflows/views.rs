@@ -12,9 +12,10 @@ use super::errors::WorkflowError;
 use super::permissions::{
     CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
 };
-use super::{serializers, services};
+use super::{repositories, serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
 use crate::infra::queue::JobQueue;
+use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -54,23 +55,32 @@ pub async fn list_workflows(req: Request, _params: PathParams) -> Result<Respons
 
     let app_filter = req.query("app_id");
 
-    let workflows = services::list_workflows(db, org_id, app_filter)
-        .await
-        .map_err(DjangorsError::from)?;
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = workflows
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (workflows, total) =
+        services::list_workflows(db, org_id, app_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = workflows
         .iter()
         .map(|detail| {
-            serializers::serialize_workflow(
+            let resp = serializers::serialize_workflow(
                 &detail.workflow,
                 &detail.app_public_id,
                 &detail.organization_public_id,
                 &detail.created_by_public_id,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/workflows` — Create a new workflow definition.
@@ -149,25 +159,39 @@ pub async fn list_workflow_runs(
         .get("id")
         .ok_or_else(|| WorkflowError::ValidationError("Missing workflow id".to_string()))?;
 
-    let runs = services::list_workflow_runs(db, org_id, workflow_id)
+    let _workflow = repositories::workflow_by_public_id_and_org(db, workflow_id, org_id)
         .await
-        .map_err(DjangorsError::from)?;
+        .map_err(WorkflowError::from)?
+        .ok_or(WorkflowError::WorkflowNotFound)?;
 
-    let payload: Vec<_> = runs
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (runs, total) =
+        services::list_workflow_runs(db, org_id, workflow_id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = runs
         .iter()
         .map(|detail| {
-            serializers::serialize_workflow_run(
+            let resp = serializers::serialize_workflow_run(
                 &detail.run,
                 &detail.steps,
                 &detail.workflow_public_id,
                 &detail.organization_public_id,
                 &detail.created_by_public_id,
                 detail.approved_by_public_id.as_deref(),
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/workflows/{id}/runs` — Trigger a new workflow execution run.

@@ -287,36 +287,50 @@ pub async fn get_secret(
     Ok((secret, env, org))
 }
 
-/// List all secrets in an organization, optionally filtered by environment public UUID.
+/// List all secrets in an organization, optionally filtered by environment public UUID, with pagination and batched lookup.
 pub async fn list_secrets(
     db: &Database,
     organization_id: i64,
     env_public_id: Option<&str>,
-) -> Result<Vec<(Secret, EnvironmentSummary, OrganizationSummary)>, SecretError> {
-    let org = repositories::organization_summary_by_id(db, organization_id)
-        .await?
-        .ok_or(SecretError::OrganizationNotFound)?;
-
-    let secrets = if let Some(env_pub_id) = env_public_id {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(Secret, EnvironmentSummary, OrganizationSummary)>, i64), SecretError> {
+    let env_id = if let Some(env_pub_id) = env_public_id {
         let env =
             repositories::environment_summary_by_public_id_and_org(db, env_pub_id, organization_id)
                 .await?
                 .ok_or(SecretError::EnvironmentNotFound)?;
-        repositories::secrets_for_environment(db, env.id, organization_id).await?
+        Some(env.id)
     } else {
-        repositories::secrets_for_organization(db, organization_id).await?
+        None
     };
+
+    let (secrets, total) =
+        repositories::list_secrets_query(db, organization_id, env_id, limit, offset).await?;
+
+    if secrets.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
+    let org = repositories::organization_summary_by_id(db, organization_id)
+        .await?
+        .ok_or(SecretError::OrganizationNotFound)?;
+
+    // 2. Batch-fetch all parent environment summaries in ONE query
+    let mut env_ids: Vec<i64> = secrets.iter().map(|s| s.environment_id.id).collect();
+    env_ids.sort_unstable();
+    env_ids.dedup();
+    let env_map = repositories::environment_summaries_by_ids(db, &env_ids).await?;
 
     let mut results = Vec::with_capacity(secrets.len());
     for secret in secrets {
-        if let Some(env) =
-            repositories::environment_summary_by_id(db, secret.environment_id.id).await?
-        {
-            results.push((secret, env, org.clone()));
+        if let Some(env) = env_map.get(&secret.environment_id.id) {
+            results.push((secret, env.clone(), org.clone()));
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Partially update a secret's value and/or `is_json` flag.

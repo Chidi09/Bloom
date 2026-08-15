@@ -96,6 +96,8 @@ fn require_role(
 }
 
 /// GET `/api/v1/signing` — List signing identities within the active organization (optionally filtered by platform).
+///
+/// Uses `PageNumberPagination` for bounded browsing of signing identities.
 pub async fn list_signing_identities(
     req: Request,
     _params: PathParams,
@@ -109,18 +111,29 @@ pub async fn list_signing_identities(
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
     let platform_filter = req.query("platform");
-    let identities = services::list_signing_identities(db, org.id, platform_filter)
-        .await
-        .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = identities
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (identities, total) =
+        services::list_signing_identities(db, org.id, platform_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = identities
         .iter()
         .map(|(identity, org_summary)| {
-            serializers::serialize_signing_identity(identity, &org_summary.public_id)
+            let resp = serializers::serialize_signing_identity(identity, &org_summary.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/signing` — Upload and store encrypted signing materials (requires ReleaseManager or above).

@@ -6,7 +6,29 @@
 //! disagreeing about the timestamp format and silently skip rows at a page boundary.
 
 use chrono::{DateTime, Utc};
+use djangors_core::Request;
 use djangors_orm::{FromRow, Model, OrmError, QuerySet};
+
+/// Returns the `(limit, offset)` for the requested page.
+///
+/// `Pagination::slice` needs a row count up front, purely so `Paginator::offset` can clamp an
+/// out-of-range page back into the valid range. Getting that count means an extra `COUNT`
+/// before the real query — and the list repositories already return their own total, so a view
+/// calling `slice` first issues two counts and a throwaway `SELECT ... LIMIT 0` on every
+/// request.
+///
+/// This computes the window directly instead. Requesting a page past the end returns an empty
+/// page rather than silently serving the last one, which is both the conventional behaviour
+/// and easier for a client to detect. The authoritative total still comes back from the query
+/// itself and goes into the envelope.
+pub fn page_window(
+    pagination: &impl djangors_rest::pagination::Pagination,
+    req: &Request,
+) -> (i64, i64) {
+    let limit = pagination.page_size(req);
+    let offset = (djangors_rest::pagination::requested_page(req) - 1).max(0) * limit;
+    (limit, offset)
+}
 
 /// Applies a decoded cursor to `qs` as a keyset predicate over `(ordering_field, id)`.
 ///

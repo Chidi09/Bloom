@@ -311,29 +311,38 @@ pub async fn get_signing_identity(
     Ok((identity, org))
 }
 
-/// List all `SigningIdentity` records for an organization (optionally filtered by platform).
+/// List all `SigningIdentity` records for an organization (optionally filtered by platform), with pagination.
 pub async fn list_signing_identities(
     db: &Database,
     organization_id: i64,
     platform_filter: Option<&str>,
-) -> Result<Vec<(SigningIdentity, OrganizationSummary)>, SigningError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(SigningIdentity, OrganizationSummary)>, i64), SigningError> {
+    let clean_p = platform_filter.map(|p| p.trim().to_lowercase());
+    let (identities, total) = repositories::list_signing_identities_query(
+        db,
+        organization_id,
+        clean_p.as_deref(),
+        limit,
+        offset,
+    )
+    .await?;
+
+    if identities.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(SigningError::OrganizationNotFound)?;
-
-    let identities = if let Some(p) = platform_filter {
-        let clean_p = p.trim().to_lowercase();
-        repositories::signing_identities_for_org_and_platform(db, organization_id, &clean_p).await?
-    } else {
-        repositories::signing_identities_for_organization(db, organization_id).await?
-    };
 
     let mut results = Vec::with_capacity(identities.len());
     for item in identities {
         results.push((item, org.clone()));
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Delete a `SigningIdentity` record and emit audit & domain events.

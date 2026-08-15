@@ -9,7 +9,7 @@ use djangors_db::Database;
 use djangors_rest::Permission;
 
 use super::contracts::{
-    CancelSubscriptionRequest, PlanResponse, SubscribeRequest, SubscribeResponse, WebhookResponse,
+    CancelSubscriptionRequest, SubscribeRequest, SubscribeResponse, WebhookResponse,
 };
 use super::errors::BillingError;
 use super::permissions::{
@@ -19,6 +19,7 @@ use super::permissions::{
 use super::services::WebhookDeliveryOutcome;
 use super::{repositories, serializers, services};
 use crate::settings::{BachsSettings, PaystackSettings};
+use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
 
 /// Retrieve the database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -54,12 +55,27 @@ fn get_user_role(req: &Request, user: &User) -> OrganizationRole {
 /// GET `/billing/plans` — List available billing plans.
 pub async fn list_plans(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let db = get_db(&req)?;
-    let plans = services::list_plans(db)
+
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (plans, total) = services::list_plans(db, Some(limit), Some(offset))
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<PlanResponse> = plans.iter().map(serializers::serialize_plan).collect();
-    Response::json(StatusCode::OK, &payload)
+    let results: Vec<serde_json::Value> = plans
+        .iter()
+        .map(|p| {
+            let resp = serializers::serialize_plan(p);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
+        .collect();
+
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// GET `/billing/subscription` — Retrieve current organization's subscription details.
@@ -186,32 +202,32 @@ pub async fn list_invoices(req: Request, _params: PathParams) -> Result<Response
         return Err(BillingError::Forbidden.into());
     }
 
-    let invoices = services::list_invoices(db, org_id)
-        .await
-        .map_err(DjangorsError::from)?;
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (invoices_with_subs, total) =
+        services::list_invoices(db, org_id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
 
     let org_summary = repositories::organization_summary_by_id(db, org_id)
         .await
         .map_err(BillingError::from)?
         .ok_or(BillingError::OrganizationNotFound)?;
 
-    let mut payload = Vec::new();
-    for inv in &invoices {
-        let sub_pub_id = match repositories::subscription_by_id(db, inv.subscription_id.id)
-            .await
-            .map_err(BillingError::from)?
-        {
-            Some(s) => s.public_id,
-            None => String::new(),
-        };
-        payload.push(serializers::serialize_invoice(
-            inv,
-            &sub_pub_id,
-            &org_summary.public_id,
-        ));
-    }
+    let results: Vec<serde_json::Value> = invoices_with_subs
+        .iter()
+        .map(|(inv, sub_pub_id)| {
+            let resp = serializers::serialize_invoice(inv, sub_pub_id, &org_summary.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
+        .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// GET `/billing/usage` — Retrieve current usage summary and quota status.

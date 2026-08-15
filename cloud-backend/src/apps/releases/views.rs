@@ -14,7 +14,6 @@ use super::errors::ReleaseError;
 use super::permissions::{
     CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
 };
-use super::repositories;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
 
@@ -68,13 +67,7 @@ pub async fn list_releases(req: Request, _params: PathParams) -> Result<Response
     };
 
     // Preliminary count to calculate page slice
-    let total_count =
-        repositories::list_releases_query(db, org_id, None, None, None, Some(0), None)
-            .await
-            .map(|(_, count)| count)
-            .unwrap_or(0);
-
-    let slice = pagination.slice(&req, total_count);
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
 
     let (releases, total) = services::list_releases(
         db,
@@ -82,8 +75,8 @@ pub async fn list_releases(req: Request, _params: PathParams) -> Result<Response
         app_filter,
         environment_filter,
         status_filter,
-        Some(slice.limit),
-        Some(slice.offset),
+        Some(limit),
+        Some(offset),
     )
     .await
     .map_err(DjangorsError::from)?;

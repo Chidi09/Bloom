@@ -224,3 +224,94 @@ fn test_webhosting_error_mappings() {
     assert_eq!(dj_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(dj_err.code(), "caddy_error");
 }
+
+#[test]
+fn test_webhosting_list_pagination_envelope_and_slicing() {
+    use bytes::Bytes;
+    use djangors_core::Request;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    use hyper::http::{HeaderMap, Method, Uri};
+
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    // 1. Default page 1 request with no query params
+    let req = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/webhosting/deployments"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    assert_eq!(pagination.page_size(&req), 100);
+
+    let total = 250_i64;
+    let slice1 = pagination.slice(&req, total);
+    assert_eq!(slice1.limit, 100);
+    assert_eq!(slice1.offset, 0);
+
+    let dummy_page1_results: Vec<serde_json::Value> = (0..100)
+        .map(|i| serde_json::json!({ "id": format!("dep-{i}"), "url": format!("https://app{i}.bloomcloud.dev") }))
+        .collect();
+
+    let env1 = pagination.envelope(&req, total, dummy_page1_results.clone());
+    assert_eq!(env1["count"], 250);
+    assert_eq!(env1["page"], 1);
+    assert_eq!(env1["total_pages"], 3);
+    assert_eq!(env1["results"].as_array().unwrap().len(), 100);
+
+    // 2. Page 2 request
+    let req_p2 = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/webhosting/deployments?page=2"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    let slice2 = pagination.slice(&req_p2, total);
+    assert_eq!(slice2.limit, 100);
+    assert_eq!(slice2.offset, 100);
+
+    let dummy_page2_results: Vec<serde_json::Value> = (100..200)
+        .map(|i| serde_json::json!({ "id": format!("dep-{i}"), "url": format!("https://app{i}.bloomcloud.dev") }))
+        .collect();
+
+    let env2 = pagination.envelope(&req_p2, total, dummy_page2_results.clone());
+    assert_eq!(env2["page"], 2);
+    assert_eq!(env2["total_pages"], 3);
+    assert_eq!(env2["results"].as_array().unwrap().len(), 100);
+
+    // Page 2 differs from Page 1 and shares no rows
+    let page1_ids: std::collections::HashSet<_> = dummy_page1_results
+        .iter()
+        .map(|v| v["id"].as_str().unwrap())
+        .collect();
+    let page2_ids: std::collections::HashSet<_> = dummy_page2_results
+        .iter()
+        .map(|v| v["id"].as_str().unwrap())
+        .collect();
+    assert!(page1_ids.is_disjoint(&page2_ids));
+
+    // 3. Oversized ?page_size= is clamped to max_page_size (100)
+    let req_oversized = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/webhosting/deployments?page_size=500"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    assert_eq!(pagination.page_size(&req_oversized), 100);
+    let slice_clamped = pagination.slice(&req_oversized, total);
+    assert_eq!(slice_clamped.limit, 100);
+
+    // Custom valid page_size
+    let req_custom_size = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/webhosting/deployments?page_size=25"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    assert_eq!(pagination.page_size(&req_custom_size), 25);
+    let slice_custom = pagination.slice(&req_custom_size, total);
+    assert_eq!(slice_custom.limit, 25);
+    assert_eq!(slice_custom.offset, 0);
+}

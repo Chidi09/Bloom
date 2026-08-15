@@ -96,6 +96,8 @@ fn require_role(
 }
 
 /// GET `/api/v1/secrets` — List secrets within the active organization (optionally filtered by environment).
+///
+/// Uses `PageNumberPagination` for bounded browsing of secrets.
 pub async fn list_secrets(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
@@ -106,16 +108,29 @@ pub async fn list_secrets(req: Request, _params: PathParams) -> Result<Response,
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
     let env_filter = req.query("environment_id");
-    let secrets = services::list_secrets(db, org.id, env_filter)
-        .await
-        .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = secrets
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (secrets, total) =
+        services::list_secrets(db, org.id, env_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = secrets
         .iter()
-        .map(|(s, env, org)| serializers::serialize_secret(s, &env.public_id, &org.public_id))
+        .map(|(s, env, org)| {
+            let resp = serializers::serialize_secret(s, &env.public_id, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/secrets` — Create a new secret or update existing under `(environment_id, key)`.

@@ -96,6 +96,8 @@ fn require_role(
 }
 
 /// GET `/api/v1/projects` — List all projects within the active organization.
+///
+/// Uses `PageNumberPagination` for bounded browsing of projects within an organization.
 pub async fn list_projects(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
@@ -105,16 +107,28 @@ pub async fn list_projects(req: Request, _params: PathParams) -> Result<Response
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
-    let projects = services::list_projects_for_organization(db, org.id)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = projects
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (projects, total) =
+        services::list_projects_for_organization(db, org.id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = projects
         .iter()
-        .map(|p| serializers::serialize_project(p, &org.public_id))
+        .map(|p| {
+            let resp = serializers::serialize_project(p, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/projects` — Create a new project in the active organization.

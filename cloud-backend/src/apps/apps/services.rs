@@ -199,33 +199,49 @@ pub async fn get_app(
     Ok((app, project, org))
 }
 
-/// List all apps in an organization (or optionally filtered by project).
+/// List all apps in an organization (or optionally filtered by project), with pagination and N+1 query batching.
 pub async fn list_apps(
     db: &Database,
     organization_id: i64,
     project_public_id: Option<&str>,
-) -> Result<Vec<(App, ProjectSummary, OrganizationSummary)>, AppError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(App, ProjectSummary, OrganizationSummary)>, i64), AppError> {
+    let project_id = if let Some(proj_pub_id) = project_public_id {
+        let project = repositories::project_by_public_id_and_org(db, proj_pub_id, organization_id)
+            .await?
+            .ok_or(AppError::ProjectNotFound)?;
+        Some(project.id)
+    } else {
+        None
+    };
+
+    let (apps, total) =
+        repositories::list_apps_query(db, organization_id, project_id, limit, offset).await?;
+
+    if apps.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(AppError::OrganizationNotFound)?;
 
-    let apps = if let Some(proj_pub_id) = project_public_id {
-        let project = repositories::project_by_public_id_and_org(db, proj_pub_id, organization_id)
-            .await?
-            .ok_or(AppError::ProjectNotFound)?;
-        repositories::apps_for_project(db, project.id, organization_id).await?
-    } else {
-        repositories::apps_for_organization(db, organization_id).await?
-    };
+    // 2. Batch-fetch all parent project summaries in ONE query
+    let mut project_ids: Vec<i64> = apps.iter().map(|a| a.project_id).collect();
+    project_ids.sort_unstable();
+    project_ids.dedup();
+    let project_map = repositories::project_summaries_by_ids(db, &project_ids).await?;
 
     let mut results = Vec::with_capacity(apps.len());
     for app in apps {
-        if let Some(project) = repositories::project_summary_by_id(db, app.project_id).await? {
-            results.push((app, project, org.clone()));
+        if let Some(project) = project_map.get(&app.project_id) {
+            results.push((app, project.clone(), org.clone()));
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Partially update an `App`.

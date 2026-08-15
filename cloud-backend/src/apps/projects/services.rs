@@ -152,12 +152,14 @@ pub async fn get_project(
         .ok_or(ProjectError::ProjectNotFound)
 }
 
-/// Retrieve all projects for an organization, ordered by `-created_at`.
+/// Retrieve projects for an organization, ordered by `-created_at`, with optional pagination.
 pub async fn list_projects_for_organization(
     db: &Database,
     organization_id: i64,
-) -> Result<Vec<Project>, ProjectError> {
-    repositories::projects_for_organization(db, organization_id)
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Project>, i64), ProjectError> {
+    repositories::list_projects_query(db, organization_id, limit, offset)
         .await
         .map_err(Into::into)
 }

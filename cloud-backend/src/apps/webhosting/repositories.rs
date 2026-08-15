@@ -63,6 +63,56 @@ pub async fn deployments_for_organization(
         .await
 }
 
+/// Optional SQL-level filters for a web deployment listing.
+///
+/// These travel together through both the service and repository layers, so they are grouped
+/// rather than threaded as four parallel `Option` arguments that are easy to transpose at a
+/// call site (`target` and `status` are both `Option<&str>`).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WebDeploymentFilters<'a> {
+    /// Restrict to a single app by internal primary key.
+    pub app_id: Option<i64>,
+    /// Restrict to a single environment by internal primary key.
+    pub environment_id: Option<i64>,
+    /// Restrict to a deployment target (e.g. `production`).
+    pub target: Option<&'a str>,
+    /// Restrict to a deployment status (e.g. `live`).
+    pub status: Option<&'a str>,
+}
+
+/// List web deployments with optional filters, limit, and offset, ordered by -created_at.
+pub async fn list_web_deployments_query(
+    db: &Database,
+    organization_id: i64,
+    filters: WebDeploymentFilters<'_>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<WebDeployment>, i64), OrmError> {
+    let mut qs = WebDeployment::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(aid) = filters.app_id {
+        qs = qs.filter(q!(app_id = aid))?;
+    }
+    if let Some(eid) = filters.environment_id {
+        qs = qs.filter(q!(environment_id = eid))?;
+    }
+    if let Some(t) = filters.target {
+        qs = qs.filter(q!(target = t.to_owned()))?;
+    }
+    if let Some(s) = filters.status {
+        qs = qs.filter(q!(status = s.to_owned()))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Look up the previous successful deployment for an app and target to restore on rollback.
 ///
 /// Finds the most recent deployment for the given `app_id` and `target` whose primary key
@@ -168,6 +218,30 @@ pub async fn custom_domains_for_organization(
         .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List custom domains with optional app filter, limit, and offset, ordered by -created_at.
+pub async fn list_custom_domains_query(
+    db: &Database,
+    organization_id: i64,
+    app_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<CustomDomain>, i64), OrmError> {
+    let mut qs = CustomDomain::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(aid) = app_id {
+        qs = qs.filter(q!(app_id = aid))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new `CustomDomain` record.
@@ -480,4 +554,129 @@ pub async fn release_summary_by_public_id_and_org(
         .first(db)
         .await?;
     Ok(found.map(release_summary))
+}
+
+/// Look up multiple app summaries by internal primary keys in one batch.
+pub async fn app_summaries_by_ids(
+    db: &Database,
+    app_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, AppSummary>, OrmError> {
+    if app_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let apps = crate::apps::apps::models::App::objects()
+        .filter(q!(id__in = app_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(apps.len());
+    for a in apps {
+        map.insert(
+            a.id,
+            AppSummary {
+                id: a.id,
+                public_id: a.public_id,
+                name: a.name,
+                slug: a.slug,
+                default_branch: a.default_branch,
+                project_id: a.project_id,
+                organization_id: a.organization_id,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple environment summaries by internal primary keys in one batch.
+pub async fn environment_summaries_by_ids(
+    db: &Database,
+    env_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, EnvironmentSummary>, OrmError> {
+    if env_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let envs = crate::apps::environments::models::Environment::objects()
+        .filter(q!(id__in = env_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(envs.len());
+    for e in envs {
+        map.insert(
+            e.id,
+            EnvironmentSummary {
+                id: e.id,
+                public_id: e.public_id,
+                app_id: e.app_id,
+                organization_id: e.organization_id,
+                name: e.name,
+                slug: e.slug,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple release summaries by internal primary keys in one batch.
+pub async fn release_summaries_by_ids(
+    db: &Database,
+    release_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, ReleaseSummary>, OrmError> {
+    if release_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let rels = crate::apps::releases::models::Release::objects()
+        .filter(q!(id__in = release_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(rels.len());
+    for r in rels {
+        map.insert(r.id, release_summary(r));
+    }
+    Ok(map)
+}
+
+/// Look up multiple project summaries by internal primary keys in one batch.
+pub async fn project_summaries_by_ids(
+    db: &Database,
+    project_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, ProjectSummary>, OrmError> {
+    if project_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let projs = crate::apps::projects::models::Project::objects()
+        .filter(q!(id__in = project_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(projs.len());
+    for p in projs {
+        map.insert(
+            p.id,
+            ProjectSummary {
+                id: p.id,
+                public_id: p.public_id,
+                name: p.name,
+                slug: p.slug,
+                organization_id: p.organization_id.id,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple user profile public IDs by user internal IDs in one batch.
+pub async fn user_public_ids_by_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let profiles = crate::apps::accounts::models::UserProfile::objects()
+        .filter(q!(user_id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(profiles.len());
+    for p in profiles {
+        map.insert(p.user_id, p.public_id);
+    }
+    Ok(map)
 }

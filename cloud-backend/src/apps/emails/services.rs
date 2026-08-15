@@ -581,27 +581,25 @@ pub async fn process_unsubscribe(
     Ok(payload)
 }
 
-/// List email logs for an organization.
+/// List email logs for an organization with pagination.
 pub async fn list_organization_email_logs(
     db: &Database,
     organization_id: i64,
-    limit: i64,
-    offset: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
 ) -> Result<(Vec<EmailLog>, i64), EmailsError> {
-    let items = repositories::email_logs_for_organization(db, organization_id, limit, offset)
+    repositories::list_email_logs_query(db, organization_id, limit, offset)
         .await
-        .map_err(EmailsError::from)?;
-
-    let total = repositories::count_email_logs_for_organization(db, organization_id)
-        .await
-        .map_err(EmailsError::from)?;
-
-    Ok((items, total))
+        .map_err(EmailsError::from)
 }
 
-/// List all campaigns.
-pub async fn list_campaigns(db: &Database) -> Result<Vec<Campaign>, EmailsError> {
-    repositories::list_campaigns(db)
+/// List all campaigns with pagination.
+pub async fn list_campaigns(
+    db: &Database,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Campaign>, i64), EmailsError> {
+    repositories::list_campaigns_query(db, limit, offset)
         .await
         .map_err(EmailsError::from)
 }

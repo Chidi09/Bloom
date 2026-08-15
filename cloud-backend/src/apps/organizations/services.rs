@@ -111,21 +111,34 @@ pub async fn create_organization(
     Ok(saved_org)
 }
 
-/// Retrieve all organizations the user belongs to, paired with membership info.
+/// Retrieve organizations the user belongs to, paired with membership info, with pagination and batched lookup.
 pub async fn list_user_organizations(
     db: &Database,
     user_id: i64,
-) -> Result<Vec<(Organization, UserOrganizationMembership)>, OrganizationError> {
-    let memberships = repositories::memberships_for_user(db, user_id).await?;
-    let mut results = Vec::with_capacity(memberships.len());
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(Organization, UserOrganizationMembership)>, i64), OrganizationError> {
+    let (memberships, total) =
+        repositories::list_memberships_for_user_query(db, user_id, limit, offset).await?;
 
+    if memberships.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // Batch-fetch all organizations in ONE query
+    let mut org_ids: Vec<i64> = memberships.iter().map(|m| m.organization_id).collect();
+    org_ids.sort_unstable();
+    org_ids.dedup();
+    let org_map = repositories::organizations_by_ids(db, &org_ids).await?;
+
+    let mut results = Vec::with_capacity(memberships.len());
     for membership in memberships {
-        if let Some(org) = repositories::organization_by_id(db, membership.organization_id).await? {
-            results.push((org, membership));
+        if let Some(org) = org_map.get(&membership.organization_id) {
+            results.push((org.clone(), membership));
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Retrieve a single organization by its public UUID, verifying the user is a member.
@@ -213,24 +226,45 @@ pub async fn delete_organization(
     Ok(())
 }
 
-/// List all members in an organization along with auth user and profile info.
+/// List all members in an organization along with auth user and profile info, with pagination and batched queries.
 pub async fn list_members(
     db: &Database,
     user_id: i64,
     org_public_id: &str,
-) -> Result<Vec<(UserOrganizationMembership, User, Option<UserProfile>)>, OrganizationError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<
+    (
+        Vec<(UserOrganizationMembership, User, Option<UserProfile>)>,
+        i64,
+    ),
+    OrganizationError,
+> {
     let (org, _) = get_organization(db, user_id, org_public_id).await?;
-    let memberships = repositories::memberships_for_org(db, org.id).await?;
+    let (memberships, total) =
+        repositories::list_memberships_for_org_query(db, org.id, limit, offset).await?;
+
+    if memberships.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    let mut user_ids: Vec<i64> = memberships.iter().map(|m| m.user_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+
+    // Batched lookups: one query each for users and profiles, rather than two per membership.
+    let user_map = repositories::users_by_ids(db, &user_ids).await?;
+    let profile_map = repositories::profiles_by_user_ids(db, &user_ids).await?;
 
     let mut members_data = Vec::with_capacity(memberships.len());
     for membership in memberships {
-        if let Some(user) = account_repos::user_by_id(db, membership.user_id).await? {
-            let profile = account_repos::profile_by_user_id(db, user.id).await?;
-            members_data.push((membership, user, profile));
+        if let Some(user) = user_map.get(&membership.user_id) {
+            let profile = profile_map.get(&membership.user_id).cloned();
+            members_data.push((membership, user.clone(), profile));
         }
     }
 
-    Ok(members_data)
+    Ok((members_data, total))
 }
 
 /// Invite a new member to the organization by email.

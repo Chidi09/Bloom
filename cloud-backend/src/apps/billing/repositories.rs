@@ -40,6 +40,25 @@ pub async fn active_plans(db: &Database) -> Result<Vec<Plan>, OrmError> {
         .await
 }
 
+/// List active plans with optional limit and offset, ordered by price_minor.
+pub async fn list_plans_query(
+    db: &Database,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Plan>, i64), OrmError> {
+    let mut qs = Plan::objects().filter(q!(active = true))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("price_minor")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Plan` record.
 pub async fn insert_plan(db: &Database, plan: Plan) -> Result<Plan, OrmError> {
     plan.save(db).await
@@ -217,6 +236,45 @@ pub async fn invoices_for_organization(
         .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List all invoices for an organization with optional limit and offset, ordered by -created_at.
+pub async fn list_invoices_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Invoice>, i64), OrmError> {
+    let mut qs = Invoice::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
+/// Look up subscription public IDs by their internal primary keys in one batch.
+pub async fn subscription_public_ids_by_ids(
+    db: &Database,
+    sub_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if sub_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let subs = Subscription::objects()
+        .filter(q!(id__in = sub_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(subs.len());
+    for s in subs {
+        map.insert(s.id, s.public_id);
+    }
+    Ok(map)
 }
 
 /// List all invoices for a specific subscription.

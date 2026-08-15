@@ -87,6 +87,26 @@ pub async fn connections_for_organization(
         .await
 }
 
+/// List all Git connections belonging to an organization with optional limit and offset, ordered by -created_at.
+pub async fn list_connections_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<GitConnection>, i64), OrmError> {
+    let mut qs = GitConnection::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `GitConnection` record.
 pub async fn insert_connection(
     db: &Database,

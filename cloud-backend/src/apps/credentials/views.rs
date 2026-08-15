@@ -96,6 +96,8 @@ fn require_role(
 }
 
 /// GET `/api/v1/credentials` — List all credentials in the active organization (metadata-only).
+///
+/// Uses `PageNumberPagination` for bounded browsing of platform credentials.
 pub async fn list_credentials(
     req: Request,
     _params: PathParams,
@@ -108,16 +110,28 @@ pub async fn list_credentials(
         .map_err(DjangorsError::from)?;
     require_role(&membership, OrganizationRole::Viewer).map_err(DjangorsError::from)?;
 
-    let credentials = services::list_credentials_for_organization(db, org.id)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = credentials
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (credentials, total) =
+        services::list_credentials_for_organization(db, org.id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = credentials
         .iter()
-        .map(|c| serializers::serialize_credential(c, &org.public_id))
+        .map(|c| {
+            let resp = serializers::serialize_credential(c, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/credentials` — Create a new encrypted credential in the active organization.

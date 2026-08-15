@@ -530,75 +530,129 @@ pub async fn get_web_deployment(
     })
 }
 
-/// List web deployments in an organization, optionally filtered by app, environment, target, or status.
+/// Caller-supplied filters for a web deployment listing, in wire terms.
+///
+/// The service resolves `app_public_id`/`environment_public_id` to internal keys before
+/// handing the rest down to the repository; grouping them keeps the public IDs and the
+/// free-text filters from being transposed at the call site.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WebDeploymentListFilters<'a> {
+    /// External public UUID of an app to restrict to.
+    pub app_public_id: Option<&'a str>,
+    /// External public UUID of an environment to restrict to.
+    pub environment_public_id: Option<&'a str>,
+    /// Deployment target to restrict to (e.g. `production`).
+    pub target: Option<&'a str>,
+    /// Deployment status to restrict to (e.g. `live`).
+    pub status: Option<&'a str>,
+}
+
+/// List web deployments in an organization with pagination, SQL-level filtering, and batch entity lookups.
 pub async fn list_web_deployments(
     db: &Database,
     organization_id: i64,
-    app_public_id: Option<&str>,
-    environment_public_id: Option<&str>,
-    target_filter: Option<&str>,
-    status_filter: Option<&str>,
-) -> Result<Vec<WebDeploymentDetail>, WebHostingError> {
-    let deployments = if let Some(app_pub_id) = app_public_id {
+    filters: WebDeploymentListFilters<'_>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<WebDeploymentDetail>, i64), WebHostingError> {
+    let WebDeploymentListFilters {
+        app_public_id,
+        environment_public_id,
+        target: target_filter,
+        status: status_filter,
+    } = filters;
+    let app_id = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_summary_by_public_id_and_org(db, app_pub_id, organization_id)
             .await?
             .ok_or(WebHostingError::AppNotFound)?;
-        repositories::deployments_for_app(db, app.id, organization_id).await?
+        Some(app.id)
     } else {
-        repositories::deployments_for_organization(db, organization_id).await?
+        None
     };
 
-    let mut results = Vec::new();
-    for d in deployments {
-        if let Some(target) = target_filter {
-            if d.target != target {
-                continue;
-            }
-        }
-        if let Some(status) = status_filter {
-            if d.status != status {
-                continue;
-            }
-        }
-        if let Some(env_pub_id) = environment_public_id {
-            if let Some(env) =
-                repositories::environment_summary_by_id(db, d.environment_id.id).await?
-            {
-                if env.public_id != env_pub_id {
-                    continue;
-                }
-            } else {
-                continue;
-            }
-        }
-
-        let app = repositories::app_summary_by_id(db, d.app_id.id)
-            .await?
-            .ok_or(WebHostingError::AppNotFound)?;
-
-        let env = repositories::environment_summary_by_id(db, d.environment_id.id)
-            .await?
-            .ok_or(WebHostingError::EnvironmentNotFound)?;
-
-        let release_public_id = match d.release_id {
-            Some(ref rel) => repositories::release_summary_by_id(db, *rel)
+    let environment_id = if let Some(env_pub_id) = environment_public_id {
+        let env =
+            repositories::environment_summary_by_public_id_and_org(db, env_pub_id, organization_id)
                 .await?
-                .map(|r| r.public_id),
-            None => None,
-        };
+                .ok_or(WebHostingError::EnvironmentNotFound)?;
+        Some(env.id)
+    } else {
+        None
+    };
 
-        let user_id_str = d.deployed_by_id.to_string();
+    let (deployments, total) = repositories::list_web_deployments_query(
+        db,
+        organization_id,
+        repositories::WebDeploymentFilters {
+            app_id,
+            environment_id,
+            target: target_filter,
+            status: status_filter,
+        },
+        limit,
+        offset,
+    )
+    .await?;
+
+    if deployments.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Batch lookup apps in ONE query
+    let mut app_ids: Vec<i64> = deployments.iter().map(|d| d.app_id.id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_summaries_by_ids(db, &app_ids).await?;
+
+    // 2. Batch lookup environments in ONE query
+    let mut env_ids: Vec<i64> = deployments.iter().map(|d| d.environment_id.id).collect();
+    env_ids.sort_unstable();
+    env_ids.dedup();
+    let env_map = repositories::environment_summaries_by_ids(db, &env_ids).await?;
+
+    // 3. Batch lookup releases in ONE query
+    let mut release_ids: Vec<i64> = deployments.iter().filter_map(|d| d.release_id).collect();
+    release_ids.sort_unstable();
+    release_ids.dedup();
+    let release_map = repositories::release_summaries_by_ids(db, &release_ids).await?;
+
+    // 4. Batch lookup user profiles in ONE query
+    let mut user_ids: Vec<i64> = deployments.iter().map(|d| d.deployed_by_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
+
+    let mut results = Vec::with_capacity(deployments.len());
+    for d in deployments {
+        let app_pub_id = app_map
+            .get(&d.app_id.id)
+            .map(|a| a.public_id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let env_pub_id = env_map
+            .get(&d.environment_id.id)
+            .map(|e| e.public_id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let release_pub_id = d
+            .release_id
+            .and_then(|rid| release_map.get(&rid).map(|r| r.public_id.clone()));
+
+        let user_id_str = user_map
+            .get(&d.deployed_by_id)
+            .cloned()
+            .unwrap_or_else(|| d.deployed_by_id.to_string());
 
         results.push(WebDeploymentDetail {
             deployment: d,
-            app_public_id: app.public_id,
-            environment_public_id: env.public_id,
-            release_public_id,
+            app_public_id: app_pub_id,
+            environment_public_id: env_pub_id,
+            release_public_id: release_pub_id,
             deployed_by_public_id: user_id_str,
         });
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Register a custom domain for an application and return required DNS records.
@@ -1001,27 +1055,48 @@ pub async fn get_custom_domain(
     })
 }
 
-/// List custom domains in an organization, optionally filtered by app.
+/// List custom domains in an organization with pagination, app filtering, and batch entity lookups.
 pub async fn list_custom_domains(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
     apex_domain: Option<&str>,
-) -> Result<Vec<CustomDomainDetail>, WebHostingError> {
-    let domains = if let Some(app_pub_id) = app_public_id {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<CustomDomainDetail>, i64), WebHostingError> {
+    let app_id = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_summary_by_public_id_and_org(db, app_pub_id, organization_id)
             .await?
             .ok_or(WebHostingError::AppNotFound)?;
-        repositories::custom_domains_for_app(db, app.id, organization_id).await?
+        Some(app.id)
     } else {
-        repositories::custom_domains_for_organization(db, organization_id).await?
+        None
     };
+
+    let (domains, total) =
+        repositories::list_custom_domains_query(db, organization_id, app_id, limit, offset).await?;
+
+    if domains.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Batch lookup apps in ONE query
+    let mut app_ids: Vec<i64> = domains.iter().map(|d| d.app_id.id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_summaries_by_ids(db, &app_ids).await?;
+
+    // 2. Batch lookup projects for these apps in ONE query
+    let mut project_ids: Vec<i64> = app_map.values().map(|a| a.project_id).collect();
+    project_ids.sort_unstable();
+    project_ids.dedup();
+    let project_map = repositories::project_summaries_by_ids(db, &project_ids).await?;
 
     let mut results = Vec::with_capacity(domains.len());
     for d in domains {
-        if let Some(app) = repositories::app_summary_by_id(db, d.app_id.id).await? {
-            let project = repositories::project_summary_by_id(db, app.project_id).await?;
-            let project_slug = project.as_ref().map(|p| p.slug.as_str()).unwrap_or("app");
+        if let Some(app) = app_map.get(&d.app_id.id) {
+            let project = project_map.get(&app.project_id);
+            let project_slug = project.map(|p| p.slug.as_str()).unwrap_or("app");
 
             let required_records = compute_required_dns_records(
                 &d.domain,
@@ -1033,11 +1108,11 @@ pub async fn list_custom_domains(
 
             results.push(CustomDomainDetail {
                 domain: d,
-                app_public_id: app.public_id,
+                app_public_id: app.public_id.clone(),
                 required_records,
             });
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }

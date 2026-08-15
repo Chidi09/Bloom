@@ -56,8 +56,33 @@ pub async fn secrets_for_organization(
 ) -> Result<Vec<Secret>, OrmError> {
     Secret::objects()
         .filter(q!(organization_id = organization_id))?
+        .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List secrets with optional environment filter, and optional limit and offset.
+pub async fn list_secrets_query(
+    db: &Database,
+    organization_id: i64,
+    environment_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Secret>, i64), OrmError> {
+    let mut qs = Secret::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(e_id) = environment_id {
+        qs = qs.filter(q!(environment_id = e_id))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new `Secret` record.
@@ -171,6 +196,25 @@ pub async fn environment_summary_by_id(
         .first(db)
         .await?;
     Ok(found.map(environment_summary))
+}
+
+/// Look up multiple environment summaries by their internal primary keys in one batched query.
+pub async fn environment_summaries_by_ids(
+    db: &Database,
+    env_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, EnvironmentSummary>, OrmError> {
+    if env_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let envs = crate::apps::environments::models::Environment::objects()
+        .filter(q!(id__in = env_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(envs.len());
+    for env in envs {
+        map.insert(env.id, environment_summary(env));
+    }
+    Ok(map)
 }
 
 /// Look up an organization summary by its internal primary key.

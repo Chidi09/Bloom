@@ -220,6 +220,26 @@ pub async fn email_logs_for_organization(
         .await
 }
 
+/// List email logs for an organization with optional limit and offset, ordered by -created_at.
+pub async fn list_email_logs_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<EmailLog>, i64), OrmError> {
+    let mut qs = EmailLog::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Count total email logs for an organization.
 pub async fn count_email_logs_for_organization(
     db: &Database,
@@ -315,6 +335,25 @@ pub async fn campaign_by_key(db: &Database, key: &str) -> Result<Option<Campaign
 /// List all campaigns ordered by creation date.
 pub async fn list_campaigns(db: &Database) -> Result<Vec<Campaign>, OrmError> {
     Campaign::objects().order_by("-created_at")?.all(db).await
+}
+
+/// List campaigns with optional limit and offset, ordered by -created_at.
+pub async fn list_campaigns_query(
+    db: &Database,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Campaign>, i64), OrmError> {
+    let mut qs = Campaign::objects();
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// List all active campaigns available for daily selection.

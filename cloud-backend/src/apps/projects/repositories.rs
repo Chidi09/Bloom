@@ -72,6 +72,26 @@ pub async fn projects_for_organization(
         .await
 }
 
+/// List projects belonging to an organization with pagination support (LIMIT/OFFSET).
+pub async fn list_projects_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Project>, i64), OrmError> {
+    let mut qs = Project::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Project` record.
 pub async fn insert_project(db: &Database, project: Project) -> Result<Project, OrmError> {
     project.save(db).await

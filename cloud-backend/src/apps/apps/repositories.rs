@@ -69,8 +69,33 @@ pub async fn apps_for_organization(
 ) -> Result<Vec<App>, OrmError> {
     App::objects()
         .filter(q!(organization_id = organization_id))?
+        .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List apps with optional project filter, and optional limit and offset.
+pub async fn list_apps_query(
+    db: &Database,
+    organization_id: i64,
+    project_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<App>, i64), OrmError> {
+    let mut qs = App::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(p_id) = project_id {
+        qs = qs.filter(q!(project_id = p_id))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new `App` record.
@@ -172,6 +197,33 @@ pub async fn project_summary_by_id(
         organization_id: p.organization_id.id,
         slug: p.slug,
     }))
+}
+
+/// Look up multiple project summaries by their internal primary keys in one batched query.
+pub async fn project_summaries_by_ids(
+    db: &Database,
+    project_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, ProjectSummary>, OrmError> {
+    if project_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let projects = crate::apps::projects::models::Project::objects()
+        .filter(q!(id__in = project_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(projects.len());
+    for p in projects {
+        map.insert(
+            p.id,
+            ProjectSummary {
+                id: p.id,
+                public_id: p.public_id,
+                organization_id: p.organization_id.id,
+                slug: p.slug,
+            },
+        );
+    }
+    Ok(map)
 }
 
 /// Look up an organization summary by its internal primary key.

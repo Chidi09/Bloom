@@ -30,6 +30,8 @@ fn get_org_id(req: &Request) -> Result<i64, DjangorsError> {
 }
 
 /// GET `/api/v1/environments` — List all environments in the current organization (optionally filtered by `app_id` query param).
+///
+/// Uses `PageNumberPagination` for bounded browsing of environments.
 pub async fn list_environments(
     req: Request,
     _params: PathParams,
@@ -43,30 +45,30 @@ pub async fn list_environments(
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
 
-    // Parse optional query param: ?app_id=...
-    let app_filter = req.raw_query().and_then(|q| {
-        q.split('&').find_map(|pair| {
-            let mut parts = pair.split('=');
-            if parts.next() == Some("app_id") {
-                parts.next()
-            } else {
-                None
-            }
-        })
-    });
+    let app_filter = req.query("app_id");
 
-    let env_tuples = services::list_environments(db, org_id, app_filter)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = env_tuples
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (env_tuples, total) =
+        services::list_environments(db, org_id, app_filter, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = env_tuples
         .iter()
         .map(|(env, app, org)| {
-            serializers::serialize_environment(env, &app.public_id, &org.public_id)
+            let resp = serializers::serialize_environment(env, &app.public_id, &org.public_id);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/environments` — Create a new environment within an app.

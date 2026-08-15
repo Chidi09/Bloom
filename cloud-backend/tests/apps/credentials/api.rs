@@ -158,3 +158,80 @@ fn test_credential_error_mappings() {
     assert_eq!(dj_err.status_code(), StatusCode::UNAUTHORIZED);
     assert_eq!(dj_err.code(), "invalid_credentials");
 }
+
+#[test]
+fn test_credentials_list_pagination_envelope_and_slicing() {
+    use bytes::Bytes;
+    use djangors_core::Request;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    use hyper::http::{HeaderMap, Method, Uri};
+
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let req = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/credentials"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    assert_eq!(pagination.page_size(&req), 100);
+
+    let total = 101_i64;
+    let slice1 = pagination.slice(&req, total);
+    assert_eq!(slice1.limit, 100);
+    assert_eq!(slice1.offset, 0);
+
+    let dummy_page1: Vec<serde_json::Value> = (0..100)
+        .map(
+            |i| serde_json::json!({ "id": format!("cred-{i}"), "name": format!("Credential {i}") }),
+        )
+        .collect();
+
+    let env1 = pagination.envelope(&req, total, dummy_page1.clone());
+    assert_eq!(env1["count"], 101);
+    assert_eq!(env1["page"], 1);
+    assert_eq!(env1["total_pages"], 2);
+    assert_eq!(env1["results"].as_array().unwrap().len(), 100);
+
+    let req_p2 = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/credentials?page=2"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    let slice2 = pagination.slice(&req_p2, total);
+    assert_eq!(slice2.limit, 100);
+    assert_eq!(slice2.offset, 100);
+
+    let dummy_page2: Vec<serde_json::Value> = (100..101)
+        .map(
+            |i| serde_json::json!({ "id": format!("cred-{i}"), "name": format!("Credential {i}") }),
+        )
+        .collect();
+
+    let env2 = pagination.envelope(&req_p2, total, dummy_page2.clone());
+    assert_eq!(env2["page"], 2);
+    assert_eq!(env2["total_pages"], 2);
+    assert_eq!(env2["results"].as_array().unwrap().len(), 1);
+
+    let p1_ids: std::collections::HashSet<_> = dummy_page1
+        .iter()
+        .map(|v| v["id"].as_str().unwrap())
+        .collect();
+    let p2_ids: std::collections::HashSet<_> = dummy_page2
+        .iter()
+        .map(|v| v["id"].as_str().unwrap())
+        .collect();
+    assert!(p1_ids.is_disjoint(&p2_ids));
+
+    let req_oversized = Request::new(
+        Method::GET,
+        Uri::from_static("/api/v1/credentials?page_size=500"),
+        HeaderMap::new(),
+        Bytes::new(),
+    );
+    assert_eq!(pagination.page_size(&req_oversized), 100);
+}

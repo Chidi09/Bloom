@@ -191,13 +191,16 @@ pub async fn create_credential(
     Ok(saved)
 }
 
-/// List all credentials belonging to an organization.
+/// List all credentials belonging to an organization, with optional pagination.
 pub async fn list_credentials_for_organization(
     db: &Database,
     organization_id: i64,
-) -> Result<Vec<Credential>, CredentialError> {
-    let credentials = repositories::credentials_for_organization(db, organization_id).await?;
-    Ok(credentials)
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Credential>, i64), CredentialError> {
+    let (credentials, total) =
+        repositories::list_credentials_query(db, organization_id, limit, offset).await?;
+    Ok((credentials, total))
 }
 
 /// Retrieve a single credential by public UUID and verify organization scoping.

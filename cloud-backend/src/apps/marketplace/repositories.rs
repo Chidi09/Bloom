@@ -88,6 +88,26 @@ pub async fn templates_for_organization(
         .await
 }
 
+/// List templates belonging to an organization with optional limit and offset.
+pub async fn list_org_templates_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Template>, i64), OrmError> {
+    let mut qs = Template::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// List all public and published templates for the marketplace catalog, newest first.
 pub async fn public_published_templates(
     db: &Database,
@@ -116,6 +136,34 @@ pub async fn public_published_templates(
     } else {
         Ok(all)
     }
+}
+
+/// List public and published templates with optional search, limit, and offset.
+pub async fn list_public_published_templates_query(
+    db: &Database,
+    search: Option<&str>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Template>, i64), OrmError> {
+    let mut qs = Template::objects()
+        .filter(q!(visibility = "public".to_string()))?
+        .filter(q!(status = "published".to_string()))?;
+    if let Some(s) = search {
+        let s_trimmed = s.trim();
+        if !s_trimmed.is_empty() {
+            qs = qs.filter(q!(name__icontains = s_trimmed.to_string()))?;
+        }
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Look up a public and published template by public UUID.
@@ -205,6 +253,26 @@ pub async fn versions_for_template(
         .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List versions for a template with optional limit and offset.
+pub async fn list_template_versions_query(
+    db: &Database,
+    template_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<TemplateVersion>, i64), OrmError> {
+    let mut qs = TemplateVersion::objects().filter(q!(template_id = template_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Fetch the latest version for a template.
@@ -347,6 +415,28 @@ pub async fn purchases_for_buyer_org(
         .await
 }
 
+/// List purchases for a buyer organization using cursor-based pagination.
+pub async fn list_purchases_cursor(
+    db: &Database,
+    buyer_organization_id: i64,
+    cursor: Option<&str>,
+    limit: i64,
+) -> Result<(Vec<TemplatePurchase>, Option<String>), OrmError> {
+    let mut qs =
+        TemplatePurchase::objects().filter(q!(buyer_organization_id = buyer_organization_id))?;
+    qs = crate::apps::common::pagination::apply_datetime_cursor(qs, cursor, "created_at", true)?;
+    qs = qs.order_by("-created_at")?.limit(limit + 1);
+    let mut rows = qs.all(db).await?;
+    let has_next = rows.len() > limit as usize;
+    if has_next {
+        rows.truncate(limit as usize);
+    }
+    let next_cursor = rows.last().and_then(|last| {
+        crate::apps::common::pagination::encode_datetime_cursor(has_next, last.id, last.created_at)
+    });
+    Ok((rows, next_cursor))
+}
+
 /// Insert a new [`TemplatePurchase`] record.
 pub async fn insert_purchase(
     db: &Database,
@@ -419,6 +509,30 @@ pub async fn all_reviews_for_template(
         .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List reviews for a template with optional limit and offset.
+pub async fn list_template_reviews_query(
+    db: &Database,
+    template_id: i64,
+    include_unmoderated: bool,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<TemplateReview>, i64), OrmError> {
+    let mut qs = TemplateReview::objects().filter(q!(template_id = template_id))?;
+    if !include_unmoderated {
+        qs = qs.filter(q!(status = "published".to_string()))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Insert a new [`TemplateReview`] record.
@@ -707,4 +821,67 @@ pub async fn user_public_id_by_id(db: &Database, user_id: i64) -> Result<Option<
         .first(db)
         .await?;
     Ok(found.map(|p| p.public_id))
+}
+
+/// Look up multiple organization summaries by internal primary keys in one batch.
+pub async fn organizations_by_ids(
+    db: &Database,
+    org_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, OrganizationSummary>, OrmError> {
+    if org_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let orgs = crate::apps::organizations::models::Organization::objects()
+        .filter(q!(id__in = org_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(orgs.len());
+    for org in orgs {
+        map.insert(
+            org.id,
+            OrganizationSummary {
+                id: org.id,
+                public_id: org.public_id,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple templates by internal primary keys in one batch.
+pub async fn templates_by_ids(
+    db: &Database,
+    template_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, Template>, OrmError> {
+    if template_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let templates = Template::objects()
+        .filter(q!(id__in = template_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(templates.len());
+    for t in templates {
+        map.insert(t.id, t);
+    }
+    Ok(map)
+}
+
+/// Look up multiple template versions by internal primary keys in one batch.
+pub async fn versions_by_ids(
+    db: &Database,
+    version_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, TemplateVersion>, OrmError> {
+    if version_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let versions = TemplateVersion::objects()
+        .filter(q!(id__in = version_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(versions.len());
+    for v in versions {
+        map.insert(v.id, v);
+    }
+    Ok(map)
 }

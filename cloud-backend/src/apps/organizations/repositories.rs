@@ -106,26 +106,88 @@ pub async fn membership_for_user_in_org(
         .await
 }
 
-/// Fetch all memberships for a user.
+/// Fetch all memberships for a user, ordered by newest first (`-created_at`).
 pub async fn memberships_for_user(
     db: &Database,
     user_id: i64,
 ) -> Result<Vec<UserOrganizationMembership>, OrmError> {
     UserOrganizationMembership::objects()
         .filter(q!(user_id = user_id))?
+        .order_by("-created_at")?
         .all(db)
         .await
 }
 
-/// Fetch all memberships in an organization.
+/// List memberships for a user with pagination (LIMIT/OFFSET).
+pub async fn list_memberships_for_user_query(
+    db: &Database,
+    user_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<UserOrganizationMembership>, i64), OrmError> {
+    let mut qs = UserOrganizationMembership::objects().filter(q!(user_id = user_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
+/// Fetch multiple organizations by their internal primary keys in one batched query.
+pub async fn organizations_by_ids(
+    db: &Database,
+    org_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, Organization>, OrmError> {
+    if org_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let orgs = Organization::objects()
+        .filter(q!(id__in = org_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(orgs.len());
+    for org in orgs {
+        map.insert(org.id, org);
+    }
+    Ok(map)
+}
+
+/// Fetch all memberships in an organization, ordered by newest first (`-created_at`).
 pub async fn memberships_for_org(
     db: &Database,
     organization_id: i64,
 ) -> Result<Vec<UserOrganizationMembership>, OrmError> {
     UserOrganizationMembership::objects()
         .filter(q!(organization_id = organization_id))?
+        .order_by("-created_at")?
         .all(db)
         .await
+}
+
+/// List memberships in an organization with pagination (LIMIT/OFFSET).
+pub async fn list_memberships_for_org_query(
+    db: &Database,
+    organization_id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<UserOrganizationMembership>, i64), OrmError> {
+    let mut qs =
+        UserOrganizationMembership::objects().filter(q!(organization_id = organization_id))?;
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
 }
 
 /// Count how many members hold the `owner` role in an organization.
@@ -230,4 +292,38 @@ pub async fn delete_invite_by_id(db: &Database, id: i64) -> Result<u64, OrmError
         .filter(q!(id = id))?
         .delete(db)
         .await
+}
+
+/// Batch-fetch auth users by internal primary key, keyed by id.
+///
+/// Member listing needs one user row per membership; issuing those lookups one at a time
+/// turns a page of 50 members into 50 round trips, so they are collapsed into a single
+/// `id IN (...)` query here.
+pub async fn users_by_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, djangors_auth::User>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let users = djangors_auth::User::objects()
+        .filter(q!(id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    Ok(users.into_iter().map(|u| (u.id, u)).collect())
+}
+
+/// Batch-fetch user profiles by owning user id, keyed by `user_id`.
+pub async fn profiles_by_user_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, crate::apps::accounts::models::UserProfile>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let profiles = crate::apps::accounts::models::UserProfile::objects()
+        .filter(q!(user_id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    Ok(profiles.into_iter().map(|p| (p.user_id, p)).collect())
 }

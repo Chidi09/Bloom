@@ -6,9 +6,8 @@ use djangors_db::Database;
 use djangors_rest::Permission;
 
 use super::contracts::{
-    CampaignResponse, CreateCampaignRequest, EmailLogListResponse, PreferencesListResponse,
-    PreviewCampaignRequest, UnsubscribeRequest, UnsubscribeResponse, UpdateCampaignRequest,
-    UpdatePreferencesRequest,
+    CreateCampaignRequest, PreferencesListResponse, PreviewCampaignRequest, UnsubscribeRequest,
+    UnsubscribeResponse, UpdateCampaignRequest, UpdatePreferencesRequest,
 };
 use super::errors::EmailsError;
 use super::permissions::{
@@ -18,6 +17,7 @@ use super::permissions::{
 use super::{repositories, serializers, services};
 
 use crate::settings::BloomSettings;
+use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
 
 /// Retrieve database handle from request state.
 fn get_db(req: &Request) -> Result<&Database, DjangorsError> {
@@ -179,19 +179,27 @@ pub async fn list_email_logs(req: Request, params: PathParams) -> Result<Respons
         get_org_id(&req)?
     };
 
-    let (items, total) = services::list_organization_email_logs(db, org_id, 50, 0)
-        .await
-        .map_err(DjangorsError::from)?;
-
-    let payload = EmailLogListResponse {
-        items: items
-            .iter()
-            .map(|l| serializers::serialize_email_log(l, Some(org_param.to_string())))
-            .collect(),
-        total,
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
     };
 
-    Response::json(StatusCode::OK, &payload)
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (items, total) =
+        services::list_organization_email_logs(db, org_id, Some(limit), Some(offset))
+            .await
+            .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = items
+        .iter()
+        .map(|l| {
+            let resp = serializers::serialize_email_log(l, Some(org_param.to_string()));
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
+        .collect();
+
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// GET `/api/v1/admin/campaigns/` — List all campaigns (Staff only).
@@ -200,15 +208,27 @@ pub async fn list_campaigns(req: Request, _params: PathParams) -> Result<Respons
     require_staff(&user).map_err(DjangorsError::from)?;
 
     let db = get_db(&req)?;
-    let campaigns = services::list_campaigns(db)
+
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    let (limit, offset) = crate::apps::common::pagination::page_window(&pagination, &req);
+
+    let (campaigns, total) = services::list_campaigns(db, Some(limit), Some(offset))
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload: Vec<CampaignResponse> = campaigns
+    let results: Vec<serde_json::Value> = campaigns
         .iter()
-        .map(serializers::serialize_campaign)
+        .map(|c| {
+            let resp = serializers::serialize_campaign(c);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
+        })
         .collect();
-    Response::json(StatusCode::OK, &payload)
+
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/admin/campaigns/` — Create a new campaign (Staff only).
