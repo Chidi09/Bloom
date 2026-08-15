@@ -164,27 +164,7 @@ pub fn can_transition(from: &str, to: &str) -> bool {
 
 /// Convert a template name into a clean, URL-safe slug.
 pub fn slugify(name: &str) -> String {
-    let mut slug = String::new();
-    let mut prev_dash = false;
-
-    for c in name.chars() {
-        if c.is_alphanumeric() {
-            slug.push(c.to_ascii_lowercase());
-            prev_dash = false;
-        } else if !prev_dash {
-            slug.push('-');
-            prev_dash = true;
-        }
-    }
-
-    let trimmed = slug.trim_matches('-');
-    if trimmed.is_empty() {
-        "template".to_string()
-    } else if trimmed.len() > 60 {
-        trimmed[..60].trim_matches('-').to_string()
-    } else {
-        trimmed.to_string()
-    }
+    crate::apps::common::slug::slugify(name, "template")
 }
 
 /// Validate that a version string is a valid semver format (e.g. `1.0.0`, `v2.1.0-beta`).

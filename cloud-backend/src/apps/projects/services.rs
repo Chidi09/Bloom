@@ -13,27 +13,7 @@ use super::repositories;
 
 /// Convert a string into a clean, URL-safe slug.
 pub fn slugify(name: &str) -> String {
-    let mut slug = String::with_capacity(name.len());
-    let mut last_was_dash = true;
-
-    for c in name.chars() {
-        if c.is_ascii_alphanumeric() {
-            slug.push(c.to_ascii_lowercase());
-            last_was_dash = false;
-        } else if (c == ' ' || c == '-' || c == '_' || c == '.') && !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-
-    let trimmed = slug.trim_matches('-');
-    if trimmed.is_empty() {
-        "project".to_string()
-    } else if trimmed.len() > 60 {
-        trimmed[..60].trim_matches('-').to_string()
-    } else {
-        trimmed.to_string()
-    }
+    crate::apps::common::slug::slugify(name, "project")
 }
 
 /// Generate a unique slug within an organization by checking existing records.
