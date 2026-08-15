@@ -138,3 +138,37 @@ fn test_deployment_error_mappings() {
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "missing_release_or_artifact");
 }
+
+#[test]
+fn test_deployments_cursor_pagination_envelope() {
+    use djangors_rest::pagination::CursorPagination;
+    let pagination = CursorPagination {
+        page_size: 50,
+        max_page_size: Some(100),
+    };
+
+    let sample_dep = serde_json::json!({
+        "id": "dep-1",
+        "release_id": "rel-1",
+        "artifact_id": null,
+        "environment_id": "env-1",
+        "organization_id": "org-1",
+        "platform": "ios",
+        "target": "testflight",
+        "status": "ready",
+        "created_by_id": "user-1",
+        "created_at": "2026-08-15T11:59:00Z",
+        "updated_at": "2026-08-15T12:05:00Z"
+    });
+
+    let envelope = pagination.envelope_with_cursor(
+        100,
+        vec![sample_dep],
+        Some("bmV4dF9jdXJzb3I=".to_string()),
+    );
+
+    assert_eq!(envelope["count"], 100);
+    assert_eq!(envelope["results"].as_array().unwrap().len(), 1);
+    assert_eq!(envelope["next_cursor"], "bmV4dF9jdXJzb3I=");
+    assert_eq!(envelope["previous_cursor"], serde_json::Value::Null);
+}

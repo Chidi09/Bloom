@@ -10,6 +10,7 @@ use djangors_rest::Permission;
 use super::contracts::ArtifactRegisterRequest;
 use super::errors::ArtifactError;
 use super::permissions::{require_job_token, OrganizationPermission};
+use super::repositories;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::{require_authenticated, CurrentOrganizationId};
 use crate::infra::storage::{ObjectStorage, DEFAULT_PRESIGNED_EXPIRY};
@@ -41,6 +42,9 @@ fn get_storage(req: &Request) -> Option<Arc<dyn ObjectStorage>> {
 }
 
 /// GET `/api/v1/artifacts` — List artifacts in the current organization (optionally filtered by `build_id` query param).
+///
+/// Uses `PageNumberPagination` because artifacts are bounded sets per build or organization,
+/// where clients display pages in artifact management views.
 pub async fn list_artifacts(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let _user = require_authenticated(&req).await?;
     let perm = OrganizationPermission::viewer();
@@ -53,18 +57,40 @@ pub async fn list_artifacts(req: Request, _params: PathParams) -> Result<Respons
 
     let build_filter = req.query("build_id");
 
-    let artifact_tuples = services::list_artifacts(db, org_id, build_filter)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = artifact_tuples
+    // Preliminary count to calculate page slice
+    let total_count = repositories::list_artifacts_query(db, org_id, None, Some(0), None)
+        .await
+        .map(|(_, count)| count)
+        .unwrap_or(0);
+
+    let slice = pagination.slice(&req, total_count);
+
+    let (artifact_tuples, total) = services::list_artifacts(
+        db,
+        org_id,
+        build_filter,
+        Some(slice.limit),
+        Some(slice.offset),
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = artifact_tuples
         .iter()
         .map(|(artifact, build, org)| {
-            serializers::serialize_artifact(artifact, &build.public_id, &org.public_id, None)
+            let resp =
+                serializers::serialize_artifact(artifact, &build.public_id, &org.public_id, None);
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// GET `/api/v1/artifacts/{id}` — Retrieve an artifact by its public UUID, including a fresh short-lived presigned download URL when storage is wired.

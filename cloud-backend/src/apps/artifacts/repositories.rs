@@ -49,6 +49,30 @@ pub async fn artifacts_for_organization(
         .await
 }
 
+/// List artifacts with optional build filter, with limit and offset.
+pub async fn list_artifacts_query(
+    db: &Database,
+    organization_id: i64,
+    build_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Artifact>, i64), OrmError> {
+    let mut qs = Artifact::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(b_id) = build_id {
+        qs = qs.filter(q!(build_id = b_id))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Artifact` record.
 pub async fn insert_artifact(db: &Database, artifact: Artifact) -> Result<Artifact, OrmError> {
     artifact.save(db).await
@@ -208,4 +232,23 @@ pub async fn build_summary_by_public_id_and_org(
         .first(db)
         .await?;
     Ok(found.map(build_summary))
+}
+
+/// Look up multiple build summaries by their internal primary keys in one batch.
+pub async fn build_summaries_by_ids(
+    db: &Database,
+    build_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, BuildSummary>, OrmError> {
+    if build_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let builds = crate::apps::builds::models::Build::objects()
+        .filter(djangors_orm::q!(id__in = build_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(builds.len());
+    for b in builds {
+        map.insert(b.id, build_summary(b));
+    }
+    Ok(map)
 }

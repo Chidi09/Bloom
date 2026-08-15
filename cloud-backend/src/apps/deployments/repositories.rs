@@ -46,6 +46,69 @@ pub async fn deployments_for_organization(
         .await
 }
 
+/// Optional filters accepted by the deployment list endpoint.
+///
+/// Grouped into a struct rather than passed as five separate positional `Option`s: adjacent
+/// same-typed parameters are trivially transposable at a call site, and a swapped
+/// `platform`/`target` pair would silently return the wrong rows rather than fail to compile.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeploymentFilters<'a> {
+    /// Internal primary key of the release to filter by.
+    pub release_id: Option<i64>,
+    /// Internal primary key of the environment to filter by.
+    pub environment_id: Option<i64>,
+    /// Target platform (`android`, `ios`, `web`).
+    pub platform: Option<&'a str>,
+    /// Deployment target (`app_store`, `play_store`, `web`, ...).
+    pub target: Option<&'a str>,
+    /// Deployment lifecycle status.
+    pub status: Option<&'a str>,
+}
+
+/// List deployments with optional filters and cursor keyset pagination.
+/// Fetches `limit + 1` rows to determine whether there is a next page.
+/// Explicit deterministic ordering by `-created_at` then `-id`.
+pub async fn list_deployments_cursor(
+    db: &Database,
+    organization_id: i64,
+    filters: &DeploymentFilters<'_>,
+    cursor: Option<&str>,
+    limit: i64,
+) -> Result<(Vec<Deployment>, Option<String>), OrmError> {
+    let mut qs = Deployment::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(r_id) = filters.release_id {
+        qs = qs.filter(q!(release_id = r_id))?;
+    }
+    if let Some(e_id) = filters.environment_id {
+        qs = qs.filter(q!(environment_id = e_id))?;
+    }
+    if let Some(p) = filters.platform {
+        qs = qs.filter(q!(platform = p.to_owned()))?;
+    }
+    if let Some(t) = filters.target {
+        qs = qs.filter(q!(target = t.to_owned()))?;
+    }
+    if let Some(s) = filters.status {
+        qs = qs.filter(q!(status = s.to_owned()))?;
+    }
+
+    // No COUNT here. Keyset paging exists precisely so an unbounded, append-heavy log is
+    // never scanned in full to answer a page request; issuing a COUNT alongside it would
+    // reintroduce the cost the strategy was chosen to avoid.
+    qs = crate::apps::common::pagination::apply_datetime_cursor(qs, cursor, "created_at", true)?;
+    qs = qs.order_by("-created_at")?.order_by("-id")?;
+
+    let fetched = qs.limit(limit + 1).all(db).await?;
+    let has_next = fetched.len() > limit as usize;
+    let items: Vec<Deployment> = fetched.into_iter().take(limit as usize).collect();
+
+    let next_cursor = items.last().and_then(|last| {
+        crate::apps::common::pagination::encode_datetime_cursor(has_next, last.id, last.created_at)
+    });
+
+    Ok((items, next_cursor))
+}
+
 /// List deployments for a specific release within an organization, newest first.
 pub async fn deployments_for_release(
     db: &Database,
@@ -295,4 +358,100 @@ pub async fn user_public_id_by_id(db: &Database, user_id: i64) -> Result<Option<
         .first(db)
         .await?;
     Ok(found.map(|p| p.public_id))
+}
+
+/// Look up multiple environments' summaries by their internal primary keys in one batch.
+pub async fn environment_summaries_by_ids(
+    db: &Database,
+    env_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, EnvironmentSummary>, OrmError> {
+    if env_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let envs = crate::apps::environments::models::Environment::objects()
+        .filter(djangors_orm::q!(id__in = env_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(envs.len());
+    for e in envs {
+        map.insert(
+            e.id,
+            EnvironmentSummary {
+                id: e.id,
+                public_id: e.public_id,
+                app_id: e.app_id,
+                organization_id: e.organization_id,
+                name: e.name,
+                slug: e.slug,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple releases' summaries by their internal primary keys in one batch.
+pub async fn release_summaries_by_ids(
+    db: &Database,
+    rel_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, ReleaseSummary>, OrmError> {
+    if rel_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let releases = crate::apps::releases::models::Release::objects()
+        .filter(djangors_orm::q!(id__in = rel_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(releases.len());
+    for r in releases {
+        map.insert(r.id, release_summary(r));
+    }
+    Ok(map)
+}
+
+/// Look up multiple artifacts' summaries by their internal primary keys in one batch.
+pub async fn artifact_summaries_by_ids(
+    db: &Database,
+    art_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, ArtifactSummary>, OrmError> {
+    if art_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let artifacts = crate::apps::artifacts::models::Artifact::objects()
+        .filter(djangors_orm::q!(id__in = art_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(artifacts.len());
+    for art in artifacts {
+        map.insert(
+            art.id,
+            ArtifactSummary {
+                id: art.id,
+                public_id: art.public_id,
+                organization_id: art.organization_id,
+                platform: art.platform,
+                kind: art.kind,
+                storage_key: art.storage_key,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple users' public UUIDs by their internal auth user IDs in one batch.
+pub async fn user_public_ids_by_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let profiles = crate::apps::accounts::models::UserProfile::objects()
+        .filter(djangors_orm::q!(user_id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(profiles.len());
+    for p in profiles {
+        map.insert(p.user_id, p.public_id);
+    }
+    Ok(map)
 }

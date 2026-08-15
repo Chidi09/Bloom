@@ -38,6 +38,24 @@ pub const VALID_STATUSES: &[&str] = &[
     "rolled_back",
 ];
 
+/// Public-facing filters for the deployment list endpoint, keyed by public UUID.
+///
+/// Grouped rather than passed positionally: five adjacent `Option<&str>` parameters are
+/// transposable without a compile error, and a swapped pair returns wrong rows silently.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeploymentListQuery<'a> {
+    /// Public UUID of the release to filter by.
+    pub release_public_id: Option<&'a str>,
+    /// Public UUID of the environment to filter by.
+    pub environment_public_id: Option<&'a str>,
+    /// Target platform (`android`, `ios`, `web`).
+    pub platform_filter: Option<&'a str>,
+    /// Deployment target.
+    pub target_filter: Option<&'a str>,
+    /// Deployment lifecycle status.
+    pub status_filter: Option<&'a str>,
+}
+
 /// Detailed deployment with resolved related public UUIDs for wire serialization.
 #[derive(Debug, Clone)]
 pub struct DeploymentDetail {
@@ -690,6 +708,117 @@ pub async fn get_deployment(
     })
 }
 
+/// List deployments in an organization with cursor keyset pagination.
+pub async fn list_deployments_cursor(
+    db: &Database,
+    organization_id: i64,
+    query: &DeploymentListQuery<'_>,
+    cursor: Option<&str>,
+    limit: i64,
+) -> Result<(Vec<DeploymentDetail>, Option<String>), DeploymentError> {
+    let DeploymentListQuery {
+        release_public_id,
+        environment_public_id,
+        platform_filter,
+        target_filter,
+        status_filter,
+    } = *query;
+
+    let release_id = if let Some(rel_pub_id) = release_public_id {
+        match repositories::release_summary_by_public_id_and_org(db, rel_pub_id, organization_id)
+            .await?
+        {
+            Some(rel) => Some(rel.id),
+            None => return Ok((Vec::new(), None)),
+        }
+    } else {
+        None
+    };
+
+    let environment_id = if let Some(env_pub_id) = environment_public_id {
+        match repositories::environment_summary_by_public_id_and_org(
+            db,
+            env_pub_id,
+            organization_id,
+        )
+        .await?
+        {
+            Some(env) => Some(env.id),
+            None => return Ok((Vec::new(), None)),
+        }
+    } else {
+        None
+    };
+
+    let (deployments, next_cursor) = repositories::list_deployments_cursor(
+        db,
+        organization_id,
+        &repositories::DeploymentFilters {
+            release_id,
+            environment_id,
+            platform: platform_filter,
+            target: target_filter,
+            status: status_filter,
+        },
+        cursor,
+        limit,
+    )
+    .await?;
+
+    let org = repositories::organization_summary_by_id(db, organization_id)
+        .await?
+        .ok_or(DeploymentError::OrganizationNotFound)?;
+
+    if deployments.is_empty() {
+        return Ok((Vec::new(), next_cursor));
+    }
+
+    let mut env_ids: Vec<i64> = deployments.iter().map(|d| d.environment_id.id).collect();
+    env_ids.sort_unstable();
+    env_ids.dedup();
+    let env_map = repositories::environment_summaries_by_ids(db, &env_ids).await?;
+
+    let mut rel_ids: Vec<i64> = deployments.iter().filter_map(|d| d.release_id).collect();
+    rel_ids.sort_unstable();
+    rel_ids.dedup();
+    let rel_map = repositories::release_summaries_by_ids(db, &rel_ids).await?;
+
+    let mut art_ids: Vec<i64> = deployments.iter().filter_map(|d| d.artifact_id).collect();
+    art_ids.sort_unstable();
+    art_ids.dedup();
+    let art_map = repositories::artifact_summaries_by_ids(db, &art_ids).await?;
+
+    let mut user_ids: Vec<i64> = deployments.iter().map(|d| d.created_by_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
+
+    let mut results = Vec::with_capacity(deployments.len());
+    for d in deployments {
+        let env = env_map
+            .get(&d.environment_id.id)
+            .ok_or(DeploymentError::EnvironmentNotFound)?;
+
+        let release_summary = d.release_id.and_then(|r_id| rel_map.get(&r_id));
+        let artifact_summary = d.artifact_id.and_then(|a_id| art_map.get(&a_id));
+        let user_pub_id = user_map
+            .get(&d.created_by_id)
+            .cloned()
+            .unwrap_or_else(|| d.created_by_id.to_string());
+
+        results.push(DeploymentDetail {
+            release_public_id: release_summary.map(|r| r.public_id.clone()),
+            artifact_public_id: artifact_summary.map(|a| a.public_id.clone()),
+            environment_public_id: env.public_id.clone(),
+            organization_public_id: org.public_id.clone(),
+            created_by_public_id: user_pub_id,
+            deployment: d,
+        });
+    }
+
+    Ok((results, next_cursor))
+}
+
 /// List deployments in an organization, optionally filtered by release, environment, platform, target, or status.
 pub async fn list_deployments(
     db: &Database,
@@ -700,77 +829,19 @@ pub async fn list_deployments(
     target_filter: Option<&str>,
     status_filter: Option<&str>,
 ) -> Result<Vec<DeploymentDetail>, DeploymentError> {
-    let deployments = if let Some(rel_pub_id) = release_public_id {
-        if let Some(rel) =
-            repositories::release_summary_by_public_id_and_org(db, rel_pub_id, organization_id)
-                .await?
-        {
-            repositories::deployments_for_release(db, rel.id, organization_id).await?
-        } else {
-            return Ok(Vec::new());
-        }
-    } else if let Some(env_pub_id) = environment_public_id {
-        if let Some(env) =
-            repositories::environment_summary_by_public_id_and_org(db, env_pub_id, organization_id)
-                .await?
-        {
-            repositories::deployments_for_environment(db, env.id, organization_id).await?
-        } else {
-            return Ok(Vec::new());
-        }
-    } else {
-        repositories::deployments_for_organization(db, organization_id).await?
-    };
-
-    let org = repositories::organization_summary_by_id(db, organization_id)
-        .await?
-        .ok_or(DeploymentError::OrganizationNotFound)?;
-
-    let mut results = Vec::new();
-    for d in deployments {
-        if let Some(p) = platform_filter {
-            if d.platform != p {
-                continue;
-            }
-        }
-        if let Some(t) = target_filter {
-            if d.target != t {
-                continue;
-            }
-        }
-        if let Some(s) = status_filter {
-            if d.status != s {
-                continue;
-            }
-        }
-
-        let env = repositories::environment_summary_by_id(db, d.environment_id.id)
-            .await?
-            .ok_or(DeploymentError::EnvironmentNotFound)?;
-
-        let release_summary = match d.release_id {
-            Some(rel_id) => repositories::release_summary_by_id(db, rel_id).await?,
-            None => None,
-        };
-
-        let artifact_summary = match d.artifact_id {
-            Some(art_id) => repositories::artifact_summary_by_id(db, art_id).await?,
-            None => None,
-        };
-
-        let user_pub_id = repositories::user_public_id_by_id(db, d.created_by_id)
-            .await?
-            .unwrap_or_else(|| d.created_by_id.to_string());
-
-        results.push(DeploymentDetail {
-            deployment: d,
-            release_public_id: release_summary.map(|r| r.public_id),
-            artifact_public_id: artifact_summary.map(|a| a.public_id),
-            environment_public_id: env.public_id,
-            organization_public_id: org.public_id.clone(),
-            created_by_public_id: user_pub_id,
-        });
-    }
-
+    let (results, _) = list_deployments_cursor(
+        db,
+        organization_id,
+        &DeploymentListQuery {
+            release_public_id,
+            environment_public_id,
+            platform_filter,
+            target_filter,
+            status_filter,
+        },
+        None,
+        djangors_rest::pagination::REST_PER_PAGE,
+    )
+    .await?;
     Ok(results)
 }

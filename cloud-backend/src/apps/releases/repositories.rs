@@ -74,6 +74,40 @@ pub async fn releases_for_organization(
         .await
 }
 
+/// List releases with optional app, environment, and status filters, with limit and offset.
+pub async fn list_releases_query(
+    db: &Database,
+    organization_id: i64,
+    app_id: Option<i64>,
+    environment_id: Option<i64>,
+    status: Option<&str>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Release>, i64), OrmError> {
+    let mut qs = Release::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(a_id) = app_id {
+        qs = qs.filter(q!(app_id = a_id))?;
+    }
+    if let Some(e_id) = environment_id {
+        qs = qs.filter(q!(environment_id = e_id))?;
+    }
+    if let Some(s) = status {
+        if !s.trim().is_empty() {
+            qs = qs.filter(q!(status = s.trim().to_owned()))?;
+        }
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Release` record.
 pub async fn insert_release(db: &Database, release: Release) -> Result<Release, OrmError> {
     release.save(db).await
@@ -245,4 +279,117 @@ pub async fn user_public_id_by_id(db: &Database, user_id: i64) -> Result<Option<
         .first(db)
         .await?;
     Ok(found.map(|p| p.public_id))
+}
+
+/// Look up multiple apps' summaries by their internal primary keys in one batch.
+pub async fn app_summaries_by_ids(
+    db: &Database,
+    app_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, AppSummary>, OrmError> {
+    if app_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let apps = crate::apps::apps::models::App::objects()
+        .filter(djangors_orm::q!(id__in = app_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(apps.len());
+    for a in apps {
+        map.insert(
+            a.id,
+            AppSummary {
+                id: a.id,
+                public_id: a.public_id,
+                organization_id: a.organization_id,
+                project_id: a.project_id,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple environments' summaries by their internal primary keys in one batch.
+pub async fn environment_summaries_by_ids(
+    db: &Database,
+    env_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, EnvironmentSummary>, OrmError> {
+    if env_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let envs = crate::apps::environments::models::Environment::objects()
+        .filter(djangors_orm::q!(id__in = env_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(envs.len());
+    for e in envs {
+        map.insert(
+            e.id,
+            EnvironmentSummary {
+                id: e.id,
+                public_id: e.public_id,
+                app_id: e.app_id,
+                organization_id: e.organization_id,
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// Look up multiple users' public UUIDs by their internal auth user IDs in one batch.
+pub async fn user_public_ids_by_ids(
+    db: &Database,
+    user_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if user_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let profiles = crate::apps::accounts::models::UserProfile::objects()
+        .filter(djangors_orm::q!(user_id__in = user_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(profiles.len());
+    for p in profiles {
+        map.insert(p.user_id, p.public_id);
+    }
+    Ok(map)
+}
+
+/// Look up multiple artifacts by public UUID within an organization in one batch.
+pub async fn artifacts_by_public_ids_and_org(
+    db: &Database,
+    public_ids: &[String],
+    organization_id: i64,
+) -> Result<std::collections::HashMap<String, crate::apps::artifacts::models::Artifact>, OrmError> {
+    if public_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let artifacts = crate::apps::artifacts::models::Artifact::objects()
+        .filter(djangors_orm::q!(public_id__in = public_ids.to_vec()))?
+        .filter(djangors_orm::q!(organization_id = organization_id))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(artifacts.len());
+    for a in artifacts {
+        map.insert(a.public_id.clone(), a);
+    }
+    Ok(map)
+}
+
+/// Look up multiple builds' public UUIDs by their internal primary keys in one batch.
+pub async fn build_public_ids_by_ids(
+    db: &Database,
+    build_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if build_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let builds = crate::apps::builds::models::Build::objects()
+        .filter(djangors_orm::q!(id__in = build_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(builds.len());
+    for b in builds {
+        map.insert(b.id, b.public_id);
+    }
+    Ok(map)
 }

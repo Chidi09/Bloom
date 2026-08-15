@@ -14,6 +14,7 @@ use super::errors::ReleaseError;
 use super::permissions::{
     CurrentOrganizationId, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
 };
+use super::repositories;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::require_authenticated;
 
@@ -43,6 +44,9 @@ fn get_user_role(req: &Request) -> OrganizationRole {
 }
 
 /// GET `/api/v1/releases` — List releases in the current organization.
+///
+/// Uses `PageNumberPagination` because releases are structured version milestones that
+/// developers and release managers browse via paginated lists and direct page links.
 pub async fn list_releases(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let _user = require_authenticated(&req).await?;
     let perm = OrganizationPermission::viewer();
@@ -57,26 +61,49 @@ pub async fn list_releases(req: Request, _params: PathParams) -> Result<Response
     let environment_filter = req.query("environment_id");
     let status_filter = req.query("status");
 
-    let releases =
-        services::list_releases(db, org_id, app_filter, environment_filter, status_filter)
-            .await
-            .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = releases
+    // Preliminary count to calculate page slice
+    let total_count =
+        repositories::list_releases_query(db, org_id, None, None, None, Some(0), None)
+            .await
+            .map(|(_, count)| count)
+            .unwrap_or(0);
+
+    let slice = pagination.slice(&req, total_count);
+
+    let (releases, total) = services::list_releases(
+        db,
+        org_id,
+        app_filter,
+        environment_filter,
+        status_filter,
+        Some(slice.limit),
+        Some(slice.offset),
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = releases
         .iter()
         .map(|detail| {
-            serializers::serialize_release(
+            let resp = serializers::serialize_release(
                 &detail.release,
                 &detail.app_public_id,
                 &detail.organization_public_id,
                 detail.environment_public_id.as_deref(),
                 &detail.created_by_public_id,
                 detail.artifacts.clone(),
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/releases` — Create a new release in `draft` status.

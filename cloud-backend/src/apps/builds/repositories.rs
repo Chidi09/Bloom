@@ -74,6 +74,34 @@ pub async fn builds_for_organization(
         .await
 }
 
+/// List builds with optional app or environment filter, and optional limit and offset.
+pub async fn list_builds_query(
+    db: &Database,
+    organization_id: i64,
+    app_id: Option<i64>,
+    environment_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<Build>, i64), OrmError> {
+    let mut qs = Build::objects().filter(q!(organization_id = organization_id))?;
+    if let Some(a_id) = app_id {
+        qs = qs.filter(q!(app_id = a_id))?;
+    }
+    if let Some(e_id) = environment_id {
+        qs = qs.filter(q!(environment_id = e_id))?;
+    }
+    let total = qs.clone().count(db).await?;
+    qs = qs.order_by("-created_at")?;
+    if let Some(l) = limit {
+        qs = qs.limit(l);
+    }
+    if let Some(o) = offset {
+        qs = qs.offset(o);
+    }
+    let rows = qs.all(db).await?;
+    Ok((rows, total))
+}
+
 /// Insert a new `Build` record.
 pub async fn insert_build(db: &Database, build: Build) -> Result<Build, OrmError> {
     build.save(db).await
@@ -298,4 +326,42 @@ pub async fn project_public_id_by_id(
         .await?;
 
     Ok(found.map(|p| p.public_id))
+}
+
+/// Look up multiple apps' external public UUIDs by their internal primary keys in one batch.
+pub async fn app_public_ids_by_ids(
+    db: &Database,
+    app_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if app_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let apps = crate::apps::apps::models::App::objects()
+        .filter(djangors_orm::q!(id__in = app_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(apps.len());
+    for app in apps {
+        map.insert(app.id, app.public_id);
+    }
+    Ok(map)
+}
+
+/// Look up multiple environments' external public UUIDs by their internal primary keys in one batch.
+pub async fn environment_public_ids_by_ids(
+    db: &Database,
+    env_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>, OrmError> {
+    if env_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let envs = crate::apps::environments::models::Environment::objects()
+        .filter(djangors_orm::q!(id__in = env_ids.to_vec()))?
+        .all(db)
+        .await?;
+    let mut map = std::collections::HashMap::with_capacity(envs.len());
+    for env in envs {
+        map.insert(env.id, env.public_id);
+    }
+    Ok(map)
 }

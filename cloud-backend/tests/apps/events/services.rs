@@ -144,31 +144,52 @@ async fn test_event_type_filtering() {
     .await
     .expect("record secret.created");
 
-    let started =
-        repositories::list_events(&db, EventLog::objects(), Some("build.started"), None, None)
-            .await
-            .expect("filter by event_type");
+    // A generous limit here so these filter assertions still see every matching row; the
+    // paging behaviour itself is covered separately.
+    const ALL: i64 = 1000;
+
+    let (started, _) = repositories::list_events_cursor(
+        &db,
+        EventLog::objects(),
+        Some("build.started"),
+        None,
+        None,
+        None,
+        ALL,
+    )
+    .await
+    .expect("filter by event_type");
     assert_eq!(started.len(), 1);
     assert_eq!(started[0].event_type, "build.started");
 
-    let completed = repositories::list_events(
+    let (completed, _) = repositories::list_events_cursor(
         &db,
         EventLog::objects(),
         Some("build.completed"),
         None,
         None,
+        None,
+        ALL,
     )
     .await
     .expect("filter by event_type");
     assert_eq!(completed.len(), 1);
     assert_eq!(completed[0].event_type, "build.completed");
 
-    let all_builds = repositories::list_events(&db, EventLog::objects(), None, Some(7), Some(3))
-        .await
-        .expect("filter by project and app");
+    let (all_builds, _) = repositories::list_events_cursor(
+        &db,
+        EventLog::objects(),
+        None,
+        Some(7),
+        Some(3),
+        None,
+        ALL,
+    )
+    .await
+    .expect("filter by project and app");
     assert_eq!(all_builds.len(), 2);
 
-    let org_events = repositories::list_events(
+    let (org_events, _) = repositories::list_events_cursor(
         &db,
         EventLog::objects()
             .filter(djangors_orm::q!(organization_id = 100))
@@ -176,6 +197,8 @@ async fn test_event_type_filtering() {
         None,
         None,
         None,
+        None,
+        ALL,
     )
     .await
     .expect("list all org events");

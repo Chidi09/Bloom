@@ -75,6 +75,115 @@ pub async fn emit(
     }
 }
 
+/// Optional filters accepted by the event list endpoint, keyed by public UUID.
+///
+/// Grouped rather than passed positionally: three adjacent `Option<&str>` parameters are
+/// transposable without a compile error, and swapping `project_id` with `app_id` would
+/// silently return the wrong slice of the log.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EventListFilters<'a> {
+    /// Event type name to filter by (e.g. `build.started`).
+    pub event_type: Option<&'a str>,
+    /// Public UUID of the project to filter by.
+    pub project_id: Option<&'a str>,
+    /// Public UUID of the app to filter by.
+    pub app_id: Option<&'a str>,
+}
+
+/// List events in an organization, newest first, with optional filters and cursor keyset pagination.
+///
+/// Batch resolves project, app, and user foreign keys in one query each to eliminate N+1 queries.
+pub async fn list_events_cursor(
+    db: &Database,
+    qs: QuerySet<EventLog>,
+    filters: &EventListFilters<'_>,
+    organization_id: i64,
+    cursor: Option<&str>,
+    limit: i64,
+) -> Result<(Vec<EventResponse>, Option<String>), EventError> {
+    let EventListFilters {
+        event_type,
+        project_id,
+        app_id,
+    } = *filters;
+
+    let project_filter = match project_id {
+        Some(public_id) => {
+            match repositories::project_id_by_public_id(db, public_id, organization_id).await? {
+                Some(id) => Some(id),
+                None => return Ok((Vec::new(), None)),
+            }
+        }
+        None => None,
+    };
+
+    let app_filter = match app_id {
+        Some(public_id) => {
+            match repositories::app_id_by_public_id(db, public_id, organization_id).await? {
+                Some(id) => Some(id),
+                None => return Ok((Vec::new(), None)),
+            }
+        }
+        None => None,
+    };
+
+    let (events, next_cursor) = repositories::list_events_cursor(
+        db,
+        qs,
+        event_type,
+        project_filter,
+        app_filter,
+        cursor,
+        limit,
+    )
+    .await?;
+
+    let organization_public_id = repositories::organization_public_id(db, organization_id).await?;
+
+    if events.is_empty() {
+        return Ok((Vec::new(), next_cursor));
+    }
+
+    let mut project_ids: Vec<i64> = events.iter().filter_map(|e| e.project_id).collect();
+    project_ids.sort_unstable();
+    project_ids.dedup();
+    let project_map = repositories::project_public_ids_by_ids(db, &project_ids).await?;
+
+    let mut app_ids: Vec<i64> = events.iter().filter_map(|e| e.app_id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_public_ids_by_ids(db, &app_ids).await?;
+
+    let mut user_ids: Vec<i64> = events.iter().filter_map(|e| e.actor_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
+
+    let mut responses = Vec::with_capacity(events.len());
+    for event in &events {
+        let project_public_id = event
+            .project_id
+            .and_then(|id| project_map.get(&id).map(|s| s.as_str()));
+        let app_public_id = event
+            .app_id
+            .and_then(|id| app_map.get(&id).map(|s| s.as_str()));
+        let actor_public_id = match event.actor_id {
+            Some(id) => user_map.get(&id).map(|s| s.as_str()),
+            None => Some("system"),
+        };
+
+        responses.push(serializers::serialize_event(
+            event,
+            organization_public_id.as_deref(),
+            project_public_id,
+            app_public_id,
+            actor_public_id,
+        ));
+    }
+
+    Ok((responses, next_cursor))
+}
+
 /// List events in an organization, newest first, with optional filters.
 ///
 /// `project_id` and `app_id` arrive as public UUIDs and are resolved to the
@@ -88,33 +197,19 @@ pub async fn list_events(
     app_id: Option<&str>,
     organization_id: i64,
 ) -> Result<Vec<EventResponse>, EventError> {
-    let project_filter = match project_id {
-        Some(public_id) => {
-            match repositories::project_id_by_public_id(db, public_id, organization_id).await? {
-                Some(id) => Some(id),
-                None => return Ok(Vec::new()),
-            }
-        }
-        None => None,
-    };
-
-    let app_filter = match app_id {
-        Some(public_id) => {
-            match repositories::app_id_by_public_id(db, public_id, organization_id).await? {
-                Some(id) => Some(id),
-                None => return Ok(Vec::new()),
-            }
-        }
-        None => None,
-    };
-
-    let events = repositories::list_events(db, qs, event_type, project_filter, app_filter).await?;
-    let organization_public_id = repositories::organization_public_id(db, organization_id).await?;
-
-    let mut responses = Vec::with_capacity(events.len());
-    for event in &events {
-        responses.push(resolve_event_response(db, event, organization_public_id.as_deref()).await?);
-    }
+    let (responses, _) = list_events_cursor(
+        db,
+        qs,
+        &EventListFilters {
+            event_type,
+            project_id,
+            app_id,
+        },
+        organization_id,
+        None,
+        djangors_rest::pagination::REST_PER_PAGE,
+    )
+    .await?;
     Ok(responses)
 }
 

@@ -55,6 +55,9 @@ fn get_user_role(req: &Request, user: &User) -> OrganizationRole {
 }
 
 /// GET `/api/v1/deployments` — List deployments in current organization.
+///
+/// Uses `CursorPagination` because deployments form an unbounded, append-heavy operational log
+/// where concurrency is high and stable keyset ordering without table-scanning COUNTs is desired.
 pub async fn list_deployments(
     req: Request,
     _params: PathParams,
@@ -74,33 +77,57 @@ pub async fn list_deployments(
     let target_filter = req.query("target");
     let status_filter = req.query("status");
 
-    let details = services::list_deployments(
+    use djangors_rest::pagination::{CursorPagination, Pagination, REST_PER_PAGE};
+    let pagination = CursorPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
+
+    // page_size, not slice: the framework documents page_size as the cursor path's size
+    // source precisely because that path must not need a row count first.
+    let limit = Pagination::page_size(&pagination, &req);
+
+    let (details, next_cursor) = services::list_deployments_cursor(
         db,
         org_id,
-        release_filter,
-        env_filter,
-        platform_filter,
-        target_filter,
-        status_filter,
+        &services::DeploymentListQuery {
+            release_public_id: release_filter,
+            environment_public_id: env_filter,
+            platform_filter,
+            target_filter,
+            status_filter,
+        },
+        req.query("cursor"),
+        limit,
     )
     .await
     .map_err(DjangorsError::from)?;
 
-    let payload: Vec<_> = details
+    let results: Vec<serde_json::Value> = details
         .iter()
         .map(|d| {
-            serializers::serialize_deployment(
+            let resp = serializers::serialize_deployment(
                 &d.deployment,
                 d.release_public_id.as_deref(),
                 d.artifact_public_id.as_deref(),
                 &d.environment_public_id,
                 &d.organization_public_id,
                 &d.created_by_public_id,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    // `count` is omitted rather than fabricated, matching the events endpoint: reporting it
+    // would cost the full scan keyset paging exists to avoid.
+    Response::json(
+        StatusCode::OK,
+        &serde_json::json!({
+            "results": results,
+            "next_cursor": next_cursor,
+            "previous_cursor": serde_json::Value::Null,
+        }),
+    )
 }
 
 /// POST `/api/v1/deployments` — Create a new deployment.

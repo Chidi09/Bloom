@@ -50,3 +50,35 @@ fn test_events_error_mapping_status_codes() {
     assert_eq!(dj_err.status_code(), StatusCode::UNAUTHORIZED);
     assert_eq!(dj_err.code(), "invalid_credentials");
 }
+
+#[test]
+fn test_events_cursor_pagination_envelope() {
+    use djangors_rest::pagination::CursorPagination;
+    let pagination = CursorPagination {
+        page_size: 100,
+        max_page_size: Some(100),
+    };
+
+    let sample_event = serde_json::json!({
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_id": "550e8400-e29b-41d4-a716-446655440001",
+        "event_type": "build.completed",
+        "organization_id": "org-100",
+        "project_id": null,
+        "app_id": null,
+        "actor_id": "system",
+        "payload": { "status": "success" },
+        "created_at": "2026-08-14T12:00:00Z"
+    });
+
+    let envelope = pagination.envelope_with_cursor(
+        42,
+        vec![sample_event],
+        Some("bmV4dF9jdXJzb3JfdG9rZW4=".to_string()),
+    );
+
+    assert_eq!(envelope["count"], 42);
+    assert_eq!(envelope["results"].as_array().unwrap().len(), 1);
+    assert_eq!(envelope["next_cursor"], "bmV4dF9jdXJzb3JfdG9rZW4=");
+    assert_eq!(envelope["previous_cursor"], serde_json::Value::Null);
+}

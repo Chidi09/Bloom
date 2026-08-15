@@ -10,6 +10,7 @@ use djangors_rest::Permission;
 use super::contracts::{BuildCreateRequest, CompleteBuildRequest, StageUpdateRequest};
 use super::errors::BuildError;
 use super::permissions::{require_job_token, OrganizationPermission};
+use super::repositories;
 use super::{serializers, services};
 use crate::apps::accounts::permissions::{require_authenticated, CurrentOrganizationId};
 use crate::infra::queue::JobQueue;
@@ -43,6 +44,9 @@ fn get_storage(req: &Request) -> Option<Arc<dyn ObjectStorage>> {
 
 /// GET `/api/v1/builds` — List builds in the current organization (optionally filtered
 /// by `app_id` or `environment_id` query params).
+///
+/// Uses `PageNumberPagination` because users typically browse builds by page numbers in
+/// dashboard interfaces, where total page count and jumping to specific pages are expected.
 pub async fn list_builds(req: Request, _params: PathParams) -> Result<Response, DjangorsError> {
     let _user = require_authenticated(&req).await?;
     let perm = OrganizationPermission::viewer();
@@ -56,24 +60,46 @@ pub async fn list_builds(req: Request, _params: PathParams) -> Result<Response, 
     let app_filter = req.query("app_id");
     let environment_filter = req.query("environment_id");
 
-    let builds = services::list_builds(db, org_id, app_filter, environment_filter)
-        .await
-        .map_err(DjangorsError::from)?;
+    use djangors_rest::pagination::{PageNumberPagination, Pagination, REST_PER_PAGE};
+    let pagination = PageNumberPagination {
+        page_size: REST_PER_PAGE,
+        max_page_size: Some(100),
+    };
 
-    let payload: Vec<_> = builds
+    // Preliminary count to calculate page slice
+    let total_count = repositories::list_builds_query(db, org_id, None, None, Some(0), None)
+        .await
+        .map(|(_, count)| count)
+        .unwrap_or(0);
+
+    let slice = pagination.slice(&req, total_count);
+
+    let (builds, total) = services::list_builds(
+        db,
+        org_id,
+        app_filter,
+        environment_filter,
+        Some(slice.limit),
+        Some(slice.offset),
+    )
+    .await
+    .map_err(DjangorsError::from)?;
+
+    let results: Vec<serde_json::Value> = builds
         .iter()
         .map(|detail| {
-            serializers::serialize_build(
+            let resp = serializers::serialize_build(
                 &detail.build,
                 &detail.stages,
                 &detail.app_public_id,
                 &detail.environment_public_id,
                 &detail.organization_public_id,
-            )
+            );
+            serde_json::to_value(resp).unwrap_or(serde_json::Value::Null)
         })
         .collect();
 
-    Response::json(StatusCode::OK, &payload)
+    Response::json(StatusCode::OK, &pagination.envelope(&req, total, results))
 }
 
 /// POST `/api/v1/builds` — Create a new build and enqueue its execution job.

@@ -424,53 +424,87 @@ pub async fn get_build(
 }
 
 /// List builds within an organization, optionally filtered by app or environment.
+///
+/// Supports pagination via optional limit and offset.
+/// Returns the list of `BuildDetail` records alongside the total count of matching builds.
 pub async fn list_builds(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
     environment_public_id: Option<&str>,
-) -> Result<Vec<BuildDetail>, BuildError> {
-    let builds = if let Some(app_pub_id) = app_public_id {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<BuildDetail>, i64), BuildError> {
+    let app_id = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_by_public_id_and_org(db, app_pub_id, organization_id)
             .await?
             .ok_or(BuildError::AppNotFound)?;
-        repositories::builds_for_app(db, app.id, organization_id).await?
-    } else if let Some(env_pub_id) = environment_public_id {
+        Some(app.id)
+    } else {
+        None
+    };
+
+    let env_id = if let Some(env_pub_id) = environment_public_id {
         let env = repositories::environment_by_public_id_and_org(db, env_pub_id, organization_id)
             .await?
             .ok_or(BuildError::EnvironmentNotFound)?;
-        repositories::builds_for_environment(db, env.id, organization_id).await?
+        Some(env.id)
     } else {
-        repositories::builds_for_organization(db, organization_id).await?
+        None
     };
+
+    let (builds, total) =
+        repositories::list_builds_query(db, organization_id, app_id, env_id, limit, offset).await?;
+
+    if builds.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    // 1. Hoist loop-invariant organization lookup
+    let org = repositories::organization_summary_by_id(db, organization_id)
+        .await?
+        .ok_or(BuildError::OrganizationNotFound)?;
+
+    // 2. Prefetch all child build stages in ONE query via prefetch_related
+    let mut stages_map =
+        djangors_orm::prefetch_related::<Build, BuildStage, _>(db, &builds, "buildstage").await?;
+
+    // 3. Batch-lookup distinct app and environment public IDs in ONE query each
+    let mut app_ids: Vec<i64> = builds.iter().map(|b| b.app_id.id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_public_ids_by_ids(db, &app_ids).await?;
+
+    let mut env_ids: Vec<i64> = builds.iter().map(|b| b.environment_id.id).collect();
+    env_ids.sort_unstable();
+    env_ids.dedup();
+    let env_map = repositories::environment_public_ids_by_ids(db, &env_ids).await?;
 
     let mut results = Vec::with_capacity(builds.len());
     for build in builds {
-        let stages = repositories::buildstages_for_build(db, build.id).await?;
+        let mut stages = stages_map.remove(&build.id).unwrap_or_default();
+        stages.sort_by_key(|s| s.id);
 
-        let app_public_id = repositories::app_public_id_by_id(db, build.app_id.id)
-            .await?
+        let app_public_id = app_map
+            .get(&build.app_id.id)
+            .cloned()
             .ok_or(BuildError::AppNotFound)?;
 
-        let environment_public_id =
-            repositories::environment_public_id_by_id(db, build.environment_id.id)
-                .await?
-                .ok_or(BuildError::EnvironmentNotFound)?;
-
-        let org = repositories::organization_summary_by_id(db, organization_id)
-            .await?
-            .ok_or(BuildError::OrganizationNotFound)?;
+        let environment_public_id = env_map
+            .get(&build.environment_id.id)
+            .cloned()
+            .ok_or(BuildError::EnvironmentNotFound)?;
 
         results.push(BuildDetail {
             build,
             stages,
             app_public_id,
             environment_public_id,
-            organization_public_id: org.public_id,
+            organization_public_id: org.public_id.clone(),
         });
     }
 
-    Ok(results)
+    Ok((results, total))
 }
 
 /// Default TTL for a build cancellation key in Redis (24 hours).

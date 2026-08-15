@@ -473,43 +473,135 @@ pub async fn get_release(
     resolve_release_detail(db, release, organization_id).await
 }
 
-/// List releases in an organization, optionally filtered by app or environment.
+/// List releases in an organization, optionally filtered by app, environment, or status.
+///
+/// Supports pagination via optional limit and offset.
+/// Returns the list of releases alongside the total count of matching releases.
 pub async fn list_releases(
     db: &Database,
     organization_id: i64,
     app_public_id: Option<&str>,
     environment_public_id: Option<&str>,
     status_filter: Option<&str>,
-) -> Result<Vec<ReleaseDetail>, ReleaseError> {
-    let releases = if let Some(app_pub_id) = app_public_id {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<ReleaseDetail>, i64), ReleaseError> {
+    let app_id = if let Some(app_pub_id) = app_public_id {
         let app = repositories::app_by_public_id_and_org(db, app_pub_id, organization_id)
             .await?
             .ok_or(ReleaseError::AppNotFound)?;
-        repositories::releases_for_app(db, app.id, organization_id).await?
-    } else if let Some(env_pub_id) = environment_public_id {
+        Some(app.id)
+    } else {
+        None
+    };
+
+    let environment_id = if let Some(env_pub_id) = environment_public_id {
         let env = repositories::environment_by_public_id_and_org(db, env_pub_id, organization_id)
             .await?
             .ok_or(ReleaseError::EnvironmentNotFound)?;
-        repositories::releases_for_environment(db, env.id, organization_id).await?
+        Some(env.id)
     } else {
-        repositories::releases_for_organization(db, organization_id).await?
+        None
     };
 
-    let filtered: Vec<Release> = match status_filter {
-        Some(s) if !s.trim().is_empty() => releases
-            .into_iter()
-            .filter(|r| r.status == s.trim())
-            .collect(),
-        _ => releases,
-    };
+    let (releases, total) = repositories::list_releases_query(
+        db,
+        organization_id,
+        app_id,
+        environment_id,
+        status_filter,
+        limit,
+        offset,
+    )
+    .await?;
 
-    let mut results = Vec::with_capacity(filtered.len());
-    for release in filtered {
-        let detail = resolve_release_detail(db, release, organization_id).await?;
-        results.push(detail);
+    let org = repositories::organization_summary_by_id(db, organization_id)
+        .await?
+        .ok_or(ReleaseError::OrganizationNotFound)?;
+
+    if releases.is_empty() {
+        return Ok((Vec::new(), total));
     }
 
-    Ok(results)
+    let mut app_ids: Vec<i64> = releases.iter().map(|r| r.app_id.id).collect();
+    app_ids.sort_unstable();
+    app_ids.dedup();
+    let app_map = repositories::app_summaries_by_ids(db, &app_ids).await?;
+
+    let mut env_ids: Vec<i64> = releases.iter().filter_map(|r| r.environment_id).collect();
+    env_ids.sort_unstable();
+    env_ids.dedup();
+    let env_map = repositories::environment_summaries_by_ids(db, &env_ids).await?;
+
+    let mut user_ids: Vec<i64> = releases.iter().map(|r| r.created_by_id).collect();
+    user_ids.sort_unstable();
+    user_ids.dedup();
+    let user_map = repositories::user_public_ids_by_ids(db, &user_ids).await?;
+
+    // Collect all referenced artifact public UUIDs across all releases
+    let mut all_art_ids = Vec::new();
+    for r in &releases {
+        let ids: Vec<String> = serde_json::from_str(&r.artifacts).unwrap_or_default();
+        all_art_ids.extend(ids);
+    }
+    all_art_ids.sort_unstable();
+    all_art_ids.dedup();
+    let art_map =
+        repositories::artifacts_by_public_ids_and_org(db, &all_art_ids, organization_id).await?;
+
+    let mut all_build_ids: Vec<i64> = art_map.values().map(|a| a.build_id).collect();
+    all_build_ids.sort_unstable();
+    all_build_ids.dedup();
+    let build_map = repositories::build_public_ids_by_ids(db, &all_build_ids).await?;
+
+    let mut results = Vec::with_capacity(releases.len());
+    for release in releases {
+        let app = app_map
+            .get(&release.app_id.id)
+            .ok_or(ReleaseError::AppNotFound)?;
+
+        let environment_public_id = match release.environment_id {
+            Some(env_id) => {
+                let env = env_map
+                    .get(&env_id)
+                    .ok_or(ReleaseError::EnvironmentNotFound)?;
+                Some(env.public_id.clone())
+            }
+            None => None,
+        };
+
+        let created_by_public_id = user_map
+            .get(&release.created_by_id)
+            .cloned()
+            .unwrap_or_else(|| release.created_by_id.to_string());
+
+        let artifact_ids: Vec<String> =
+            serde_json::from_str(&release.artifacts).unwrap_or_default();
+        let mut artifacts = Vec::with_capacity(artifact_ids.len());
+        for art_id in &artifact_ids {
+            if let Some(art) = art_map.get(art_id) {
+                let build_public_id = build_map.get(&art.build_id).cloned().unwrap_or_default();
+                let art_resp = crate::apps::artifacts::serializers::serialize_artifact(
+                    art,
+                    &build_public_id,
+                    &org.public_id,
+                    None,
+                );
+                artifacts.push(art_resp);
+            }
+        }
+
+        results.push(ReleaseDetail {
+            release,
+            app_public_id: app.public_id.clone(),
+            organization_public_id: org.public_id.clone(),
+            environment_public_id,
+            created_by_public_id,
+            artifacts,
+        });
+    }
+
+    Ok((results, total))
 }
 
 /// Update changelog, rollout state, or advance lifecycle status of a release.

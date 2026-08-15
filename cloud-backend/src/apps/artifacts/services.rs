@@ -296,31 +296,48 @@ pub async fn get_artifact(
 }
 
 /// List artifacts in an organization (optionally filtered by build public UUID).
+///
+/// Supports pagination via optional limit and offset.
+/// Returns the list of artifacts alongside the total count of matching artifacts.
 pub async fn list_artifacts(
     db: &Database,
     organization_id: i64,
     build_public_id: Option<&str>,
-) -> Result<Vec<(Artifact, BuildSummary, OrganizationSummary)>, ArtifactError> {
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<(Vec<(Artifact, BuildSummary, OrganizationSummary)>, i64), ArtifactError> {
     let org = repositories::organization_summary_by_id(db, organization_id)
         .await?
         .ok_or(ArtifactError::OrganizationNotFound)?;
 
-    let artifacts = if let Some(build_pub_id) = build_public_id {
+    let build_id = if let Some(build_pub_id) = build_public_id {
         let build =
             repositories::build_summary_by_public_id_and_org(db, build_pub_id, organization_id)
                 .await?
                 .ok_or(ArtifactError::BuildNotFound)?;
-        repositories::artifacts_for_build(db, build.id, organization_id).await?
+        Some(build.id)
     } else {
-        repositories::artifacts_for_organization(db, organization_id).await?
+        None
     };
+
+    let (artifacts, total) =
+        repositories::list_artifacts_query(db, organization_id, build_id, limit, offset).await?;
+
+    if artifacts.is_empty() {
+        return Ok((Vec::new(), total));
+    }
+
+    let mut build_ids: Vec<i64> = artifacts.iter().map(|a| a.build_id).collect();
+    build_ids.sort_unstable();
+    build_ids.dedup();
+    let builds_map = repositories::build_summaries_by_ids(db, &build_ids).await?;
 
     let mut results = Vec::with_capacity(artifacts.len());
     for artifact in artifacts {
-        if let Some(build) = repositories::build_summary_by_id(db, artifact.build_id).await? {
-            results.push((artifact, build, org.clone()));
+        if let Some(build) = builds_map.get(&artifact.build_id) {
+            results.push((artifact, build.clone(), org.clone()));
         }
     }
 
-    Ok(results)
+    Ok((results, total))
 }
