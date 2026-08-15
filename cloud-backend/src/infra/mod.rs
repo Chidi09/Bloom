@@ -14,5 +14,6 @@ pub mod cdn;
 pub mod crypto;
 pub mod googleplay;
 pub mod queue;
+pub mod shorebird;
 pub mod storage;
 pub mod testflight;

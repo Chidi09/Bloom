@@ -401,6 +401,49 @@ impl Crypto {
             .unwrap_or(false)
     }
 
+    /// Computes an HMAC-SHA256 of `message` under `key`, as a lowercase hex digest.
+    ///
+    /// This is the single implementation of HMAC in the codebase. Webhook signature
+    /// verification depends on it, so it lives here beside [`Crypto::constant_time_eq`]
+    /// rather than being reimplemented per caller — two copies of a security primitive is
+    /// two places for a subtle bug to hide.
+    ///
+    /// Implements RFC 2104 over SHA-256 and is verified in `tests/infra/crypto_tests.rs`
+    /// against the RFC 4231 test vectors.
+    pub fn hmac_sha256_hex(key: &[u8], message: &[u8]) -> String {
+        /// SHA-256 block size in bytes.
+        const BLOCK_SIZE: usize = 64;
+
+        // Keys longer than the block size are replaced by their own digest; shorter keys are
+        // zero-padded to the block size.
+        let mut key_block = [0u8; BLOCK_SIZE];
+        if key.len() > BLOCK_SIZE {
+            let mut hasher = Sha256::new();
+            hasher.update(key);
+            let hash = hasher.finalize();
+            key_block[..hash.len()].copy_from_slice(&hash);
+        } else {
+            key_block[..key.len()].copy_from_slice(key);
+        }
+
+        let mut k_ipad = [0u8; BLOCK_SIZE];
+        let mut k_opad = [0u8; BLOCK_SIZE];
+        for i in 0..BLOCK_SIZE {
+            k_ipad[i] = key_block[i] ^ 0x36;
+            k_opad[i] = key_block[i] ^ 0x5c;
+        }
+
+        let mut inner_hasher = Sha256::new();
+        inner_hasher.update(k_ipad);
+        inner_hasher.update(message);
+        let inner_hash = inner_hasher.finalize();
+
+        let mut outer_hasher = Sha256::new();
+        outer_hasher.update(k_opad);
+        outer_hasher.update(inner_hash);
+        format!("{:x}", outer_hasher.finalize())
+    }
+
     /// Computes a SHA-256 hex digest of a token for secure database lookup.
     ///
     /// API tokens and worker tokens store only this hash in the database.

@@ -24,6 +24,7 @@ use std::fmt;
 
 pub mod build;
 pub mod deploy;
+pub mod webhook;
 
 pub use build::{run_build_job, BuildWorkerError, BuildWorkerResult};
 pub use deploy::{run_deploy_job, DeployWorkerError, DeployWorkerResult};

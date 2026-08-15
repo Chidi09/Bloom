@@ -84,6 +84,16 @@ pub const MIGRATIONS: &[MigrationRef] = &[
         app: "observability",
         path: "migrations/observability",
     },
+    // Phase 6: git connections are organization-scoped and independent; workflow runs
+    // reference apps and environments, so they apply after those.
+    MigrationRef {
+        app: "git_connections",
+        path: "migrations/git_connections",
+    },
+    MigrationRef {
+        app: "workflows",
+        path: "migrations/workflows",
+    },
 ];
 
 /// Applies all pending database migrations in registered sequence.

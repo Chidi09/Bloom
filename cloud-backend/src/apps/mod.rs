@@ -10,6 +10,7 @@ pub mod credentials;
 pub mod deployments;
 pub mod environments;
 pub mod events;
+pub mod git_connections;
 pub mod observability;
 pub mod organizations;
 pub mod projects;
@@ -17,6 +18,7 @@ pub mod releases;
 pub mod secrets;
 pub mod signing;
 pub mod webhosting;
+pub mod workflows;
 
 use djangors_core::Router;
 
@@ -45,4 +47,7 @@ pub fn urls() -> Router {
         // Phase 5: mobile store deployments and the metrics they report back.
         .mount("", deployments::urls())
         .mount("", observability::urls())
+        // Phase 6: git connections drive workflow runs, so both mount together.
+        .mount("", git_connections::urls())
+        .mount("", workflows::urls())
 }
