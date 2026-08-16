@@ -226,7 +226,7 @@ export default function OverviewPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
+              className="w-48 border-zinc-800 bg-zinc-950 text-zinc-200"
             >
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="text-[11px] text-zinc-400">
@@ -325,7 +325,7 @@ export default function OverviewPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
+              className="w-48 border-zinc-800 bg-zinc-950 text-zinc-200"
             >
               <DropdownMenuItem
                 onClick={() => router.push("/onboarding?step=app")}

@@ -557,7 +557,7 @@ export default function AccountSettingsPage() {
                         >
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                        <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                           {TIMEZONES.map((tz) => (
                             <SelectItem
                               key={tz.value}
@@ -834,7 +834,7 @@ export default function AccountSettingsPage() {
         open={tokenDialogOpen}
         onOpenChange={(open) => !open && handleCloseTokenDialog()}
       >
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-md">
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
           {!createdRawToken ? (
             <form onSubmit={handleCreateToken} className="space-y-4">
               <DialogHeader>
@@ -1009,7 +1009,7 @@ export default function AccountSettingsPage() {
         open={!!tokenToRevoke}
         onOpenChange={(open) => !open && setTokenToRevoke(null)}
       >
-        <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">
               Revoke API Token?

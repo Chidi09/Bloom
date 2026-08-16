@@ -268,7 +268,7 @@ export default function MarketplacePurchasesPage() {
                                   <ArrowCounterClockwise className="mr-1 size-3" />
                                   Refund
                                 </AlertDialogTrigger>
-                                <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                                <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>
                                       Refund Template Purchase?

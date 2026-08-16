@@ -1163,7 +1163,7 @@ export default function AppWebHostingPage() {
 
       {/* Deploy Dialog */}
       <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-md">
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
           <form onSubmit={handleDeploy} className="space-y-4">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
@@ -1194,7 +1194,7 @@ export default function AppWebHostingPage() {
                   >
                     <SelectValue placeholder="Select environment" />
                   </SelectTrigger>
-                  <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                  <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                     {environments.map((e) => (
                       <SelectItem
                         key={e.id}
@@ -1227,7 +1227,7 @@ export default function AppWebHostingPage() {
                   >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                  <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                     <SelectItem value="preview" className="font-mono text-xs">
                       Preview (Isolated URL for PRs / staging)
                     </SelectItem>
@@ -1288,7 +1288,7 @@ export default function AppWebHostingPage() {
 
       {/* Add Custom Domain Dialog */}
       <Dialog open={domainDialogOpen} onOpenChange={setDomainDialogOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-lg">
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-lg">
           {!newlyCreatedDomain ? (
             <form onSubmit={handleAddDomain} className="space-y-4">
               <DialogHeader>
@@ -1430,7 +1430,7 @@ export default function AppWebHostingPage() {
                     <SelectTrigger className="h-7 w-[170px] border-zinc-700 bg-zinc-900 text-xs">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                    <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                       {DNS_PROVIDERS.map((p) => (
                         <SelectItem key={p.id} value={p.id} className="text-xs">
                           <div className="flex items-center gap-2">
@@ -1550,7 +1550,7 @@ export default function AppWebHostingPage() {
         open={!!recordsDialogDomain}
         onOpenChange={(open) => !open && setRecordsDialogDomain(null)}
       >
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-lg">
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Globe className="size-4 text-zinc-400" />
@@ -1606,7 +1606,7 @@ export default function AppWebHostingPage() {
                   <SelectTrigger className="h-7 w-[170px] border-zinc-700 bg-zinc-900 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                  <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                     {DNS_PROVIDERS.map((p) => (
                       <SelectItem key={p.id} value={p.id} className="text-xs">
                         <div className="flex items-center gap-2">
@@ -1737,7 +1737,7 @@ export default function AppWebHostingPage() {
         open={!!domainToDelete}
         onOpenChange={(open) => !open && setDomainToDelete(null)}
       >
-        <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">
               Disconnect Custom Domain?
@@ -1774,7 +1774,7 @@ export default function AppWebHostingPage() {
         open={!!rollbackDepId}
         onOpenChange={(open) => !open && setRollbackDepId(null)}
       >
-        <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">
               Rollback Deployment?

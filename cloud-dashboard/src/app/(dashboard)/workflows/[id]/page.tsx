@@ -735,7 +735,7 @@ export default function WorkflowDetailPage() {
                                     <XCircle className="mr-1 size-3.5" />
                                     Reject & Stop
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                                  <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>
                                         Reject this workflow run?
@@ -775,7 +775,7 @@ export default function WorkflowDetailPage() {
                                     />
                                     Approve & Resume
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                                  <AlertDialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>
                                         Approve release gate?
