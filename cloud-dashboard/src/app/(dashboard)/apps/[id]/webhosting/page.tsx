@@ -17,6 +17,7 @@ import {
   Code,
   Info,
   Check,
+  X,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -126,11 +127,11 @@ const DNS_PROVIDERS: DnsProviderConfig[] = [
     guideText: "Go to Route 53 > Hosted Zones > Choose domain > Create record.",
   },
   {
-    id: "google_domains",
-    name: "Google Domains",
-    domain: "domains.google",
-    dashboardUrl: "https://domains.google.com/registrar",
-    guideText: "Go to Domain > DNS > Custom records > Manage custom records.",
+    id: "squarespace",
+    name: "Squarespace Domains",
+    domain: "squarespace.com",
+    dashboardUrl: "https://account.squarespace.com/domains",
+    guideText: "Go to Domains > Manage > DNS Settings > Add Record.",
   },
   {
     id: "porkbun",
@@ -147,6 +148,114 @@ const DNS_PROVIDERS: DnsProviderConfig[] = [
     guideText: "Go to Domains dashboard > Select domain > DNS Records.",
   },
 ];
+
+export function matchNameserver(rawNs: string): string | null {
+  const ns = rawNs.trim().toLowerCase().replace(/\.$/, "");
+  if (!ns) return null;
+
+  if (ns.includes("cloudflare.com") || ns.endsWith(".ns.cloudflare.com")) {
+    return "cloudflare";
+  }
+  if (ns.includes("domaincontrol.com") || ns.endsWith(".domaincontrol.com")) {
+    return "godaddy";
+  }
+  if (
+    ns.includes("registrar-servers.com") ||
+    ns.endsWith(".registrar-servers.com")
+  ) {
+    return "namecheap";
+  }
+  if (ns.includes("porkbun.com") || ns.endsWith(".ns.porkbun.com")) {
+    return "porkbun";
+  }
+  if (ns.includes("awsdns-")) {
+    return "aws";
+  }
+  if (ns.includes("vercel-dns.com")) {
+    return "vercel";
+  }
+  if (ns.includes("squarespacedns.com")) {
+    return "squarespace";
+  }
+  return null;
+}
+
+export async function detectDnsProvider(
+  rawDomain: string,
+): Promise<string | null> {
+  const domain = rawDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+
+  if (!domain || !domain.includes(".")) {
+    return null;
+  }
+
+  const queryDohNs = async (targetDomain: string): Promise<string[]> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(
+        `https://dns.google/resolve?name=${encodeURIComponent(targetDomain)}&type=NS`,
+        {
+          headers: { Accept: "application/dns-json" },
+          signal: controller.signal,
+        },
+      );
+      clearTimeout(timer);
+
+      if (!res.ok) return [];
+      const json = (await res.json()) as {
+        Answer?: Array<{ data?: string; type?: number }>;
+        Authority?: Array<{ data?: string; type?: number }>;
+      };
+
+      const hostnames: string[] = [];
+      if (Array.isArray(json.Answer)) {
+        for (const item of json.Answer) {
+          if (typeof item.data === "string") {
+            hostnames.push(item.data);
+          }
+        }
+      }
+      if (Array.isArray(json.Authority)) {
+        for (const item of json.Authority) {
+          if (typeof item.data === "string") {
+            hostnames.push(item.data);
+          }
+        }
+      }
+      return hostnames;
+    } catch {
+      return [];
+    }
+  };
+
+  try {
+    // 1. Query the domain directly
+    let nameservers = await queryDohNs(domain);
+
+    // 2. If no NS records found and domain is a subdomain, query apex domain
+    if (nameservers.length === 0) {
+      const parts = domain.split(".");
+      if (parts.length > 2) {
+        const apex = parts.slice(-2).join(".");
+        nameservers = await queryDohNs(apex);
+      }
+    }
+
+    for (const ns of nameservers) {
+      const matched = matchNameserver(ns);
+      if (matched) return matched;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export default function AppWebHostingPage() {
   const params = useParams<{ id: string }>();
@@ -201,6 +310,89 @@ export default function AppWebHostingPage() {
   // DNS Provider Shortcut State
   const [selectedDnsProviderId, setSelectedDnsProviderId] =
     React.useState<string>("cloudflare");
+
+  // DNS Provider Auto-detection State
+  const [isDetectingDns, setIsDetectingDns] = React.useState(false);
+  const [detectedProviderId, setDetectedProviderId] = React.useState<
+    string | null
+  >(null);
+  const [isDetectingExistingDns, setIsDetectingExistingDns] =
+    React.useState(false);
+  const [existingDetectedProviderId, setExistingDetectedProviderId] =
+    React.useState<string | null>(null);
+
+  const handleDomainDetection = React.useCallback(
+    async (domainToDetect: string) => {
+      const clean = domainToDetect
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "");
+      if (!clean || !clean.includes(".") || clean.length < 3) {
+        setDetectedProviderId(null);
+        setIsDetectingDns(false);
+        return;
+      }
+
+      setIsDetectingDns(true);
+      const matched = await detectDnsProvider(clean);
+      setIsDetectingDns(false);
+
+      if (matched) {
+        setSelectedDnsProviderId(matched);
+        setDetectedProviderId(matched);
+      }
+    },
+    [],
+  );
+
+  // Debounced auto-detection when user types domain in Add Domain dialog
+  React.useEffect(() => {
+    if (!domainDialogOpen || !newDomainName.trim() || newlyCreatedDomain) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void handleDomainDetection(newDomainName);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    newDomainName,
+    domainDialogOpen,
+    newlyCreatedDomain,
+    handleDomainDetection,
+  ]);
+
+  // Auto-detect DNS provider when opening records dialog for an existing domain
+  React.useEffect(() => {
+    let active = true;
+
+    const run = async () => {
+      if (!recordsDialogDomain) {
+        setExistingDetectedProviderId(null);
+        setIsDetectingExistingDns(false);
+        return;
+      }
+
+      setIsDetectingExistingDns(true);
+      setExistingDetectedProviderId(null);
+
+      const matched = await detectDnsProvider(recordsDialogDomain.domain);
+      if (!active) return;
+      setIsDetectingExistingDns(false);
+      if (matched) {
+        setSelectedDnsProviderId(matched);
+        setExistingDetectedProviderId(matched);
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [recordsDialogDomain]);
 
   // Rollback State
   const [rollbackDepId, setRollbackDepId] = React.useState<string | null>(null);
@@ -575,6 +767,8 @@ export default function AppWebHostingPage() {
                 onClick={() => {
                   setNewDomainName("");
                   setNewlyCreatedDomain(null);
+                  setDetectedProviderId(null);
+                  setIsDetectingDns(false);
                   setDomainDialogOpen(true);
                 }}
                 className="h-8 gap-1.5 bg-zinc-100 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
@@ -737,7 +931,15 @@ export default function AppWebHostingPage() {
               description="Point your custom domain (e.g. app.example.com) to your Bloom web hosting deployment."
               actionLabel={canManageDomains ? "Add Custom Domain" : undefined}
               onAction={
-                canManageDomains ? () => setDomainDialogOpen(true) : undefined
+                canManageDomains
+                  ? () => {
+                      setNewDomainName("");
+                      setNewlyCreatedDomain(null);
+                      setDetectedProviderId(null);
+                      setIsDetectingDns(false);
+                      setDomainDialogOpen(true);
+                    }
+                  : undefined
               }
             />
           ) : (
@@ -1111,10 +1313,44 @@ export default function AppWebHostingPage() {
                   id="domain-name"
                   value={newDomainName}
                   onChange={(e) => setNewDomainName(e.target.value)}
+                  onBlur={() => {
+                    if (newDomainName.trim()) {
+                      void handleDomainDetection(newDomainName);
+                    }
+                  }}
                   placeholder="e.g. app.mycompany.com"
                   className="border-zinc-700 bg-zinc-950 font-mono text-xs"
                   required
                 />
+                {isDetectingDns && (
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <BloomSpinner size={12} />
+                    <span>Detecting DNS provider...</span>
+                  </div>
+                )}
+                {!isDetectingDns && detectedProviderId && (
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-800/60 bg-emerald-950/40 px-2.5 py-0.5 text-xs text-emerald-300">
+                      <CheckCircle
+                        className="size-3.5 text-emerald-400"
+                        weight="fill"
+                      />
+                      <span>
+                        Detected:{" "}
+                        {DNS_PROVIDERS.find((p) => p.id === detectedProviderId)
+                          ?.name || detectedProviderId}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDetectedProviderId(null)}
+                        className="ml-1 rounded text-emerald-400 hover:text-emerald-200"
+                        title="Dismiss detection"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <p className="text-[11px] text-zinc-500">
                   Supports apex domains (example.com) and subdomains
                   (app.example.com).
@@ -1161,13 +1397,31 @@ export default function AppWebHostingPage() {
               {/* DNS Provider Picker Shortcut */}
               <div className="space-y-2.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-200">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-zinc-200">
                     <ProviderIcon
                       provider={selectedDnsProvider.id}
                       domain={selectedDnsProvider.domain}
                       size="sm"
                     />
                     <span>DNS Provider Assistant</span>
+                    {detectedProviderId &&
+                      detectedProviderId === selectedDnsProviderId && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800/60 bg-emerald-950/50 px-2 py-0.5 text-[10px] text-emerald-300">
+                          <CheckCircle
+                            className="size-3 text-emerald-400"
+                            weight="fill"
+                          />
+                          <span>Detected: {selectedDnsProvider.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDetectedProviderId(null)}
+                            className="ml-0.5 text-emerald-400 hover:text-emerald-200"
+                            title="Dismiss"
+                          >
+                            <X className="size-2.5" />
+                          </button>
+                        </span>
+                      )}
                   </div>
                   <Select
                     value={selectedDnsProviderId}
@@ -1312,13 +1566,38 @@ export default function AppWebHostingPage() {
             {/* DNS Provider Picker Shortcut */}
             <div className="space-y-2.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-3">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-200">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-zinc-200">
                   <ProviderIcon
                     provider={selectedDnsProvider.id}
                     domain={selectedDnsProvider.domain}
                     size="sm"
                   />
                   <span>DNS Provider Assistant</span>
+                  {isDetectingExistingDns && (
+                    <span className="flex items-center gap-1 text-[11px] text-zinc-400">
+                      <BloomSpinner size={10} />
+                      <span>Detecting DNS provider...</span>
+                    </span>
+                  )}
+                  {!isDetectingExistingDns &&
+                    existingDetectedProviderId &&
+                    existingDetectedProviderId === selectedDnsProviderId && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800/60 bg-emerald-950/50 px-2 py-0.5 text-[10px] text-emerald-300">
+                        <CheckCircle
+                          className="size-3 text-emerald-400"
+                          weight="fill"
+                        />
+                        <span>Detected: {selectedDnsProvider.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setExistingDetectedProviderId(null)}
+                          className="ml-0.5 text-emerald-400 hover:text-emerald-200"
+                          title="Dismiss"
+                        >
+                          <X className="size-2.5" />
+                        </button>
+                      </span>
+                    )}
                 </div>
                 <Select
                   value={selectedDnsProviderId}
