@@ -252,7 +252,7 @@ export default function AppReleasesPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Releases Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -270,7 +270,7 @@ export default function AppReleasesPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchData()}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
@@ -317,7 +317,7 @@ export default function AppReleasesPage() {
           onAction={() => setCreateDialogOpen(true)}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <TooltipProvider>
             <Table>
               <TableHeader>
@@ -340,12 +340,12 @@ export default function AppReleasesPage() {
                   return (
                     <TableRow
                       key={rel.id}
-                      className="hover:bg-muted/40 transition-colors"
+                      className="hover:bg-muted/40 group transition-colors duration-150"
                     >
                       <TableCell>
                         <Link
                           href={`/apps/${appId}/releases/${rel.id}`}
-                          className="text-foreground hover:text-primary font-mono text-xs font-semibold hover:underline"
+                          className="text-foreground group-hover:text-primary font-mono text-xs font-semibold transition-colors hover:underline"
                         >
                           {rel.version}
                         </Link>
@@ -357,7 +357,7 @@ export default function AppReleasesPage() {
 
                       <TableCell>
                         <Tooltip>
-                          <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs">
+                          <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
                             {commitSha.slice(0, 7)}
                           </TooltipTrigger>
                           <TooltipContent>
@@ -390,14 +390,14 @@ export default function AppReleasesPage() {
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/apps/${appId}/releases/${rel.id}`}
-                            className="border-border hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded border px-2 text-xs font-medium"
+                            className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
                           >
                             <span>Detail</span>
                             <ArrowRight className="size-3" />
                           </Link>
 
                           <DropdownMenu>
-                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md">
+                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
                               <DotsThreeVertical className="size-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">

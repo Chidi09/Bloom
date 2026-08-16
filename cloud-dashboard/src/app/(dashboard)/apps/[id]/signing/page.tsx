@@ -296,7 +296,7 @@ export default function AppSigningPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Signing Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -314,7 +314,7 @@ export default function AppSigningPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchData()}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
@@ -372,39 +372,39 @@ export default function AppSigningPage() {
             return (
               <Card
                 key={identity.id}
-                className="hover:border-border flex flex-col justify-between transition-colors"
+                className="border-border/80 bg-card hover:border-border flex flex-col justify-between shadow-xs transition-colors duration-150"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border bg-muted/30 flex size-9 shrink-0 items-center justify-center rounded-md border">
+                      <div className="border-border/80 bg-muted/50 flex size-8.5 shrink-0 items-center justify-center rounded-md border shadow-xs">
                         {identity.kind === "keystore" ? (
                           <AndroidLogo
-                            className="size-4.5 text-[var(--status-success)]"
+                            className="size-4 text-[var(--status-success)]"
                             weight="fill"
                           />
                         ) : identity.kind === "certificate" ? (
                           <Certificate
-                            className="size-4.5 text-[var(--petal-blue)]"
+                            className="size-4 text-[var(--petal-blue)]"
                             weight="bold"
                           />
                         ) : identity.kind === "provisioning_profile" ? (
                           <AppleLogo
-                            className="text-foreground size-4.5"
+                            className="text-foreground size-4"
                             weight="fill"
                           />
                         ) : (
                           <Key
-                            className="size-4.5 text-[var(--petal-purple)]"
+                            className="size-4 text-[var(--petal-purple)]"
                             weight="bold"
                           />
                         )}
                       </div>
-                      <div>
+                      <div className="space-y-0.5">
                         <CardTitle className="text-sm font-semibold">
                           {identity.name}
                         </CardTitle>
-                        <CardDescription className="mt-0.5 font-mono text-[11px]">
+                        <CardDescription className="font-mono text-[11px]">
                           {getKindLabel(identity.kind)}
                         </CardDescription>
                       </div>
@@ -494,7 +494,7 @@ export default function AppSigningPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDownload(identity)}
-                        className="h-7 gap-1 text-xs"
+                        className="h-7 gap-1 text-xs transition-colors"
                       >
                         <DownloadSimple className="size-3.5" />
                         <span>Download</span>

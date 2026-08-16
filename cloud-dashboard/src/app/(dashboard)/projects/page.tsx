@@ -110,7 +110,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[{ label: "Projects" }]}
         title="Projects"
@@ -121,7 +121,7 @@ export default function ProjectsPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchProjectsData()}
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -179,20 +179,20 @@ export default function ProjectsPage() {
             return (
               <Card
                 key={project.id}
-                className="group border-border/80 bg-card hover:border-border flex cursor-pointer flex-col justify-between transition-all"
+                className="group border-border/80 bg-card hover:border-border hover:bg-muted/10 flex cursor-pointer flex-col justify-between shadow-xs transition-all duration-150"
                 onClick={() => router.push(`/projects/${project.id}`)}
               >
-                <CardHeader className="space-y-1.5">
-                  <div className="flex items-start justify-between">
+                <CardHeader className="space-y-2 pb-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
                         <FolderSimple className="size-4" weight="bold" />
                       </div>
-                      <div>
+                      <div className="space-y-0.5">
                         <CardTitle className="text-foreground group-hover:text-primary text-sm font-semibold transition-colors">
                           {project.name}
                         </CardTitle>
-                        <span className="text-muted-foreground font-mono text-[11px]">
+                        <span className="text-muted-foreground block font-mono text-[11px]">
                           {project.slug}
                         </span>
                       </div>
@@ -200,7 +200,7 @@ export default function ProjectsPage() {
 
                     <Badge
                       variant="outline"
-                      className="gap-1 font-mono text-[10px]"
+                      className="bg-muted/30 gap-1 font-mono text-[10px]"
                     >
                       <DeviceMobile className="size-3" />
                       <span>
@@ -210,19 +210,19 @@ export default function ProjectsPage() {
                     </Badge>
                   </div>
 
-                  <CardDescription className="text-muted-foreground line-clamp-2 pt-1 text-xs">
+                  <CardDescription className="text-muted-foreground line-clamp-2 pt-0.5 text-xs leading-relaxed">
                     {project.description || "No description provided."}
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="py-0">
                   {projectApps.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-2">
+                    <div className="flex flex-wrap gap-1.5 pt-1">
                       {projectApps.slice(0, 3).map((app) => (
                         <Badge
                           key={app.id}
                           variant="secondary"
-                          className="bg-muted/60 px-1.5 py-0 font-mono text-[10px]"
+                          className="bg-muted/60 text-foreground border-border/40 px-1.5 py-0 font-mono text-[10px]"
                         >
                           {app.name}
                         </Badge>
@@ -237,7 +237,7 @@ export default function ProjectsPage() {
                 </CardContent>
 
                 <CardFooter className="border-border/40 text-muted-foreground mt-4 flex items-center justify-between border-t pt-3 font-mono text-[11px]">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <Clock className="size-3" />
                     <span>
                       Updated{" "}
@@ -245,7 +245,7 @@ export default function ProjectsPage() {
                     </span>
                   </div>
 
-                  <span className="text-primary inline-flex items-center gap-0.5 transition-transform group-hover:translate-x-0.5">
+                  <span className="text-primary inline-flex items-center gap-1 font-medium transition-transform duration-150 group-hover:translate-x-0.5">
                     <span>Open</span>
                     <ArrowRight className="size-3" />
                   </span>

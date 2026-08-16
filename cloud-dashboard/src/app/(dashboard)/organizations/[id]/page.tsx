@@ -288,7 +288,7 @@ export default function OrganizationDetailPage() {
   const canDeleteOrg = hasRole(currentUserRole, "Owner");
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Organizations", href: "/organizations" },
@@ -307,7 +307,7 @@ export default function OrganizationDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchOrgDetails()}
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -316,15 +316,21 @@ export default function OrganizationDetailPage() {
         }
       />
 
-      <Tabs defaultValue="general" className="w-full space-y-6">
-        <TabsList className="bg-muted/60 border-border border p-1">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
+      <Tabs defaultValue="general" className="w-full space-y-5">
+        <TabsList className="bg-muted/40 border-border/80 border p-1">
+          <TabsTrigger value="general" className="text-xs transition-colors">
+            General
+          </TabsTrigger>
+          <TabsTrigger value="members" className="text-xs transition-colors">
+            Members
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="text-xs transition-colors">
+            Billing
+          </TabsTrigger>
           {canDeleteOrg && (
             <TabsTrigger
               value="danger"
-              className="text-destructive data-[state=active]:text-destructive"
+              className="text-destructive data-[state=active]:text-destructive text-xs transition-colors"
             >
               Danger Zone
             </TabsTrigger>
@@ -332,11 +338,11 @@ export default function OrganizationDetailPage() {
         </TabsList>
 
         {/* GENERAL TAB */}
-        <TabsContent value="general" className="space-y-6">
-          <Card>
+        <TabsContent value="general" className="space-y-5">
+          <Card className="border-border/80 bg-card">
             <form onSubmit={handleSaveGeneral}>
               <CardHeader>
-                <CardTitle className="text-base">
+                <CardTitle className="text-base font-semibold">
                   Organization Profile
                 </CardTitle>
                 <CardDescription>
@@ -344,7 +350,7 @@ export default function OrganizationDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="max-w-md space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="org-name">Organization Name</Label>
                   <Input
                     id="org-name"
@@ -353,7 +359,7 @@ export default function OrganizationDetailPage() {
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="org-slug">Slug</Label>
                   <Input
                     id="org-slug"
@@ -365,7 +371,7 @@ export default function OrganizationDetailPage() {
                     Unique identifier used for URLs and CLI targeting.
                   </p>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="org-billing-email">Billing Email</Label>
                   <Input
                     id="org-billing-email"
@@ -399,7 +405,7 @@ export default function OrganizationDetailPage() {
         </TabsContent>
 
         {/* MEMBERS TAB */}
-        <TabsContent value="members" className="space-y-6">
+        <TabsContent value="members" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-foreground text-sm font-semibold">
@@ -421,11 +427,11 @@ export default function OrganizationDetailPage() {
             )}
           </div>
 
-          <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+          <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[280px]">Member</TableHead>
+                  <TableHead className="w-[300px]">Member</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Joined Date</TableHead>
@@ -444,9 +450,12 @@ export default function OrganizationDetailPage() {
                       (OrganizationRole[targetRole] || 0);
 
                   return (
-                    <TableRow key={member.id} className="hover:bg-muted/30">
+                    <TableRow
+                      key={member.id}
+                      className="hover:bg-muted/40 transition-colors duration-150"
+                    >
                       <TableCell>
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3">
                           <UserAvatar
                             name={member.username || member.email}
                             size={28}
@@ -520,7 +529,7 @@ export default function OrganizationDetailPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => void handleRemoveMember(member.id)}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 gap-1 px-2 text-xs"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 gap-1 px-2 text-xs transition-colors"
                             >
                               <Trash className="size-3.5" />
                               <span>Remove</span>

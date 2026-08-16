@@ -243,7 +243,7 @@ export default function AppDeploymentDetailPage() {
       {/* Info Cards Grid */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Execution Status Card */}
-        <Card>
+        <Card className="border-border/80 bg-card shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">
               Execution Telemetry
@@ -300,7 +300,7 @@ export default function AppDeploymentDetailPage() {
         </Card>
 
         {/* Platform Destination Details */}
-        <Card>
+        <Card className="border-border/80 bg-card shadow-xs">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">
               Provider & Track Details
@@ -340,7 +340,7 @@ export default function AppDeploymentDetailPage() {
               <Link
                 href={deployment.external_url}
                 target="_blank"
-                className="text-primary flex items-center gap-1 font-mono text-xs hover:underline"
+                className="text-primary flex items-center gap-1 font-mono text-xs transition-colors hover:underline"
               >
                 <span>Open in Store Console</span>
                 <ArrowSquareOut className="size-3.5" />

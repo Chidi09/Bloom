@@ -356,7 +356,7 @@ export default function AppReleaseDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="preview" className="pt-3">
-                  <div className="border-border bg-card/60 min-h-[240px] rounded-md border p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-zinc-300">
+                  <div className="border-border/80 bg-muted/20 text-foreground/90 min-h-[240px] rounded-md border p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap shadow-xs">
                     {changelog || "(No changelog content provided)"}
                   </div>
                 </TabsContent>
@@ -368,7 +368,7 @@ export default function AppReleaseDetailPage() {
         {/* Right Column: Metadata & Artifacts */}
         <div className="space-y-6">
           {/* Metadata Card */}
-          <Card>
+          <Card className="border-border/80 bg-card shadow-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">
                 Release Metadata
@@ -411,7 +411,7 @@ export default function AppReleaseDetailPage() {
           </Card>
 
           {/* Rollout Card */}
-          <Card>
+          <Card className="border-border/80 bg-card shadow-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">
                 Platform Rollout Progress
@@ -425,7 +425,7 @@ export default function AppReleaseDetailPage() {
                 return (
                   <div
                     key={p}
-                    className="border-border/60 bg-muted/20 flex items-center justify-between rounded p-2"
+                    className="border-border/60 bg-muted/20 flex items-center justify-between rounded-md p-2"
                   >
                     <div className="flex items-center gap-1.5 capitalize">
                       <PlatformIcon platform={p} size="sm" />
@@ -433,7 +433,7 @@ export default function AppReleaseDetailPage() {
                     </div>
                     <Badge
                       variant="secondary"
-                      className="font-mono text-[10px]"
+                      className="bg-muted/60 text-foreground border-border/40 font-mono text-[10px]"
                     >
                       {percent}% rolled out
                     </Badge>

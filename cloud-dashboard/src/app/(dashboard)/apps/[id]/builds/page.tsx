@@ -206,7 +206,7 @@ export default function AppBuildsPage() {
   const canCancelBuild = hasRole(userRole, "Developer");
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Builds Header Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -223,7 +223,7 @@ export default function AppBuildsPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchBuildsAndEnvs()}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
@@ -258,10 +258,8 @@ export default function AppBuildsPage() {
       )}
 
       {isLoading ? (
-        <div className="border-border/80 bg-card space-y-3 rounded-lg border p-6">
-          <div className="flex items-center justify-center py-12">
-            <BloomSpinner size={28} label="Loading build history..." />
-          </div>
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
+          <BloomSpinner size={28} label="Loading build history..." />
         </div>
       ) : builds.length === 0 ? (
         <EmptyState
@@ -272,7 +270,7 @@ export default function AppBuildsPage() {
           onAction={() => setNewBuildOpen(true)}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <TooltipProvider>
             <Table>
               <TableHeader>
@@ -302,13 +300,13 @@ export default function AppBuildsPage() {
                       {/* Scannable Surface Layer Row (§22.6) */}
                       <TableRow
                         onClick={() => toggleRow(b.id)}
-                        className="hover:bg-muted/40 cursor-pointer transition-colors"
+                        className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
                       >
                         <TableCell className="p-2 text-center">
                           {isExpanded ? (
-                            <CaretDown className="text-muted-foreground size-3.5" />
+                            <CaretDown className="text-primary size-3.5 transition-transform" />
                           ) : (
-                            <CaretRight className="text-muted-foreground size-3.5" />
+                            <CaretRight className="text-muted-foreground group-hover:text-foreground size-3.5 transition-transform" />
                           )}
                         </TableCell>
 
@@ -333,14 +331,14 @@ export default function AppBuildsPage() {
                           <div className="flex items-center gap-2">
                             <Badge
                               variant="secondary"
-                              className="gap-1 px-1.5 py-0 font-mono text-[10px]"
+                              className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
                             >
                               <GitBranch className="size-3" />
                               <span>{b.git_branch || "main"}</span>
                             </Badge>
 
                             <Tooltip>
-                              <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs">
+                              <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
                                 {commitSha.slice(0, 7)}
                               </TooltipTrigger>
                               <TooltipContent>
@@ -375,7 +373,7 @@ export default function AppBuildsPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <DropdownMenu>
-                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md">
+                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md transition-colors">
                               <DotsThreeVertical className="size-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -425,7 +423,7 @@ export default function AppBuildsPage() {
                                       b.stages.map((stg) => (
                                         <div
                                           key={stg.stage}
-                                          className="border-border bg-card flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs"
+                                          className="border-border/80 bg-card flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs shadow-xs"
                                         >
                                           <StatusBadge
                                             status={stg.status}
@@ -454,7 +452,7 @@ export default function AppBuildsPage() {
                                       Live Log Preview (last 10 lines)
                                     </span>
                                   </div>
-                                  <pre className="border-border overflow-x-auto rounded-md border bg-[#000000] p-3 font-mono text-[11px] leading-relaxed text-zinc-300">
+                                  <pre className="border-border/80 text-foreground/90 overflow-x-auto rounded-md border bg-black p-3.5 font-mono text-[11px] leading-relaxed shadow-inner">
                                     {b.stages
                                       ?.flatMap((s) => s.log_snippet)
                                       .filter(Boolean)

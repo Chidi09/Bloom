@@ -285,7 +285,7 @@ export default function AppEnvironmentsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Environments Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -303,7 +303,7 @@ export default function AppEnvironmentsPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchData()}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
@@ -359,15 +359,15 @@ export default function AppEnvironmentsPage() {
             return (
               <Card
                 key={env.id}
-                className="hover:border-border flex flex-col justify-between transition-colors"
+                className="border-border/80 bg-card hover:border-border flex flex-col justify-between shadow-xs transition-colors duration-150"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <CardTitle className="text-base font-semibold">
+                      <CardTitle className="text-sm font-semibold">
                         {env.name}
                       </CardTitle>
-                      <CardDescription className="mt-0.5 font-mono text-xs">
+                      <CardDescription className="mt-0.5 font-mono text-[11px]">
                         {env.slug}
                       </CardDescription>
                     </div>
@@ -427,7 +427,7 @@ export default function AppEnvironmentsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => openEditSheet(env)}
-                    className="h-7 gap-1.5 text-xs"
+                    className="h-7 gap-1.5 text-xs transition-colors"
                   >
                     <Sliders className="size-3.5" />
                     <span>Configure</span>

@@ -204,7 +204,7 @@ export default function AppDetailLayout({
 
       {/* Real Route Nav Tabs */}
       <div className="border-border/80 overflow-x-auto border-b">
-        <nav className="flex space-x-1 py-0.5 sm:space-x-2">
+        <nav className="flex space-x-1 py-0.5 sm:space-x-1.5">
           {APP_TABS.map((tab) => {
             const isActive = pathname.startsWith(tab.href);
             const Icon = tab.icon;
@@ -213,10 +213,10 @@ export default function AppDetailLayout({
                 key={tab.segment}
                 href={tab.href}
                 className={cn(
-                  "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors",
+                  "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150",
                   isActive
                     ? "border-primary text-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:border-border border-transparent",
+                    : "text-muted-foreground hover:text-foreground hover:border-border/60 border-transparent",
                 )}
               >
                 <Icon
@@ -231,7 +231,7 @@ export default function AppDetailLayout({
       </div>
 
       {/* Tab Content */}
-      <div className="pt-2">{children}</div>
+      <div className="pt-1">{children}</div>
     </div>
   );
 }

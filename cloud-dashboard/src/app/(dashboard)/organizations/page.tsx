@@ -100,7 +100,7 @@ export default function OrganizationsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Workspaces", href: "/organizations" },
@@ -114,7 +114,7 @@ export default function OrganizationsPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchOrganizations()}
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -149,10 +149,8 @@ export default function OrganizationsPage() {
       )}
 
       {isLoading ? (
-        <div className="border-border/80 bg-card space-y-2 rounded-lg border p-6">
-          <div className="flex items-center justify-center py-12">
-            <BloomSpinner size={28} label="Loading organizations..." />
-          </div>
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
+          <BloomSpinner size={28} label="Loading organizations..." />
         </div>
       ) : orgs.length === 0 ? (
         <EmptyState
@@ -163,11 +161,11 @@ export default function OrganizationsPage() {
           onAction={() => setCreateDialogOpen(true)}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[300px]">Organization</TableHead>
+                <TableHead className="w-[320px]">Organization</TableHead>
                 <TableHead>Your Role</TableHead>
                 <TableHead>Plan Tier</TableHead>
                 <TableHead>Created Date</TableHead>
@@ -181,28 +179,28 @@ export default function OrganizationsPage() {
                   <TableRow
                     key={org.id}
                     onClick={() => router.push(`/organizations/${org.id}`)}
-                    className="hover:bg-muted/50 cursor-pointer transition-colors"
+                    className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
                   >
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2.5">
-                        <div className="border-border bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-semibold">
+                      <div className="flex items-center gap-3">
+                        <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-semibold shadow-xs">
                           {org.name.slice(0, 2).toUpperCase()}
                         </div>
-                        <div>
+                        <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-foreground font-semibold">
+                            <span className="text-foreground group-hover:text-primary font-semibold transition-colors">
                               {org.name}
                             </span>
                             {isCurrent && (
                               <Badge
                                 variant="secondary"
-                                className="px-1.5 py-0 font-mono text-[10px]"
+                                className="bg-primary/10 text-primary border-primary/20 px-1.5 py-0 font-mono text-[10px]"
                               >
                                 Active
                               </Badge>
                             )}
                           </div>
-                          <span className="text-muted-foreground font-mono text-xs">
+                          <span className="text-muted-foreground block font-mono text-xs">
                             {org.slug}
                           </span>
                         </div>
@@ -221,7 +219,7 @@ export default function OrganizationsPage() {
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className="bg-primary/10 text-primary border-primary/20 font-mono text-xs capitalize"
+                        className="bg-muted/60 text-foreground border-border/60 font-mono text-xs capitalize"
                       >
                         {org.plan}
                       </Badge>
@@ -239,14 +237,14 @@ export default function OrganizationsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-muted-foreground hover:text-foreground h-7 gap-1 text-xs"
+                        className="text-muted-foreground group-hover:text-foreground hover:bg-muted/80 h-7 gap-1 text-xs transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/organizations/${org.id}`);
                         }}
                       >
                         <span>Manage</span>
-                        <ArrowRight className="size-3" />
+                        <ArrowRight className="size-3 transition-transform duration-150 group-hover:translate-x-0.5" />
                       </Button>
                     </TableCell>
                   </TableRow>

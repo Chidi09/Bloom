@@ -211,7 +211,7 @@ export default function ProjectDetailPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Projects", href: "/projects" },
@@ -230,7 +230,7 @@ export default function ProjectDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchProjectData()}
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -249,7 +249,7 @@ export default function ProjectDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left 8 Cols: Apps Table */}
-        <div className="space-y-4 lg:col-span-8">
+        <div className="space-y-3 lg:col-span-8">
           <div className="flex items-center justify-between">
             <h2 className="text-foreground text-sm font-semibold">
               Project Applications
@@ -265,11 +265,11 @@ export default function ProjectDetailPage() {
               onAction={() => setCreateAppOpen(true)}
             />
           ) : (
-            <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+            <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[240px]">Application</TableHead>
+                    <TableHead className="w-[260px]">Application</TableHead>
                     <TableHead>Branch</TableHead>
                     <TableHead>Repository</TableHead>
                     <TableHead>Updated</TableHead>
@@ -280,15 +280,15 @@ export default function ProjectDetailPage() {
                     <TableRow
                       key={app.id}
                       onClick={() => router.push(`/apps/${app.id}/builds`)}
-                      className="hover:bg-muted/50 cursor-pointer transition-colors"
+                      className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
                     >
                       <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="border-border bg-muted/40 text-foreground flex size-7 shrink-0 items-center justify-center rounded-md border">
+                        <div className="flex items-center gap-3">
+                          <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
                             <PlatformIcon platform="all" size="sm" />
                           </div>
-                          <div>
-                            <span className="text-foreground text-xs font-semibold hover:underline">
+                          <div className="space-y-0.5">
+                            <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
                               {app.name}
                             </span>
                             <span className="text-muted-foreground block font-mono text-[10px]">
@@ -301,7 +301,7 @@ export default function ProjectDetailPage() {
                       <TableCell>
                         <Badge
                           variant="secondary"
-                          className="gap-1 px-1.5 py-0 font-mono text-[10px]"
+                          className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
                         >
                           <GitBranch className="size-3" />
                           <span>{app.default_branch || "main"}</span>
@@ -314,7 +314,7 @@ export default function ProjectDetailPage() {
                             href={app.repository_url}
                             target="_blank"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs"
+                            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
                           >
                             <span className="max-w-[150px] truncate">
                               {app.repository_url.replace(
@@ -325,7 +325,7 @@ export default function ProjectDetailPage() {
                             <ArrowSquareOut className="size-3 shrink-0" />
                           </Link>
                         ) : (
-                          <span className="text-muted-foreground text-xs italic">
+                          <span className="text-muted-foreground font-mono text-xs italic">
                             None
                           </span>
                         )}
@@ -343,10 +343,12 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Right 4 Cols: Project Info & Activity Feed */}
-        <div className="space-y-5 lg:col-span-4">
-          <Card>
+        <div className="space-y-4 lg:col-span-4">
+          <Card className="border-border/80 bg-card shadow-xs">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Recent Activity</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Recent Activity
+              </CardTitle>
               <CardDescription className="text-xs">
                 Real-time project event timeline.
               </CardDescription>
@@ -361,14 +363,14 @@ export default function ProjectDetailPage() {
                         key={act.id}
                         className="flex items-start gap-2.5 text-xs"
                       >
-                        <div className="border-border bg-muted/40 text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border">
+                        <div className="border-border/80 bg-muted/50 text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border">
                           <Icon className="size-3" />
                         </div>
                         <div className="flex-1 space-y-0.5">
-                          <p className="text-foreground leading-tight">
+                          <p className="text-foreground leading-snug">
                             {act.text}
                           </p>
-                          <span className="text-muted-foreground font-mono text-[10px]">
+                          <span className="text-muted-foreground block font-mono text-[10px]">
                             {act.timestamp}
                           </span>
                         </div>

@@ -148,13 +148,15 @@ export default function AppSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <Card>
+    <div className="max-w-4xl space-y-5">
+      <Card className="border-border/80 bg-card shadow-xs">
         <form onSubmit={handleSaveSettings}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">General Settings</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  General Settings
+                </CardTitle>
                 <CardDescription>
                   Configure core metadata and repository connections for this
                   application.
@@ -165,7 +167,7 @@ export default function AppSettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => void fetchApp()}
-                className="h-8 gap-1.5"
+                className="h-8 gap-1.5 transition-colors"
               >
                 <ArrowsClockwise className="size-3.5" />
                 <span>Refresh</span>
@@ -174,7 +176,7 @@ export default function AppSettingsPage() {
           </CardHeader>
 
           <CardContent className="max-w-md space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="app-name">Application Name</Label>
               <Input
                 id="app-name"
@@ -184,7 +186,7 @@ export default function AppSettingsPage() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="app-slug">Slug</Label>
               <Input
                 id="app-slug"
@@ -197,7 +199,7 @@ export default function AppSettingsPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="app-repo">Git Repository URL</Label>
               <Input
                 id="app-repo"
@@ -208,7 +210,7 @@ export default function AppSettingsPage() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="app-branch">Default Git Branch</Label>
               <Input
                 id="app-branch"
@@ -241,11 +243,13 @@ export default function AppSettingsPage() {
       </Card>
 
       {/* Danger Zone */}
-      <Card className="border-destructive/30 bg-destructive/5">
+      <Card className="border-destructive/30 bg-destructive/5 shadow-xs">
         <CardHeader>
           <div className="text-destructive flex items-center gap-2">
             <WarningOctagon className="size-5" />
-            <CardTitle className="text-base">Danger Zone</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              Danger Zone
+            </CardTitle>
           </div>
           <CardDescription>
             Permanently delete &quot;{app.name}&quot; and all build history,
@@ -257,7 +261,7 @@ export default function AppSettingsPage() {
             This action is irreversible.
           </span>
           <AlertDialog>
-            <AlertDialogTrigger className="bg-destructive text-destructive-foreground hover:bg-destructive/90 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+            <AlertDialogTrigger className="bg-destructive text-destructive-foreground hover:bg-destructive/90 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors">
               <Trash className="size-3.5" />
               <span>Delete Application</span>
             </AlertDialogTrigger>

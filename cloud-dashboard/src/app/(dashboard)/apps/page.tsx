@@ -177,7 +177,7 @@ export default function AppsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[{ label: "Applications" }]}
         title="Applications"
@@ -188,7 +188,7 @@ export default function AppsPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchAppsData()}
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -214,7 +214,7 @@ export default function AppsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search applications..."
-            className="h-9 pl-9 text-xs"
+            className="h-8 pl-8 text-xs"
           />
         </div>
 
@@ -226,7 +226,7 @@ export default function AppsPage() {
               if (val) setProjectFilter(val);
             }}
           >
-            <SelectTrigger className="h-9 w-40 font-mono text-xs">
+            <SelectTrigger className="h-8 w-40 font-mono text-xs">
               <SelectValue placeholder="All Projects" />
             </SelectTrigger>
             <SelectContent>
@@ -252,7 +252,7 @@ export default function AppsPage() {
               if (val) setPlatformFilter(val);
             }}
           >
-            <SelectTrigger className="h-9 w-36 font-mono text-xs">
+            <SelectTrigger className="h-8 w-36 font-mono text-xs">
               <SelectValue placeholder="All Platforms" />
             </SelectTrigger>
             <SelectContent>
@@ -291,10 +291,8 @@ export default function AppsPage() {
       )}
 
       {isLoading ? (
-        <div className="border-border/80 bg-card space-y-3 rounded-lg border p-6">
-          <div className="flex items-center justify-center py-12">
-            <BloomSpinner size={28} label="Loading applications..." />
-          </div>
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
+          <BloomSpinner size={28} label="Loading applications..." />
         </div>
       ) : filteredApps.length === 0 ? (
         <EmptyState
@@ -309,11 +307,11 @@ export default function AppsPage() {
           onAction={() => setCreateDialogOpen(true)}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[280px]">Application</TableHead>
+                <TableHead className="w-[300px]">Application</TableHead>
                 <TableHead>Project</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Repository</TableHead>
@@ -326,15 +324,15 @@ export default function AppsPage() {
                 <TableRow
                   key={app.id}
                   onClick={() => router.push(`/apps/${app.id}/builds`)}
-                  className="hover:bg-muted/50 cursor-pointer transition-colors"
+                  className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
                 >
                   <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <div className="border-border bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+                    <div className="flex items-center gap-3">
+                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
                         <PlatformIcon platform="all" size="md" />
                       </div>
-                      <div>
-                        <span className="text-foreground text-xs font-semibold hover:underline">
+                      <div className="space-y-0.5">
+                        <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
                           {app.name}
                         </span>
                         <span className="text-muted-foreground block font-mono text-[10px]">
@@ -353,7 +351,7 @@ export default function AppsPage() {
                   <TableCell>
                     <Badge
                       variant="secondary"
-                      className="gap-1 px-1.5 py-0 font-mono text-[10px]"
+                      className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
                     >
                       <GitBranch className="size-3" />
                       <span>{app.default_branch || "main"}</span>
@@ -366,7 +364,7 @@ export default function AppsPage() {
                         href={app.repository_url}
                         target="_blank"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs"
+                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
                       >
                         <span className="max-w-[150px] truncate">
                           {app.repository_url.replace(
@@ -377,7 +375,7 @@ export default function AppsPage() {
                         <ArrowSquareOut className="size-3 shrink-0" />
                       </Link>
                     ) : (
-                      <span className="text-muted-foreground text-xs italic">
+                      <span className="text-muted-foreground font-mono text-xs italic">
                         None
                       </span>
                     )}

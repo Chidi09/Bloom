@@ -365,7 +365,7 @@ export default function AppSecretsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Secrets Header Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -411,7 +411,7 @@ export default function AppSecretsPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchSecrets(selectedEnvId)}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
             disabled={!selectedEnvId || isSecretsLoading}
           >
             <ArrowsClockwise className="size-3.5" />
@@ -422,7 +422,7 @@ export default function AppSecretsPage() {
             variant="outline"
             size="sm"
             onClick={() => setImportOpen(true)}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
             disabled={!selectedEnvId}
           >
             <UploadSimple className="size-3.5" />
@@ -485,7 +485,7 @@ export default function AppSecretsPage() {
           onAction={openAddSecret}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <TooltipProvider>
             <Table>
               <TableHeader>
@@ -503,7 +503,7 @@ export default function AppSecretsPage() {
                 {secrets.map((sec) => (
                   <TableRow
                     key={sec.id}
-                    className="hover:bg-muted/40 transition-colors"
+                    className="hover:bg-muted/40 group transition-colors duration-150"
                   >
                     <TableCell className="text-muted-foreground p-3 text-center">
                       <LockSimple className="size-3.5" />
@@ -515,9 +515,9 @@ export default function AppSecretsPage() {
 
                     <TableCell>
                       <Tooltip>
-                        <TooltipTrigger className="bg-muted/40 text-muted-foreground inline-flex cursor-help items-center gap-1.5 rounded px-2 py-0.5 font-mono text-[11px]">
+                        <TooltipTrigger className="bg-muted/50 border-border/60 text-muted-foreground inline-flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[11px]">
                           <span>••••••••••••</span>
-                          <span className="text-[10px] text-zinc-500">
+                          <span className="text-muted-foreground/80 text-[10px]">
                             (write-only)
                           </span>
                         </TooltipTrigger>
@@ -534,7 +534,7 @@ export default function AppSecretsPage() {
                       {sec.is_json ? (
                         <Badge
                           variant="secondary"
-                          className="gap-1 font-mono text-[10px]"
+                          className="bg-muted/60 text-foreground border-border/40 gap-1 font-mono text-[10px]"
                         >
                           <FileCode className="size-3" />
                           <span>JSON</span>
@@ -561,7 +561,7 @@ export default function AppSecretsPage() {
 
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md">
+                        <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
                           <DotsThreeVertical className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">

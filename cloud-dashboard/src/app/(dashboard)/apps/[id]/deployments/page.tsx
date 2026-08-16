@@ -228,7 +228,7 @@ export default function AppDeploymentsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Deployments Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
@@ -246,7 +246,7 @@ export default function AppDeploymentsPage() {
             variant="outline"
             size="sm"
             onClick={() => void fetchData()}
-            className="h-8 gap-1.5"
+            className="h-8 gap-1.5 transition-colors"
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
@@ -293,11 +293,11 @@ export default function AppDeploymentsPage() {
           onAction={() => setDeployDialogOpen(true)}
         />
       ) : (
-        <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
+        <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[100px]">Platform</TableHead>
+                <TableHead className="w-[110px]">Platform</TableHead>
                 <TableHead>Target</TableHead>
                 <TableHead>Release</TableHead>
                 <TableHead>Environment</TableHead>
@@ -317,7 +317,7 @@ export default function AppDeploymentsPage() {
                 return (
                   <TableRow
                     key={dep.id}
-                    className="hover:bg-muted/40 transition-colors"
+                    className="hover:bg-muted/40 group transition-colors duration-150"
                   >
                     <TableCell>
                       <div className="flex items-center gap-1.5 font-mono text-xs uppercase">
@@ -328,8 +328,8 @@ export default function AppDeploymentsPage() {
 
                     <TableCell>
                       <Badge
-                        variant="outline"
-                        className="font-mono text-[10px]"
+                        variant="secondary"
+                        className="bg-muted/60 text-foreground border-border/40 font-mono text-[10px]"
                       >
                         {formatTargetLabel(dep.target)}
                       </Badge>
@@ -340,7 +340,7 @@ export default function AppDeploymentsPage() {
                     </TableCell>
 
                     <TableCell>
-                      <div className="text-muted-foreground flex items-center gap-1 font-mono text-xs">
+                      <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
                         <TreeStructure className="size-3" />
                         <span>
                           {dep.environment_name || env?.name || "Production"}
@@ -357,7 +357,7 @@ export default function AppDeploymentsPage() {
                         <Link
                           href={dep.external_url}
                           target="_blank"
-                          className="hover:bg-muted text-primary inline-flex items-center gap-1 rounded px-2 py-1 font-mono text-xs hover:underline"
+                          className="hover:bg-muted text-primary inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-xs transition-colors hover:underline"
                         >
                           <span>Console</span>
                           <ArrowSquareOut className="size-3" />
@@ -384,14 +384,14 @@ export default function AppDeploymentsPage() {
                       <div className="flex items-center justify-end gap-1">
                         <Link
                           href={`/apps/${appId}/deployments/${dep.id}`}
-                          className="border-border hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded border px-2 text-xs font-medium"
+                          className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
                         >
                           <span>Detail</span>
                           <ArrowRight className="size-3" />
                         </Link>
 
                         <DropdownMenu>
-                          <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md">
+                          <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
                             <DotsThreeVertical className="size-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -465,10 +465,10 @@ export default function AppDeploymentsPage() {
                         key={p}
                         type="button"
                         onClick={() => handlePlatformChange(p)}
-                        className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border p-3 text-xs transition-colors ${
+                        className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border p-3 text-xs transition-colors duration-150 ${
                           isSelected
-                            ? "border-primary bg-primary/10 text-foreground font-semibold"
-                            : "border-border hover:bg-muted/30 text-muted-foreground"
+                            ? "border-primary bg-primary/10 text-foreground font-semibold shadow-xs"
+                            : "border-border/80 hover:bg-muted/40 text-muted-foreground"
                         }`}
                       >
                         <PlatformIcon platform={p} size="md" />
