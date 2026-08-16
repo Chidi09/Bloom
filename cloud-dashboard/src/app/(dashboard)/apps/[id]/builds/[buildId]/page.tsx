@@ -602,33 +602,9 @@ export default function AppBuildDetailPage() {
                     </div>
                   </div>
 
-                  {/* Stage Status Badge with prefers-reduced-motion pulsing animation */}
+                  {/* Stage Status Badge */}
                   <div className="pt-3">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "font-mono text-[9px] font-medium uppercase",
-                        isCompleted
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                          : isRunning
-                            ? "border-primary/40 bg-primary/20 text-primary motion-safe:animate-pulse"
-                            : isFailed
-                              ? "border-destructive/40 bg-destructive/15 text-destructive"
-                              : isSkipped
-                                ? "bg-muted/30 text-muted-foreground"
-                                : "bg-muted/40 text-muted-foreground",
-                      )}
-                    >
-                      {isCompleted
-                        ? "Completed"
-                        : isRunning
-                          ? "Running"
-                          : isFailed
-                            ? "Failed"
-                            : isSkipped
-                              ? "Skipped"
-                              : "Pending"}
-                    </Badge>
+                    <StatusBadge status={stg.status} size="sm" />
                   </div>
                 </div>
               );
