@@ -192,24 +192,55 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     });
   }
 
-  if (req.method === "POST" && (p === "builds" || p.endsWith("/builds"))) {
-    const newBuild = {
-      id: `bld_${Date.now()}`,
-      app_id: mockStore.apps[0]?.id || "app_1",
-      app_name: mockStore.apps[0]?.name || "bloom_app",
-      build_number: mockStore.builds.length + 1,
-      platform: "iOS & Android",
-      branch: "main",
-      commit_message: "Manual cloud build triggered from dashboard",
-      author: "dev@bloom.dev",
-      commit_hash: "3JCVL1V",
-      preview_url: "preview.bloom.dev",
-      status: "running" as const,
-      duration_seconds: 1,
-      created_at: new Date().toISOString(),
-    };
-    mockStore.builds.unshift(newBuild);
+  if (req.method === "POST" && p === "builds") {
+    let body: { app_id?: string; environment_id?: string; platform?: string } =
+      {};
+    try {
+      body = await req.json();
+    } catch {
+      // ignore
+    }
+    const appId = body.app_id || mockStore.apps[0]?.id || "app_1";
+    const newBuild = mockStore.createBuild(
+      appId,
+      body.environment_id || "",
+      body.platform || "all",
+    );
     return NextResponse.json(newBuild, { status: 201 });
+  }
+
+  // Environments endpoints
+  if (req.method === "GET" && p === "environments") {
+    const appId = req.nextUrl.searchParams.get("app_id");
+    const results = appId
+      ? mockStore.environments.filter((e) => e.app_id === appId)
+      : mockStore.environments;
+    return NextResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }
+
+  if (req.method === "POST" && p === "environments") {
+    let body: { app_id?: string; name?: string; slug?: string } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // ignore
+    }
+    const orgId =
+      req.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "default";
+    const env = mockStore.createEnvironment(
+      body.app_id || mockStore.apps[0]?.id || "default",
+      orgId,
+      body.name || "Production",
+      body.slug || "production",
+    );
+    return NextResponse.json(env, { status: 201 });
   }
 
   // Billing & Usage endpoints

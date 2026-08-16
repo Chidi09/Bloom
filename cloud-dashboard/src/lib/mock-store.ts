@@ -55,6 +55,19 @@ export interface MockUsageSummary {
   deploy_count: number;
 }
 
+export interface MockEnvironment {
+  id: string;
+  app_id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  api_config: {
+    env_vars: { key: string; value: string }[];
+    feature_flags: { key: string; enabled: boolean }[];
+  };
+  created_at: string;
+}
+
 export interface MockBuild {
   id: string;
   app_id: string;
@@ -149,6 +162,18 @@ class MockDataStore {
     },
   ];
 
+  public environments: MockEnvironment[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000040",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Production",
+      slug: "production",
+      api_config: { env_vars: [], feature_flags: [] },
+      created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+  ];
+
   public builds: MockBuild[] = [
     {
       id: "bld_101",
@@ -157,7 +182,8 @@ class MockDataStore {
       build_number: 142,
       platform: "iOS & Android",
       branch: "main",
-      commit_message: "feat(mobile): add signals reactive state and offline sync queue",
+      commit_message:
+        "feat(mobile): add signals reactive state and offline sync queue",
       author: "Chidi09/wallet",
       commit_hash: "a4f89d1",
       preview_url: "wallet.bloom.dev",
@@ -172,7 +198,8 @@ class MockDataStore {
       build_number: 88,
       platform: "Web",
       branch: "feat/charts",
-      commit_message: "fix(web): improve chart rendering performance and memory allocation",
+      commit_message:
+        "fix(web): improve chart rendering performance and memory allocation",
       author: "Chidi09/analytics",
       commit_hash: "7bc32f9",
       preview_url: "analytics.bloom.dev",
@@ -210,7 +237,10 @@ class MockDataStore {
   }
 
   public createOrganization(name: string): MockOrganization {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
     const org: MockOrganization = {
       id: `org_${Date.now()}`,
       name,
@@ -223,8 +253,15 @@ class MockDataStore {
     return org;
   }
 
-  public createProject(orgId: string, name: string, description?: string): MockProject {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  public createProject(
+    orgId: string,
+    name: string,
+    description?: string,
+  ): MockProject {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
     const project: MockProject = {
       id: `prj_${Date.now()}`,
       organization_id: orgId,
@@ -246,7 +283,10 @@ class MockDataStore {
     framework: "bloom" | "flutter" = "bloom",
     platforms: string[] = ["ios", "android", "web"],
   ): MockApp {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
     const app: MockApp = {
       id: `app_${Date.now()}`,
       project_id: projectId,
@@ -264,9 +304,54 @@ class MockDataStore {
     this.apps.unshift(app);
     return app;
   }
+
+  public createEnvironment(
+    appId: string,
+    orgId: string,
+    name: string,
+    slug: string,
+  ): MockEnvironment {
+    const env: MockEnvironment = {
+      id: `env_${Date.now()}`,
+      app_id: appId,
+      organization_id: orgId,
+      name,
+      slug,
+      api_config: { env_vars: [], feature_flags: [] },
+      created_at: new Date().toISOString(),
+    };
+    this.environments.unshift(env);
+    return env;
+  }
+
+  public createBuild(
+    appId: string,
+    _environmentId: string,
+    platform: string,
+  ): MockBuild {
+    const app = this.apps.find((a) => a.id === appId);
+    const build: MockBuild = {
+      id: `bld_${Date.now()}`,
+      app_id: appId,
+      app_name: app?.name ?? "app",
+      build_number: this.builds.filter((b) => b.app_id === appId).length + 1,
+      platform,
+      branch: app?.default_branch ?? "main",
+      commit_message: "Manual cloud build triggered from dashboard",
+      author: this.currentUser.username,
+      commit_hash: Math.random().toString(36).slice(2, 9),
+      preview_url: null,
+      status: "queued",
+      duration_seconds: 0,
+      created_at: new Date().toISOString(),
+    };
+    this.builds.unshift(build);
+    return build;
+  }
 }
 
 // Global singleton for the server mock lifecycle
 const globalForMock = global as unknown as { mockDataStore?: MockDataStore };
 export const mockStore = globalForMock.mockDataStore ?? new MockDataStore();
-if (process.env.NODE_ENV !== "production") globalForMock.mockDataStore = mockStore;
+if (process.env.NODE_ENV !== "production")
+  globalForMock.mockDataStore = mockStore;
