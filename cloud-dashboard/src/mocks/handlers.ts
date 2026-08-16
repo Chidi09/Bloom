@@ -448,7 +448,10 @@ export const handlers = [
   http.patch(`${API}/environments/:id`, async ({ params, request }) => {
     const id = params.id as string;
     const body = await request.json();
-    const updated = mockStore.updateEnvironment(id, body as Record<string, unknown>);
+    const updated = mockStore.updateEnvironment(
+      id,
+      body as Record<string, unknown>,
+    );
     if (!updated)
       return HttpResponse.json(
         { error: { status: 404, message: "Environment not found" } },
@@ -835,5 +838,314 @@ export const handlers = [
       web_bandwidth_gb_limit: mockStore.usage.web_bandwidth_gb_limit,
       deploy_count: mockStore.usage.deploy_count,
     });
+  }),
+
+  // Account & API Tokens
+  http.patch(`${API}/auth/me`, async ({ request }) => {
+    const body = (await request.json()) as {
+      display_name?: string;
+      avatar_url?: string | null;
+      timezone?: string;
+    };
+    const user = mockStore.updateUserProfile(body);
+    return HttpResponse.json(user);
+  }),
+
+  http.get(`${API}/auth/tokens`, () => {
+    const tokens = mockStore.getApiTokens();
+    return HttpResponse.json({
+      count: tokens.length,
+      page: 1,
+      total_pages: 1,
+      results: tokens,
+    });
+  }),
+
+  http.post(`${API}/auth/token`, async ({ request }) => {
+    const body = (await request.json()) as { name?: string };
+    const { tokenRecord, rawToken } = mockStore.createApiToken(
+      body.name || "API Token",
+    );
+    return HttpResponse.json(
+      {
+        id: tokenRecord.id,
+        name: tokenRecord.name,
+        token: rawToken,
+        created_at: tokenRecord.created_at,
+        last_used_at: null,
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.delete(`${API}/auth/token/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.revokeApiToken(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Token not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${API}/auth/change-password`, async () => {
+    return HttpResponse.json({ message: "Password updated successfully" });
+  }),
+
+  // Web Hosting
+  http.get(`${API}/webhosting/deployments`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id") ?? undefined;
+    const list = mockStore.getWebDeployments(appId);
+    return HttpResponse.json({
+      count: list.length,
+      page: 1,
+      total_pages: 1,
+      results: list,
+    });
+  }),
+
+  http.post(`${API}/webhosting/deployments`, async ({ request }) => {
+    const body = (await request.json()) as {
+      app_id: string;
+      environment_id: string;
+      artifact_id: string;
+      target?: "preview" | "production";
+      release_id?: string | null;
+      git_branch?: string;
+    };
+    const dep = mockStore.createWebDeployment(
+      body.app_id,
+      body.environment_id,
+      body.artifact_id || "art_web_001",
+      body.target || "preview",
+      body.release_id,
+      body.git_branch,
+    );
+    return HttpResponse.json(dep, { status: 201 });
+  }),
+
+  http.get(`${API}/webhosting/deployments/:id`, ({ params }) => {
+    const id = params.id as string;
+    const dep = mockStore.getWebDeployment(id);
+    if (!dep)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Web deployment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(dep);
+  }),
+
+  http.post(`${API}/webhosting/deployments/:id/rollback`, ({ params }) => {
+    const id = params.id as string;
+    const dep = mockStore.rollbackWebDeployment(id);
+    if (!dep)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Web deployment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(dep);
+  }),
+
+  http.get(`${API}/webhosting/domains`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id") ?? undefined;
+    const domains = mockStore.getCustomDomains(appId);
+    return HttpResponse.json({
+      count: domains.length,
+      page: 1,
+      total_pages: 1,
+      results: domains,
+    });
+  }),
+
+  http.post(`${API}/webhosting/domains`, async ({ request }) => {
+    const body = (await request.json()) as { app_id: string; domain: string };
+    const created = mockStore.createCustomDomain(body.app_id, body.domain);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.get(`${API}/webhosting/domains/:id`, ({ params }) => {
+    const id = params.id as string;
+    const domain = mockStore.getCustomDomain(id);
+    if (!domain)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Domain not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(domain);
+  }),
+
+  http.post(`${API}/webhosting/domains/:id/verify`, ({ params }) => {
+    const id = params.id as string;
+    const verified = mockStore.verifyCustomDomain(id);
+    if (!verified)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Domain not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(verified);
+  }),
+
+  http.delete(`${API}/webhosting/domains/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteCustomDomain(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Domain not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Observability
+  http.get(`${API}/observability/apps/:id/status`, ({ params }) => {
+    const id = params.id as string;
+    const status = mockStore.getAppStatus(id);
+    return HttpResponse.json(status);
+  }),
+
+  http.get(`${API}/observability/apps/:id/health`, ({ params }) => {
+    const id = params.id as string;
+    const health = mockStore.getAppHealth(id);
+    return HttpResponse.json(health);
+  }),
+
+  http.get(`${API}/observability/releases/:id/health`, ({ params }) => {
+    const id = params.id as string;
+    const health = mockStore.getReleaseHealth(id);
+    return HttpResponse.json(health);
+  }),
+
+  // Credentials
+  http.get(`${API}/credentials`, ({ request }) => {
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const creds = mockStore.getCredentials(orgHeaderId);
+    return HttpResponse.json({
+      count: creds.length,
+      page: 1,
+      total_pages: 1,
+      results: creds,
+    });
+  }),
+
+  http.post(`${API}/credentials`, async ({ request }) => {
+    const body = (await request.json()) as {
+      provider:
+        | "apple"
+        | "google_play"
+        | "shorebird"
+        | "github"
+        | "gitlab"
+        | "bitbucket";
+      name: string;
+      metadata: Record<string, unknown>;
+      expires_at?: string | null;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const cred = mockStore.createCredential(orgHeaderId, body);
+    return HttpResponse.json(cred, { status: 201 });
+  }),
+
+  http.get(`${API}/credentials/:id`, ({ params }) => {
+    const id = params.id as string;
+    const cred = mockStore.getCredential(id);
+    if (!cred)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Credential not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(cred);
+  }),
+
+  http.post(`${API}/credentials/:id/test`, ({ params }) => {
+    const id = params.id as string;
+    const res = mockStore.testCredential(id);
+    return HttpResponse.json({
+      id,
+      provider: res.provider,
+      success: res.success,
+      message: res.message,
+    });
+  }),
+
+  http.delete(`${API}/credentials/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteCredential(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Credential not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Git Connections
+  http.get(`${API}/git-connections`, ({ request }) => {
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const connections = mockStore.getGitConnections(orgHeaderId);
+    return HttpResponse.json({
+      count: connections.length,
+      page: 1,
+      total_pages: 1,
+      results: connections,
+    });
+  }),
+
+  http.post(`${API}/git-connections`, async ({ request }) => {
+    const body = (await request.json()) as {
+      provider: "github" | "gitlab" | "bitbucket";
+      installation_id: string;
+      metadata?: Record<string, unknown>;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const conn = mockStore.createGitConnection(orgHeaderId, body);
+    return HttpResponse.json(conn, { status: 201 });
+  }),
+
+  http.get(`${API}/git-connections/:id`, ({ params }) => {
+    const id = params.id as string;
+    const conn = mockStore.getGitConnection(id);
+    if (!conn)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Git connection not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(conn);
+  }),
+
+  http.get(`${API}/git-connections/:id/repositories`, ({ params }) => {
+    const id = params.id as string;
+    const repos = mockStore.getGitRepositories(id);
+    return HttpResponse.json({
+      count: repos.length,
+      page: 1,
+      total_pages: 1,
+      results: repos,
+    });
+  }),
+
+  http.delete(`${API}/git-connections/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteGitConnection(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Git connection not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

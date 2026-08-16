@@ -953,6 +953,316 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     });
   }
 
+  // Account Profile & API Tokens
+  if (req.method === "PATCH" && p === "auth/me") {
+    let body: { display_name?: string; avatar_url?: string | null; timezone?: string } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // ignore
+    }
+    const user = mockStore.updateUserProfile(body);
+    return NextResponse.json(user);
+  }
+
+  if (req.method === "GET" && p === "auth/tokens") {
+    const tokens = mockStore.getApiTokens();
+    return NextResponse.json({
+      count: tokens.length,
+      page: 1,
+      total_pages: 1,
+      results: tokens,
+    });
+  }
+
+  if (req.method === "POST" && p === "auth/token") {
+    let body: { name?: string } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // ignore
+    }
+    const { tokenRecord, rawToken } = mockStore.createApiToken(body.name || "API Token");
+    return NextResponse.json(
+      {
+        id: tokenRecord.id,
+        name: tokenRecord.name,
+        token: rawToken,
+        created_at: tokenRecord.created_at,
+        last_used_at: null,
+      },
+      { status: 201 },
+    );
+  }
+
+  if (req.method === "DELETE" && path[0] === "auth" && path[1] === "token" && path[2]) {
+    const success = mockStore.revokeApiToken(path[2]);
+    if (!success) {
+      return NextResponse.json(
+        { error: { status: 404, message: "Token not found" } },
+        { status: 404 },
+      );
+    }
+    return new NextResponse(null, { status: 204 });
+  }
+
+  if (req.method === "POST" && p === "auth/change-password") {
+    return NextResponse.json({ message: "Password updated successfully" });
+  }
+
+  // Web Hosting endpoints
+  if (path[0] === "webhosting") {
+    if (path[1] === "deployments") {
+      if (req.method === "GET" && path.length === 2) {
+        const appId = req.nextUrl.searchParams.get("app_id") ?? undefined;
+        const list = mockStore.getWebDeployments(appId);
+        return NextResponse.json({
+          count: list.length,
+          page: 1,
+          total_pages: 1,
+          results: list,
+        });
+      }
+      if (req.method === "POST" && path.length === 2) {
+        let body: {
+          app_id: string;
+          environment_id: string;
+          artifact_id: string;
+          target?: "preview" | "production";
+          release_id?: string | null;
+          git_branch?: string;
+        } = {
+          app_id: "",
+          environment_id: "",
+          artifact_id: "",
+        };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const dep = mockStore.createWebDeployment(
+          body.app_id,
+          body.environment_id,
+          body.artifact_id || "art_web_001",
+          body.target || "preview",
+          body.release_id,
+          body.git_branch,
+        );
+        return NextResponse.json(dep, { status: 201 });
+      }
+      if (req.method === "GET" && path.length === 3) {
+        const dep = mockStore.getWebDeployment(path[2]);
+        if (!dep) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Web deployment not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(dep);
+      }
+      if (req.method === "POST" && path.length === 4 && path[3] === "rollback") {
+        const dep = mockStore.rollbackWebDeployment(path[2]);
+        if (!dep) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Web deployment not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(dep);
+      }
+    }
+
+    if (path[1] === "domains") {
+      if (req.method === "GET" && path.length === 2) {
+        const appId = req.nextUrl.searchParams.get("app_id") ?? undefined;
+        const domains = mockStore.getCustomDomains(appId);
+        return NextResponse.json({
+          count: domains.length,
+          page: 1,
+          total_pages: 1,
+          results: domains,
+        });
+      }
+      if (req.method === "POST" && path.length === 2) {
+        let body: { app_id: string; domain: string } = { app_id: "", domain: "" };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const created = mockStore.createCustomDomain(body.app_id, body.domain);
+        return NextResponse.json(created, { status: 201 });
+      }
+      if (req.method === "GET" && path.length === 3) {
+        const domain = mockStore.getCustomDomain(path[2]);
+        if (!domain) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Domain not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(domain);
+      }
+      if (req.method === "POST" && path.length === 4 && path[3] === "verify") {
+        const verified = mockStore.verifyCustomDomain(path[2]);
+        if (!verified) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Domain not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(verified);
+      }
+      if (req.method === "DELETE" && path.length === 3) {
+        const success = mockStore.deleteCustomDomain(path[2]);
+        if (!success) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Domain not found" } },
+            { status: 404 },
+          );
+        }
+        return new NextResponse(null, { status: 204 });
+      }
+    }
+  }
+
+  // Observability endpoints
+  if (path[0] === "observability") {
+    if (path[1] === "apps" && path.length === 4 && path[3] === "status") {
+      const status = mockStore.getAppStatus(path[2]);
+      return NextResponse.json(status);
+    }
+    if (path[1] === "apps" && path.length === 4 && path[3] === "health") {
+      const health = mockStore.getAppHealth(path[2]);
+      return NextResponse.json(health);
+    }
+    if (path[1] === "releases" && path.length === 4 && path[3] === "health") {
+      const health = mockStore.getReleaseHealth(path[2]);
+      return NextResponse.json(health);
+    }
+  }
+
+  // Credentials endpoints
+  if (path[0] === "credentials") {
+    if (req.method === "GET" && path.length === 1) {
+      const creds = mockStore.getCredentials(orgHeaderId);
+      return NextResponse.json({
+        count: creds.length,
+        page: 1,
+        total_pages: 1,
+        results: creds,
+      });
+    }
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        provider: "apple" | "google_play" | "shorebird" | "github" | "gitlab" | "bitbucket";
+        name: string;
+        metadata: Record<string, unknown>;
+        expires_at?: string | null;
+      } = {
+        provider: "apple",
+        name: "",
+        metadata: {},
+      };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const cred = mockStore.createCredential(orgHeaderId, body);
+      return NextResponse.json(cred, { status: 201 });
+    }
+    if (req.method === "GET" && path.length === 2) {
+      const cred = mockStore.getCredential(path[1]);
+      if (!cred) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Credential not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(cred);
+    }
+    if (req.method === "POST" && path.length === 3 && path[2] === "test") {
+      const res = mockStore.testCredential(path[1]);
+      return NextResponse.json({
+        id: path[1],
+        provider: res.provider,
+        success: res.success,
+        message: res.message,
+      });
+    }
+    if (req.method === "DELETE" && path.length === 2) {
+      const success = mockStore.deleteCredential(path[1]);
+      if (!success) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Credential not found" } },
+          { status: 404 },
+        );
+      }
+      return new NextResponse(null, { status: 204 });
+    }
+  }
+
+  // Git Connections endpoints
+  if (path[0] === "git-connections") {
+    if (req.method === "GET" && path.length === 1) {
+      const connections = mockStore.getGitConnections(orgHeaderId);
+      return NextResponse.json({
+        count: connections.length,
+        page: 1,
+        total_pages: 1,
+        results: connections,
+      });
+    }
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        provider: "github" | "gitlab" | "bitbucket";
+        installation_id: string;
+        metadata?: Record<string, unknown>;
+      } = {
+        provider: "github",
+        installation_id: "",
+      };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const conn = mockStore.createGitConnection(orgHeaderId, body);
+      return NextResponse.json(conn, { status: 201 });
+    }
+    if (req.method === "GET" && path.length === 2) {
+      const conn = mockStore.getGitConnection(path[1]);
+      if (!conn) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Git connection not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(conn);
+    }
+    if (req.method === "GET" && path.length === 3 && path[2] === "repositories") {
+      const repos = mockStore.getGitRepositories(path[1]);
+      return NextResponse.json({
+        count: repos.length,
+        page: 1,
+        total_pages: 1,
+        results: repos,
+      });
+    }
+    if (req.method === "DELETE" && path.length === 2) {
+      const success = mockStore.deleteGitConnection(path[1]);
+      if (!success) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Git connection not found" } },
+          { status: 404 },
+        );
+      }
+      return new NextResponse(null, { status: 204 });
+    }
+  }
+
   return NextResponse.json(
     {
       error: {

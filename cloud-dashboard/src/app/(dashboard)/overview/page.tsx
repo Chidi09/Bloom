@@ -28,6 +28,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -227,59 +228,63 @@ export default function OverviewPage() {
               align="end"
               className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
             >
-              <DropdownMenuLabel className="text-[11px] text-zinc-400">
-                Sort by
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setSortBy("recent")}
-                className="flex cursor-pointer justify-between text-xs"
-              >
-                <span>Recent activity</span>
-                {sortBy === "recent" && (
-                  <Check className="text-primary size-3" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortBy("alpha")}
-                className="flex cursor-pointer justify-between text-xs"
-              >
-                <span>Alphabetical (A-Z)</span>
-                {sortBy === "alpha" && (
-                  <Check className="text-primary size-3" />
-                )}
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-[11px] text-zinc-400">
+                  Sort by
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setSortBy("recent")}
+                  className="flex cursor-pointer justify-between text-xs"
+                >
+                  <span>Recent activity</span>
+                  {sortBy === "recent" && (
+                    <Check className="text-primary size-3" />
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortBy("alpha")}
+                  className="flex cursor-pointer justify-between text-xs"
+                >
+                  <span>Alphabetical (A-Z)</span>
+                  {sortBy === "alpha" && (
+                    <Check className="text-primary size-3" />
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
 
               <DropdownMenuSeparator className="bg-zinc-800" />
-              <DropdownMenuLabel className="text-[11px] text-zinc-400">
-                Framework
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setFrameworkFilter("all")}
-                className="flex cursor-pointer justify-between text-xs"
-              >
-                <span>All Frameworks</span>
-                {frameworkFilter === "all" && (
-                  <Check className="text-primary size-3" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setFrameworkFilter("bloom")}
-                className="flex cursor-pointer justify-between text-xs"
-              >
-                <span>Bloom Framework only</span>
-                {frameworkFilter === "bloom" && (
-                  <Check className="text-primary size-3" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setFrameworkFilter("flutter")}
-                className="flex cursor-pointer justify-between text-xs"
-              >
-                <span>Standard Flutter only</span>
-                {frameworkFilter === "flutter" && (
-                  <Check className="text-primary size-3" />
-                )}
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-[11px] text-zinc-400">
+                  Framework
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setFrameworkFilter("all")}
+                  className="flex cursor-pointer justify-between text-xs"
+                >
+                  <span>All Frameworks</span>
+                  {frameworkFilter === "all" && (
+                    <Check className="text-primary size-3" />
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setFrameworkFilter("bloom")}
+                  className="flex cursor-pointer justify-between text-xs"
+                >
+                  <span>Bloom Framework only</span>
+                  {frameworkFilter === "bloom" && (
+                    <Check className="text-primary size-3" />
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setFrameworkFilter("flutter")}
+                  className="flex cursor-pointer justify-between text-xs"
+                >
+                  <span>Standard Flutter only</span>
+                  {frameworkFilter === "flutter" && (
+                    <Check className="text-primary size-3" />
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 

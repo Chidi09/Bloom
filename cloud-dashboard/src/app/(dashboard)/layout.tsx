@@ -28,6 +28,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -165,22 +166,24 @@ export default function DashboardLayout({
               align="start"
               className="w-56 border-zinc-800 bg-zinc-900 text-zinc-200"
             >
-              <DropdownMenuLabel className="text-[11px] text-zinc-400">
-                Workspaces
-              </DropdownMenuLabel>
-              {orgs.map((org) => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onClick={() =>
-                    useOrganizationStore
-                      .getState()
-                      .setCurrentOrganizationId(org.id)
-                  }
-                  className="cursor-pointer text-xs hover:bg-zinc-800 focus:bg-zinc-800"
-                >
-                  <span className="truncate">{org.name}</span>
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-[11px] text-zinc-400">
+                  Workspaces
+                </DropdownMenuLabel>
+                {orgs.map((org) => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() =>
+                      useOrganizationStore
+                        .getState()
+                        .setCurrentOrganizationId(org.id)
+                    }
+                    className="cursor-pointer text-xs hover:bg-zinc-800 focus:bg-zinc-800"
+                  >
+                    <span className="truncate">{org.name}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
               <DropdownMenuSeparator className="bg-zinc-800" />
               <DropdownMenuItem
                 onClick={() => router.push("/organizations")}
@@ -331,12 +334,14 @@ export default function DashboardLayout({
                 align="end"
                 className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
               >
-                <DropdownMenuLabel className="text-xs text-zinc-400">
-                  {userProfile.email}
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-xs text-zinc-400">
+                    {userProfile.email}
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator className="bg-zinc-800" />
                 <DropdownMenuItem
-                  onClick={() => router.push("/settings")}
+                  onClick={() => router.push("/account")}
                   className="cursor-pointer text-xs"
                 >
                   Settings

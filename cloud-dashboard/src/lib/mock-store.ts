@@ -201,6 +201,104 @@ export interface MockBuild {
   duration_seconds?: number;
 }
 
+export interface MockWebDeployment {
+  id: string;
+  app_id: string;
+  environment_id: string;
+  release_id: string | null;
+  target: "preview" | "production";
+  url: string;
+  status: "deploying" | "live" | "failed" | "rolled_back";
+  deployed_by_id: string;
+  created_at: string;
+}
+
+export interface MockRequiredDnsRecord {
+  record_type: string;
+  host: string;
+  value: string;
+  purpose: string;
+}
+
+export interface MockCustomDomain {
+  id: string;
+  app_id: string;
+  domain: string;
+  verification_token: string;
+  certificate_status: "pending" | "issuing" | "active" | "failed";
+  certificate_expires_at?: string | null;
+  verified_at?: string | null;
+  failure_reason?: string | null;
+  required_records: MockRequiredDnsRecord[];
+}
+
+export interface MockPlatformHealth {
+  platform: string;
+  target: string;
+  crash_free_rate?: number | null;
+  sessions?: number | null;
+  crashes?: number | null;
+  status: "healthy" | "warning" | "degraded" | "unknown";
+}
+
+export interface MockReleaseHealth {
+  release_id: string;
+  overall_crash_free_rate?: number | null;
+  platforms: MockPlatformHealth[];
+}
+
+export interface MockEnvironmentStatus {
+  environment: string;
+  platform: string;
+  release_id?: string | null;
+  version?: string | null;
+  build_number?: number | null;
+  status: string;
+  crash_free_rate?: number | null;
+}
+
+export interface MockAppStatus {
+  app_id: string;
+  environments: MockEnvironmentStatus[];
+}
+
+export interface MockApiToken {
+  id: string;
+  name: string;
+  token?: string | null;
+  last_used_at?: string | null;
+  created_at: string;
+}
+
+export interface MockCredential {
+  id: string;
+  organization_id: string;
+  provider:
+    "apple" | "google_play" | "shorebird" | "github" | "gitlab" | "bitbucket";
+  name: string;
+  metadata: Record<string, unknown>;
+  expires_at?: string | null;
+  last_used_at?: string | null;
+  created_at: string;
+}
+
+export interface MockGitConnection {
+  id: string;
+  organization_id: string;
+  provider: "github" | "gitlab" | "bitbucket";
+  installation_id: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface MockGitRepository {
+  id: string;
+  connection_id: string;
+  full_name: string;
+  default_branch: string;
+  url: string;
+}
+
 class MockDataStore {
   public currentUser: MockUser = {
     id: "00000000-0000-0000-0000-000000000001",
@@ -1896,6 +1994,619 @@ class MockDataStore {
     b.finished_at = new Date().toISOString();
     b.updated_at = new Date().toISOString();
     return b;
+  }
+
+  // Web Hosting
+  public webDeployments: MockWebDeployment[] = [
+    {
+      id: "webdep_001",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      release_id: "rel_001",
+      target: "production",
+      url: "https://bloom-wallet-prod.bloom.site",
+      status: "live",
+      deployed_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "webdep_002",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      environment_id: "00000000-0000-0000-0000-000000000041",
+      release_id: "rel_002",
+      target: "preview",
+      url: "https://bloom-wallet-feat-ux.preview.bloom.site",
+      status: "live",
+      deployed_by_id: "00000000-0000-0000-0000-000000000002",
+      created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    },
+    {
+      id: "webdep_003",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      release_id: "rel_003",
+      target: "production",
+      url: "https://bloom-wallet-v1-4-1.bloom.site",
+      status: "rolled_back",
+      deployed_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+    },
+    {
+      id: "webdep_004",
+      app_id: "00000000-0000-0000-0000-000000000032",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      release_id: null,
+      target: "production",
+      url: "https://portal.bloom.site",
+      status: "live",
+      deployed_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+  ];
+
+  public customDomains: MockCustomDomain[] = [
+    {
+      id: "dom_001",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      domain: "wallet.bloom.dev",
+      verification_token: "bloom_verify_98f4e2a1b7c0",
+      certificate_status: "active",
+      certificate_expires_at: new Date(
+        Date.now() + 86400000 * 85,
+      ).toISOString(),
+      verified_at: new Date(Date.now() - 86400000 * 20).toISOString(),
+      failure_reason: null,
+      required_records: [
+        {
+          record_type: "CNAME",
+          host: "wallet",
+          value: "cname.bloom.site",
+          purpose: "Traffic routing & edge CDN",
+        },
+        {
+          record_type: "TXT",
+          host: "_bloom-challenge.wallet",
+          value: "bloom_verify_98f4e2a1b7c0",
+          purpose: "Domain ownership verification",
+        },
+      ],
+    },
+    {
+      id: "dom_002",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      domain: "app.bloomwallet.io",
+      verification_token: "bloom_verify_42a8b9c1d0e3",
+      certificate_status: "pending",
+      certificate_expires_at: null,
+      verified_at: null,
+      failure_reason: null,
+      required_records: [
+        {
+          record_type: "CNAME",
+          host: "app",
+          value: "cname.bloom.site",
+          purpose: "Traffic routing & edge CDN",
+        },
+        {
+          record_type: "TXT",
+          host: "_bloom-challenge.app",
+          value: "bloom_verify_42a8b9c1d0e3",
+          purpose: "Domain ownership verification",
+        },
+      ],
+    },
+  ];
+
+  public getWebDeployments(appId?: string): MockWebDeployment[] {
+    if (!appId) return this.webDeployments;
+    return this.webDeployments.filter((d) => d.app_id === appId);
+  }
+
+  public getWebDeployment(id: string): MockWebDeployment | undefined {
+    return this.webDeployments.find((d) => d.id === id);
+  }
+
+  public createWebDeployment(
+    appId: string,
+    environmentId: string,
+    artifactId: string,
+    target: "preview" | "production",
+    releaseId?: string | null,
+    gitBranch?: string,
+  ): MockWebDeployment {
+    const id = `webdep_${Math.random().toString(16).slice(2, 10)}`;
+    const branchSlug = (gitBranch || "main").replace(/[^a-zA-Z0-9-]/g, "-");
+    const url =
+      target === "production"
+        ? `https://${appId.slice(0, 8)}.bloom.site`
+        : `https://${appId.slice(0, 8)}-${branchSlug}.preview.bloom.site`;
+
+    const dep: MockWebDeployment = {
+      id,
+      app_id: appId,
+      environment_id: environmentId,
+      release_id: releaseId ?? null,
+      target,
+      url,
+      status: "live",
+      deployed_by_id: this.currentUser.id,
+      created_at: new Date().toISOString(),
+    };
+    this.webDeployments.unshift(dep);
+    return dep;
+  }
+
+  public rollbackWebDeployment(id: string): MockWebDeployment | null {
+    const dep = this.webDeployments.find((d) => d.id === id);
+    if (!dep) return null;
+    dep.status = "rolled_back";
+    return dep;
+  }
+
+  public getCustomDomains(appId?: string): MockCustomDomain[] {
+    if (!appId) return this.customDomains;
+    return this.customDomains.filter((d) => d.app_id === appId);
+  }
+
+  public getCustomDomain(id: string): MockCustomDomain | undefined {
+    return this.customDomains.find((d) => d.id === id);
+  }
+
+  public createCustomDomain(appId: string, domain: string): MockCustomDomain {
+    const id = `dom_${Math.random().toString(16).slice(2, 10)}`;
+    const token = `bloom_verify_${Math.random().toString(16).slice(2, 14)}`;
+    const subHost = domain.split(".")[0] || "@";
+
+    const customDomain: MockCustomDomain = {
+      id,
+      app_id: appId,
+      domain,
+      verification_token: token,
+      certificate_status: "pending",
+      certificate_expires_at: null,
+      verified_at: null,
+      failure_reason: null,
+      required_records: [
+        {
+          record_type: "CNAME",
+          host: subHost,
+          value: "cname.bloom.site",
+          purpose: "Traffic routing & edge CDN",
+        },
+        {
+          record_type: "TXT",
+          host: `_bloom-challenge.${subHost}`,
+          value: token,
+          purpose: "Domain ownership verification",
+        },
+      ],
+    };
+    this.customDomains.unshift(customDomain);
+    return customDomain;
+  }
+
+  public verifyCustomDomain(id: string): MockCustomDomain | null {
+    const dom = this.customDomains.find((d) => d.id === id);
+    if (!dom) return null;
+    dom.certificate_status = "active";
+    dom.verified_at = new Date().toISOString();
+    dom.certificate_expires_at = new Date(
+      Date.now() + 86400000 * 90,
+    ).toISOString();
+    dom.failure_reason = null;
+    return dom;
+  }
+
+  public deleteCustomDomain(id: string): boolean {
+    const idx = this.customDomains.findIndex((d) => d.id === id);
+    if (idx === -1) return false;
+    this.customDomains.splice(idx, 1);
+    return true;
+  }
+
+  // Observability
+  public getAppStatus(appId: string): MockAppStatus {
+    return {
+      app_id: appId,
+      environments: [
+        {
+          environment: "production",
+          platform: "ios",
+          release_id: "rel_001",
+          version: "v1.4.2",
+          build_number: 42,
+          status: "healthy",
+          crash_free_rate: 0.998,
+        },
+        {
+          environment: "production",
+          platform: "android",
+          release_id: "rel_001",
+          version: "v1.4.2",
+          build_number: 42,
+          status: "healthy",
+          crash_free_rate: 0.996,
+        },
+        {
+          environment: "production",
+          platform: "web",
+          release_id: "rel_001",
+          version: "v1.4.2",
+          build_number: 42,
+          status: "healthy",
+          crash_free_rate: 1.0,
+        },
+        {
+          environment: "staging",
+          platform: "ios",
+          release_id: "rel_002",
+          version: "v1.4.3-beta",
+          build_number: 45,
+          status: "healthy",
+          crash_free_rate: 0.991,
+        },
+      ],
+    };
+  }
+
+  public getAppHealth(_appId: string): MockReleaseHealth {
+    return {
+      release_id: "rel_latest",
+      overall_crash_free_rate: 0.998,
+      platforms: [
+        {
+          platform: "ios",
+          target: "app_store",
+          crash_free_rate: 0.998,
+          sessions: 42580,
+          crashes: 85,
+          status: "healthy",
+        },
+        {
+          platform: "android",
+          target: "google_play",
+          crash_free_rate: 0.996,
+          sessions: 38920,
+          crashes: 155,
+          status: "healthy",
+        },
+        {
+          platform: "web",
+          target: "web_hosting",
+          crash_free_rate: 1.0,
+          sessions: 14200,
+          crashes: 0,
+          status: "healthy",
+        },
+      ],
+    };
+  }
+
+  public getReleaseHealth(releaseId: string): MockReleaseHealth {
+    return {
+      release_id: releaseId,
+      overall_crash_free_rate: 0.997,
+      platforms: [
+        {
+          platform: "ios",
+          target: "app_store",
+          crash_free_rate: 0.998,
+          sessions: 18200,
+          crashes: 36,
+          status: "healthy",
+        },
+        {
+          platform: "android",
+          target: "google_play",
+          crash_free_rate: 0.995,
+          sessions: 15400,
+          crashes: 77,
+          status: "healthy",
+        },
+      ],
+    };
+  }
+
+  // API Tokens
+  public apiTokens: MockApiToken[] = [
+    {
+      id: "tok_001",
+      name: "CLI Token - MacBook Pro M3",
+      last_used_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
+    },
+    {
+      id: "tok_002",
+      name: "GitHub Actions Deploy Key",
+      last_used_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+    },
+  ];
+
+  public getApiTokens(): MockApiToken[] {
+    return this.apiTokens;
+  }
+
+  public createApiToken(name: string): {
+    tokenRecord: MockApiToken;
+    rawToken: string;
+  } {
+    const id = `tok_${Math.random().toString(16).slice(2, 10)}`;
+    const rawToken = `blm_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
+    const tokenRecord: MockApiToken = {
+      id,
+      name,
+      token: rawToken,
+      last_used_at: null,
+      created_at: new Date().toISOString(),
+    };
+    this.apiTokens.unshift(tokenRecord);
+    return { tokenRecord, rawToken };
+  }
+
+  public revokeApiToken(id: string): boolean {
+    const idx = this.apiTokens.findIndex((t) => t.id === id);
+    if (idx === -1) return false;
+    this.apiTokens.splice(idx, 1);
+    return true;
+  }
+
+  public updateUserProfile(data: {
+    display_name?: string;
+    avatar_url?: string | null;
+    timezone?: string;
+  }): MockUser {
+    if (data.display_name !== undefined)
+      this.currentUser.display_name = data.display_name;
+    if (data.avatar_url !== undefined)
+      this.currentUser.avatar_url = data.avatar_url;
+    if (data.timezone !== undefined) this.currentUser.timezone = data.timezone;
+    return this.currentUser;
+  }
+
+  // Credentials
+  public credentials: MockCredential[] = [
+    {
+      id: "cred_apple_01",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "apple",
+      name: "Bloom App Store Connect API Key",
+      metadata: {
+        provider: "apple",
+        key_id: "2X9R4HXF34",
+        issuer_id: "57246542-96fe-1a63-e053-0824d011072a",
+        team_id: "A3B8C9D0E1",
+      },
+      expires_at: new Date(Date.now() + 86400000 * 180).toISOString(),
+      last_used_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 60).toISOString(),
+    },
+    {
+      id: "cred_google_01",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "google_play",
+      name: "Google Play Console Service Account",
+      metadata: {
+        provider: "google_play",
+        client_email:
+          "play-deployer@bloom-mobile-suite.iam.gserviceaccount.com",
+      },
+      expires_at: null,
+      last_used_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 50).toISOString(),
+    },
+    {
+      id: "cred_shorebird_01",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "shorebird",
+      name: "Shorebird CodePush Integration",
+      metadata: {
+        provider: "shorebird",
+        app_id: "8c7f6b5a-4d3e-2a1b-0c9d-8e7f6a5b4c3d",
+      },
+      expires_at: null,
+      last_used_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 40).toISOString(),
+    },
+    {
+      id: "cred_github_01",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "github",
+      name: "GitHub App CI Integration",
+      metadata: {
+        provider: "github",
+        installation_id: "54829104",
+      },
+      expires_at: null,
+      last_used_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+    },
+  ];
+
+  public getCredentials(orgId?: string): MockCredential[] {
+    if (!orgId) return this.credentials;
+    return this.credentials.filter((c) => c.organization_id === orgId);
+  }
+
+  public getCredential(id: string): MockCredential | undefined {
+    return this.credentials.find((c) => c.id === id);
+  }
+
+  public createCredential(
+    orgId: string,
+    data: {
+      provider: MockCredential["provider"];
+      name: string;
+      metadata: Record<string, unknown>;
+      expires_at?: string | null;
+    },
+  ): MockCredential {
+    const id = `cred_${Math.random().toString(16).slice(2, 10)}`;
+    const cred: MockCredential = {
+      id,
+      organization_id: orgId,
+      provider: data.provider,
+      name: data.name,
+      metadata: data.metadata,
+      expires_at: data.expires_at ?? null,
+      last_used_at: null,
+      created_at: new Date().toISOString(),
+    };
+    this.credentials.unshift(cred);
+    return cred;
+  }
+
+  public testCredential(id: string): {
+    success: boolean;
+    message: string;
+    provider: string;
+  } {
+    const cred = this.credentials.find((c) => c.id === id);
+    if (!cred)
+      return {
+        success: false,
+        message: "Credential not found",
+        provider: "unknown",
+      };
+    cred.last_used_at = new Date().toISOString();
+    return {
+      success: true,
+      message: `Successfully authenticated with ${cred.provider.replace("_", " ")} API.`,
+      provider: cred.provider,
+    };
+  }
+
+  public deleteCredential(id: string): boolean {
+    const idx = this.credentials.findIndex((c) => c.id === id);
+    if (idx === -1) return false;
+    this.credentials.splice(idx, 1);
+    return true;
+  }
+
+  // Git Connections
+  public gitConnections: MockGitConnection[] = [
+    {
+      id: "gitconn_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "github",
+      installation_id: "54829104",
+      metadata: {
+        account_name: "bloom-labs",
+        account_type: "Organization",
+        avatar_url: "https://github.com/bloom-labs.png",
+        repositories_count: 3,
+      },
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+    },
+    {
+      id: "gitconn_002",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      provider: "gitlab",
+      installation_id: "gl_app_992144",
+      metadata: {
+        account_name: "bloom-enterprise",
+        account_type: "Group",
+        repositories_count: 1,
+      },
+      created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
+    },
+  ];
+
+  public gitRepositories: MockGitRepository[] = [
+    {
+      id: "repo_001",
+      connection_id: "gitconn_001",
+      full_name: "bloom-labs/wallet",
+      default_branch: "main",
+      url: "https://github.com/bloom-labs/wallet",
+    },
+    {
+      id: "repo_002",
+      connection_id: "gitconn_001",
+      full_name: "bloom-labs/analytics",
+      default_branch: "main",
+      url: "https://github.com/bloom-labs/analytics",
+    },
+    {
+      id: "repo_003",
+      connection_id: "gitconn_001",
+      full_name: "bloom-labs/portal",
+      default_branch: "main",
+      url: "https://github.com/bloom-labs/portal",
+    },
+    {
+      id: "repo_004",
+      connection_id: "gitconn_002",
+      full_name: "bloom-enterprise/core-kernel",
+      default_branch: "master",
+      url: "https://gitlab.com/bloom-enterprise/core-kernel",
+    },
+  ];
+
+  public getGitConnections(orgId?: string): MockGitConnection[] {
+    if (!orgId) return this.gitConnections;
+    return this.gitConnections.filter((c) => c.organization_id === orgId);
+  }
+
+  public getGitConnection(id: string): MockGitConnection | undefined {
+    return this.gitConnections.find((c) => c.id === id);
+  }
+
+  public createGitConnection(
+    orgId: string,
+    data: {
+      provider: "github" | "gitlab" | "bitbucket";
+      installation_id: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): MockGitConnection {
+    const id = `gitconn_${Math.random().toString(16).slice(2, 10)}`;
+    const conn: MockGitConnection = {
+      id,
+      organization_id: orgId,
+      provider: data.provider,
+      installation_id: data.installation_id,
+      metadata: data.metadata || {
+        account_name: `connected-${data.provider}-account`,
+        repositories_count: 2,
+      },
+      created_at: new Date().toISOString(),
+    };
+    this.gitConnections.unshift(conn);
+
+    // Auto seed 2 repositories for this new connection
+    this.gitRepositories.push(
+      {
+        id: `repo_${Math.random().toString(16).slice(2, 8)}`,
+        connection_id: id,
+        full_name: `${conn.metadata.account_name || "org"}/mobile-app`,
+        default_branch: "main",
+        url: `https://${data.provider}.com/${conn.metadata.account_name || "org"}/mobile-app`,
+      },
+      {
+        id: `repo_${Math.random().toString(16).slice(2, 8)}`,
+        connection_id: id,
+        full_name: `${conn.metadata.account_name || "org"}/web-client`,
+        default_branch: "main",
+        url: `https://${data.provider}.com/${conn.metadata.account_name || "org"}/web-client`,
+      },
+    );
+
+    return conn;
+  }
+
+  public deleteGitConnection(id: string): boolean {
+    const idx = this.gitConnections.findIndex((c) => c.id === id);
+    if (idx === -1) return false;
+    this.gitConnections.splice(idx, 1);
+    this.gitRepositories = this.gitRepositories.filter(
+      (r) => r.connection_id !== id,
+    );
+    return true;
+  }
+
+  public getGitRepositories(connectionId: string): MockGitRepository[] {
+    return this.gitRepositories.filter((r) => r.connection_id === connectionId);
   }
 }
 
