@@ -9,6 +9,7 @@ import {
   ArrowsClockwise,
   ArrowCounterClockwise,
   ArrowRight,
+  ArrowsLeftRight,
   DotsThreeVertical,
   ThumbsUp,
   ThumbsDown,
@@ -112,6 +113,11 @@ export default function AppReleasesPage() {
 
   // Rollback Action State
   const [rollbackId, setRollbackId] = React.useState<string | null>(null);
+
+  // Compare Releases Dialog State
+  const [compareDialogOpen, setCompareDialogOpen] = React.useState(false);
+  const [compareLeftId, setCompareLeftId] = React.useState("");
+  const [compareRightId, setCompareRightId] = React.useState("");
 
   const fetchData = React.useCallback(async () => {
     if (!appId) return;
@@ -274,6 +280,17 @@ export default function AppReleasesPage() {
           >
             <ArrowsClockwise className="size-3.5" />
             <span>Refresh</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={releases.length < 2}
+            onClick={() => setCompareDialogOpen(true)}
+            className="h-8 gap-1.5"
+          >
+            <ArrowsLeftRight className="size-3.5" />
+            <span>Compare Releases</span>
           </Button>
 
           <Button
@@ -629,6 +646,145 @@ export default function AppReleasesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Compare Releases Dialog */}
+      <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Compare Releases</DialogTitle>
+            <DialogDescription>
+              Select two releases to compare their metadata, changelog, and
+              rollout state.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Release A</Label>
+              <Select
+                value={compareLeftId}
+                onValueChange={(v) => v && setCompareLeftId(v)}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select a release" />
+                </SelectTrigger>
+                <SelectContent>
+                  {releases.map((r) => (
+                    <SelectItem key={r.id} value={r.id} className="text-xs">
+                      v{r.version} (build #{r.build_number})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Release B</Label>
+              <Select
+                value={compareRightId}
+                onValueChange={(v) => v && setCompareRightId(v)}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select a release" />
+                </SelectTrigger>
+                <SelectContent>
+                  {releases.map((r) => (
+                    <SelectItem key={r.id} value={r.id} className="text-xs">
+                      v{r.version} (build #{r.build_number})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {(() => {
+            const left = releases.find((r) => r.id === compareLeftId);
+            const right = releases.find((r) => r.id === compareRightId);
+            if (!left || !right) {
+              return (
+                <p className="text-muted-foreground py-6 text-center text-xs">
+                  Choose two releases above to see a diff.
+                </p>
+              );
+            }
+            const rows: Array<{
+              label: string;
+              a: React.ReactNode;
+              b: React.ReactNode;
+              changed: boolean;
+            }> = [
+              {
+                label: "Version",
+                a: left.version,
+                b: right.version,
+                changed: left.version !== right.version,
+              },
+              {
+                label: "Build #",
+                a: left.build_number,
+                b: right.build_number,
+                changed: left.build_number !== right.build_number,
+              },
+              {
+                label: "Status",
+                a: <StatusBadge status={left.status} size="sm" />,
+                b: <StatusBadge status={right.status} size="sm" />,
+                changed: left.status !== right.status,
+              },
+              {
+                label: "Commit",
+                a: left.commit.slice(0, 10),
+                b: right.commit.slice(0, 10),
+                changed: left.commit !== right.commit,
+              },
+              {
+                label: "Platforms",
+                a: left.platforms.join(", ") || "—",
+                b: right.platforms.join(", ") || "—",
+                changed:
+                  JSON.stringify([...left.platforms].sort()) !==
+                  JSON.stringify([...right.platforms].sort()),
+              },
+              {
+                label: "Changelog",
+                a: left.changelog || "—",
+                b: right.changelog || "—",
+                changed: left.changelog !== right.changelog,
+              },
+            ];
+            return (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Field</TableHead>
+                    <TableHead>v{left.version}</TableHead>
+                    <TableHead>v{right.version}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.label}>
+                      <TableCell className="text-muted-foreground text-xs font-medium">
+                        {row.label}
+                      </TableCell>
+                      <TableCell
+                        className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
+                      >
+                        {row.a}
+                      </TableCell>
+                      <TableCell
+                        className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
+                      >
+                        {row.b}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
