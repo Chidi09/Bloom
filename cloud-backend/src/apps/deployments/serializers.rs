@@ -23,6 +23,7 @@ pub fn serialize_deployment(
         status: deployment.status.clone(),
         external_id: deployment.external_id.clone(),
         external_url: deployment.external_url.clone(),
+        preview_image_url: deployment.preview_image_url.clone(),
         error_message: deployment.error_message.clone(),
         started_at: deployment.started_at.map(|t| t.to_rfc3339()),
         finished_at: deployment.finished_at.map(|t| t.to_rfc3339()),

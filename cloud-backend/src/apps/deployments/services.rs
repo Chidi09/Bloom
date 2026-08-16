@@ -257,6 +257,7 @@ pub async fn create_deployment(
         status: "pending".to_string(),
         external_id: None,
         external_url: None,
+        preview_image_url: None,
         error_message: None,
         started_at: None,
         finished_at: None,

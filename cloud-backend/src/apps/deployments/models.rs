@@ -73,6 +73,13 @@ pub struct Deployment {
     #[djangors(max_length = 500, nullable)]
     pub external_url: Option<String>,
 
+    /// Screenshot/preview image URL rendered inside the dashboard's device-frame preview.
+    ///
+    /// Nullable: nothing captures this automatically yet, so it degrades to a placeholder
+    /// in the UI until a capture pipeline or manual upload populates it.
+    #[djangors(max_length = 500, nullable)]
+    pub preview_image_url: Option<String>,
+
     /// Platform or worker failure diagnostics when deployment fails.
     #[djangors(nullable)]
     pub error_message: Option<String>,

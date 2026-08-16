@@ -42,6 +42,9 @@ pub struct DeploymentResponse {
     pub external_id: Option<String>,
     /// Platform console URL.
     pub external_url: Option<String>,
+    /// Screenshot/preview image URL for the dashboard's device-frame preview. Null until a
+    /// capture pipeline or manual upload populates it.
+    pub preview_image_url: Option<String>,
     /// Platform or worker failure diagnostics.
     pub error_message: Option<String>,
     /// ISO-8601 timestamp when deployment execution began.
