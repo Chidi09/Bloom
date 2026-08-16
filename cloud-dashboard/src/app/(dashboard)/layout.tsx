@@ -9,11 +9,8 @@ import {
   FolderSimple,
   Buildings,
   Hammer,
-  RocketLaunch,
   Key,
   ShieldCheck,
-  ChartLine,
-  Gear,
   SignOut,
   CaretUpDown,
   MagnifyingGlass,
@@ -60,16 +57,13 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { label: "Workflows", href: "/workflows", icon: GitFork },
   { label: "Marketplace", href: "/marketplace", icon: Storefront },
   { label: "Organizations", href: "/organizations", icon: Buildings },
-  { label: "Releases & Deploy", href: "/releases", icon: RocketLaunch },
-  { label: "Environment & Secrets", href: "/secrets", icon: Key },
-  { label: "Signing & Certificates", href: "/signing", icon: ShieldCheck },
+  { label: "Credentials", href: "/credentials", icon: Key },
+  { label: "Git Connections", href: "/git-connections", icon: ShieldCheck },
   { label: "Audit Log", href: "/audit-log", icon: Scroll },
 ];
 
 const SYSTEM_NAV_ITEMS: NavItem[] = [
-  { label: "Usage & Limits", href: "/usage", icon: ChartLine },
   { label: "Documentation", href: "https://bloom.dev/docs", icon: BookOpen },
-  { label: "Settings", href: "/settings", icon: Gear },
 ];
 
 export default function DashboardLayout({
