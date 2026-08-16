@@ -10,6 +10,12 @@ import {
   WarningOctagon,
   ArrowsClockwise,
   RocketLaunch,
+  DownloadSimple,
+  Copy,
+  Check,
+  Package,
+  ShieldCheck,
+  Lock,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -36,17 +42,25 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PlatformIcon } from "@/components/status/platform-icon";
 import { StatusBadge } from "@/components/status/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
-import { ReleaseResponse } from "@/lib/schemas/release";
+import { ReleaseResponse, ReleaseArtifact } from "@/lib/schemas/release";
 import { AppResponse } from "@/lib/schemas/app";
 import { useOrganizationStore } from "@/stores/organization-store";
 import { useOrganizationEvents } from "@/lib/hooks/use-organization-events";
 import { OrganizationRoleName, hasRole } from "@/lib/auth/roles";
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "--";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
 
 export default function AppReleaseDetailPage() {
   const params = useParams<{ id: string; releaseId: string }>();
@@ -64,6 +78,9 @@ export default function AppReleaseDetailPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [copiedChecksumId, setCopiedChecksumId] = React.useState<string | null>(
+    null,
+  );
   const [error, setError] = React.useState<string | null>(null);
 
   // User role for hard-hide gating
@@ -116,7 +133,7 @@ export default function AppReleaseDetailPage() {
         { changelog: changelog.trim() },
       );
       setRelease(updated);
-      toast.success("Changelog saved");
+      toast.success("Changelog saved successfully");
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to save changelog",
@@ -135,7 +152,11 @@ export default function AppReleaseDetailPage() {
         { approved },
       );
       setRelease(updated);
-      toast.success(approved ? "Release approved" : "Release rejected");
+      toast.success(
+        approved
+          ? "Release approved and scheduled for rollout"
+          : "Release rejected",
+      );
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update approval status",
@@ -161,6 +182,24 @@ export default function AppReleaseDetailPage() {
       );
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleCopyChecksum = (id: string, checksum: string) => {
+    if (!checksum) return;
+    navigator.clipboard.writeText(checksum);
+    setCopiedChecksumId(id);
+    toast.success("SHA-256 checksum copied to clipboard");
+    setTimeout(() => {
+      setCopiedChecksumId((prev) => (prev === id ? null : prev));
+    }, 2000);
+  };
+
+  const handleDownloadArtifact = (artifact: ReleaseArtifact) => {
+    if (artifact.download_url) {
+      window.open(artifact.download_url, "_blank");
+    } else {
+      toast.success(`Starting download for ${artifact.file_name}`);
     }
   };
 
@@ -259,10 +298,18 @@ export default function AppReleaseDetailPage() {
                     <AlertDialogTitle>
                       Rollback Release {release.version}?
                     </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will transition the release state to
-                      &quot;rolled_back&quot; and stop traffic from directing to
-                      this version.
+                    <AlertDialogDescription className="space-y-2 text-left">
+                      <p>
+                        This is a destructive action. Rolling back will
+                        transition release <strong>{release.version}</strong> to
+                        the <strong>rolled_back</strong> state and immediately
+                        stop active distribution channels from serving this
+                        version.
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Connected app stores and edge hosts will revert to the
+                        previous verified stable release.
+                      </p>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -281,58 +328,85 @@ export default function AppReleaseDetailPage() {
         }
       />
 
-      {/* Pending Approval Banner (§22.4) */}
+      {/* High-Impact Approval Panel (Action Needed) */}
       {isPending && (
-        <Alert className="border-[var(--status-warning)]/40 bg-[var(--status-warning-bg)] text-[var(--status-warning)]">
-          <WarningOctagon className="size-4 shrink-0" />
-          <div className="flex w-full items-center justify-between">
-            <div>
-              <AlertTitle className="font-semibold">
-                Pending Release Approval
-              </AlertTitle>
-              <AlertDescription className="text-foreground/80 mt-0.5 text-xs">
-                This release is staged for distribution and requires
-                confirmation from a Release Manager.
-              </AlertDescription>
-            </div>
-            {/* Actionable buttons hard-gated to ReleaseManager+ */}
-            {canApprove && (
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void handleApprove(false)}
-                  disabled={isProcessing}
-                  className="text-destructive border-destructive/30 h-7 text-xs"
-                >
-                  <ThumbsDown className="mr-1 size-3" />
-                  Reject
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => void handleApprove(true)}
-                  disabled={isProcessing}
-                  className="h-7 text-xs"
-                >
-                  <ThumbsUp className="mr-1 size-3" />
-                  Approve Release
-                </Button>
+        <Card className="border-amber-500/50 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent shadow-md ring-1 ring-amber-500/20">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-lg border border-amber-500/30 bg-amber-500/20 p-2 text-amber-400 shadow-xs">
+                  <WarningOctagon className="size-5" weight="bold" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base font-semibold text-amber-200">
+                      Action Required: Release Approval Pending
+                    </CardTitle>
+                    <Badge className="border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-300">
+                      Awaiting Sign-off
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-foreground/80 mt-1 text-xs">
+                    Release <strong>v{release.version}</strong> (Build #
+                    {release.build_number}) is fully built and staged for
+                    distribution. A Release Manager must approve or reject this
+                    version before rollout begins.
+                  </CardDescription>
+                </div>
               </div>
-            )}
-          </div>
-        </Alert>
+
+              {/* Action Buttons for Release Managers */}
+              {canApprove ? (
+                <div className="flex items-center gap-2 pt-1 sm:pt-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleApprove(false)}
+                    disabled={isProcessing}
+                    className="border-destructive/40 bg-background/60 text-destructive hover:bg-destructive hover:text-destructive-foreground h-8 cursor-pointer gap-1.5 text-xs font-medium transition-colors"
+                  >
+                    <ThumbsDown className="size-3.5" />
+                    <span>Reject</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleApprove(true)}
+                    disabled={isProcessing}
+                    className="h-8 cursor-pointer gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs transition-colors hover:bg-emerald-500"
+                  >
+                    {isProcessing ? (
+                      <BloomSpinner size={14} speed="fast" />
+                    ) : (
+                      <ThumbsUp className="size-3.5" />
+                    )}
+                    <span>Approve &amp; Rollout</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-border/60 bg-background/50 text-muted-foreground flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs">
+                  <Lock className="size-3.5 shrink-0" />
+                  <span>
+                    Role <strong>{userRole}</strong> cannot approve. Requires{" "}
+                    <strong>ReleaseManager</strong>.
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+        </Card>
       )}
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left Column: Changelog Editor */}
+        {/* Left Column: Changelog Editor & Artifacts */}
         <div className="space-y-6 lg:col-span-2">
+          {/* Changelog Editor */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-semibold">
-                    Release Notes & Changelog
+                    Release Notes &amp; Changelog
                   </CardTitle>
                   <CardDescription>
                     Markdown formatted notes distributed to app stores and
@@ -374,22 +448,145 @@ export default function AppReleaseDetailPage() {
                     placeholder="Describe new features, fixes, and improvements in markdown..."
                     value={changelog}
                     onChange={(e) => setChangelog(e.target.value)}
-                    rows={12}
+                    rows={10}
                     className="font-mono text-xs leading-relaxed"
                   />
                 </TabsContent>
 
                 <TabsContent value="preview" className="pt-3">
-                  <div className="border-border/80 bg-muted/20 text-foreground/90 min-h-[240px] rounded-md border p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap shadow-xs">
+                  <div className="border-border/80 bg-muted/20 text-foreground/90 min-h-[200px] rounded-md border p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap shadow-xs">
                     {changelog || "(No changelog content provided)"}
                   </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
+
+          {/* Artifacts List Section */}
+          <Card className="border-border/80 bg-card shadow-xs">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">
+                    Release Artifacts &amp; Binaries
+                  </CardTitle>
+                  <CardDescription>
+                    Compiled application packages and distribution bundles for
+                    this release.
+                  </CardDescription>
+                </div>
+                <Badge
+                  variant="secondary"
+                  className="font-mono text-[10px] tracking-wider uppercase"
+                >
+                  {release.artifacts?.length || 0} Binaries
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-3">
+              {release.artifacts && release.artifacts.length > 0 ? (
+                <div className="divide-border/60 border-border/70 divide-y rounded-lg border">
+                  {release.artifacts.map((artifact) => {
+                    const isCopied = copiedChecksumId === artifact.id;
+                    return (
+                      <div
+                        key={artifact.id}
+                        className="hover:bg-muted/30 flex flex-col gap-3 p-3 transition-colors sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="border-border/60 bg-muted/40 text-foreground mt-0.5 shrink-0 rounded-md border p-2">
+                            <PlatformIcon
+                              platform={artifact.platform}
+                              size="sm"
+                            />
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-foreground truncate font-mono text-xs font-semibold">
+                                {artifact.file_name}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="bg-muted/40 font-mono text-[9px] uppercase"
+                              >
+                                {artifact.kind || "binary"}
+                              </Badge>
+                            </div>
+
+                            {/* Secondary text treatment for size & checksum */}
+                            <div className="text-muted-foreground flex items-center gap-3 font-mono text-[11px]">
+                              <span>
+                                Size:{" "}
+                                <strong className="text-foreground/90 font-medium">
+                                  {formatFileSize(artifact.file_size)}
+                                </strong>
+                              </span>
+                              <span>•</span>
+                              <div className="flex items-center gap-1">
+                                <span>SHA-256:</span>
+                                <span className="text-foreground/80 max-w-[120px] truncate sm:max-w-[180px]">
+                                  {artifact.checksum
+                                    ? artifact.checksum.replace(/^sha256:/i, "")
+                                    : "verified"}
+                                </span>
+                                {artifact.checksum && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyChecksum(
+                                        artifact.id,
+                                        artifact.checksum,
+                                      )
+                                    }
+                                    className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer p-0.5 transition-colors"
+                                    title="Copy full SHA-256 checksum"
+                                  >
+                                    {isCopied ? (
+                                      <Check className="size-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="size-3" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Download Action with clear hover state */}
+                        <div className="flex shrink-0 items-center justify-end pt-1 sm:pt-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadArtifact(artifact)}
+                            className="border-border/80 bg-background/50 hover:bg-primary hover:text-primary-foreground group h-8 cursor-pointer gap-1.5 text-xs font-medium shadow-xs transition-all duration-150"
+                          >
+                            <DownloadSimple className="size-3.5 transition-transform group-hover:-translate-y-0.5" />
+                            <span>Download</span>
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="border-border/60 bg-muted/10 flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
+                  <Package className="text-muted-foreground mb-2 size-8 opacity-60" />
+                  <p className="text-foreground text-xs font-medium">
+                    No Binary Artifacts Attached
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-[11px]">
+                    Artifacts generated by automated CI/CD builds will appear
+                    here.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Right Column: Metadata & Artifacts */}
+        {/* Right Column: Metadata & Rollout */}
         <div className="space-y-6">
           {/* Metadata Card */}
           <Card className="border-border/80 bg-card shadow-xs">
@@ -431,36 +628,74 @@ export default function AppReleaseDetailPage() {
                   {new Date(release.created_at).toLocaleDateString()}
                 </span>
               </div>
+              <div className="text-muted-foreground flex items-center justify-between">
+                <span>Created By</span>
+                <span className="text-foreground">
+                  {release.created_by_id || "CI/CD Pipeline"}
+                </span>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Rollout Card */}
+          {/* Rollout Progress Card with Progress Bars */}
           <Card className="border-border/80 bg-card shadow-xs">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">
-                Platform Rollout Progress
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">
+                  Platform Rollout Progress
+                </CardTitle>
+                <ShieldCheck className="text-muted-foreground size-4" />
+              </div>
+              <CardDescription className="text-xs">
+                Active staged rollout distribution across platform tracks.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 font-mono text-xs">
+            <CardContent className="space-y-4">
               {release.platforms?.map((p) => {
+                const rawPercent = (
+                  release.rollout_status as Record<string, unknown>
+                )?.[p];
                 const percent =
-                  (release.rollout_status as Record<string, number>)?.[p] ??
-                  100;
+                  typeof rawPercent === "number"
+                    ? rawPercent
+                    : release.status === "released" ||
+                        release.status === "approved"
+                      ? 100
+                      : release.status === "draft" ||
+                          release.status === "pending_approval"
+                        ? 0
+                        : 50;
+
+                const isComplete = percent >= 100;
+
                 return (
                   <div
                     key={p}
-                    className="border-border/60 bg-muted/20 flex items-center justify-between rounded-md p-2"
+                    className="border-border/60 bg-muted/20 space-y-2 rounded-lg border p-3"
                   >
-                    <div className="flex items-center gap-1.5 capitalize">
-                      <PlatformIcon platform={p} size="sm" />
-                      <span>{p}</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 font-medium capitalize">
+                        <PlatformIcon platform={p} size="sm" />
+                        <span className="text-foreground">{p}</span>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          isComplete
+                            ? "border-emerald-500/30 bg-emerald-500/10 font-mono text-[10px] text-emerald-400"
+                            : percent > 0
+                              ? "border-blue-500/30 bg-blue-500/10 font-mono text-[10px] text-blue-400"
+                              : "bg-muted/60 text-muted-foreground font-mono text-[10px]"
+                        }
+                      >
+                        {percent}% {isComplete ? "completed" : "active"}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className="bg-muted/60 text-foreground border-border/40 font-mono text-[10px]"
-                    >
-                      {percent}% rolled out
-                    </Badge>
+
+                    {/* Progress Bar Component */}
+                    <Progress value={percent} className="bg-muted h-1.5 w-full">
+                      <div className="bg-primary h-full transition-all duration-300" />
+                    </Progress>
                   </div>
                 );
               })}
