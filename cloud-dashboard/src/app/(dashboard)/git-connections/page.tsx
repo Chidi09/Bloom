@@ -49,13 +49,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -1275,10 +1268,10 @@ export default function GitConnectionsPage() {
         </CardContent>
       </Card>
 
-      {/* Repositories Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl">
-          <SheetHeader className="border-border border-b pb-4">
+      {/* Repositories Dialog */}
+      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+        <DialogContent className="flex max-h-[85vh] w-full flex-col sm:max-w-3xl">
+          <DialogHeader className="border-border border-b pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 {selectedConnection && (
@@ -1290,21 +1283,21 @@ export default function GitConnectionsPage() {
                   </div>
                 )}
                 <div>
-                  <SheetTitle className="text-base">
+                  <DialogTitle className="text-base">
                     {(selectedConnection?.metadata?.account_name as
                       string | undefined) || selectedConnection?.provider}{" "}
                     Repositories
-                  </SheetTitle>
-                  <SheetDescription className="text-muted-foreground text-xs">
+                  </DialogTitle>
+                  <DialogDescription className="text-muted-foreground text-xs">
                     Repositories accessible via this integration for application
                     linking and builds.
-                  </SheetDescription>
+                  </DialogDescription>
                 </div>
               </div>
             </div>
-          </SheetHeader>
+          </DialogHeader>
 
-          <div className="space-y-3.5 py-4">
+          <div className="space-y-3.5 overflow-y-auto py-4">
             {/* Filter and Search Bar */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative flex-1">
@@ -1527,8 +1520,8 @@ export default function GitConnectionsPage() {
               })()
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Connect Provider Dialog */}
       <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
