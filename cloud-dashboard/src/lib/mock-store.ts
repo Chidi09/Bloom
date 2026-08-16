@@ -3973,9 +3973,12 @@ Expected: found 1 matching candidate widget
 A robust boilerplate for launching cross-platform apps with serverless auth and database.
 
 ## Quickstart
-1. Clone repo or apply via Bloom Cloud
-2. Fill your \`.env\` with Supabase keys
-3. Run \`flutter run\`
+\`\`\`bash
+bloom create my_app --template flutter-supabase-saas-starter
+cd my_app
+bloom dev
+\`\`\`
+Then fill in your Supabase keys as environment secrets in Bloom Cloud (or a local \`.env\` for offline development).
 `,
       install_count: 820,
       created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
@@ -4022,9 +4025,12 @@ A robust boilerplate for launching cross-platform apps with serverless auth and 
 Drop-in payment sheets, subscription billing, and webhook-driven entitlement sync.
 
 ## Quickstart
-1. Apply the template via Bloom Cloud
-2. Add your Stripe secret key to the Secrets vault
-3. Point your webhook endpoint at \`/webhooks/stripe\`
+\`\`\`bash
+bloom create my_app --template stripe-payments-subscriptions-kit
+cd my_app
+bloom dev
+\`\`\`
+Then add your Stripe secret key to the app's Secrets vault in Bloom Cloud and point your webhook endpoint at \`/webhooks/stripe\`.
 `,
       install_count: 180,
       created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
@@ -4056,12 +4062,20 @@ Drop-in payment sheets, subscription billing, and webhook-driven entitlement syn
       },
       readme: `# Bloom UI Starter Template
 
-A fresh Bloom project pre-wired with the full Bloom UI component library.
+A fresh Bloom project scaffolded with \`bloom create\`, with Bloom UI's primitives already installed under \`lib/bloom_ui/\` and a style preset pre-selected — no separate \`bloom ui init\` step needed.
 
 ## Quickstart
-1. Apply the template via Bloom Cloud
-2. Run \`bloom ui init\` to confirm your style preset
-3. Run \`flutter run\`
+\`\`\`bash
+bloom create my_app --template bloom-ui-starter-template
+cd my_app
+bloom dev
+\`\`\`
+That's it — \`bloom dev\` detects the Bloom project and its \`bloom.yaml\` automatically and launches the interactive dev server with hot reload.
+
+Need more primitives later? Add them individually:
+\`\`\`bash
+bloom ui add button card dialog chart
+\`\`\`
 `,
       install_count: 640,
       created_at: new Date(Date.now() - 86400000 * 5).toISOString(),

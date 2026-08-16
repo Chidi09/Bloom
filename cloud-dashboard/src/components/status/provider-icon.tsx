@@ -7,6 +7,7 @@ import {
   Globe,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { BloomFlowerIcon } from "@/components/auth/bloom-logo";
 
 export type ProviderName =
   | "bitbucket"
@@ -47,7 +48,6 @@ const DOMAIN_MAP: Record<string, string> = {
   stripe: "stripe.com",
   supabase: "supabase.com",
   resend: "resend.com",
-  bloom: "bloom.dev",
   flutter: "flutter.dev",
 };
 
@@ -132,6 +132,21 @@ export function ProviderIcon({
         {...props}
       >
         <AppleLogo className="h-full w-full" weight="fill" />
+      </span>
+    );
+  }
+
+  if (norm === "bloom" || norm === "bloom_ui") {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
+        <BloomFlowerIcon className="h-full w-full" />
       </span>
     );
   }
