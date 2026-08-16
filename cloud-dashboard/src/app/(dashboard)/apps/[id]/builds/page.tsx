@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
   Hammer,
   Plus,
@@ -14,6 +15,7 @@ import {
   DotsThreeVertical,
   CheckCircle,
   TerminalWindow,
+  ArrowSquareOut,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -73,6 +75,7 @@ import { cn } from "@/lib/utils";
 
 export default function AppBuildsPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const appId = params.id;
   const { currentOrganizationId } = useOrganizationStore();
 
@@ -320,8 +323,16 @@ export default function AppBuildsPage() {
                             <StatusBadge status={b.status} size="sm" />
                           </TableCell>
 
-                          <TableCell className="text-foreground font-mono text-xs font-semibold">
-                            #{buildNumber}
+                          <TableCell
+                            className="text-foreground font-mono text-xs font-semibold"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Link
+                              href={`/apps/${appId}/builds/${b.id}`}
+                              className="hover:text-primary transition-colors hover:underline"
+                            >
+                              #{buildNumber}
+                            </Link>
                           </TableCell>
 
                           <TableCell>
@@ -385,6 +396,15 @@ export default function AppBuildsPage() {
                                 <DotsThreeVertical className="size-4" />
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    router.push(`/apps/${appId}/builds/${b.id}`)
+                                  }
+                                  className="cursor-pointer gap-1.5 text-xs"
+                                >
+                                  <ArrowSquareOut className="size-3.5" />
+                                  <span>View details</span>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => toggleRow(b.id)}
                                   className="cursor-pointer text-xs"
