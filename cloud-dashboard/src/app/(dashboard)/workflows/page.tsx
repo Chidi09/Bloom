@@ -356,156 +356,158 @@ export default function WorkflowsListPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[280px]">Workflow</TableHead>
-                <TableHead>Application</TableHead>
-                <TableHead>Last Run Status</TableHead>
-                <TableHead>Trigger / Branch</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workflows.map((wf) => {
-                const latestRun = runsMap[wf.id];
-                const appName = getAppName(wf.app_id);
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[280px]">Workflow</TableHead>
+                  <TableHead>Application</TableHead>
+                  <TableHead>Last Run Status</TableHead>
+                  <TableHead>Trigger / Branch</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workflows.map((wf) => {
+                  const latestRun = runsMap[wf.id];
+                  const appName = getAppName(wf.app_id);
 
-                return (
-                  <TableRow
-                    key={wf.id}
-                    onClick={() => router.push(`/workflows/${wf.id}`)}
-                    className="hover:bg-muted/40 cursor-pointer transition-colors"
-                  >
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-foreground text-xs font-semibold hover:underline">
-                            {wf.name}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground font-mono text-[11px]">
-                          {wf.slug}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="font-mono text-[11px]"
-                      >
-                        {appName}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell>
-                      {latestRun ? (
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={latestRun.status} size="sm" />
-                          <span className="text-muted-foreground font-mono text-[11px]">
-                            {
-                              latestRun.steps.filter(
-                                (s) => s.status === "completed",
-                              ).length
-                            }
-                            /{latestRun.steps.length} steps
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          No runs yet
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {latestRun ? (
-                        <div className="space-y-0.5 font-mono text-xs">
-                          <div className="text-foreground flex items-center gap-1.5">
-                            <span className="capitalize">
-                              {latestRun.trigger_event}
-                            </span>
-                            <span className="text-muted-foreground">
-                              ({latestRun.git_branch})
-                            </span>
-                          </div>
-                          <div className="text-muted-foreground text-[10px]">
-                            {latestRun.git_commit.slice(0, 7)}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          --
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="flex items-center gap-2">
-                            <Switch
-                              checked={wf.is_active}
-                              disabled
-                              onCheckedChange={() =>
-                                void handleToggleActive(
-                                  wf,
-                                  {} as React.MouseEvent,
-                                )
-                              }
-                              aria-label="Workflow active state"
-                            />
-                            <span className="text-muted-foreground font-mono text-[11px]">
-                              {wf.is_active ? "Enabled" : "Disabled"}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">
-                              Not yet available: the backend has no workflow
-                              update endpoint.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-
-                    <TableCell
-                      className="text-right"
-                      onClick={(e) => e.stopPropagation()}
+                  return (
+                    <TableRow
+                      key={wf.id}
+                      onClick={() => router.push(`/workflows/${wf.id}`)}
+                      className="hover:bg-muted/40 cursor-pointer transition-colors"
                     >
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-foreground text-xs font-semibold hover:underline">
+                              {wf.name}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground font-mono text-[11px]">
+                            {wf.slug}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <Badge
                           variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setTriggerRunWorkflowId(wf.id);
-                            setTriggerBranch("main");
-                          }}
-                          className="h-7 gap-1 px-2 text-xs"
+                          className="font-mono text-[11px]"
                         >
-                          <Play
-                            className="size-3 text-emerald-400"
-                            weight="fill"
-                          />
-                          <span>Run</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => router.push(`/workflows/${wf.id}`)}
-                          className="h-7 px-2 text-xs"
-                        >
-                          Details
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                          {appName}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell>
+                        {latestRun ? (
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={latestRun.status} size="sm" />
+                            <span className="text-muted-foreground font-mono text-[11px]">
+                              {
+                                latestRun.steps.filter(
+                                  (s) => s.status === "completed",
+                                ).length
+                              }
+                              /{latestRun.steps.length} steps
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            No runs yet
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {latestRun ? (
+                          <div className="space-y-0.5 font-mono text-xs">
+                            <div className="text-foreground flex items-center gap-1.5">
+                              <span className="capitalize">
+                                {latestRun.trigger_event}
+                              </span>
+                              <span className="text-muted-foreground">
+                                ({latestRun.git_branch})
+                              </span>
+                            </div>
+                            <div className="text-muted-foreground text-[10px]">
+                              {latestRun.git_commit.slice(0, 7)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            --
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="flex items-center gap-2">
+                              <Switch
+                                checked={wf.is_active}
+                                disabled
+                                onCheckedChange={() =>
+                                  void handleToggleActive(
+                                    wf,
+                                    {} as React.MouseEvent,
+                                  )
+                                }
+                                aria-label="Workflow active state"
+                              />
+                              <span className="text-muted-foreground font-mono text-[11px]">
+                                {wf.is_active ? "Enabled" : "Disabled"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">
+                                Not yet available: the backend has no workflow
+                                update endpoint.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setTriggerRunWorkflowId(wf.id);
+                              setTriggerBranch("main");
+                            }}
+                            className="h-7 gap-1 px-2 text-xs transition-colors hover:border-emerald-500/40 hover:bg-emerald-950/30"
+                          >
+                            <Play
+                              className="size-3 text-emerald-400"
+                              weight="fill"
+                            />
+                            <span>Run</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.push(`/workflows/${wf.id}`)}
+                            className="h-7 px-2 text-xs"
+                          >
+                            Details
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

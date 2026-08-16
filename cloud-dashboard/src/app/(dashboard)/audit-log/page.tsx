@@ -59,6 +59,181 @@ const ACTION_CATEGORIES = [
   { label: "Billing & Invoices (billing.*)", value: "billing" },
 ];
 
+interface DiffItem {
+  key: string;
+  beforeVal?: unknown;
+  afterVal?: unknown;
+  type: "added" | "removed" | "modified" | "unchanged";
+}
+
+function computeDiff(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): DiffItem[] {
+  if (!before && !after) return [];
+  const b = before || {};
+  const a = after || {};
+  const allKeys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]));
+
+  return allKeys.map((key) => {
+    const hasBefore = key in b;
+    const hasAfter = key in a;
+    const bVal = b[key];
+    const aVal = a[key];
+
+    if (!hasBefore && hasAfter) {
+      return { key, afterVal: aVal, type: "added" };
+    }
+    if (hasBefore && !hasAfter) {
+      return { key, beforeVal: bVal, type: "removed" };
+    }
+    const isSame = JSON.stringify(bVal) === JSON.stringify(aVal);
+    if (isSame) {
+      return { key, beforeVal: bVal, afterVal: aVal, type: "unchanged" };
+    }
+    return { key, beforeVal: bVal, afterVal: aVal, type: "modified" };
+  });
+}
+
+function formatVal(v: unknown): string {
+  if (v === undefined) return "undefined";
+  if (v === null) return "null";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function AuditLogDiffViewer({
+  beforeSnapshot,
+  afterSnapshot,
+}: {
+  beforeSnapshot: Record<string, unknown> | null;
+  afterSnapshot: Record<string, unknown> | null;
+}) {
+  const isObjectDiff =
+    (beforeSnapshot === null ||
+      (typeof beforeSnapshot === "object" && !Array.isArray(beforeSnapshot))) &&
+    (afterSnapshot === null ||
+      (typeof afterSnapshot === "object" && !Array.isArray(afterSnapshot)));
+
+  if (!isObjectDiff) {
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-medium text-zinc-400">Before</span>
+          <pre className="max-h-56 overflow-y-auto rounded border border-zinc-800 bg-black p-3 font-mono text-xs leading-relaxed text-zinc-300">
+            {JSON.stringify(beforeSnapshot, null, 2)}
+          </pre>
+        </div>
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-medium text-zinc-400">After</span>
+          <pre className="max-h-56 overflow-y-auto rounded border border-zinc-800 bg-black p-3 font-mono text-xs leading-relaxed text-zinc-300">
+            {JSON.stringify(afterSnapshot, null, 2)}
+          </pre>
+        </div>
+      </div>
+    );
+  }
+
+  const diffItems = computeDiff(beforeSnapshot, afterSnapshot);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-zinc-800/90 bg-black">
+      <div className="grid grid-cols-12 border-b border-zinc-800/80 bg-zinc-950 px-3 py-2 font-mono text-[11px] font-semibold text-zinc-400">
+        <div className="col-span-3">Key / Field</div>
+        <div className="col-span-4">Before State</div>
+        <div className="col-span-4">After State</div>
+        <div className="col-span-1 text-right">Change</div>
+      </div>
+
+      <div className="divide-y divide-zinc-800/40 font-mono text-xs">
+        {diffItems.length === 0 ? (
+          <div className="p-3 text-center text-xs text-zinc-500">
+            No fields changed.
+          </div>
+        ) : (
+          diffItems.map((item) => {
+            const isAdded = item.type === "added";
+            const isRemoved = item.type === "removed";
+            const isModified = item.type === "modified";
+
+            return (
+              <div
+                key={item.key}
+                className={`grid grid-cols-12 items-center px-3 py-2 transition-colors ${
+                  isAdded
+                    ? "bg-emerald-950/20 text-emerald-300"
+                    : isRemoved
+                      ? "bg-red-950/20 text-red-300"
+                      : isModified
+                        ? "bg-amber-950/15"
+                        : "text-zinc-400"
+                }`}
+              >
+                <div className="col-span-3 truncate pr-2 font-medium text-zinc-200">
+                  {item.key}
+                </div>
+
+                <div className="col-span-4 truncate pr-2 font-mono text-xs">
+                  {item.beforeVal !== undefined ? (
+                    <span
+                      className={
+                        isRemoved || isModified
+                          ? "rounded bg-red-950/40 px-1 py-0.5 text-red-400"
+                          : "text-zinc-400"
+                      }
+                    >
+                      {formatVal(item.beforeVal)}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-600 italic">(none)</span>
+                  )}
+                </div>
+
+                <div className="col-span-4 truncate pr-2 font-mono text-xs">
+                  {item.afterVal !== undefined ? (
+                    <span
+                      className={
+                        isAdded || isModified
+                          ? "rounded bg-emerald-950/40 px-1 py-0.5 font-semibold text-emerald-400"
+                          : "text-zinc-400"
+                      }
+                    >
+                      {formatVal(item.afterVal)}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-600 italic">(deleted)</span>
+                  )}
+                </div>
+
+                <div className="col-span-1 text-right">
+                  {isAdded && (
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">
+                      +ADDED
+                    </span>
+                  )}
+                  {isRemoved && (
+                    <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+                      -REMOVED
+                    </span>
+                  )}
+                  {isModified && (
+                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                      ~MODIFIED
+                    </span>
+                  )}
+                  {item.type === "unchanged" && (
+                    <span className="text-[10px] text-zinc-600">SAME</span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AuditLogPage() {
   const { currentOrganizationId } = useOrganizationStore();
 
@@ -343,144 +518,117 @@ export default function AuditLogPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[36px]"></TableHead>
-                <TableHead className="w-[180px]">Action</TableHead>
-                <TableHead>Actor</TableHead>
-                <TableHead>Resource</TableHead>
-                <TableHead>IP Address</TableHead>
-                <TableHead className="text-right">Timestamp</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((entry) => {
-                const isExpanded = !!expandedRows[entry.id];
-                const hasDiff =
-                  entry.before_snapshot !== null ||
-                  entry.after_snapshot !== null;
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[36px]"></TableHead>
+                  <TableHead className="w-[180px]">Action</TableHead>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Resource</TableHead>
+                  <TableHead>IP Address</TableHead>
+                  <TableHead className="text-right">Timestamp</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((entry) => {
+                  const isExpanded = !!expandedRows[entry.id];
+                  const hasDiff =
+                    entry.before_snapshot !== null ||
+                    entry.after_snapshot !== null;
 
-                return (
-                  <React.Fragment key={entry.id}>
-                    <TableRow
-                      onClick={() => toggleRow(entry.id)}
-                      className="hover:bg-muted/40 cursor-pointer transition-colors"
-                    >
-                      <TableCell className="p-2 text-center">
-                        {isExpanded ? (
-                          <CaretDown className="text-muted-foreground size-3.5" />
-                        ) : (
-                          <CaretRight className="text-muted-foreground size-3.5" />
-                        )}
-                      </TableCell>
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <TableRow
+                        onClick={() => toggleRow(entry.id)}
+                        className="hover:bg-muted/40 cursor-pointer transition-colors"
+                      >
+                        <TableCell className="p-2 text-center">
+                          {isExpanded ? (
+                            <CaretDown className="text-muted-foreground size-3.5" />
+                          ) : (
+                            <CaretRight className="text-muted-foreground size-3.5" />
+                          )}
+                        </TableCell>
 
-                      <TableCell>{getActionBadge(entry.action)}</TableCell>
+                        <TableCell>{getActionBadge(entry.action)}</TableCell>
 
-                      <TableCell>{renderActor(entry.actor)}</TableCell>
+                        <TableCell>{renderActor(entry.actor)}</TableCell>
 
-                      <TableCell>
-                        <div className="space-y-0.5 font-mono text-xs">
-                          <span className="text-zinc-400 capitalize">
-                            {entry.resource_type}:
-                          </span>
-                          <span className="ml-1.5 font-medium text-zinc-200">
-                            {entry.resource_id}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        {entry.ip_address}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono text-xs text-zinc-400">
-                        {new Date(entry.created_at).toLocaleString([], {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        })}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Expandable Two-Column Diff Row */}
-                    {isExpanded && (
-                      <TableRow className="bg-zinc-950/80 hover:bg-zinc-950/80">
-                        <TableCell colSpan={6} className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                              <div className="flex items-center gap-2">
-                                <Lock className="size-3.5 text-zinc-500" />
-                                <span className="font-mono text-xs font-medium text-zinc-300">
-                                  State Snapshot & Redacted Payload Diff
-                                </span>
-                              </div>
-                              <span className="font-mono text-[10px] text-zinc-500">
-                                Event ID: {entry.id}
-                              </span>
-                            </div>
-
-                            {hasDiff ? (
-                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                {/* Before Snapshot */}
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between text-[11px] font-medium text-zinc-400">
-                                    <span>Before State</span>
-                                    {entry.before_snapshot === null && (
-                                      <span className="font-mono text-zinc-600">
-                                        (None / Created)
-                                      </span>
-                                    )}
-                                  </div>
-                                  <pre className="max-h-56 overflow-y-auto rounded border border-zinc-800 bg-black p-3 font-mono text-xs leading-relaxed text-zinc-300">
-                                    {entry.before_snapshot !== null
-                                      ? JSON.stringify(
-                                          entry.before_snapshot,
-                                          null,
-                                          2,
-                                        )
-                                      : "null"}
-                                  </pre>
-                                </div>
-
-                                {/* After Snapshot */}
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between text-[11px] font-medium text-zinc-400">
-                                    <span>After State</span>
-                                    {entry.after_snapshot === null && (
-                                      <span className="font-mono text-zinc-600">
-                                        (Deleted)
-                                      </span>
-                                    )}
-                                  </div>
-                                  <pre className="max-h-56 overflow-y-auto rounded border border-zinc-800 bg-black p-3 font-mono text-xs leading-relaxed text-zinc-300">
-                                    {entry.after_snapshot !== null
-                                      ? JSON.stringify(
-                                          entry.after_snapshot,
-                                          null,
-                                          2,
-                                        )
-                                      : "null"}
-                                  </pre>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="font-mono text-xs text-zinc-500">
-                                No state diff captured for this action type.
-                              </p>
-                            )}
+                        <TableCell>
+                          <div className="space-y-0.5 font-mono text-xs">
+                            <span className="text-zinc-400 capitalize">
+                              {entry.resource_type}:
+                            </span>
+                            <span className="ml-1.5 font-medium text-zinc-200">
+                              {entry.resource_id}
+                            </span>
                           </div>
                         </TableCell>
+
+                        <TableCell className="font-mono text-xs text-zinc-400">
+                          {entry.ip_address}
+                        </TableCell>
+
+                        <TableCell className="text-right font-mono text-xs text-zinc-400">
+                          {new Date(entry.created_at).toLocaleString([], {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </TableCell>
                       </TableRow>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
+
+                      {/* Expandable Key-Aligned Diff Row */}
+                      {isExpanded && (
+                        <TableRow className="bg-zinc-950/80 hover:bg-zinc-950/80">
+                          <TableCell colSpan={6} className="p-4">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <Lock className="size-3.5 text-zinc-500" />
+                                  <span className="font-mono text-xs font-medium text-zinc-300">
+                                    State Snapshot & Redacted Payload Diff
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[10px] text-zinc-500">
+                                  Event ID: {entry.id}
+                                </span>
+                              </div>
+
+                              {hasDiff ? (
+                                <AuditLogDiffViewer
+                                  beforeSnapshot={
+                                    entry.before_snapshot as Record<
+                                      string,
+                                      unknown
+                                    > | null
+                                  }
+                                  afterSnapshot={
+                                    entry.after_snapshot as Record<
+                                      string,
+                                      unknown
+                                    > | null
+                                  }
+                                />
+                              ) : (
+                                <p className="font-mono text-xs text-zinc-500">
+                                  No state diff captured for this action type.
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </div>

@@ -248,14 +248,16 @@ export default function MarketplaceBrowsePage() {
               <Card
                 key={tmpl.id}
                 onClick={() => router.push(`/marketplace/${tmpl.id}`)}
-                className={`group flex cursor-pointer flex-col justify-between border-zinc-800/80 bg-[#09090b] transition-all hover:border-zinc-700 hover:bg-zinc-900/40 ${
-                  isFeatured ? "ring-1 ring-[#FF4B8B]/20" : ""
+                className={`group flex cursor-pointer flex-col justify-between border-zinc-800/80 bg-[#09090b] transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-700 hover:bg-zinc-900/40 hover:shadow-[0_4px_20px_rgba(0,0,0,0.6)] ${
+                  isFeatured
+                    ? "border-[#FF4B8B]/40 shadow-[0_0_15px_rgba(255,75,139,0.06)] ring-1 ring-[#FF4B8B]/30"
+                    : ""
                 }`}
               >
                 <CardHeader className="space-y-3 pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 p-2">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-inner transition-colors group-hover:border-zinc-700">
                         <ProviderIcon provider={iconProvider} size="md" />
                       </div>
                       <div>
@@ -287,7 +289,7 @@ export default function MarketplaceBrowsePage() {
                       {tmpl.is_editorial_featured && (
                         <Badge
                           variant="outline"
-                          className="gap-1 border-[#FF4B8B]/40 bg-[#FF4B8B]/10 font-mono text-[9px] text-[#FF4B8B]"
+                          className="gap-1 border-[#FF4B8B]/50 bg-gradient-to-r from-[#FF4B8B]/20 to-[#FF4B8B]/5 font-mono text-[9px] font-semibold text-[#FF4B8B] shadow-[0_0_8px_rgba(255,75,139,0.2)]"
                         >
                           <Sparkle className="size-2.5" weight="fill" />
                           <span>Featured</span>
@@ -306,7 +308,7 @@ export default function MarketplaceBrowsePage() {
                       {tags.slice(0, 4).map((tag) => (
                         <span
                           key={tag}
-                          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400"
+                          className="rounded border border-zinc-800 bg-zinc-900/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 transition-colors group-hover:border-zinc-700"
                         >
                           #{tag}
                         </span>

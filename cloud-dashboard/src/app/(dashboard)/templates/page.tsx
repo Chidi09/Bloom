@@ -292,107 +292,109 @@ export default function OrgTemplatesManagementPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[260px]">Template</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Visibility</TableHead>
-                <TableHead>Pricing</TableHead>
-                <TableHead>Latest Version</TableHead>
-                <TableHead>Installs</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {templates.map((tmpl) => {
-                const priceFormatted = tmpl.is_free
-                  ? "Free"
-                  : `$${(tmpl.price_amount / 100).toFixed(0)} USD`;
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[260px]">Template</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Visibility</TableHead>
+                  <TableHead>Pricing</TableHead>
+                  <TableHead>Latest Version</TableHead>
+                  <TableHead>Installs</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {templates.map((tmpl) => {
+                  const priceFormatted = tmpl.is_free
+                    ? "Free"
+                    : `$${(tmpl.price_amount / 100).toFixed(0)} USD`;
 
-                return (
-                  <TableRow
-                    key={tmpl.id}
-                    className="hover:bg-muted/40 transition-colors"
-                  >
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        <p className="text-xs font-semibold text-zinc-100">
-                          {tmpl.name}
-                        </p>
-                        <p className="font-mono text-[11px] text-zinc-500">
-                          {tmpl.slug}
-                        </p>
-                      </div>
-                    </TableCell>
+                  return (
+                    <TableRow
+                      key={tmpl.id}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-semibold text-zinc-100">
+                            {tmpl.name}
+                          </p>
+                          <p className="font-mono text-[11px] text-zinc-500">
+                            {tmpl.slug}
+                          </p>
+                        </div>
+                      </TableCell>
 
-                    <TableCell>
-                      <StatusBadge status={tmpl.status} size="sm" />
-                    </TableCell>
+                      <TableCell>
+                        <StatusBadge status={tmpl.status} size="sm" />
+                      </TableCell>
 
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="font-mono text-[11px] capitalize"
-                      >
-                        {tmpl.visibility}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="font-mono text-xs text-zinc-200">
-                      {priceFormatted}
-                    </TableCell>
-
-                    <TableCell className="font-mono text-xs text-zinc-200">
-                      v{tmpl.latest_version || "1.0.0"} ({tmpl.versions_count}{" "}
-                      total)
-                    </TableCell>
-
-                    <TableCell className="font-mono text-xs text-zinc-400">
-                      {tmpl.install_count.toLocaleString()}
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
+                      <TableCell>
+                        <Badge
                           variant="outline"
-                          size="sm"
-                          onClick={() => void openVersionManager(tmpl)}
-                          className="h-7 text-xs"
+                          className="font-mono text-[11px] capitalize"
                         >
-                          <GitBranch className="mr-1 size-3" />
-                          <span>Versions</span>
-                        </Button>
+                          {tmpl.visibility}
+                        </Badge>
+                      </TableCell>
 
-                        {tmpl.status !== "published" && (
+                      <TableCell className="font-mono text-xs text-zinc-200">
+                        {priceFormatted}
+                      </TableCell>
+
+                      <TableCell className="font-mono text-xs text-zinc-200">
+                        v{tmpl.latest_version || "1.0.0"} ({tmpl.versions_count}{" "}
+                        total)
+                      </TableCell>
+
+                      <TableCell className="font-mono text-xs text-zinc-400">
+                        {tmpl.install_count.toLocaleString()}
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => void handlePublish(tmpl)}
-                            className="h-7 text-xs text-emerald-400 hover:bg-emerald-950/30"
+                            onClick={() => void openVersionManager(tmpl)}
+                            className="h-7 text-xs"
                           >
-                            <UploadSimple className="mr-1 size-3" />
-                            <span>Publish</span>
+                            <GitBranch className="mr-1 size-3" />
+                            <span>Versions</span>
                           </Button>
-                        )}
 
-                        {tmpl.status !== "archived" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void handleArchive(tmpl)}
-                            className="h-7 text-xs text-zinc-400 hover:text-amber-400"
-                          >
-                            <Archive className="size-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                          {tmpl.status !== "published" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handlePublish(tmpl)}
+                              className="h-7 text-xs text-emerald-400 hover:bg-emerald-950/30"
+                            >
+                              <UploadSimple className="mr-1 size-3" />
+                              <span>Publish</span>
+                            </Button>
+                          )}
+
+                          {tmpl.status !== "archived" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void handleArchive(tmpl)}
+                              className="h-7 text-xs text-zinc-400 hover:text-amber-400"
+                            >
+                              <Archive className="size-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

@@ -356,99 +356,104 @@ export default function WorkflowDetailPage() {
             />
           ) : (
             <div className="border-border/80 bg-card overflow-hidden rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead>Commit SHA</TableHead>
-                    <TableHead>Branch</TableHead>
-                    <TableHead>Trigger</TableHead>
-                    <TableHead>Steps Progress</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => {
-                    const completedSteps = run.steps.filter(
-                      (s) => s.status === "completed",
-                    ).length;
-                    const hasBlocked = run.steps.some(
-                      (s) =>
-                        s.step_kind === "approval_gate" &&
-                        s.status === "blocked",
-                    );
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[120px]">Status</TableHead>
+                      <TableHead>Commit SHA</TableHead>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Trigger</TableHead>
+                      <TableHead>Steps Progress</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {runs.map((run) => {
+                      const completedSteps = run.steps.filter(
+                        (s) => s.status === "completed",
+                      ).length;
+                      const hasBlocked = run.steps.some(
+                        (s) =>
+                          s.step_kind === "approval_gate" &&
+                          s.status === "blocked",
+                      );
 
-                    return (
-                      <TableRow
-                        key={run.id}
-                        onClick={() => openRunSheet(run)}
-                        className="hover:bg-muted/40 cursor-pointer transition-colors"
-                      >
-                        <TableCell>
-                          <StatusBadge status={run.status} size="sm" />
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={run.id}
+                          onClick={() => openRunSheet(run)}
+                          className="hover:bg-muted/40 cursor-pointer transition-colors"
+                        >
+                          <TableCell>
+                            <StatusBadge status={run.status} size="sm" />
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs font-medium text-zinc-200">
-                          {run.git_commit.slice(0, 7)}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs font-medium text-zinc-200">
+                            {run.git_commit.slice(0, 7)}
+                          </TableCell>
 
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-300">
-                            <GitBranch className="size-3 text-zinc-500" />
-                            <span>{run.git_branch}</span>
-                          </div>
-                        </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-300">
+                              <GitBranch className="size-3 text-zinc-500" />
+                              <span>{run.git_branch}</span>
+                            </div>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400 capitalize">
-                          {run.trigger_event}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400 capitalize">
+                            {run.trigger_event}
+                          </TableCell>
 
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-zinc-300">
-                              {completedSteps} / {run.steps.length}
-                            </span>
-                            {hasBlocked && (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-500/40 bg-amber-500/10 font-mono text-[10px] text-amber-400"
-                              >
-                                Approval Needed
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-zinc-300">
+                                {completedSteps} / {run.steps.length}
+                              </span>
+                              {hasBlocked && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-500/40 bg-amber-500/10 font-mono text-[10px] text-amber-400"
+                                >
+                                  Approval Needed
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {run.started_at
-                            ? new Date(run.started_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                              })
-                            : "--"}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {run.started_at
+                              ? new Date(run.started_at).toLocaleTimeString(
+                                  [],
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                  },
+                                )
+                              : "--"}
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openRunSheet(run);
-                            }}
-                            className="h-7 text-xs"
-                          >
-                            <span>Inspect</span>
-                            <CaretRight className="ml-1 size-3" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRunSheet(run);
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <span>Inspect</span>
+                              <CaretRight className="ml-1 size-3" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -465,7 +470,18 @@ export default function WorkflowDetailPage() {
                   Version controlled pipeline declaration.
                 </CardDescription>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(workflow.definition);
+                    toast.success("YAML copied to clipboard");
+                  }}
+                  className="h-7 text-xs text-zinc-300"
+                >
+                  Copy YAML
+                </Button>
                 {isEditingYaml ? (
                   <div className="flex items-center gap-2">
                     <Button
@@ -533,7 +549,7 @@ export default function WorkflowDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Slide-over Sheet for Workflow Run Details & Steps Timeline */}
+      {/* Slide-over Sheet for Workflow Run Details & Connected Steps Timeline */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
@@ -594,168 +610,204 @@ export default function WorkflowDetailPage() {
                 </div>
               </div>
 
-              {/* Step Timeline */}
+              {/* Connected Step Timeline */}
               <div className="space-y-4">
                 <h3 className="text-xs font-semibold tracking-wider text-zinc-400 uppercase">
                   Execution Steps Timeline
                 </h3>
 
-                <div className="space-y-4">
+                <div className="relative space-y-6 before:absolute before:top-3 before:bottom-3 before:left-[17px] before:w-0.5 before:bg-zinc-800">
                   {selectedRun.steps.map((step) => {
                     const isGateBlocked =
                       step.step_kind === "approval_gate" &&
                       step.status === "blocked";
+                    const isCompleted = step.status === "completed";
+                    const isRunning = step.status === "running";
+                    const isFailed = step.status === "failed";
 
                     return (
                       <div
                         key={step.id}
-                        className={`rounded-lg border p-3.5 transition-colors ${
-                          isGateBlocked
-                            ? "border-amber-500/50 bg-amber-950/20"
-                            : "border-zinc-800/80 bg-zinc-900/40"
-                        }`}
+                        className="relative flex items-start gap-4"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 font-mono text-[10px] font-bold text-zinc-300">
-                                {step.step_order}
-                              </span>
-                              <span className="text-xs font-semibold text-zinc-100">
-                                {step.name}
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className="font-mono text-[9px] uppercase"
-                              >
-                                {step.step_kind.replace("_", " ")}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <StatusBadge status={step.status} size="sm" />
+                        {/* Step Marker Node */}
+                        <div
+                          className={`relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold transition-all ${
+                            isCompleted
+                              ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-400"
+                              : isRunning
+                                ? "border-blue-500/50 bg-blue-950/40 text-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)]"
+                                : isGateBlocked
+                                  ? "animate-pulse border-amber-500 bg-amber-950 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.35)]"
+                                  : isFailed
+                                    ? "border-red-500/50 bg-red-950/40 text-red-400"
+                                    : "border-zinc-800 bg-zinc-950 text-zinc-500"
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle className="size-4.5" weight="bold" />
+                          ) : isRunning ? (
+                            <BloomSpinner size={16} speed="fast" />
+                          ) : isGateBlocked ? (
+                            <WarningCircle className="size-4.5" weight="fill" />
+                          ) : isFailed ? (
+                            <XCircle className="size-4.5" weight="bold" />
+                          ) : (
+                            <span>{step.step_order}</span>
+                          )}
                         </div>
 
-                        {/* Log Preview */}
-                        {step.log_snippet && (
-                          <div className="mt-3 overflow-hidden rounded border border-zinc-800 bg-black">
-                            <div className="flex items-center gap-1.5 border-b border-zinc-800/80 bg-zinc-950 px-2.5 py-1 text-[10px] text-zinc-500">
-                              <TerminalWindow className="size-3" />
-                              <span>Step Output</span>
+                        {/* Step Content Card */}
+                        <div
+                          className={`flex-1 rounded-lg border p-3.5 transition-colors ${
+                            isGateBlocked
+                              ? "border-amber-500/50 bg-amber-950/20 ring-1 ring-amber-500/20"
+                              : "border-zinc-800/80 bg-zinc-900/40"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-semibold text-zinc-100">
+                                  {step.name}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="font-mono text-[9px] tracking-wider text-zinc-400 uppercase"
+                                >
+                                  {step.step_kind.replace("_", " ")}
+                                </Badge>
+                              </div>
                             </div>
-                            <pre className="max-h-44 overflow-y-auto p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-zinc-300">
-                              {step.log_snippet}
-                            </pre>
+
+                            <StatusBadge status={step.status} size="sm" />
                           </div>
-                        )}
 
-                        {/* Approval Gate Decision Controls */}
-                        {isGateBlocked && (
-                          <div className="mt-4 space-y-3 border-t border-amber-500/20 pt-3">
-                            <div className="flex items-center gap-2 text-xs font-medium text-amber-400">
-                              <WarningCircle className="size-4" weight="fill" />
-                              <span>
-                                Manual approval required to continue release
-                                rollout.
-                              </span>
+                          {/* Log Preview */}
+                          {step.log_snippet && (
+                            <div className="mt-3 overflow-hidden rounded border border-zinc-800 bg-black">
+                              <div className="flex items-center gap-1.5 border-b border-zinc-800/80 bg-zinc-950 px-2.5 py-1 text-[10px] text-zinc-500">
+                                <TerminalWindow className="size-3" />
+                                <span>Step Output</span>
+                              </div>
+                              <pre className="max-h-44 overflow-y-auto p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-zinc-300">
+                                {step.log_snippet}
+                              </pre>
                             </div>
+                          )}
 
-                            <div className="space-y-1.5">
-                              <Label
-                                htmlFor="appr-reason"
-                                className="text-[11px] text-zinc-400"
-                              >
-                                Decision Note / Reason (Optional)
-                              </Label>
-                              <Input
-                                id="appr-reason"
-                                placeholder="e.g. QA signoff verified on staging"
-                                value={approvalReason}
-                                onChange={(e) =>
-                                  setApprovalReason(e.target.value)
-                                }
-                                className="h-8 text-xs"
-                              />
+                          {/* Approval Gate Decision Controls */}
+                          {isGateBlocked && (
+                            <div className="mt-4 space-y-3 border-t border-amber-500/20 pt-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-amber-400">
+                                <WarningCircle
+                                  className="size-4"
+                                  weight="fill"
+                                />
+                                <span>
+                                  Manual approval required to continue release
+                                  rollout.
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <Label
+                                  htmlFor="appr-reason"
+                                  className="text-[11px] text-zinc-400"
+                                >
+                                  Decision Note / Reason (Optional)
+                                </Label>
+                                <Input
+                                  id="appr-reason"
+                                  placeholder="e.g. QA signoff verified on staging"
+                                  value={approvalReason}
+                                  onChange={(e) =>
+                                    setApprovalReason(e.target.value)
+                                  }
+                                  className="h-8 border-zinc-800 bg-zinc-950 text-xs"
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2 pt-1">
+                                {/* Reject Confirmation */}
+                                <AlertDialog>
+                                  <AlertDialogTrigger className="inline-flex h-7 items-center justify-center rounded-md border border-red-500/40 bg-red-950/40 px-3 text-xs font-medium text-red-300 transition-colors hover:bg-red-900/50">
+                                    <XCircle className="mr-1 size-3.5" />
+                                    Reject & Stop
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Reject this workflow run?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription className="text-zinc-400">
+                                        This will immediately terminate
+                                        execution and abort any downstream
+                                        deployments.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-200">
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        disabled={isSubmittingApproval}
+                                        onClick={() =>
+                                          void handleApproveOrReject(
+                                            selectedRun.id,
+                                            false,
+                                          )
+                                        }
+                                        className="bg-red-600 text-white hover:bg-red-700"
+                                      >
+                                        Confirm Rejection
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+
+                                {/* Approve Confirmation */}
+                                <AlertDialog>
+                                  <AlertDialogTrigger className="inline-flex h-7 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-medium text-white transition-colors hover:bg-emerald-700">
+                                    <CheckCircle
+                                      className="mr-1 size-3.5"
+                                      weight="bold"
+                                    />
+                                    Approve & Resume
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Approve release gate?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription className="text-zinc-400">
+                                        Approving will trigger the downstream
+                                        production deployment to store tracks.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-200">
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        disabled={isSubmittingApproval}
+                                        onClick={() =>
+                                          void handleApproveOrReject(
+                                            selectedRun.id,
+                                            true,
+                                          )
+                                        }
+                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                      >
+                                        Authorize Deployment
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-1">
-                              {/* Reject Confirmation */}
-                              <AlertDialog>
-                                <AlertDialogTrigger className="inline-flex h-7 items-center justify-center rounded-md border border-red-500/40 bg-red-950/40 px-3 text-xs font-medium text-red-300 hover:bg-red-900/50">
-                                  <XCircle className="mr-1 size-3.5" />
-                                  Reject & Stop
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Reject this workflow run?
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription className="text-zinc-400">
-                                      This will immediately terminate execution
-                                      and abort any downstream deployments.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-200">
-                                      Cancel
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                      disabled={isSubmittingApproval}
-                                      onClick={() =>
-                                        void handleApproveOrReject(
-                                          selectedRun.id,
-                                          false,
-                                        )
-                                      }
-                                      className="bg-red-600 text-white hover:bg-red-700"
-                                    >
-                                      Confirm Rejection
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-
-                              {/* Approve Confirmation */}
-                              <AlertDialog>
-                                <AlertDialogTrigger className="inline-flex h-7 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700">
-                                  <CheckCircle
-                                    className="mr-1 size-3.5"
-                                    weight="bold"
-                                  />
-                                  Approve & Resume
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Approve release gate?
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription className="text-zinc-400">
-                                      Approving will trigger the downstream
-                                      production deployment to store tracks.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-200">
-                                      Cancel
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                      disabled={isSubmittingApproval}
-                                      onClick={() =>
-                                        void handleApproveOrReject(
-                                          selectedRun.id,
-                                          true,
-                                        )
-                                      }
-                                      className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                    >
-                                      Authorize Deployment
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     );
                   })}

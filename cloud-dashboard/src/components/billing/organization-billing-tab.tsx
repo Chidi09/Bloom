@@ -189,13 +189,13 @@ export function OrganizationBillingTab({
   const getDecisionBarColor = (decision?: EnforcementDecision) => {
     switch (decision) {
       case "allow":
-        return "bg-emerald-500";
+        return "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]";
       case "warn":
-        return "bg-amber-500";
+        return "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.4)]";
       case "soft_block":
-        return "bg-orange-500";
+        return "bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]";
       case "hard_lock":
-        return "bg-red-500";
+        return "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]";
       default:
         return "bg-emerald-500";
     }
@@ -204,40 +204,22 @@ export function OrganizationBillingTab({
   const getDecisionBadge = (decision?: EnforcementDecision) => {
     switch (decision) {
       case "allow":
-        return (
-          <Badge
-            variant="outline"
-            className="border-emerald-500/30 bg-emerald-500/10 font-mono text-[10px] text-emerald-400"
-          >
-            Within Limit
-          </Badge>
-        );
+        return <StatusBadge status="allow" label="Within Limit" size="sm" />;
       case "warn":
         return (
-          <Badge
-            variant="outline"
-            className="border-amber-500/30 bg-amber-500/10 font-mono text-[10px] text-amber-400"
-          >
-            Quota Warning (&gt;80%)
-          </Badge>
+          <StatusBadge status="warn" label="Quota Warning (>80%)" size="sm" />
         );
       case "soft_block":
         return (
-          <Badge
-            variant="outline"
-            className="border-orange-500/30 bg-orange-500/10 font-mono text-[10px] text-orange-400"
-          >
-            Soft Block Grace Period
-          </Badge>
+          <StatusBadge
+            status="soft_block"
+            label="Soft Block Grace Period"
+            size="sm"
+          />
         );
       case "hard_lock":
         return (
-          <Badge
-            variant="outline"
-            className="border-red-500/30 bg-red-500/10 font-mono text-[10px] text-red-400"
-          >
-            Quota Locked
-          </Badge>
+          <StatusBadge status="hard_lock" label="Quota Locked" size="sm" />
         );
       default:
         return null;
@@ -589,73 +571,78 @@ export function OrganizationBillingTab({
         </div>
 
         <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#09090b]">
-          <TooltipProvider>
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[180px]">Invoice ID</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Paid At</TableHead>
-                  <TableHead className="text-right">Receipt</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="py-6 text-center text-xs text-zinc-500"
-                    >
-                      No invoices issued yet.
-                    </TableCell>
+          <div className="overflow-x-auto">
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[180px]">Invoice ID</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Paid At</TableHead>
+                    <TableHead className="text-right">Receipt</TableHead>
                   </TableRow>
-                ) : (
-                  invoices.map((inv) => {
-                    const formattedAmount = `$${(inv.amount_cents / 100).toFixed(2)} USD`;
+                </TableHeader>
+                <TableBody>
+                  {invoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="py-6 text-center text-xs text-zinc-500"
+                      >
+                        No invoices issued yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    invoices.map((inv) => {
+                      const formattedAmount = `$${(inv.amount_cents / 100).toFixed(2)} USD`;
 
-                    return (
-                      <TableRow key={inv.id} className="hover:bg-zinc-900/40">
-                        <TableCell className="font-mono text-xs text-zinc-200">
-                          {inv.provider_invoice_id || inv.id}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs font-semibold text-zinc-100">
-                          {formattedAmount}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={inv.status} size="sm" />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {inv.due_date}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {inv.paid_at
-                            ? new Date(inv.paid_at).toLocaleDateString()
-                            : "--"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Tooltip>
-                            <TooltipTrigger
-                              className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-md p-0 text-zinc-400 opacity-50"
-                              disabled
-                            >
-                              <DownloadSimple className="size-3.5" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">
-                                PDF download not yet available
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TooltipProvider>
+                      return (
+                        <TableRow
+                          key={inv.id}
+                          className="transition-colors hover:bg-zinc-900/40"
+                        >
+                          <TableCell className="font-mono text-xs text-zinc-200">
+                            {inv.provider_invoice_id || inv.id}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-semibold text-zinc-100">
+                            {formattedAmount}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={inv.status} size="sm" />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {inv.due_date}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {inv.paid_at
+                              ? new Date(inv.paid_at).toLocaleDateString()
+                              : "--"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Tooltip>
+                              <TooltipTrigger
+                                className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-md p-0 text-zinc-400 opacity-50"
+                                disabled
+                              >
+                                <DownloadSimple className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">
+                                  PDF download not yet available
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
+          </div>
         </div>
       </div>
 
