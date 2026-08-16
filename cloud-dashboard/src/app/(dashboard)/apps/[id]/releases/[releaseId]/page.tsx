@@ -9,6 +9,7 @@ import {
   ArrowCounterClockwise,
   WarningOctagon,
   ArrowsClockwise,
+  RocketLaunch,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -39,6 +40,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PlatformIcon } from "@/components/status/platform-icon";
 import { StatusBadge } from "@/components/status/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
 import { ReleaseResponse } from "@/lib/schemas/release";
 import { AppResponse } from "@/lib/schemas/app";
@@ -172,22 +174,44 @@ export default function AppReleaseDetailPage() {
     );
   }
 
-  if (error || !release) {
+  if (error) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Release Not Found</AlertTitle>
+        <AlertTitle>Failed to load release</AlertTitle>
         <AlertDescription className="flex items-center justify-between">
-          <span>{error || "Unable to locate release record."}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/apps/${appId}/releases`)}
-            className="h-7 text-xs"
-          >
-            Back to Releases
-          </Button>
+          <span>{error}</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void fetchData()}
+              className="h-7 text-xs"
+            >
+              Retry
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/apps/${appId}/releases`)}
+              className="h-7 text-xs"
+            >
+              Back to Releases
+            </Button>
+          </div>
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (!release) {
+    return (
+      <EmptyState
+        icon={RocketLaunch}
+        title="Release Not Found"
+        description="The requested release record could not be found or has been removed."
+        actionLabel="Back to Releases"
+        onAction={() => router.push(`/apps/${appId}/releases`)}
+      />
     );
   }
 

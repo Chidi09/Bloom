@@ -5,7 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { GithubLogo, CircleNotch, WarningCircle } from "@phosphor-icons/react";
+import { GithubLogo, WarningCircle } from "@phosphor-icons/react";
+import { BloomSpinner } from "@/components/ui/bloom-spinner";
 
 import {
   Card,
@@ -51,10 +52,29 @@ export default function LoginPage() {
   }>({});
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = React.useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = React.useState<
+    number | null
+  >(null);
   const [isLoading, setIsLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (rateLimitCountdown === null || rateLimitCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          setIsRateLimited(false);
+          setErrorMsg(null);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (rateLimitCountdown !== null && rateLimitCountdown > 0) return;
     setErrorMsg(null);
     setIsRateLimited(false);
 
@@ -100,7 +120,10 @@ export default function LoginPage() {
       if (err instanceof ApiError) {
         if (err.status === 429) {
           setIsRateLimited(true);
-          setErrorMsg("Too many attempts, try again in a minute");
+          setRateLimitCountdown(60);
+          setErrorMsg(
+            "Too many sign-in attempts. Rate limit is 10 requests per minute. Please wait before trying again.",
+          );
         } else {
           setErrorMsg(err.message || "Invalid email or password.");
         }
@@ -132,7 +155,11 @@ export default function LoginPage() {
             <AlertTitle className="text-xs font-semibold">
               {isRateLimited ? "Rate limit reached" : "Authentication failed"}
             </AlertTitle>
-            <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
+            <AlertDescription className="text-xs">
+              {isRateLimited && rateLimitCountdown !== null
+                ? `Too many sign-in attempts. Rate limit is 10 requests per minute. Please wait ${rateLimitCountdown}s before trying again.`
+                : errorMsg}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -156,7 +183,10 @@ export default function LoginPage() {
               placeholder="name@work-email.com"
               autoComplete="email"
               autoFocus
-              disabled={isLoading}
+              disabled={
+                isLoading ||
+                (rateLimitCountdown !== null && rateLimitCountdown > 0)
+              }
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!fieldErrors.email}
@@ -187,7 +217,10 @@ export default function LoginPage() {
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
-              disabled={isLoading}
+              disabled={
+                isLoading ||
+                (rateLimitCountdown !== null && rateLimitCountdown > 0)
+              }
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!fieldErrors.password}
@@ -202,14 +235,19 @@ export default function LoginPage() {
 
           <Button
             type="submit"
-            disabled={isLoading}
+            disabled={
+              isLoading ||
+              (rateLimitCountdown !== null && rateLimitCountdown > 0)
+            }
             className="mt-1 h-8 w-full cursor-pointer text-xs font-medium"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <CircleNotch className="size-3.5 animate-spin" weight="bold" />
+                <BloomSpinner size={14} speed="fast" />
                 Signing in…
               </span>
+            ) : rateLimitCountdown !== null && rateLimitCountdown > 0 ? (
+              `Retry in ${rateLimitCountdown}s`
             ) : (
               "Sign in"
             )}

@@ -5,12 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import {
-  GithubLogo,
-  CircleNotch,
-  WarningCircle,
-  CheckCircle,
-} from "@phosphor-icons/react";
+import { GithubLogo, WarningCircle, CheckCircle } from "@phosphor-icons/react";
+import { BloomSpinner } from "@/components/ui/bloom-spinner";
 
 import {
   Card,
@@ -106,7 +102,25 @@ export default function RegisterPage() {
   }>({});
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = React.useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = React.useState<
+    number | null
+  >(null);
   const [isLoading, setIsLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (rateLimitCountdown === null || rateLimitCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          setIsRateLimited(false);
+          setErrorMsg(null);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   const pwdEvaluation = React.useMemo(
     () => evaluatePassword(password),
@@ -115,6 +129,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (rateLimitCountdown !== null && rateLimitCountdown > 0) return;
     setErrorMsg(null);
     setIsRateLimited(false);
 
@@ -178,7 +193,10 @@ export default function RegisterPage() {
       if (err instanceof ApiError) {
         if (err.status === 429) {
           setIsRateLimited(true);
-          setErrorMsg("Too many attempts, try again in a minute");
+          setRateLimitCountdown(60);
+          setErrorMsg(
+            "Too many registration attempts. Rate limit is 5 requests per minute. Please wait before trying again.",
+          );
         } else {
           setErrorMsg(
             err.message || "Registration failed. Please verify your details.",
@@ -212,7 +230,11 @@ export default function RegisterPage() {
             <AlertTitle className="text-xs font-semibold">
               {isRateLimited ? "Rate limit reached" : "Registration failed"}
             </AlertTitle>
-            <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
+            <AlertDescription className="text-xs">
+              {isRateLimited && rateLimitCountdown !== null
+                ? `Too many registration attempts. Rate limit is 5 requests per minute. Please wait ${rateLimitCountdown}s before trying again.`
+                : errorMsg}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -233,7 +255,10 @@ export default function RegisterPage() {
               placeholder="Ada Lovelace"
               autoComplete="name"
               autoFocus
-              disabled={isLoading}
+              disabled={
+                isLoading ||
+                (rateLimitCountdown !== null && rateLimitCountdown > 0)
+              }
               value={name}
               onChange={(e) => setName(e.target.value)}
               aria-invalid={!!fieldErrors.name}
@@ -247,16 +272,22 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs font-medium">
-              Work email
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="email" className="text-xs font-medium">
+                Work email
+              </Label>
+              <AuthMethodBadge method="email" />
+            </div>
             <Input
               id="email"
               name="email"
               type="email"
               placeholder="name@company.com"
               autoComplete="email"
-              disabled={isLoading}
+              disabled={
+                isLoading ||
+                (rateLimitCountdown !== null && rateLimitCountdown > 0)
+              }
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!fieldErrors.email}
@@ -279,7 +310,10 @@ export default function RegisterPage() {
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              disabled={isLoading}
+              disabled={
+                isLoading ||
+                (rateLimitCountdown !== null && rateLimitCountdown > 0)
+              }
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!fieldErrors.password}
@@ -310,14 +344,19 @@ export default function RegisterPage() {
 
           <Button
             type="submit"
-            disabled={isLoading}
+            disabled={
+              isLoading ||
+              (rateLimitCountdown !== null && rateLimitCountdown > 0)
+            }
             className="mt-1 h-8 w-full cursor-pointer text-xs font-medium"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <CircleNotch className="size-3.5 animate-spin" weight="bold" />
+                <BloomSpinner size={14} speed="fast" />
                 Creating account…
               </span>
+            ) : rateLimitCountdown !== null && rateLimitCountdown > 0 ? (
+              `Retry in ${rateLimitCountdown}s`
             ) : (
               "Create account"
             )}

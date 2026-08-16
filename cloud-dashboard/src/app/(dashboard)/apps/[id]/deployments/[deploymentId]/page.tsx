@@ -8,6 +8,7 @@ import {
   ArrowCounterClockwise,
   WarningOctagon,
   ArrowsClockwise,
+  RocketLaunch,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -36,6 +37,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PlatformIcon } from "@/components/status/platform-icon";
 import { StatusBadge } from "@/components/status/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
 import { DeploymentResponse } from "@/lib/schemas/deployment";
 import { AppResponse } from "@/lib/schemas/app";
@@ -115,22 +117,44 @@ export default function AppDeploymentDetailPage() {
     );
   }
 
-  if (error || !deployment) {
+  if (error) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Deployment Not Found</AlertTitle>
+        <AlertTitle>Failed to load deployment</AlertTitle>
         <AlertDescription className="flex items-center justify-between">
-          <span>{error || "Unable to retrieve deployment record."}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/apps/${appId}/deployments`)}
-            className="h-7 text-xs"
-          >
-            Back to Deployments
-          </Button>
+          <span>{error}</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void fetchData()}
+              className="h-7 text-xs"
+            >
+              Retry
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/apps/${appId}/deployments`)}
+              className="h-7 text-xs"
+            >
+              Back to Deployments
+            </Button>
+          </div>
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (!deployment) {
+    return (
+      <EmptyState
+        icon={RocketLaunch}
+        title="Deployment Not Found"
+        description="The requested deployment record could not be found or has been removed."
+        actionLabel="Back to Deployments"
+        onAction={() => router.push(`/apps/${appId}/deployments`)}
+      />
     );
   }
 
