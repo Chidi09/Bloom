@@ -7,12 +7,17 @@ import {
   Trash,
   ArrowsClockwise,
   Clock,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status/status-badge";
 import { ProviderIcon } from "@/components/status/provider-icon";
 import { Textarea } from "@/components/ui/textarea";
@@ -110,6 +115,53 @@ const PROVIDERS: ProviderOption[] = [
   },
 ];
 
+function getProviderStyle(provider: ProviderType) {
+  switch (provider) {
+    case "apple":
+      return {
+        topBorder: "border-t-slate-400/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(255,255,255,0.06)] hover:border-slate-600",
+        badgeColor: "border-slate-500/30 bg-slate-500/10 text-slate-300",
+      };
+    case "google_play":
+      return {
+        topBorder: "border-t-emerald-500/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(16,185,129,0.12)] hover:border-emerald-500/40",
+        badgeColor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+      };
+    case "shorebird":
+      return {
+        topBorder: "border-t-cyan-500/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(6,182,212,0.12)] hover:border-cyan-500/40",
+        badgeColor: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400",
+      };
+    case "github":
+      return {
+        topBorder: "border-t-violet-500/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(139,92,246,0.12)] hover:border-violet-500/40",
+        badgeColor: "border-violet-500/30 bg-violet-500/10 text-violet-300",
+      };
+    case "gitlab":
+      return {
+        topBorder: "border-t-amber-500/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(245,158,11,0.12)] hover:border-amber-500/40",
+        badgeColor: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+      };
+    case "bitbucket":
+      return {
+        topBorder: "border-t-blue-500/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(59,130,246,0.12)] hover:border-blue-500/40",
+        badgeColor: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+      };
+    default:
+      return {
+        topBorder: "border-t-primary/80",
+        glow: "hover:shadow-[0_4px_24px_rgba(255,255,255,0.05)]",
+        badgeColor: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
+      };
+  }
+}
+
 export default function CredentialsPage() {
   const { currentOrganizationId } = useOrganizationStore();
 
@@ -150,6 +202,9 @@ export default function CredentialsPage() {
 
   // Testing State
   const [testingId, setTestingId] = React.useState<string | null>(null);
+  const [testResults, setTestResults] = React.useState<
+    Record<string, { success: boolean; message: string; timestamp: Date }>
+  >({});
 
   // Delete State
   const [credentialToDelete, setCredentialToDelete] =
@@ -285,13 +340,38 @@ export default function CredentialsPage() {
         {},
       );
       if (res.success) {
-        toast.success(res.message || "Connection validated successfully!");
+        toast.success(res.message || `Successfully connected to ${cred.name}!`);
+        setTestResults((prev) => ({
+          ...prev,
+          [cred.id]: {
+            success: true,
+            message: res.message || "Connection validated",
+            timestamp: new Date(),
+          },
+        }));
       } else {
-        toast.error(res.message || "Connection test failed.");
+        toast.error(res.message || `Connection failed for ${cred.name}.`);
+        setTestResults((prev) => ({
+          ...prev,
+          [cred.id]: {
+            success: false,
+            message: res.message || "Validation failed",
+            timestamp: new Date(),
+          },
+        }));
       }
       await fetchCredentials();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Connection test error");
+      const msg = err instanceof Error ? err.message : "Connection test error";
+      toast.error(msg);
+      setTestResults((prev) => ({
+        ...prev,
+        [cred.id]: {
+          success: false,
+          message: msg,
+          timestamp: new Date(),
+        },
+      }));
     } finally {
       setTestingId(null);
     }
@@ -326,7 +406,7 @@ export default function CredentialsPage() {
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Key ID:</span>
-              <span>{meta.key_id || "••••••••"}</span>
+              <span className="font-semibold">{meta.key_id || "••••••••"}</span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Issuer ID:</span>
@@ -336,7 +416,9 @@ export default function CredentialsPage() {
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Team ID:</span>
-              <span>{meta.team_id || "••••••••"}</span>
+              <span className="font-semibold">
+                {meta.team_id || "••••••••"}
+              </span>
             </div>
           </div>
         );
@@ -344,8 +426,10 @@ export default function CredentialsPage() {
         return (
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="text-[11px]">
-              <span className="text-muted-foreground block">Client Email:</span>
-              <span className="text-foreground truncate">
+              <span className="text-muted-foreground mb-0.5 block">
+                Client Email:
+              </span>
+              <span className="text-foreground block truncate font-semibold">
                 {meta.client_email || "••••@iam.gserviceaccount.com"}
               </span>
             </div>
@@ -356,7 +440,7 @@ export default function CredentialsPage() {
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">App ID:</span>
-              <span className="max-w-[170px] truncate">
+              <span className="max-w-[170px] truncate font-semibold">
                 {meta.app_id || "••••••••"}
               </span>
             </div>
@@ -367,7 +451,9 @@ export default function CredentialsPage() {
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Installation ID:</span>
-              <span>{meta.installation_id || "••••••••"}</span>
+              <span className="font-semibold">
+                {meta.installation_id || "••••••••"}
+              </span>
             </div>
           </div>
         );
@@ -376,7 +462,9 @@ export default function CredentialsPage() {
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Application ID:</span>
-              <span>{meta.application_id || "••••••••"}</span>
+              <span className="font-semibold">
+                {meta.application_id || "••••••••"}
+              </span>
             </div>
           </div>
         );
@@ -385,7 +473,9 @@ export default function CredentialsPage() {
           <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Workspace:</span>
-              <span>{meta.workspace || "••••••••"}</span>
+              <span className="font-semibold">
+                {meta.workspace || "••••••••"}
+              </span>
             </div>
           </div>
         );
@@ -466,28 +556,42 @@ export default function CredentialsPage() {
             const providerInfo =
               PROVIDERS.find((p) => p.id === cred.provider) || PROVIDERS[0];
             const isTesting = testingId === cred.id;
+            const style = getProviderStyle(cred.provider);
+            const lastTest = testResults[cred.id];
 
             return (
               <Card
                 key={cred.id}
-                className="border-border/80 bg-card hover:border-border flex flex-col justify-between shadow-xs transition-colors duration-150"
+                className={cn(
+                  "group border-border/80 bg-card flex flex-col justify-between border-t-2 shadow-xs transition-all duration-200 hover:-translate-y-0.5",
+                  style.topBorder,
+                  style.glow,
+                )}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 items-center justify-center rounded-md border shadow-xs">
+                      <div className="border-border/80 bg-muted/50 text-foreground flex size-9 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors group-hover:border-zinc-600">
                         <ProviderIcon provider={cred.provider} size="sm" />
                       </div>
-                      <div>
-                        <CardTitle className="text-foreground text-xs font-semibold">
+                      <div className="space-y-0.5">
+                        <CardTitle className="text-foreground text-sm font-semibold">
                           {cred.name}
                         </CardTitle>
-                        <p className="text-muted-foreground text-[10px]">
+                        <p className="text-muted-foreground font-mono text-[11px]">
                           {providerInfo.name}
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status="healthy" label="Connected" size="sm" />
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[9px] tracking-wide uppercase",
+                        style.badgeColor,
+                      )}
+                    >
+                      {providerInfo.category}
+                    </Badge>
                   </div>
                 </CardHeader>
 
@@ -506,25 +610,50 @@ export default function CredentialsPage() {
                           : "Never"}
                       </span>
                     </div>
+
+                    {lastTest ? (
+                      <div className="flex items-center gap-1">
+                        {lastTest.success ? (
+                          <span className="flex items-center gap-0.5 text-emerald-400">
+                            <CheckCircle className="size-3" weight="fill" />
+                            <span>Verified</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-0.5 text-rose-400">
+                            <XCircle className="size-3" weight="fill" />
+                            <span>Failed</span>
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <StatusBadge status="healthy" label="Ready" size="sm" />
+                    )}
                   </div>
                 </CardContent>
 
                 <CardFooter className="border-border/60 flex items-center justify-between border-t pt-3">
-                  {canTest && (
+                  {canTest ? (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => void handleTestConnection(cred)}
                       disabled={isTesting}
-                      className="h-7 gap-1 text-xs transition-colors"
+                      className="h-7 gap-1.5 text-xs transition-colors"
                     >
                       {isTesting ? (
-                        <BloomSpinner size={12} className="mr-1" />
+                        <>
+                          <BloomSpinner size={12} speed="fast" />
+                          <span>Testing...</span>
+                        </>
                       ) : (
-                        <ArrowsClockwise className="size-3" />
+                        <>
+                          <ArrowsClockwise className="size-3" />
+                          <span>Test Connection</span>
+                        </>
                       )}
-                      <span>Test Connection</span>
                     </Button>
+                  ) : (
+                    <div />
                   )}
 
                   {canManage && (
@@ -550,7 +679,7 @@ export default function CredentialsPage() {
           <form onSubmit={handleCreateCredential} className="space-y-4">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
-                <Key className="text-muted-foreground size-4" />
+                <ShieldCheck className="text-primary size-4" />
                 <span>Store Platform Credential</span>
               </DialogTitle>
               <DialogDescription>
@@ -575,8 +704,8 @@ export default function CredentialsPage() {
                     {PROVIDERS.map((p) => (
                       <SelectItem key={p.id} value={p.id} className="text-xs">
                         <div className="flex items-center gap-2">
-                          <ProviderIcon provider={p.id} size={14} />
-                          <span>{p.name}</span>
+                          <ProviderIcon provider={p.id} size="sm" />
+                          <span className="font-medium">{p.name}</span>
                           <span className="text-muted-foreground text-[10px]">
                             ({p.category})
                           </span>
@@ -601,7 +730,7 @@ export default function CredentialsPage() {
 
               {/* Dynamic Metadata Fields based on Provider */}
               {selectedProvider === "apple" && (
-                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2.5 rounded-md border p-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="apple-key" className="text-[11px]">
                       Key ID

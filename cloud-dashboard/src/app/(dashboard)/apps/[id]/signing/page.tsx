@@ -7,8 +7,12 @@ import {
   Trash,
   ArrowsClockwise,
   DownloadSimple,
+  UploadSimple,
+  CheckCircle,
+  File,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,8 +81,11 @@ export default function AppSigningPage() {
   // Common Form Fields
   const [name, setName] = React.useState("");
   const [material, setMaterial] = React.useState("");
+  const [fileName, setFileName] = React.useState("");
+  const [fileSize, setFileSize] = React.useState<string | null>(null);
   const [expiresAt, setExpiresAt] = React.useState("");
   const [isUploading, setIsUploading] = React.useState(false);
+  const [isDragOver, setIsDragOver] = React.useState(false);
 
   // Keystore Fields
   const [keyAlias, setKeyAlias] = React.useState("");
@@ -97,6 +104,8 @@ export default function AppSigningPage() {
 
   // Deletion State
   const [isDeleting, setIsDeleting] = React.useState(false);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -133,9 +142,13 @@ export default function AppSigningPage() {
     void run();
   }, [fetchData]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = (file: File) => {
+    setFileName(file.name);
+    setFileSize(
+      file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${(file.size / 1024).toFixed(0)} KB`,
+    );
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -148,9 +161,27 @@ export default function AppSigningPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
   const resetForm = () => {
     setName("");
     setMaterial("");
+    setFileName("");
+    setFileSize(null);
     setExpiresAt("");
     setKeyAlias("");
     setFingerprint("");
@@ -159,6 +190,9 @@ export default function AppSigningPage() {
     setKeyId("");
     setIssuerId("");
     setTeamId("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleCreateIdentity = async (e: React.FormEvent) => {
@@ -240,8 +274,10 @@ export default function AppSigningPage() {
   const getExpiryStatus = (expiresAt?: string | null, isExpiring?: boolean) => {
     if (!expiresAt) {
       return {
-        status: "pending",
+        status: "pending" as const,
         label: "No Expiration",
+        isCriticalPulse: false,
+        isWarningTier: false,
       };
     }
 
@@ -253,21 +289,38 @@ export default function AppSigningPage() {
 
     if (daysUntilExpiry <= 0) {
       return {
-        status: "error",
+        status: "error" as const,
         label: "Expired",
+        isCriticalPulse: true,
+        isWarningTier: false,
       };
     }
 
+    // High urgency: expiring within 7 days (distinct glowing pulse)
+    if (daysUntilExpiry <= 7) {
+      return {
+        status: "error" as const,
+        label: `Expires in ${daysUntilExpiry}d`,
+        isCriticalPulse: true,
+        isWarningTier: false,
+      };
+    }
+
+    // Warning tier: expiring within 30 days
     if (daysUntilExpiry <= 30 || isExpiring) {
       return {
-        status: "warning",
+        status: "warning" as const,
         label: `Expires in ${daysUntilExpiry}d`,
+        isCriticalPulse: false,
+        isWarningTier: true,
       };
     }
 
     return {
-      status: "healthy",
+      status: "healthy" as const,
       label: `Expires ${expiryDate.toLocaleDateString()}`,
+      isCriticalPulse: false,
+      isWarningTier: false,
     };
   };
 
@@ -283,6 +336,19 @@ export default function AppSigningPage() {
         return "App Store API Key";
       default:
         return kind;
+    }
+  };
+
+  const getAcceptedExtensions = (tab: typeof activeTab) => {
+    switch (tab) {
+      case "keystore":
+        return ".jks, .keystore";
+      case "certificate":
+        return ".p12, .cer, .crt";
+      case "provisioning_profile":
+        return ".mobileprovision";
+      case "api_key":
+        return ".p8";
     }
   };
 
@@ -313,7 +379,10 @@ export default function AppSigningPage() {
 
           <Button
             size="sm"
-            onClick={() => setUploadDialogOpen(true)}
+            onClick={() => {
+              resetForm();
+              setUploadDialogOpen(true);
+            }}
             className="h-8 gap-1.5"
           >
             <Plus className="size-3.5" weight="bold" />
@@ -349,7 +418,10 @@ export default function AppSigningPage() {
           title="No signing identities uploaded"
           description="Upload an Android release keystore (.jks) or iOS distribution certificate (.p12) to automate binary signing."
           actionLabel="Upload First Identity"
-          onAction={() => setUploadDialogOpen(true)}
+          onAction={() => {
+            resetForm();
+            setUploadDialogOpen(true);
+          }}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -363,12 +435,12 @@ export default function AppSigningPage() {
             return (
               <Card
                 key={identity.id}
-                className="border-border/80 bg-card hover:border-border flex flex-col justify-between shadow-xs transition-colors duration-150"
+                className="group border-border/80 bg-card flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-700 hover:shadow-[0_4px_20px_rgba(0,0,0,0.6)]"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border/80 bg-muted/50 flex size-8.5 shrink-0 items-center justify-center rounded-md border shadow-xs">
+                      <div className="border-border/80 bg-muted/50 flex size-9 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors group-hover:border-zinc-600">
                         {identity.kind === "keystore" ||
                         identity.platform === "android" ? (
                           <PlatformIcon platform="android" size="sm" />
@@ -386,16 +458,27 @@ export default function AppSigningPage() {
                       </div>
                     </div>
 
-                    <StatusBadge
-                      status={expiry.status}
-                      label={expiry.label}
-                      size="sm"
-                    />
+                    {/* Expiry StatusBadge with distinct pulsing urgency for <= 7 days */}
+                    <div
+                      className={cn(
+                        "rounded-full transition-all",
+                        expiry.isCriticalPulse &&
+                          "animate-pulse shadow-[0_0_14px_rgba(239,68,68,0.4)] ring-2 ring-red-500/60",
+                        expiry.isWarningTier &&
+                          "shadow-[0_0_10px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/40",
+                      )}
+                    >
+                      <StatusBadge
+                        status={expiry.status}
+                        label={expiry.label}
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3 pb-3 text-xs">
-                  {/* Tagged Union Metadata Render (§21.3) */}
+                  {/* Tagged Union Metadata Render */}
                   <div className="border-border/60 bg-muted/20 space-y-1 rounded-md border p-2.5 font-mono text-[11px]">
                     {identity.kind === "keystore" && (
                       <div className="text-muted-foreground flex items-center justify-between">
@@ -463,7 +546,7 @@ export default function AppSigningPage() {
                   </span>
 
                   <div className="flex items-center gap-1.5">
-                    {/* Hard-gated download for ReleaseManager+ (§21.5) */}
+                    {/* Hard-gated download for ReleaseManager+ */}
                     {canDownload && (
                       <Button
                         variant="outline"
@@ -519,12 +602,15 @@ export default function AppSigningPage() {
         </div>
       )}
 
-      {/* Upload Dialog with Tabs per Kind (§22.4) */}
+      {/* Upload Dialog with Visual Dropzone & Tabs per Kind */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <form onSubmit={handleCreateIdentity}>
             <DialogHeader>
-              <DialogTitle>Upload Signing Identity</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="text-primary size-4" />
+                <span>Upload Signing Identity</span>
+              </DialogTitle>
               <DialogDescription>
                 Provide cryptographic signing keys for production or internal
                 builds.
@@ -534,15 +620,15 @@ export default function AppSigningPage() {
             <div className="space-y-4 py-3">
               <Tabs
                 value={activeTab}
-                onValueChange={(v) =>
+                onValueChange={(v) => {
                   setActiveTab(
                     v as
                       | "keystore"
                       | "certificate"
                       | "provisioning_profile"
                       | "api_key",
-                  )
-                }
+                  );
+                }}
               >
                 <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="keystore" className="text-xs">
@@ -572,22 +658,72 @@ export default function AppSigningPage() {
                     />
                   </div>
 
+                  {/* Drag-and-drop Visual Dropzone */}
                   <div className="space-y-1.5">
                     <Label htmlFor="identity-file">
                       {activeTab === "api_key"
                         ? "AuthKey_*.p8 File"
                         : activeTab === "keystore"
-                          ? "Keystore (.jks / .keystore)"
+                          ? "Keystore Binary (.jks / .keystore)"
                           : activeTab === "certificate"
                             ? "Distribution Certificate (.p12 / .cer)"
                             : "Provisioning Profile (.mobileprovision)"}
                     </Label>
-                    <Input
-                      id="identity-file"
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="cursor-pointer text-xs"
-                    />
+
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(true);
+                      }}
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={cn(
+                        "group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200",
+                        isDragOver
+                          ? "border-primary bg-primary/10 scale-[0.99]"
+                          : fileName
+                            ? "border-emerald-500/50 bg-emerald-500/5 hover:bg-emerald-500/10"
+                            : "border-border/80 bg-muted/10 hover:bg-muted/20 hover:border-zinc-500",
+                      )}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        id="identity-file"
+                        type="file"
+                        onChange={handleFileUpload}
+                        className="sr-only"
+                      />
+
+                      {fileName ? (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                            <CheckCircle className="size-5" weight="fill" />
+                          </div>
+                          <div className="text-foreground max-w-[260px] truncate text-xs font-semibold">
+                            {fileName}
+                          </div>
+                          <div className="text-muted-foreground font-mono text-[11px]">
+                            {fileSize} • Click to replace
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="border-border/80 bg-muted/40 text-muted-foreground group-hover:text-foreground flex size-10 items-center justify-center rounded-full border shadow-xs transition-transform group-hover:scale-105 group-hover:border-zinc-600">
+                            <UploadSimple className="size-5" />
+                          </div>
+                          <div className="text-foreground text-xs font-medium">
+                            <span className="text-primary hover:underline">
+                              Click to browse
+                            </span>{" "}
+                            or drag and drop
+                          </div>
+                          <p className="text-muted-foreground text-[11px]">
+                            Accepts {getAcceptedExtensions(activeTab)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
