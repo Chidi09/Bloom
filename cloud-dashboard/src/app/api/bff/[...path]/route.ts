@@ -495,6 +495,14 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         name?: string;
         slug?: string;
         build_profile?: string;
+        flutter_version?: string | null;
+        dart_version?: string | null;
+        bloom_version?: string | null;
+        flavor?: string | null;
+        api_config?: {
+          env_vars?: { key: string; value: string }[];
+          feature_flags?: { key: string; enabled: boolean }[];
+        };
       } = {};
       try {
         body = await req.json();
@@ -507,19 +515,424 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         body.name || "Production",
         body.slug || "production",
         body.build_profile || "release",
+        body.api_config,
+        {
+          flutter_version: body.flutter_version,
+          dart_version: body.dart_version,
+          bloom_version: body.bloom_version,
+          flavor: body.flavor,
+        },
       );
       return NextResponse.json(env, { status: 201 });
     }
 
     if (path.length === 2) {
       const envId = path[1];
-      const env = mockStore.environments.find((e) => e.id === envId);
-      if (!env)
-        return NextResponse.json(
-          { error: { status: 404, message: "Environment not found" } },
-          { status: 404 },
+      if (req.method === "GET") {
+        const env = mockStore.environments.find((e) => e.id === envId);
+        if (!env)
+          return NextResponse.json(
+            { error: { status: 404, message: "Environment not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(env);
+      }
+      if (req.method === "PATCH") {
+        let body: Record<string, unknown> = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateEnvironment(envId, body);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Environment not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "DELETE") {
+        const success = mockStore.deleteEnvironment(envId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Environment not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
+  }
+
+  // Secrets endpoints
+  if (path[0] === "secrets") {
+    if (req.method === "GET" && path.length === 1) {
+      const envId = req.nextUrl.searchParams.get("environment_id");
+      const results = envId ? mockStore.getSecrets(envId) : mockStore.secrets;
+      const safeResults = results.map((s) => ({
+        id: s.id,
+        environment_id: s.environment_id,
+        organization_id: s.organization_id,
+        key: s.key,
+        is_json: s.is_json,
+        version: s.version,
+        updated_at: s.updated_at,
+      }));
+      return NextResponse.json({
+        count: safeResults.length,
+        page: 1,
+        total_pages: 1,
+        results: safeResults,
+      });
+    }
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        environment_id: string;
+        key: string;
+        value: string;
+        is_json?: boolean;
+      } = { environment_id: "", key: "", value: "" };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const sec = mockStore.createOrUpdateSecret(
+        body.environment_id,
+        orgHeaderId,
+        body.key,
+        body.value,
+        body.is_json || false,
+      );
+      return NextResponse.json(
+        {
+          id: sec.id,
+          environment_id: sec.environment_id,
+          organization_id: sec.organization_id,
+          key: sec.key,
+          is_json: sec.is_json,
+          version: sec.version,
+          updated_at: sec.updated_at,
+        },
+        { status: 201 },
+      );
+    }
+
+    if (path.length >= 2) {
+      const secId = path[1];
+      if (req.method === "GET" && path.length === 2) {
+        const sec = mockStore.secrets.find((s) => s.id === secId);
+        if (!sec)
+          return NextResponse.json(
+            { error: { status: 404, message: "Secret not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json({
+          id: sec.id,
+          environment_id: sec.environment_id,
+          organization_id: sec.organization_id,
+          key: sec.key,
+          is_json: sec.is_json,
+          version: sec.version,
+          updated_at: sec.updated_at,
+        });
+      }
+      if (req.method === "PATCH" && path.length === 2) {
+        let body: { value?: string; is_json?: boolean } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const sec = mockStore.updateSecret(secId, body.value, body.is_json);
+        if (!sec)
+          return NextResponse.json(
+            { error: { status: 404, message: "Secret not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json({
+          id: sec.id,
+          environment_id: sec.environment_id,
+          organization_id: sec.organization_id,
+          key: sec.key,
+          is_json: sec.is_json,
+          version: sec.version,
+          updated_at: sec.updated_at,
+        });
+      }
+      if (req.method === "POST" && path[2] === "rollback") {
+        let body: { version: number } = { version: 1 };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const sec = mockStore.rollbackSecret(secId, body.version);
+        if (!sec)
+          return NextResponse.json(
+            { error: { status: 404, message: "Secret not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json({
+          id: sec.id,
+          environment_id: sec.environment_id,
+          organization_id: sec.organization_id,
+          key: sec.key,
+          is_json: sec.is_json,
+          version: sec.version,
+          updated_at: sec.updated_at,
+        });
+      }
+      if (req.method === "DELETE" && path.length === 2) {
+        const success = mockStore.deleteSecret(secId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Secret not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
+  }
+
+  // Signing endpoints
+  if (path[0] === "signing") {
+    if (req.method === "GET" && path.length === 1) {
+      const results = mockStore.getSigningIdentities(orgHeaderId);
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
+    }
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        platform: "android" | "ios";
+        name: string;
+        kind: "keystore" | "certificate" | "provisioning_profile" | "api_key";
+        material: string;
+        metadata: Record<string, unknown>;
+        expires_at?: string | null;
+      } = {
+        platform: "android",
+        name: "",
+        kind: "keystore",
+        material: "",
+        metadata: {},
+      };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const identity = mockStore.createSigningIdentity(
+        orgHeaderId,
+        body.platform,
+        body.name,
+        body.kind,
+        body.material,
+        body.metadata,
+        body.expires_at,
+      );
+      return NextResponse.json(identity, { status: 201 });
+    }
+
+    if (path.length === 2) {
+      const id = path[1];
+      if (req.method === "GET") {
+        const identity = mockStore.getSigningIdentity(id);
+        if (!identity)
+          return NextResponse.json(
+            { error: { status: 404, message: "Signing identity not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(identity);
+      }
+      if (req.method === "DELETE") {
+        const success = mockStore.deleteSigningIdentity(id);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Signing identity not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
+  }
+
+  // Releases endpoints
+  if (path[0] === "releases") {
+    if (req.method === "GET" && path.length === 1) {
+      const appId = req.nextUrl.searchParams.get("app_id");
+      const results = appId ? mockStore.getReleases(appId) : mockStore.releases;
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
+    }
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        app_id: string;
+        version: string;
+        build_number: number;
+        commit: string;
+        changelog?: string;
+        environment_id?: string | null;
+        platforms?: string[];
+        artifact_ids?: string[];
+      } = { app_id: "", version: "", build_number: 1, commit: "" };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const rel = mockStore.createRelease(
+        body.app_id,
+        orgHeaderId,
+        body.version,
+        body.build_number,
+        body.commit,
+        body.changelog || "",
+        body.environment_id,
+        body.platforms || ["ios", "android", "web"],
+        body.artifact_ids || [],
+      );
+      return NextResponse.json(rel, { status: 201 });
+    }
+
+    if (path.length >= 2) {
+      const relId = path[1];
+      if (req.method === "GET" && path.length === 2) {
+        const rel = mockStore.getRelease(relId);
+        if (!rel)
+          return NextResponse.json(
+            { error: { status: 404, message: "Release not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(rel);
+      }
+      if (req.method === "PATCH" && path.length === 2) {
+        let body: {
+          changelog?: string;
+          rollout_status?: Record<string, unknown>;
+          status?: string;
+        } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateRelease(relId, body);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Release not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "POST" && path[2] === "approve") {
+        let body: { approved: boolean; reason?: string } = { approved: true };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.approveRelease(
+          relId,
+          body.approved,
+          body.reason,
         );
-      return NextResponse.json(env);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Release not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "POST" && path[2] === "rollback") {
+        let reason: string | undefined;
+        try {
+          const body = (await req.json()) as { reason?: string };
+          reason = body.reason;
+        } catch {
+          // optional body
+        }
+        const updated = mockStore.rollbackRelease(relId, reason);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Release not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+    }
+  }
+
+  // Deployments endpoints
+  if (path[0] === "deployments") {
+    if (req.method === "GET" && path.length === 1) {
+      const appId = req.nextUrl.searchParams.get("app_id") ?? undefined;
+      const envId = req.nextUrl.searchParams.get("environment_id") ?? undefined;
+      const relId = req.nextUrl.searchParams.get("release_id") ?? undefined;
+      const results = mockStore.getDeployments(appId, envId, relId);
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
+    }
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        environment_id: string;
+        platform: "ios" | "android" | "web";
+        target: string;
+        release_id?: string | null;
+        artifact_id?: string | null;
+      } = { environment_id: "", platform: "ios", target: "testflight" };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const dep = mockStore.createDeployment(
+        orgHeaderId,
+        body.environment_id,
+        body.platform,
+        body.target,
+        body.release_id,
+        body.artifact_id,
+      );
+      return NextResponse.json(dep, { status: 201 });
+    }
+
+    if (path.length >= 2) {
+      const depId = path[1];
+      if (req.method === "GET" && path.length === 2) {
+        const dep = mockStore.getDeployment(depId);
+        if (!dep)
+          return NextResponse.json(
+            { error: { status: 404, message: "Deployment not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(dep);
+      }
+      if (req.method === "POST" && path[2] === "rollback") {
+        const rolled = mockStore.rollbackDeployment(depId);
+        if (!rolled)
+          return NextResponse.json(
+            { error: { status: 404, message: "Deployment not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(rolled);
+      }
     }
   }
 

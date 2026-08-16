@@ -16,6 +16,10 @@ export const environmentResponseSchema = z.object({
   name: z.string(),
   slug: z.string(),
   build_profile: z.string().optional(),
+  flutter_version: z.string().optional().nullable(),
+  dart_version: z.string().optional().nullable(),
+  bloom_version: z.string().optional().nullable(),
+  flavor: z.string().optional().nullable(),
   api_config: environmentConfigSchema
     .optional()
     .default({ env_vars: [], feature_flags: [] }),
@@ -29,8 +33,25 @@ export const environmentCreateRequestSchema = z.object({
   name: z.string().min(1, "Environment name is required"),
   slug: z.string().min(1, "Slug is required"),
   build_profile: z.string().optional(),
+  flutter_version: z.string().optional(),
+  dart_version: z.string().optional(),
+  bloom_version: z.string().optional(),
+  flavor: z.string().optional(),
   api_config: environmentConfigSchema.optional(),
 });
 export type EnvironmentCreateRequest = z.infer<
   typeof environmentCreateRequestSchema
+>;
+
+export const environmentUpdateRequestSchema = z.object({
+  name: z.string().optional(),
+  build_profile: z.string().optional(),
+  flutter_version: z.string().optional().nullable(),
+  dart_version: z.string().optional().nullable(),
+  bloom_version: z.string().optional().nullable(),
+  flavor: z.string().optional().nullable(),
+  api_config: environmentConfigSchema.optional(),
+});
+export type EnvironmentUpdateRequest = z.infer<
+  typeof environmentUpdateRequestSchema
 >;

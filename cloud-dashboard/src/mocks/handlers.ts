@@ -404,6 +404,14 @@ export const handlers = [
       name?: string;
       slug?: string;
       build_profile?: string;
+      flutter_version?: string | null;
+      dart_version?: string | null;
+      bloom_version?: string | null;
+      flavor?: string | null;
+      api_config?: {
+        env_vars?: { key: string; value: string }[];
+        feature_flags?: { key: string; enabled: boolean }[];
+      };
     };
     const orgHeaderId =
       request.headers.get("x-bloom-organization-id") ||
@@ -415,6 +423,13 @@ export const handlers = [
       body.name || "Production",
       body.slug || "production",
       body.build_profile || "release",
+      body.api_config,
+      {
+        flutter_version: body.flutter_version,
+        dart_version: body.dart_version,
+        bloom_version: body.bloom_version,
+        flavor: body.flavor,
+      },
     );
     return HttpResponse.json(env, { status: 201 });
   }),
@@ -428,6 +443,381 @@ export const handlers = [
         { status: 404 },
       );
     return HttpResponse.json(env);
+  }),
+
+  http.patch(`${API}/environments/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = await request.json();
+    const updated = mockStore.updateEnvironment(id, body as Record<string, unknown>);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Environment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  http.delete(`${API}/environments/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteEnvironment(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Environment not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Secrets
+  http.get(`${API}/secrets`, ({ request }) => {
+    const url = new URL(request.url);
+    const envId = url.searchParams.get("environment_id");
+    const results = envId ? mockStore.getSecrets(envId) : mockStore.secrets;
+    // Metadata only representation per contracts
+    const safeResults = results.map((s) => ({
+      id: s.id,
+      environment_id: s.environment_id,
+      organization_id: s.organization_id,
+      key: s.key,
+      is_json: s.is_json,
+      version: s.version,
+      updated_at: s.updated_at,
+    }));
+    return HttpResponse.json({
+      count: safeResults.length,
+      page: 1,
+      total_pages: 1,
+      results: safeResults,
+    });
+  }),
+
+  http.post(`${API}/secrets`, async ({ request }) => {
+    const body = (await request.json()) as {
+      environment_id: string;
+      key: string;
+      value: string;
+      is_json?: boolean;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const sec = mockStore.createOrUpdateSecret(
+      body.environment_id,
+      orgHeaderId,
+      body.key,
+      body.value,
+      body.is_json || false,
+    );
+    return HttpResponse.json(
+      {
+        id: sec.id,
+        environment_id: sec.environment_id,
+        organization_id: sec.organization_id,
+        key: sec.key,
+        is_json: sec.is_json,
+        version: sec.version,
+        updated_at: sec.updated_at,
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.get(`${API}/secrets/:id`, ({ params }) => {
+    const id = params.id as string;
+    const sec = mockStore.secrets.find((s) => s.id === id);
+    if (!sec)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Secret not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json({
+      id: sec.id,
+      environment_id: sec.environment_id,
+      organization_id: sec.organization_id,
+      key: sec.key,
+      is_json: sec.is_json,
+      version: sec.version,
+      updated_at: sec.updated_at,
+    });
+  }),
+
+  http.patch(`${API}/secrets/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as {
+      value?: string;
+      is_json?: boolean;
+    };
+    const sec = mockStore.updateSecret(id, body.value, body.is_json);
+    if (!sec)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Secret not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json({
+      id: sec.id,
+      environment_id: sec.environment_id,
+      organization_id: sec.organization_id,
+      key: sec.key,
+      is_json: sec.is_json,
+      version: sec.version,
+      updated_at: sec.updated_at,
+    });
+  }),
+
+  http.post(`${API}/secrets/:id/rollback`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as { version: number };
+    const sec = mockStore.rollbackSecret(id, body.version);
+    if (!sec)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Secret not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json({
+      id: sec.id,
+      environment_id: sec.environment_id,
+      organization_id: sec.organization_id,
+      key: sec.key,
+      is_json: sec.is_json,
+      version: sec.version,
+      updated_at: sec.updated_at,
+    });
+  }),
+
+  http.delete(`${API}/secrets/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteSecret(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Secret not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Signing
+  http.get(`${API}/signing`, ({ request }) => {
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const results = mockStore.getSigningIdentities(orgHeaderId);
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/signing`, async ({ request }) => {
+    const body = (await request.json()) as {
+      platform: "android" | "ios";
+      name: string;
+      kind: "keystore" | "certificate" | "provisioning_profile" | "api_key";
+      material: string;
+      metadata: Record<string, unknown>;
+      expires_at?: string | null;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const identity = mockStore.createSigningIdentity(
+      orgHeaderId,
+      body.platform,
+      body.name,
+      body.kind,
+      body.material,
+      body.metadata,
+      body.expires_at,
+    );
+    return HttpResponse.json(identity, { status: 201 });
+  }),
+
+  http.get(`${API}/signing/:id`, ({ params }) => {
+    const id = params.id as string;
+    const identity = mockStore.getSigningIdentity(id);
+    if (!identity)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Signing identity not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(identity);
+  }),
+
+  http.delete(`${API}/signing/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteSigningIdentity(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Signing identity not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Releases
+  http.get(`${API}/releases`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id");
+    const results = appId ? mockStore.getReleases(appId) : mockStore.releases;
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/releases`, async ({ request }) => {
+    const body = (await request.json()) as {
+      app_id: string;
+      version: string;
+      build_number: number;
+      commit: string;
+      changelog?: string;
+      environment_id?: string | null;
+      platforms?: string[];
+      artifact_ids?: string[];
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const rel = mockStore.createRelease(
+      body.app_id,
+      orgHeaderId,
+      body.version,
+      body.build_number,
+      body.commit,
+      body.changelog || "",
+      body.environment_id,
+      body.platforms || ["ios", "android", "web"],
+      body.artifact_ids || [],
+    );
+    return HttpResponse.json(rel, { status: 201 });
+  }),
+
+  http.get(`${API}/releases/:id`, ({ params }) => {
+    const id = params.id as string;
+    const rel = mockStore.getRelease(id);
+    if (!rel)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Release not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(rel);
+  }),
+
+  http.patch(`${API}/releases/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as {
+      changelog?: string;
+      rollout_status?: Record<string, unknown>;
+      status?: string;
+    };
+    const updated = mockStore.updateRelease(id, body);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Release not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  http.post(`${API}/releases/:id/approve`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as {
+      approved: boolean;
+      reason?: string;
+    };
+    const updated = mockStore.approveRelease(id, body.approved, body.reason);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Release not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  http.post(`${API}/releases/:id/rollback`, async ({ params, request }) => {
+    const id = params.id as string;
+    let reason: string | undefined;
+    try {
+      const body = (await request.json()) as { reason?: string };
+      reason = body.reason;
+    } catch {
+      // optional body
+    }
+    const updated = mockStore.rollbackRelease(id, reason);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Release not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  // Deployments
+  http.get(`${API}/deployments`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id") ?? undefined;
+    const envId = url.searchParams.get("environment_id") ?? undefined;
+    const relId = url.searchParams.get("release_id") ?? undefined;
+    const results = mockStore.getDeployments(appId, envId, relId);
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/deployments`, async ({ request }) => {
+    const body = (await request.json()) as {
+      environment_id: string;
+      platform: "ios" | "android" | "web";
+      target: string;
+      release_id?: string | null;
+      artifact_id?: string | null;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const dep = mockStore.createDeployment(
+      orgHeaderId,
+      body.environment_id,
+      body.platform,
+      body.target,
+      body.release_id,
+      body.artifact_id,
+    );
+    return HttpResponse.json(dep, { status: 201 });
+  }),
+
+  http.get(`${API}/deployments/:id`, ({ params }) => {
+    const id = params.id as string;
+    const dep = mockStore.getDeployment(id);
+    if (!dep)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Deployment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(dep);
+  }),
+
+  http.post(`${API}/deployments/:id/rollback`, ({ params }) => {
+    const id = params.id as string;
+    const rolled = mockStore.rollbackDeployment(id);
+    if (!rolled)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Deployment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(rolled);
   }),
 
   // Billing

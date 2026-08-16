@@ -1,4 +1,5 @@
 import { BuildStageResponse } from "./schemas/build";
+import { ReleaseArtifact } from "./schemas/release";
 
 export interface MockUser {
   id: string;
@@ -76,12 +77,97 @@ export interface MockEnvironment {
   name: string;
   slug: string;
   build_profile?: string;
+  flutter_version?: string | null;
+  dart_version?: string | null;
+  bloom_version?: string | null;
+  flavor?: string | null;
   api_config: {
     env_vars: { key: string; value: string }[];
     feature_flags: { key: string; enabled: boolean }[];
   };
   created_at: string;
   updated_at?: string;
+}
+
+export interface MockSecret {
+  id: string;
+  environment_id: string;
+  organization_id: string;
+  key: string;
+  value?: string; // encrypted/internal only in real backend
+  is_json: boolean;
+  version: number;
+  history?: { version: number; updated_at: string }[];
+  updated_at: string;
+}
+
+export interface MockSigningIdentity {
+  id: string;
+  organization_id: string;
+  platform: "android" | "ios";
+  name: string;
+  kind: "keystore" | "certificate" | "provisioning_profile" | "api_key";
+  material?: string;
+  metadata: Record<string, unknown>;
+  expires_at?: string | null;
+  is_expiring: boolean;
+  created_at: string;
+}
+
+export interface MockRelease {
+  id: string;
+  app_id: string;
+  organization_id: string;
+  version: string;
+  build_number: number;
+  commit: string;
+  changelog: string;
+  environment_id?: string | null;
+  status:
+    | "draft"
+    | "pending_approval"
+    | "approved"
+    | "rolling_out"
+    | "released"
+    | "rolled_back"
+    | "expired";
+  platforms: string[];
+  artifacts: ReleaseArtifact[];
+  rollout_status: Record<string, unknown>;
+  created_by_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockDeployment {
+  id: string;
+  release_id?: string | null;
+  artifact_id?: string | null;
+  environment_id: string;
+  organization_id: string;
+  platform: "ios" | "android" | "web";
+  target: string;
+  status:
+    | "pending"
+    | "queued"
+    | "running"
+    | "processing"
+    | "ready"
+    | "live"
+    | "failed"
+    | "rolled_back";
+  external_id?: string | null;
+  external_url?: string | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_by_id: string;
+  created_at: string;
+  updated_at: string;
+  // UI helpers
+  release_version?: string;
+  environment_name?: string;
+  duration_seconds?: number;
 }
 
 export interface MockBuild {
@@ -127,7 +213,7 @@ class MockDataStore {
 
   public usage: MockUsageSummary = {
     organization_id: "00000000-0000-0000-0000-000000000010",
-    plan_name: "free",
+    plan_name: "pro",
     current_period_start: new Date(Date.now() - 86400000 * 15).toISOString(),
     current_period_end: new Date(Date.now() + 86400000 * 15).toISOString(),
     build_minutes_used: 245,
@@ -268,9 +354,19 @@ class MockDataStore {
       name: "Production",
       slug: "production",
       build_profile: "release",
+      flutter_version: "3.27.0",
+      dart_version: "3.6.0",
+      bloom_version: "0.8.2",
+      flavor: "prod",
       api_config: {
-        env_vars: [{ key: "API_URL", value: "https://api.bloom.dev" }],
-        feature_flags: [{ key: "enable_biometrics", enabled: true }],
+        env_vars: [
+          { key: "API_URL", value: "https://api.bloom.dev" },
+          { key: "REGION", value: "us-east-1" },
+        ],
+        feature_flags: [
+          { key: "enable_biometrics", enabled: true },
+          { key: "dark_mode_default", enabled: true },
+        ],
       },
       created_at: new Date(Date.now() - 86400000 * 20).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -282,9 +378,19 @@ class MockDataStore {
       name: "Staging",
       slug: "staging",
       build_profile: "debug",
+      flutter_version: "3.27.0",
+      dart_version: "3.6.0",
+      bloom_version: "0.8.2",
+      flavor: "staging",
       api_config: {
-        env_vars: [{ key: "API_URL", value: "https://staging-api.bloom.dev" }],
-        feature_flags: [{ key: "enable_biometrics", enabled: false }],
+        env_vars: [
+          { key: "API_URL", value: "https://staging-api.bloom.dev" },
+          { key: "DEBUG_LOGGING", value: "true" },
+        ],
+        feature_flags: [
+          { key: "enable_biometrics", enabled: false },
+          { key: "beta_testing_hub", enabled: true },
+        ],
       },
       created_at: new Date(Date.now() - 86400000 * 18).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
@@ -296,7 +402,14 @@ class MockDataStore {
       name: "Production",
       slug: "production",
       build_profile: "release",
-      api_config: { env_vars: [], feature_flags: [] },
+      flutter_version: "3.27.0",
+      dart_version: "3.6.0",
+      api_config: {
+        env_vars: [
+          { key: "METRICS_ENDPOINT", value: "https://telemetry.bloom.dev" },
+        ],
+        feature_flags: [{ key: "live_dashboards", enabled: true }],
+      },
       created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     },
@@ -335,6 +448,375 @@ class MockDataStore {
       },
       created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+  ];
+
+  public secrets: MockSecret[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000060",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "STRIPE_SECRET_KEY",
+      is_json: false,
+      version: 3,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 15).toISOString(),
+        },
+        {
+          version: 2,
+          updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+        },
+        {
+          version: 3,
+          updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000061",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "SENTRY_AUTH_TOKEN",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 18).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 18).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000062",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "FIREBASE_SERVICE_ACCOUNT",
+      is_json: true,
+      version: 2,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+        },
+        {
+          version: 2,
+          updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000063",
+      environment_id: "00000000-0000-0000-0000-000000000041",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "STRIPE_TEST_SECRET_KEY",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 17).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 17).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000064",
+      environment_id: "00000000-0000-0000-0000-000000000042",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "TELEMETRY_API_SECRET",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+    },
+  ];
+
+  public signingIdentities: MockSigningIdentity[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000070",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "android",
+      name: "Bloom Production Keystore",
+      kind: "keystore",
+      metadata: {
+        alias: "bloom-wallet-release",
+      },
+      expires_at: new Date(Date.now() + 86400000 * 365 * 5).toISOString(),
+      is_expiring: false,
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000071",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "ios",
+      name: "Apple Distribution Certificate 2026",
+      kind: "certificate",
+      metadata: {
+        fingerprint: "E7:9F:42:A8:10:BC:88:51:99:32:04:1E:55:7A:B3:01",
+      },
+      expires_at: new Date(Date.now() + 86400000 * 20).toISOString(), // expiring in 20 days (warning test)
+      is_expiring: true,
+      created_at: new Date(Date.now() - 86400000 * 345).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000072",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "ios",
+      name: "Bloom Wallet App Store Profile",
+      kind: "provisioning_profile",
+      metadata: {
+        bundle_id: "dev.bloom.wallet",
+        uuid: "57246542-96fe-1a63-e053-0824d011072a",
+      },
+      expires_at: new Date(Date.now() + 86400000 * 180).toISOString(),
+      is_expiring: false,
+      created_at: new Date(Date.now() - 86400000 * 25).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000073",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "ios",
+      name: "App Store Connect API Key (CI Automation)",
+      kind: "api_key",
+      metadata: {
+        key_id: "2X9R4HXF34",
+        issuer_id: "69a6de75-7e0b-47e3-e053-5b8c7c11a4d1",
+        team_id: "A1B2C3D4E5",
+      },
+      expires_at: null,
+      is_expiring: false,
+      created_at: new Date(Date.now() - 86400000 * 60).toISOString(),
+    },
+  ];
+
+  public releases: MockRelease[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000080",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      version: "v1.4.2",
+      build_number: 142,
+      commit: "a4f89d1c92b842918e901f4871e8a9f029410ef1",
+      changelog:
+        "### Features\n- Added reactive signals state management for offline sync\n- Improved biometric authentication responsiveness\n\n### Bug Fixes\n- Resolved token expiration refresh loop in background workers",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      status: "released",
+      platforms: ["ios", "android", "web"],
+      artifacts: [
+        {
+          id: "art_001",
+          build_id: "00000000-0000-0000-0000-000000000050",
+          organization_id: "00000000-0000-0000-0000-000000000010",
+          platform: "ios",
+          kind: "ipa",
+          file_name: "bloom-wallet-1.4.2.ipa",
+          file_size: 42800000,
+          checksum: "3f8e91...",
+          version: "v1.4.2",
+          build_number: 142,
+          metadata: {},
+          download_url: "https://storage.bloom.dev/artifacts/wallet-1.4.2.ipa",
+          created_at: new Date(
+            Date.now() - 1000 * 60 * 60 * 24 * 2,
+          ).toISOString(),
+        },
+        {
+          id: "art_002",
+          build_id: "00000000-0000-0000-0000-000000000050",
+          organization_id: "00000000-0000-0000-0000-000000000010",
+          platform: "android",
+          kind: "aab",
+          file_name: "bloom-wallet-1.4.2.aab",
+          file_size: 38200000,
+          checksum: "8a1c44...",
+          version: "v1.4.2",
+          build_number: 142,
+          metadata: {},
+          download_url: "https://storage.bloom.dev/artifacts/wallet-1.4.2.aab",
+          created_at: new Date(
+            Date.now() - 1000 * 60 * 60 * 24 * 2,
+          ).toISOString(),
+        },
+      ],
+      rollout_status: {
+        ios: 100,
+        android: 100,
+        web: 100,
+      },
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000081",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      version: "v1.5.0-rc.1",
+      build_number: 143,
+      commit: "96b528a402a7210e7b4198129841bbce821094da",
+      changelog:
+        "### Release Candidate 1.5.0\n- Next-generation wallet redesign with AMOLED card surfaces\n- Shorebird OTA patch engine integration",
+      environment_id: "00000000-0000-0000-0000-000000000041",
+      status: "pending_approval",
+      platforms: ["ios", "android"],
+      artifacts: [],
+      rollout_status: {
+        ios: 0,
+        android: 0,
+      },
+      created_by_id: "00000000-0000-0000-0000-000000000002",
+      created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+      updated_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000082",
+      app_id: "00000000-0000-0000-0000-000000000030",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      version: "v1.4.1",
+      build_number: 140,
+      commit: "71e8a9f029410ef1a4f89d1c92b842918e901f48",
+      changelog: "Hotfix patch for network reconnects",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      status: "rolled_back",
+      platforms: ["ios", "android"],
+      artifacts: [],
+      rollout_status: {
+        ios: 0,
+        android: 0,
+      },
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000083",
+      app_id: "00000000-0000-0000-0000-000000000031",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      version: "v2.0.0-rc.1",
+      build_number: 88,
+      commit: "7bc32f9184019280194810294819028491028491",
+      changelog: "Major Flutter 3.27 dashboard rewrite with responsive charts",
+      environment_id: "00000000-0000-0000-0000-000000000042",
+      status: "approved",
+      platforms: ["web", "android"],
+      artifacts: [],
+      rollout_status: {
+        web: 50,
+        android: 25,
+      },
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+  ];
+
+  public deployments: MockDeployment[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000090",
+      release_id: "00000000-0000-0000-0000-000000000080",
+      artifact_id: "art_001",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "ios",
+      target: "testflight",
+      status: "live",
+      external_id: "tf_build_142_99",
+      external_url:
+        "https://appstoreconnect.apple.com/apps/1684920/testflight/ios",
+      error_message: null,
+      started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      finished_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 180,
+      ).toISOString(),
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 180,
+      ).toISOString(),
+      release_version: "v1.4.2",
+      environment_name: "Production",
+      duration_seconds: 180,
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000091",
+      release_id: "00000000-0000-0000-0000-000000000080",
+      artifact_id: "art_002",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "android",
+      target: "internal",
+      status: "live",
+      external_id: "gp_track_internal_142",
+      external_url:
+        "https://play.google.com/console/developers/app/internal-testing",
+      error_message: null,
+      started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      finished_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 120,
+      ).toISOString(),
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 120,
+      ).toISOString(),
+      release_version: "v1.4.2",
+      environment_name: "Production",
+      duration_seconds: 120,
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000092",
+      release_id: "00000000-0000-0000-0000-000000000080",
+      artifact_id: null,
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "web",
+      target: "production",
+      status: "live",
+      external_id: "wh_deploy_wallet_prod",
+      external_url: "https://wallet.bloom.dev",
+      error_message: null,
+      started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      finished_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 45,
+      ).toISOString(),
+      created_by_id: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 2 + 1000 * 45).toISOString(),
+      release_version: "v1.4.2",
+      environment_name: "Production",
+      duration_seconds: 45,
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000093",
+      release_id: "00000000-0000-0000-0000-000000000081",
+      artifact_id: null,
+      environment_id: "00000000-0000-0000-0000-000000000041",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      platform: "ios",
+      target: "testflight",
+      status: "processing",
+      external_id: "tf_build_143_01",
+      external_url:
+        "https://appstoreconnect.apple.com/apps/1684920/testflight/ios",
+      error_message: null,
+      started_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      finished_at: null,
+      created_by_id: "00000000-0000-0000-0000-000000000002",
+      created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      updated_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+      release_version: "v1.5.0-rc.1",
+      environment_name: "Staging",
+      duration_seconds: 900,
     },
   ];
 
@@ -464,7 +946,7 @@ class MockDataStore {
       app_id: "00000000-0000-0000-0000-000000000031",
       environment_id: "00000000-0000-0000-0000-000000000042",
       organization_id: "00000000-0000-0000-0000-000000000010",
-      git_commit: "7bc32f9184019280194810294819028491028491",
+      git_commit: "7bc32f918401928019481029481029481028491",
       git_branch: "feat/charts",
       git_ref: "refs/heads/feat/charts",
       status: "success",
@@ -516,7 +998,7 @@ class MockDataStore {
       app_id: "00000000-0000-0000-0000-000000000030",
       environment_id: "00000000-0000-0000-0000-000000000040",
       organization_id: "00000000-0000-0000-0000-000000000010",
-      git_commit: "5e1029ab48f720194810294819028491028491a",
+      git_commit: "5e1029ab48f72019481029481029481028491a",
       git_branch: "main",
       git_ref: "refs/heads/main",
       status: "failed",
@@ -657,71 +1139,6 @@ class MockDataStore {
       commit_hash: "1a2b3c4",
       preview_url: null,
       duration_seconds: 0,
-    },
-    {
-      id: "00000000-0000-0000-0000-000000000056",
-      app_id: "00000000-0000-0000-0000-000000000032",
-      environment_id: "00000000-0000-0000-0000-000000000043",
-      organization_id: "00000000-0000-0000-0000-000000000010",
-      git_commit: "8f30291abc7482910294810294810294810abcd",
-      git_branch: "main",
-      git_ref: "refs/heads/main",
-      status: "success",
-      platform: "web",
-      build_profile: "release",
-      flutter_version: "3.27.0",
-      dart_version: "3.6.0",
-      bloom_version: "0.8.2",
-      flavor: null,
-      started_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-      finished_at: new Date(
-        Date.now() - 1000 * 60 * 60 * 6 + 1000 * 75,
-      ).toISOString(),
-      logs_url: "logs/builds/bld_portal_12.log",
-      stages: [
-        {
-          stage: "checkout",
-          status: "completed",
-          started_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-          finished_at: new Date(
-            Date.now() - 1000 * 60 * 60 * 6 + 1000 * 10,
-          ).toISOString(),
-          log_snippet: "Checked out main (8f30291)",
-        },
-        {
-          stage: "compile",
-          status: "completed",
-          started_at: new Date(
-            Date.now() - 1000 * 60 * 60 * 6 + 1000 * 10,
-          ).toISOString(),
-          finished_at: new Date(
-            Date.now() - 1000 * 60 * 60 * 6 + 1000 * 65,
-          ).toISOString(),
-          log_snippet: "Building Flutter Web release bundle for portal...",
-        },
-        {
-          stage: "artifact_upload",
-          status: "completed",
-          started_at: new Date(
-            Date.now() - 1000 * 60 * 60 * 6 + 1000 * 65,
-          ).toISOString(),
-          finished_at: new Date(
-            Date.now() - 1000 * 60 * 60 * 6 + 1000 * 75,
-          ).toISOString(),
-          log_snippet: "Deployed to portal.bloom.dev via Web Hosting.",
-        },
-      ],
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-      updated_at: new Date(
-        Date.now() - 1000 * 60 * 60 * 6 + 1000 * 75,
-      ).toISOString(),
-      app_name: "bloom_web_portal",
-      build_number: 12,
-      commit_message: "feat(pricing): ship new pricing page behind flag",
-      author: "dev",
-      commit_hash: "8f30291",
-      preview_url: "portal.bloom.dev",
-      duration_seconds: 75,
     },
   ];
 
@@ -996,6 +1413,7 @@ class MockDataStore {
     this.apps.splice(idx, 1);
     this.builds = this.builds.filter((b) => b.app_id !== appId);
     this.environments = this.environments.filter((e) => e.app_id !== appId);
+    this.releases = this.releases.filter((r) => r.app_id !== appId);
     return true;
   }
 
@@ -1006,6 +1424,16 @@ class MockDataStore {
     name: string,
     slug: string,
     buildProfile: string = "release",
+    apiConfig: {
+      env_vars?: { key: string; value: string }[];
+      feature_flags?: { key: string; enabled: boolean }[];
+    } = {},
+    sdkVersions: {
+      flutter_version?: string | null;
+      dart_version?: string | null;
+      bloom_version?: string | null;
+      flavor?: string | null;
+    } = {},
   ): MockEnvironment {
     const id = `00000000-0000-0000-0000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
     const env: MockEnvironment = {
@@ -1015,12 +1443,376 @@ class MockDataStore {
       name,
       slug,
       build_profile: buildProfile,
-      api_config: { env_vars: [], feature_flags: [] },
+      flutter_version: sdkVersions.flutter_version ?? null,
+      dart_version: sdkVersions.dart_version ?? null,
+      bloom_version: sdkVersions.bloom_version ?? null,
+      flavor: sdkVersions.flavor ?? null,
+      api_config: {
+        env_vars: apiConfig.env_vars ?? [],
+        feature_flags: apiConfig.feature_flags ?? [],
+      },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     this.environments.unshift(env);
     return env;
+  }
+
+  public updateEnvironment(
+    id: string,
+    data: {
+      name?: string;
+      build_profile?: string;
+      flutter_version?: string | null;
+      dart_version?: string | null;
+      bloom_version?: string | null;
+      flavor?: string | null;
+      api_config?: {
+        env_vars?: { key: string; value: string }[];
+        feature_flags?: { key: string; enabled: boolean }[];
+      };
+    },
+  ): MockEnvironment | null {
+    const env = this.environments.find((e) => e.id === id);
+    if (!env) return null;
+    if (data.name !== undefined) env.name = data.name;
+    if (data.build_profile !== undefined)
+      env.build_profile = data.build_profile;
+    if (data.flutter_version !== undefined)
+      env.flutter_version = data.flutter_version;
+    if (data.dart_version !== undefined) env.dart_version = data.dart_version;
+    if (data.bloom_version !== undefined)
+      env.bloom_version = data.bloom_version;
+    if (data.flavor !== undefined) env.flavor = data.flavor;
+    if (data.api_config !== undefined) {
+      env.api_config = {
+        env_vars: data.api_config.env_vars ?? env.api_config.env_vars,
+        feature_flags:
+          data.api_config.feature_flags ?? env.api_config.feature_flags,
+      };
+    }
+    env.updated_at = new Date().toISOString();
+    return env;
+  }
+
+  public deleteEnvironment(id: string): boolean {
+    const idx = this.environments.findIndex((e) => e.id === id);
+    if (idx === -1) return false;
+    this.environments.splice(idx, 1);
+    this.secrets = this.secrets.filter((s) => s.environment_id !== id);
+    return true;
+  }
+
+  // Secrets
+  public getSecrets(environmentId: string): MockSecret[] {
+    return this.secrets.filter((s) => s.environment_id === environmentId);
+  }
+
+  public createOrUpdateSecret(
+    environmentId: string,
+    orgId: string,
+    key: string,
+    value: string,
+    isJson: boolean = false,
+  ): MockSecret {
+    const existing = this.secrets.find(
+      (s) => s.environment_id === environmentId && s.key === key,
+    );
+    if (existing) {
+      existing.is_json = isJson;
+      existing.value = value;
+      existing.version += 1;
+      existing.updated_at = new Date().toISOString();
+      if (!existing.history) existing.history = [];
+      existing.history.unshift({
+        version: existing.version,
+        updated_at: existing.updated_at,
+      });
+      return existing;
+    }
+
+    const id = `00000000-0000-0000-0000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+    const newSec: MockSecret = {
+      id,
+      environment_id: environmentId,
+      organization_id: orgId,
+      key,
+      value,
+      is_json: isJson,
+      version: 1,
+      history: [{ version: 1, updated_at: new Date().toISOString() }],
+      updated_at: new Date().toISOString(),
+    };
+    this.secrets.unshift(newSec);
+    return newSec;
+  }
+
+  public updateSecret(
+    id: string,
+    value?: string,
+    isJson?: boolean,
+  ): MockSecret | null {
+    const sec = this.secrets.find((s) => s.id === id);
+    if (!sec) return null;
+    if (value !== undefined) {
+      sec.value = value;
+      sec.version += 1;
+      if (!sec.history) sec.history = [];
+      sec.history.unshift({
+        version: sec.version,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    if (isJson !== undefined) sec.is_json = isJson;
+    sec.updated_at = new Date().toISOString();
+    return sec;
+  }
+
+  public rollbackSecret(id: string, targetVersion: number): MockSecret | null {
+    const sec = this.secrets.find((s) => s.id === id);
+    if (!sec) return null;
+    sec.version = targetVersion;
+    sec.updated_at = new Date().toISOString();
+    if (!sec.history) sec.history = [];
+    sec.history.unshift({
+      version: targetVersion,
+      updated_at: sec.updated_at,
+    });
+    return sec;
+  }
+
+  public deleteSecret(id: string): boolean {
+    const idx = this.secrets.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    this.secrets.splice(idx, 1);
+    return true;
+  }
+
+  // Signing Identities
+  public getSigningIdentities(orgId: string): MockSigningIdentity[] {
+    return this.signingIdentities.filter(
+      (s) => s.organization_id === orgId || !orgId,
+    );
+  }
+
+  public createSigningIdentity(
+    orgId: string,
+    platform: "android" | "ios",
+    name: string,
+    kind: "keystore" | "certificate" | "provisioning_profile" | "api_key",
+    material: string,
+    metadata: Record<string, unknown>,
+    expiresAt?: string | null,
+  ): MockSigningIdentity {
+    const id = `00000000-0000-0000-0000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+    const identity: MockSigningIdentity = {
+      id,
+      organization_id: orgId,
+      platform,
+      name,
+      kind,
+      material,
+      metadata,
+      expires_at: expiresAt ?? null,
+      is_expiring: false,
+      created_at: new Date().toISOString(),
+    };
+    this.signingIdentities.unshift(identity);
+    return identity;
+  }
+
+  public getSigningIdentity(id: string): MockSigningIdentity | undefined {
+    return this.signingIdentities.find((s) => s.id === id);
+  }
+
+  public deleteSigningIdentity(id: string): boolean {
+    const idx = this.signingIdentities.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    this.signingIdentities.splice(idx, 1);
+    return true;
+  }
+
+  // Releases
+  public getReleases(appId: string): MockRelease[] {
+    return this.releases.filter((r) => r.app_id === appId);
+  }
+
+  public getRelease(id: string): MockRelease | undefined {
+    return this.releases.find((r) => r.id === id);
+  }
+
+  public createRelease(
+    appId: string,
+    orgId: string,
+    version: string,
+    buildNumber: number,
+    commit: string,
+    changelog: string = "",
+    environmentId?: string | null,
+    platforms: string[] = ["ios", "android", "web"],
+    artifactIds: string[] = [],
+  ): MockRelease {
+    const id = `00000000-0000-0000-0000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+    const rel: MockRelease = {
+      id,
+      app_id: appId,
+      organization_id: orgId,
+      version,
+      build_number: buildNumber,
+      commit,
+      changelog,
+      environment_id: environmentId ?? null,
+      status: "pending_approval",
+      platforms,
+      artifacts: artifactIds.map((artId) => ({
+        id: artId,
+        build_id: `bld_${buildNumber}`,
+        organization_id: orgId,
+        platform: "ios",
+        kind: "ipa",
+        file_name: `app-${version}.ipa`,
+        file_size: 42000000,
+        checksum: "sha256...",
+        version,
+        build_number: buildNumber,
+        metadata: {},
+        download_url: null,
+        created_at: new Date().toISOString(),
+      })),
+      rollout_status: {
+        ios: 0,
+        android: 0,
+        web: 0,
+      },
+      created_by_id: this.currentUser.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.releases.unshift(rel);
+
+    // Update app's latest_release
+    const app = this.apps.find((a) => a.id === appId);
+    if (app) app.latest_release = version;
+
+    return rel;
+  }
+
+  public updateRelease(
+    id: string,
+    data: {
+      changelog?: string;
+      rollout_status?: Record<string, unknown>;
+      status?: string;
+    },
+  ): MockRelease | null {
+    const rel = this.releases.find((r) => r.id === id);
+    if (!rel) return null;
+    if (data.changelog !== undefined) rel.changelog = data.changelog;
+    if (data.rollout_status !== undefined)
+      rel.rollout_status = data.rollout_status;
+    if (data.status !== undefined)
+      rel.status = data.status as MockRelease["status"];
+    rel.updated_at = new Date().toISOString();
+    return rel;
+  }
+
+  public approveRelease(
+    id: string,
+    approved: boolean,
+    _reason?: string,
+  ): MockRelease | null {
+    const rel = this.releases.find((r) => r.id === id);
+    if (!rel) return null;
+    rel.status = approved ? "approved" : "draft";
+    rel.updated_at = new Date().toISOString();
+    return rel;
+  }
+
+  public rollbackRelease(id: string, _reason?: string): MockRelease | null {
+    const rel = this.releases.find((r) => r.id === id);
+    if (!rel) return null;
+    rel.status = "rolled_back";
+    rel.updated_at = new Date().toISOString();
+    return rel;
+  }
+
+  // Deployments
+  public getDeployments(
+    appId?: string,
+    environmentId?: string,
+    releaseId?: string,
+  ): MockDeployment[] {
+    let list = this.deployments;
+    if (environmentId) {
+      list = list.filter((d) => d.environment_id === environmentId);
+    }
+    if (releaseId) {
+      list = list.filter((d) => d.release_id === releaseId);
+    }
+    if (appId) {
+      // Find all environments of this app
+      const envIds = new Set(
+        this.environments.filter((e) => e.app_id === appId).map((e) => e.id),
+      );
+      list = list.filter((d) => envIds.has(d.environment_id));
+    }
+    return list;
+  }
+
+  public getDeployment(id: string): MockDeployment | undefined {
+    return this.deployments.find((d) => d.id === id);
+  }
+
+  public createDeployment(
+    orgId: string,
+    environmentId: string,
+    platform: "ios" | "android" | "web",
+    target: string,
+    releaseId?: string | null,
+    artifactId?: string | null,
+  ): MockDeployment {
+    const id = `00000000-0000-0000-0000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+    const rel = releaseId
+      ? this.releases.find((r) => r.id === releaseId)
+      : null;
+    const env = this.environments.find((e) => e.id === environmentId);
+
+    const dep: MockDeployment = {
+      id,
+      release_id: releaseId ?? null,
+      artifact_id: artifactId ?? null,
+      environment_id: environmentId,
+      organization_id: orgId,
+      platform,
+      target,
+      status: "running",
+      external_id: `${platform}_deploy_${Date.now()}`,
+      external_url:
+        platform === "web"
+          ? "https://preview.bloom.dev"
+          : platform === "ios"
+            ? "https://appstoreconnect.apple.com"
+            : "https://play.google.com/console",
+      error_message: null,
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      created_by_id: this.currentUser.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      release_version: rel?.version ?? "v1.0.0",
+      environment_name: env?.name ?? "Production",
+      duration_seconds: 30,
+    };
+    this.deployments.unshift(dep);
+    return dep;
+  }
+
+  public rollbackDeployment(id: string): MockDeployment | null {
+    const dep = this.deployments.find((d) => d.id === id);
+    if (!dep) return null;
+    dep.status = "rolled_back";
+    dep.updated_at = new Date().toISOString();
+    return dep;
   }
 
   // Builds
