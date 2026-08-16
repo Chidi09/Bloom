@@ -63,6 +63,26 @@ import { useOrganizationStore } from "@/stores/organization-store";
 import { useOrganizationEvents } from "@/lib/hooks/use-organization-events";
 import { OrganizationRoleName, hasRole } from "@/lib/auth/roles";
 
+function formatStageDuration(
+  startedAt?: string | null,
+  finishedAt?: string | null,
+): string | null {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  if (isNaN(start)) return null;
+
+  if (finishedAt) {
+    const finish = new Date(finishedAt).getTime();
+    if (isNaN(finish) || finish < start) return null;
+    const diffSecs = Math.max(0, Math.round((finish - start) / 1000));
+    if (diffSecs < 60) return `${diffSecs}s`;
+    const mins = Math.floor(diffSecs / 60);
+    const remSecs = diffSecs % 60;
+    return `${mins}m ${remSecs}s`;
+  }
+  return null;
+}
+
 export default function AppBuildDetailPage() {
   const params = useParams<{ id: string; buildId: string }>();
   const router = useRouter();
@@ -208,6 +228,21 @@ export default function AppBuildDetailPage() {
 [00:04.10] Build status: ${build?.status || "pending"}`;
   }, [logs, build, buildNumber]);
 
+  // Parsed lines for structured log viewer
+  const parsedLogLines = React.useMemo(() => {
+    if (!formattedLogs) return [];
+    return formattedLogs.split("\n").map((line) => {
+      const match = line.match(
+        /^(\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]|\[\d{4}-\d{2}-\d{2}[^\]]*\])\s*(.*)$/,
+      );
+      return {
+        raw: line,
+        timestamp: match ? match[1] : null,
+        message: match ? match[2] : line,
+      };
+    });
+  }, [formattedLogs]);
+
   // Auto-scroll effect
   React.useEffect(() => {
     if (autoScroll && logEndRef.current) {
@@ -235,7 +270,7 @@ export default function AppBuildDetailPage() {
     if (!build || !appId) return;
     setIsRebuilding(true);
     try {
-      // Rebuild creates a new build using the exact same parameters
+      // Rebuild creates a brand-new build record using the exact same parameters
       const newBuild = await api.post<BuildResponse>("/builds", {
         app_id: appId,
         environment_id: build.environment_id,
@@ -250,11 +285,11 @@ export default function AppBuildDetailPage() {
         flavor: build.flavor || undefined,
       });
 
-      toast.success("New build queued from current configuration");
+      toast.success("New build run queued with current parameters");
       router.push(`/apps/${appId}/builds/${newBuild.id}`);
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to trigger rebuild",
+        err instanceof Error ? err.message : "Failed to queue new build run",
       );
     } finally {
       setIsRebuilding(false);
@@ -470,20 +505,81 @@ export default function AppBuildDetailPage() {
               </AlertDialog>
             )}
 
-            {/* Rebuild Action: Clearly dispatches a new build with identical parameters */}
-            <Button
-              size="sm"
-              onClick={handleRebuild}
-              disabled={isRebuilding}
-              className="h-8 cursor-pointer gap-1.5"
-            >
-              {isRebuilding ? (
-                <BloomSpinner size={14} speed="fast" />
-              ) : (
-                <Hammer className="size-3.5" weight="bold" />
-              )}
-              <span>Rebuild</span>
-            </Button>
+            {/* Rebuild Action: Clearly communicates creating a new build run with same parameters */}
+            <AlertDialog>
+              <AlertDialogTrigger
+                disabled={isRebuilding}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-3 text-xs font-medium shadow-xs transition-colors disabled:pointer-events-none disabled:opacity-50"
+              >
+                {isRebuilding ? (
+                  <BloomSpinner size={14} speed="fast" />
+                ) : (
+                  <Hammer className="size-3.5" weight="bold" />
+                )}
+                <span>Rebuild</span>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2 font-semibold">
+                    <Hammer
+                      className="text-primary size-4.5 shrink-0"
+                      weight="bold"
+                    />
+                    <span>Start New Build Run?</span>
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-3 pt-1 text-left text-xs leading-relaxed">
+                    <p>
+                      This will create and queue a{" "}
+                      <strong>brand-new build record</strong> using the exact
+                      same source commit, branch, platform, and SDK
+                      configurations as Build #{buildNumber}.
+                    </p>
+                    <p className="text-muted-foreground">
+                      The existing Build #{buildNumber} record, its status, and
+                      its log history will remain preserved and unchanged.
+                    </p>
+                    <div className="border-border/60 bg-muted/20 space-y-1.5 rounded-md border p-3 font-mono text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Target Platform:
+                        </span>
+                        <span className="text-foreground font-semibold uppercase">
+                          {build.platform}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Branch:</span>
+                        <span className="text-foreground">
+                          {build.git_branch || "main"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Commit SHA:
+                        </span>
+                        <span className="text-foreground">
+                          {(build.git_commit || "HEAD").slice(0, 8)}
+                        </span>
+                      </div>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRebuild}
+                    disabled={isRebuilding}
+                    className="cursor-pointer font-medium"
+                  >
+                    {isRebuilding ? (
+                      <BloomSpinner size={14} speed="fast" />
+                    ) : (
+                      "Queue New Build"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         }
       />
@@ -528,13 +624,18 @@ export default function AppBuildDetailPage() {
               const isPending =
                 normStatus === "pending" || normStatus === "queued";
 
+              const stageDuration = formatStageDuration(
+                stg.started_at,
+                stg.finished_at,
+              );
+
               return (
                 <div
                   key={stg.stage + idx}
                   className={cn(
-                    "relative flex flex-col justify-between rounded-lg border p-3.5 transition-colors",
+                    "relative flex flex-col justify-between overflow-hidden rounded-lg border p-3.5 transition-all",
                     isRunning
-                      ? "border-primary/50 bg-primary/5 ring-primary/20 shadow-xs ring-1"
+                      ? "border-primary/60 bg-primary/[0.08] ring-primary/30 shadow-[0_0_12px_rgba(59,130,246,0.12)] ring-1"
                       : isCompleted
                         ? "border-border/80 bg-muted/20"
                         : isFailed
@@ -544,12 +645,28 @@ export default function AppBuildDetailPage() {
                             : "border-border/50 bg-muted/10 opacity-70",
                   )}
                 >
+                  {/* Subtle top indicator bar for live active stage */}
+                  {isRunning && (
+                    <div className="bg-primary absolute top-0 right-0 left-0 h-0.5 motion-safe:animate-pulse motion-reduce:opacity-100" />
+                  )}
+
                   <div>
                     {/* Header with Step Number & Status Icon */}
                     <div className="flex items-center justify-between pb-2">
-                      <span className="text-muted-foreground font-mono text-[10px] font-semibold tracking-wider uppercase">
-                        Stage 0{idx + 1}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground font-mono text-[10px] font-semibold tracking-wider uppercase">
+                          Stage 0{idx + 1}
+                        </span>
+                        {isRunning && (
+                          <span className="text-primary flex items-center gap-1 font-mono text-[9px] font-semibold uppercase">
+                            <span className="relative flex size-1.5">
+                              <span className="bg-primary absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping motion-reduce:hidden" />
+                              <span className="bg-primary relative inline-flex size-1.5 rounded-full" />
+                            </span>
+                            Live
+                          </span>
+                        )}
+                      </div>
 
                       <div>
                         {isCompleted && (
@@ -602,9 +719,15 @@ export default function AppBuildDetailPage() {
                     </div>
                   </div>
 
-                  {/* Stage Status Badge */}
-                  <div className="pt-3">
+                  {/* Stage Status & Duration Badge */}
+                  <div className="flex items-center justify-between gap-2 pt-3">
                     <StatusBadge status={stg.status} size="sm" />
+                    {stageDuration && (
+                      <span className="text-muted-foreground flex items-center gap-1 font-mono text-[10px]">
+                        <Clock className="size-3" />
+                        <span>{stageDuration}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -643,19 +766,23 @@ export default function AppBuildDetailPage() {
 
               <Separator orientation="vertical" className="h-4" />
 
-              {/* Copy log button */}
+              {/* Copy log button with distinct confirmation micro-state */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleCopyLogs}
-                className="h-7 cursor-pointer gap-1 px-2.5 text-xs"
+                className={cn(
+                  "h-7 cursor-pointer gap-1 px-2.5 text-xs transition-colors",
+                  copiedLog &&
+                    "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300",
+                )}
               >
                 {copiedLog ? (
-                  <Check className="size-3 text-emerald-400" />
+                  <Check className="size-3 text-emerald-400" weight="bold" />
                 ) : (
                   <Copy className="size-3" />
                 )}
-                <span>{copiedLog ? "Copied" : "Copy Logs"}</span>
+                <span>{copiedLog ? "Copied!" : "Copy Logs"}</span>
               </Button>
             </div>
           </div>
@@ -668,9 +795,45 @@ export default function AppBuildDetailPage() {
         <CardContent>
           <div className="border-border/80 relative rounded-lg border bg-black shadow-inner">
             <ScrollArea className="h-[420px] w-full p-4">
-              <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-emerald-400/90 select-text">
-                {formattedLogs}
-              </pre>
+              <div className="space-y-0.5 font-mono text-[11px] leading-relaxed select-text">
+                {parsedLogLines.map((logItem, idx) => {
+                  const isError = /error|failed|fatal|exception/i.test(
+                    logItem.message,
+                  );
+                  const isWarn = /warning|warn/i.test(logItem.message);
+
+                  return (
+                    <div
+                      key={idx}
+                      className="group flex items-start rounded px-1 py-0.5 transition-colors hover:bg-white/[0.03]"
+                    >
+                      {/* Line Number Column */}
+                      <span className="text-muted-foreground/35 group-hover:text-muted-foreground/60 w-8 shrink-0 pr-3 text-right font-mono text-[10px] tabular-nums select-none">
+                        {idx + 1}
+                      </span>
+                      {/* Timestamp Column */}
+                      {logItem.timestamp && (
+                        <span className="text-muted-foreground/60 w-20 shrink-0 pr-2 font-mono text-[10px] tabular-nums select-none">
+                          {logItem.timestamp}
+                        </span>
+                      )}
+                      {/* Message Content */}
+                      <span
+                        className={cn(
+                          "flex-1 break-all whitespace-pre-wrap",
+                          isError
+                            ? "font-semibold text-red-400"
+                            : isWarn
+                              ? "text-amber-300"
+                              : "text-emerald-400/90",
+                        )}
+                      >
+                        {logItem.message}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
               <div ref={logEndRef} />
             </ScrollArea>
           </div>
