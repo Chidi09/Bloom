@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mockStore } from "@/lib/mock-store";
 
 // BFF proxy — cloud-dashboard-frontend.md §6.6.
 // The backend issues bearer tokens in the JSON body (no Set-Cookie), so this proxy's
@@ -64,10 +65,12 @@ async function proxy(req: NextRequest, path: string[]) {
   });
 }
 
-import { mockStore } from "@/lib/mock-store";
-
 async function handleMockFallback(req: NextRequest, path: string[]) {
   const p = path.join("/");
+  const orgHeaderId =
+    req.headers.get("x-bloom-organization-id") ||
+    mockStore.organizations[0]?.id ||
+    "";
 
   // Auth endpoints
   if (req.method === "POST" && p === "auth/register") {
@@ -100,147 +103,424 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     return NextResponse.json({ message: "Logged out successfully" });
   }
 
-  // Organizations endpoints
-  if (req.method === "GET" && p === "organizations") {
+  if (req.method === "POST" && p === "auth/refresh") {
     return NextResponse.json({
-      count: mockStore.organizations.length,
-      page: 1,
-      total_pages: 1,
-      results: mockStore.organizations,
+      access_token: "mock-access-token",
+      refresh_token: "mock-refresh-token",
+      token_type: "Bearer",
+      expires_in: 3600,
     });
   }
 
-  if (req.method === "POST" && p === "organizations") {
-    let body: { name?: string } = {};
-    try {
-      body = await req.json();
-    } catch {
-      // ignore
+  // Organizations endpoints
+  if (path[0] === "organizations") {
+    // GET /organizations
+    if (req.method === "GET" && path.length === 1) {
+      return NextResponse.json({
+        count: mockStore.organizations.length,
+        page: 1,
+        total_pages: 1,
+        results: mockStore.organizations,
+      });
     }
-    const org = mockStore.createOrganization(body.name || "My Organization");
-    return NextResponse.json(org, { status: 201 });
+
+    // POST /organizations
+    if (req.method === "POST" && path.length === 1) {
+      let body: { name?: string } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const org = mockStore.createOrganization(body.name || "My Organization");
+      return NextResponse.json(org, { status: 201 });
+    }
+
+    // GET /organizations/current
+    if (req.method === "GET" && path[1] === "current") {
+      const org =
+        mockStore.organizations.find((o) => o.id === orgHeaderId) ||
+        mockStore.organizations[0];
+      if (!org)
+        return NextResponse.json(
+          { error: { status: 404, message: "Organization not found" } },
+          { status: 404 },
+        );
+      return NextResponse.json(org);
+    }
+
+    // Members endpoints: /organizations/{id}/members[/{memberId}]
+    if (path.length >= 3 && path[2] === "members") {
+      const orgId = path[1];
+      if (req.method === "GET" && path.length === 3) {
+        const members = mockStore.getMembers(orgId);
+        return NextResponse.json({
+          count: members.length,
+          page: 1,
+          total_pages: 1,
+          results: members,
+        });
+      }
+      if (req.method === "POST" && path.length === 3) {
+        let body: { email?: string; role?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const mem = mockStore.inviteMember(
+          orgId,
+          body.email || "new@bloom.dev",
+          body.role || "Developer",
+        );
+        return NextResponse.json(mem, { status: 201 });
+      }
+      if (req.method === "PATCH" && path.length === 4) {
+        const memberId = path[3];
+        let body: { role?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.changeMemberRole(
+          orgId,
+          memberId,
+          body.role || "Developer",
+        );
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Member not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "DELETE" && path.length === 4) {
+        const memberId = path[3];
+        const success = mockStore.removeMember(orgId, memberId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Member not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
+
+    // Detail endpoints: /organizations/{id}
+    if (path.length === 2) {
+      const orgId = path[1];
+      if (req.method === "GET") {
+        const org = mockStore.getOrganization(orgId);
+        if (!org)
+          return NextResponse.json(
+            { error: { status: 404, message: "Organization not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(org);
+      }
+      if (req.method === "PATCH") {
+        let body: { name?: string; billing_email?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateOrganization(orgId, body);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Organization not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "DELETE") {
+        const success = mockStore.deleteOrganization(orgId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Organization not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
   }
 
   // Projects endpoints
-  if (req.method === "GET" && p === "projects") {
-    return NextResponse.json({
-      count: mockStore.projects.length,
-      page: 1,
-      total_pages: 1,
-      results: mockStore.projects,
-    });
-  }
-
-  if (req.method === "POST" && p === "projects") {
-    let body: { name?: string; description?: string } = {};
-    try {
-      body = await req.json();
-    } catch {
-      // ignore
+  if (path[0] === "projects") {
+    if (req.method === "GET" && path.length === 1) {
+      return NextResponse.json({
+        count: mockStore.projects.length,
+        page: 1,
+        total_pages: 1,
+        results: mockStore.projects,
+      });
     }
-    const orgId =
-      req.headers.get("x-bloom-organization-id") ||
-      mockStore.organizations[0]?.id ||
-      "default";
-    const prj = mockStore.createProject(
-      orgId,
-      body.name || "Main",
-      body.description,
-    );
-    return NextResponse.json(prj, { status: 201 });
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: { name?: string; description?: string } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const prj = mockStore.createProject(
+        orgHeaderId,
+        body.name || "Main",
+        body.description,
+      );
+      return NextResponse.json(prj, { status: 201 });
+    }
+
+    if (path.length === 2) {
+      const prjId = path[1];
+      if (req.method === "GET") {
+        const prj = mockStore.getProject(prjId);
+        if (!prj)
+          return NextResponse.json(
+            { error: { status: 404, message: "Project not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(prj);
+      }
+      if (req.method === "PATCH") {
+        let body: { name?: string; description?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateProject(prjId, body);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "Project not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "DELETE") {
+        const success = mockStore.deleteProject(prjId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "Project not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
   }
 
   // Apps endpoints
-  if (req.method === "GET" && p === "apps") {
-    return NextResponse.json({
-      count: mockStore.apps.length,
-      page: 1,
-      total_pages: 1,
-      results: mockStore.apps,
-    });
-  }
-
-  if (req.method === "POST" && p === "apps") {
-    let body: { project_id?: string; name?: string; repository_url?: string } =
-      {};
-    try {
-      body = await req.json();
-    } catch {
-      // ignore
+  if (path[0] === "apps") {
+    if (req.method === "GET" && path.length === 1) {
+      const projectId = req.nextUrl.searchParams.get("project_id");
+      const results = projectId
+        ? mockStore.apps.filter((a) => a.project_id === projectId)
+        : mockStore.apps;
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
     }
-    const orgId =
-      req.headers.get("x-bloom-organization-id") ||
-      mockStore.organizations[0]?.id ||
-      "default";
-    const prjId = body.project_id || mockStore.projects[0]?.id || "default";
-    const app = mockStore.createApp(
-      prjId,
-      orgId,
-      body.name || "my_bloom_app",
-      body.repository_url,
-    );
-    return NextResponse.json(app, { status: 201 });
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        project_id?: string;
+        name?: string;
+        repository_url?: string;
+        default_branch?: string;
+      } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const prjId = body.project_id || mockStore.projects[0]?.id || "default";
+      const app = mockStore.createApp(
+        prjId,
+        orgHeaderId,
+        body.name || "my_bloom_app",
+        body.repository_url,
+        body.default_branch || "main",
+      );
+      return NextResponse.json(app, { status: 201 });
+    }
+
+    if (req.method === "POST" && path[1] === "link") {
+      let body: { project_slug?: string; app_slug?: string } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const linked = mockStore.linkApp(
+        body.project_slug || "mobile-suite",
+        body.app_slug || "linked-app",
+      );
+      return NextResponse.json(linked, { status: 201 });
+    }
+
+    if (path.length === 2) {
+      const appId = path[1];
+      if (req.method === "GET") {
+        const app = mockStore.getApp(appId);
+        if (!app)
+          return NextResponse.json(
+            { error: { status: 404, message: "App not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(app);
+      }
+      if (req.method === "PATCH") {
+        let body: {
+          name?: string;
+          repository_url?: string | null;
+          default_branch?: string;
+        } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateApp(appId, body);
+        if (!updated)
+          return NextResponse.json(
+            { error: { status: 404, message: "App not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(updated);
+      }
+      if (req.method === "DELETE") {
+        const success = mockStore.deleteApp(appId);
+        if (!success)
+          return NextResponse.json(
+            { error: { status: 404, message: "App not found" } },
+            { status: 404 },
+          );
+        return new NextResponse(null, { status: 204 });
+      }
+    }
   }
 
   // Builds endpoints
-  if (req.method === "GET" && (p === "builds" || p.endsWith("/builds"))) {
-    return NextResponse.json({
-      count: mockStore.builds.length,
-      page: 1,
-      total_pages: 1,
-      results: mockStore.builds,
-    });
-  }
-
-  if (req.method === "POST" && p === "builds") {
-    let body: { app_id?: string; environment_id?: string; platform?: string } =
-      {};
-    try {
-      body = await req.json();
-    } catch {
-      // ignore
+  if (path[0] === "builds" || (path.length >= 3 && path[2] === "builds")) {
+    if (req.method === "GET" && (path.length === 1 || path.length === 3)) {
+      const appId =
+        req.nextUrl.searchParams.get("app_id") ||
+        (path.length === 3 ? path[1] : undefined);
+      const results = appId
+        ? mockStore.builds.filter((b) => b.app_id === appId)
+        : mockStore.builds;
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
     }
-    const appId = body.app_id || mockStore.apps[0]?.id || "app_1";
-    const newBuild = mockStore.createBuild(
-      appId,
-      body.environment_id || "",
-      body.platform || "all",
-    );
-    return NextResponse.json(newBuild, { status: 201 });
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        app_id?: string;
+        environment_id?: string;
+        platform?: string;
+        git_branch?: string;
+        git_commit?: string;
+      } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const appId = body.app_id || mockStore.apps[0]?.id || "app_1";
+      const newBuild = mockStore.createBuild(
+        appId,
+        body.environment_id || "",
+        body.platform || "all",
+        body.git_branch,
+        body.git_commit,
+      );
+      return NextResponse.json(newBuild, { status: 201 });
+    }
+
+    if (path.length >= 2) {
+      const buildId = path[1];
+      if (req.method === "GET" && path.length === 2) {
+        const b = mockStore.getBuild(buildId);
+        if (!b)
+          return NextResponse.json(
+            { error: { status: 404, message: "Build not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(b);
+      }
+      if (req.method === "POST" && path[2] === "cancel") {
+        const cancelled = mockStore.cancelBuild(buildId);
+        if (!cancelled)
+          return NextResponse.json(
+            { error: { status: 404, message: "Build not found" } },
+            { status: 404 },
+          );
+        return NextResponse.json(cancelled);
+      }
+      if (req.method === "GET" && path[2] === "logs") {
+        return NextResponse.json({
+          url: `https://storage.bloom.dev/logs/builds/${buildId}.log`,
+          expires_in_secs: 3600,
+        });
+      }
+    }
   }
 
   // Environments endpoints
-  if (req.method === "GET" && p === "environments") {
-    const appId = req.nextUrl.searchParams.get("app_id");
-    const results = appId
-      ? mockStore.environments.filter((e) => e.app_id === appId)
-      : mockStore.environments;
-    return NextResponse.json({
-      count: results.length,
-      page: 1,
-      total_pages: 1,
-      results,
-    });
-  }
-
-  if (req.method === "POST" && p === "environments") {
-    let body: { app_id?: string; name?: string; slug?: string } = {};
-    try {
-      body = await req.json();
-    } catch {
-      // ignore
+  if (path[0] === "environments") {
+    if (req.method === "GET" && path.length === 1) {
+      const appId = req.nextUrl.searchParams.get("app_id");
+      const results = appId
+        ? mockStore.environments.filter((e) => e.app_id === appId)
+        : mockStore.environments;
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
     }
-    const orgId =
-      req.headers.get("x-bloom-organization-id") ||
-      mockStore.organizations[0]?.id ||
-      "default";
-    const env = mockStore.createEnvironment(
-      body.app_id || mockStore.apps[0]?.id || "default",
-      orgId,
-      body.name || "Production",
-      body.slug || "production",
-    );
-    return NextResponse.json(env, { status: 201 });
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        app_id?: string;
+        name?: string;
+        slug?: string;
+        build_profile?: string;
+      } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const env = mockStore.createEnvironment(
+        body.app_id || mockStore.apps[0]?.id || "default",
+        orgHeaderId,
+        body.name || "Production",
+        body.slug || "production",
+        body.build_profile || "release",
+      );
+      return NextResponse.json(env, { status: 201 });
+    }
+
+    if (path.length === 2) {
+      const envId = path[1];
+      const env = mockStore.environments.find((e) => e.id === envId);
+      if (!env)
+        return NextResponse.json(
+          { error: { status: 404, message: "Environment not found" } },
+          { status: 404 },
+        );
+      return NextResponse.json(env);
+    }
   }
 
   // Billing & Usage endpoints

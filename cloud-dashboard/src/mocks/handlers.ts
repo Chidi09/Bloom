@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import { mockStore } from "@/lib/mock-store";
 
 // Example handlers demonstrating the pattern — cloud-dashboard-frontend.md §6.5.
 // Intercepted at the BFF path (what the client actually requests, §6.6/lib/api/client.ts),
@@ -8,15 +9,9 @@ import { http, HttpResponse } from "msw";
 const API = "/api/bff";
 
 export const handlers = [
+  // Auth
   http.get(`${API}/auth/me`, () => {
-    return HttpResponse.json({
-      id: "00000000-0000-0000-0000-000000000001",
-      email: "dev@bloom.dev",
-      username: "dev",
-      display_name: "Dev User",
-      avatar_url: null,
-      timezone: "UTC",
-    });
+    return HttpResponse.json(mockStore.currentUser);
   }),
 
   http.post(`${API}/auth/login`, () => {
@@ -33,61 +28,11 @@ export const handlers = [
       email?: string;
       username?: string;
     };
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000001",
-        email: body.email ?? "dev@bloom.dev",
-        username: body.username ?? "dev",
-        display_name: null,
-        avatar_url: null,
-        timezone: "UTC",
-      },
-      { status: 201 },
+    const user = mockStore.registerUser(
+      body.email ?? "dev@bloom.dev",
+      body.username ?? "dev",
     );
-  }),
-
-  http.post(`${API}/organizations`, async ({ request }) => {
-    const body = (await request.json()) as { name?: string };
-    const name = body.name || "My Organization";
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000010",
-        name,
-        slug,
-        plan: "free",
-        role: "Owner",
-        created_at: new Date().toISOString(),
-      },
-      { status: 201 },
-    );
-  }),
-
-  http.post(`${API}/projects`, async ({ request }) => {
-    const body = (await request.json()) as {
-      name?: string;
-      description?: string;
-    };
-    const name = body.name || "Default Project";
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000020",
-        organization_id: "00000000-0000-0000-0000-000000000010",
-        name,
-        slug,
-        description: body.description ?? null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { status: 201 },
-    );
+    return HttpResponse.json(user, { status: 201 });
   }),
 
   http.post(`${API}/auth/refresh`, () => {
@@ -99,78 +44,207 @@ export const handlers = [
     });
   }),
 
-  http.get(`${API}/apps`, () => {
+  http.post(`${API}/auth/logout`, () => {
+    return HttpResponse.json({ message: "Logged out successfully" });
+  }),
+
+  // Organizations
+  http.get(`${API}/organizations`, () => {
     return HttpResponse.json({
-      count: 0,
+      count: mockStore.organizations.length,
       page: 1,
       total_pages: 1,
-      results: [],
+      results: mockStore.organizations,
     });
   }),
 
-  http.get(`${API}/billing/usage`, () => {
-    return HttpResponse.json({
-      organization_id: "00000000-0000-0000-0000-000000000010",
-      plan_name: "free",
-      current_period_start: new Date(Date.now() - 86400000 * 15).toISOString(),
-      current_period_end: new Date(Date.now() + 86400000 * 15).toISOString(),
-      build_minutes_used: 0,
-      build_minutes_limit: 1000,
-      artifact_storage_gb_used: 0,
-      artifact_storage_gb_limit: 5.0,
-      web_bandwidth_gb_used: 0,
-      web_bandwidth_gb_limit: 50.0,
-      deploy_count: 0,
-    });
+  http.post(`${API}/organizations`, async ({ request }) => {
+    const body = (await request.json()) as { name?: string };
+    const org = mockStore.createOrganization(body.name || "My Organization");
+    return HttpResponse.json(org, { status: 201 });
   }),
 
-  http.get(`${API}/environments`, () => {
-    return HttpResponse.json({
-      count: 0,
-      page: 1,
-      total_pages: 1,
-      results: [],
-    });
+  http.get(`${API}/organizations/current`, ({ request }) => {
+    const orgHeaderId = request.headers.get("x-bloom-organization-id");
+    const org =
+      mockStore.organizations.find((o) => o.id === orgHeaderId) ||
+      mockStore.organizations[0];
+    if (!org)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Organization not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(org);
   }),
 
-  http.post(`${API}/environments`, async ({ request }) => {
+  http.get(`${API}/organizations/:id`, ({ params }) => {
+    const id = params.id as string;
+    const org = mockStore.getOrganization(id);
+    if (!org)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Organization not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(org);
+  }),
+
+  http.patch(`${API}/organizations/:id`, async ({ params, request }) => {
+    const id = params.id as string;
     const body = (await request.json()) as {
-      app_id?: string;
       name?: string;
-      slug?: string;
+      billing_email?: string;
     };
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000040",
-        app_id: body.app_id ?? "",
-        organization_id: "00000000-0000-0000-0000-000000000010",
-        name: body.name ?? "Production",
-        slug: body.slug ?? "production",
-        api_config: { env_vars: [], feature_flags: [] },
-        created_at: new Date().toISOString(),
-      },
-      { status: 201 },
-    );
+    const updated = mockStore.updateOrganization(id, body);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Organization not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
   }),
 
-  http.post(`${API}/builds`, async ({ request }) => {
-    const body = (await request.json()) as {
-      app_id?: string;
-      environment_id?: string;
-      platform?: string;
-    };
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000050",
-        app_id: body.app_id ?? "",
-        environment_id: body.environment_id ?? "",
-        platform: body.platform ?? "all",
-        status: "queued",
-        build_number: 1,
-        created_at: new Date().toISOString(),
-      },
-      { status: 201 },
+  http.delete(`${API}/organizations/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteOrganization(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Organization not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get(`${API}/organizations/:id/members`, ({ params }) => {
+    const orgId = params.id as string;
+    const members = mockStore.getMembers(orgId);
+    return HttpResponse.json({
+      count: members.length,
+      page: 1,
+      total_pages: 1,
+      results: members,
+    });
+  }),
+
+  http.post(`${API}/organizations/:id/members`, async ({ params, request }) => {
+    const orgId = params.id as string;
+    const body = (await request.json()) as { email?: string; role?: string };
+    const mem = mockStore.inviteMember(
+      orgId,
+      body.email || "dev@bloom.dev",
+      body.role || "Developer",
     );
+    return HttpResponse.json(mem, { status: 201 });
+  }),
+
+  http.patch(
+    `${API}/organizations/:id/members/:memberId`,
+    async ({ params, request }) => {
+      const orgId = params.id as string;
+      const memberId = params.memberId as string;
+      const body = (await request.json()) as { role?: string };
+      const updated = mockStore.changeMemberRole(
+        orgId,
+        memberId,
+        body.role || "Developer",
+      );
+      if (!updated)
+        return HttpResponse.json(
+          { error: { status: 404, message: "Member not found" } },
+          { status: 404 },
+        );
+      return HttpResponse.json(updated);
+    },
+  ),
+
+  http.delete(`${API}/organizations/:id/members/:memberId`, ({ params }) => {
+    const orgId = params.id as string;
+    const memberId = params.memberId as string;
+    const success = mockStore.removeMember(orgId, memberId);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Member not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Projects
+  http.get(`${API}/projects`, () => {
+    return HttpResponse.json({
+      count: mockStore.projects.length,
+      page: 1,
+      total_pages: 1,
+      results: mockStore.projects,
+    });
+  }),
+
+  http.post(`${API}/projects`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      description?: string;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const prj = mockStore.createProject(
+      orgHeaderId,
+      body.name || "Main",
+      body.description,
+    );
+    return HttpResponse.json(prj, { status: 201 });
+  }),
+
+  http.get(`${API}/projects/:id`, ({ params }) => {
+    const id = params.id as string;
+    const prj = mockStore.getProject(id);
+    if (!prj)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Project not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(prj);
+  }),
+
+  http.patch(`${API}/projects/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as {
+      name?: string;
+      description?: string;
+    };
+    const updated = mockStore.updateProject(id, body);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Project not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  http.delete(`${API}/projects/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteProject(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Project not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Apps
+  http.get(`${API}/apps`, ({ request }) => {
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get("project_id");
+    const results = projectId
+      ? mockStore.apps.filter((a) => a.project_id === projectId)
+      : mockStore.apps;
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
   }),
 
   http.post(`${API}/apps`, async ({ request }) => {
@@ -180,22 +254,196 @@ export const handlers = [
       repository_url?: string;
       default_branch?: string;
     };
-    const slug = (body.name || "my-app")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    return HttpResponse.json(
-      {
-        id: "00000000-0000-0000-0000-000000000030",
-        project_id: body.project_id,
-        organization_id: "00000000-0000-0000-0000-000000000010",
-        name: body.name,
-        slug,
-        repository_url: body.repository_url ?? null,
-        default_branch: body.default_branch ?? "main",
-        created_at: new Date().toISOString(),
-      },
-      { status: 201 },
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const prjId = body.project_id || mockStore.projects[0]?.id || "default";
+    const app = mockStore.createApp(
+      prjId,
+      orgHeaderId,
+      body.name || "my_bloom_app",
+      body.repository_url,
+      body.default_branch || "main",
     );
+    return HttpResponse.json(app, { status: 201 });
+  }),
+
+  http.post(`${API}/apps/link`, async ({ request }) => {
+    const body = (await request.json()) as {
+      project_slug?: string;
+      app_slug?: string;
+    };
+    const linked = mockStore.linkApp(
+      body.project_slug || "mobile-suite",
+      body.app_slug || "linked-app",
+    );
+    return HttpResponse.json(linked, { status: 201 });
+  }),
+
+  http.get(`${API}/apps/:id`, ({ params }) => {
+    const id = params.id as string;
+    const app = mockStore.getApp(id);
+    if (!app)
+      return HttpResponse.json(
+        { error: { status: 404, message: "App not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(app);
+  }),
+
+  http.patch(`${API}/apps/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    const body = (await request.json()) as {
+      name?: string;
+      repository_url?: string | null;
+      default_branch?: string;
+    };
+    const updated = mockStore.updateApp(id, body);
+    if (!updated)
+      return HttpResponse.json(
+        { error: { status: 404, message: "App not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(updated);
+  }),
+
+  http.delete(`${API}/apps/:id`, ({ params }) => {
+    const id = params.id as string;
+    const success = mockStore.deleteApp(id);
+    if (!success)
+      return HttpResponse.json(
+        { error: { status: 404, message: "App not found" } },
+        { status: 404 },
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Builds
+  http.get(`${API}/builds`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id");
+    const results = appId
+      ? mockStore.builds.filter((b) => b.app_id === appId)
+      : mockStore.builds;
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/builds`, async ({ request }) => {
+    const body = (await request.json()) as {
+      app_id?: string;
+      environment_id?: string;
+      platform?: string;
+      git_branch?: string;
+      git_commit?: string;
+    };
+    const appId = body.app_id || mockStore.apps[0]?.id || "app_1";
+    const newBuild = mockStore.createBuild(
+      appId,
+      body.environment_id || "",
+      body.platform || "all",
+      body.git_branch,
+      body.git_commit,
+    );
+    return HttpResponse.json(newBuild, { status: 201 });
+  }),
+
+  http.get(`${API}/builds/:id`, ({ params }) => {
+    const id = params.id as string;
+    const b = mockStore.getBuild(id);
+    if (!b)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Build not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(b);
+  }),
+
+  http.post(`${API}/builds/:id/cancel`, ({ params }) => {
+    const id = params.id as string;
+    const cancelled = mockStore.cancelBuild(id);
+    if (!cancelled)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Build not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(cancelled);
+  }),
+
+  http.get(`${API}/builds/:id/logs`, ({ params }) => {
+    const id = params.id as string;
+    return HttpResponse.json({
+      url: `https://storage.bloom.dev/logs/builds/${id}.log`,
+      expires_in_secs: 3600,
+    });
+  }),
+
+  // Environments
+  http.get(`${API}/environments`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id");
+    const results = appId
+      ? mockStore.environments.filter((e) => e.app_id === appId)
+      : mockStore.environments;
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/environments`, async ({ request }) => {
+    const body = (await request.json()) as {
+      app_id?: string;
+      name?: string;
+      slug?: string;
+      build_profile?: string;
+    };
+    const orgHeaderId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const env = mockStore.createEnvironment(
+      body.app_id || mockStore.apps[0]?.id || "default",
+      orgHeaderId,
+      body.name || "Production",
+      body.slug || "production",
+      body.build_profile || "release",
+    );
+    return HttpResponse.json(env, { status: 201 });
+  }),
+
+  http.get(`${API}/environments/:id`, ({ params }) => {
+    const id = params.id as string;
+    const env = mockStore.environments.find((e) => e.id === id);
+    if (!env)
+      return HttpResponse.json(
+        { error: { status: 404, message: "Environment not found" } },
+        { status: 404 },
+      );
+    return HttpResponse.json(env);
+  }),
+
+  // Billing
+  http.get(`${API}/billing/usage`, () => {
+    return HttpResponse.json({
+      organization_id: mockStore.usage.organization_id,
+      plan_name: mockStore.usage.plan_name,
+      current_period_start: mockStore.usage.current_period_start,
+      current_period_end: mockStore.usage.current_period_end,
+      build_minutes_used: mockStore.usage.build_minutes_used,
+      build_minutes_limit: mockStore.usage.build_minutes_limit,
+      artifact_storage_gb_used: mockStore.usage.artifact_storage_gb_used,
+      artifact_storage_gb_limit: mockStore.usage.artifact_storage_gb_limit,
+      web_bandwidth_gb_used: mockStore.usage.web_bandwidth_gb_used,
+      web_bandwidth_gb_limit: mockStore.usage.web_bandwidth_gb_limit,
+      deploy_count: mockStore.usage.deploy_count,
+    });
   }),
 ];

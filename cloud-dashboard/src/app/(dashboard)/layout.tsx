@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   House,
   DeviceMobile,
+  FolderSimple,
+  Buildings,
   Hammer,
   RocketLaunch,
   Key,
@@ -39,14 +41,19 @@ import { UpgradeModal } from "@/components/billing/upgrade-modal";
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string; weight?: "regular" | "bold" | "fill" }>;
+  icon: React.ComponentType<{
+    className?: string;
+    weight?: "regular" | "bold" | "fill";
+  }>;
   badge?: string;
 }
 
 const MAIN_NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/overview", icon: House },
+  { label: "Projects", href: "/projects", icon: FolderSimple },
   { label: "Applications", href: "/apps", icon: DeviceMobile },
   { label: "Builds", href: "/builds", icon: Hammer },
+  { label: "Organizations", href: "/organizations", icon: Buildings },
   { label: "Releases & Deploy", href: "/releases", icon: RocketLaunch },
   { label: "Environment & Secrets", href: "/secrets", icon: Key },
   { label: "Signing & Certificates", href: "/signing", icon: ShieldCheck },
@@ -58,17 +65,31 @@ const SYSTEM_NAV_ITEMS: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Gear },
 ];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { setAccessToken } = useAuthStore();
   const { currentOrganizationId } = useOrganizationStore();
   const [upgradeModalOpen, setUpgradeModalOpen] = React.useState(false);
 
-  const [orgs, setOrgs] = React.useState<Array<{ id: string; name: string; slug: string; plan?: string }>>([
-    { id: "00000000-0000-0000-0000-000000000010", name: "Bloom Labs", slug: "bloom-labs", plan: "Hobby" },
+  const [orgs, setOrgs] = React.useState<
+    Array<{ id: string; name: string; slug: string; plan?: string }>
+  >([
+    {
+      id: "00000000-0000-0000-0000-000000000010",
+      name: "Bloom Labs",
+      slug: "bloom-labs",
+      plan: "Hobby",
+    },
   ]);
-  const [userProfile, setUserProfile] = React.useState<{ email: string; username: string }>({
+  const [userProfile, setUserProfile] = React.useState<{
+    email: string;
+    username: string;
+  }>({
     email: "dev@bloom.dev",
     username: "chidi09",
   });
@@ -82,12 +103,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => undefined);
 
     api
-      .get<{ results: Array<{ id: string; name: string; slug: string; plan?: string }> }>("/organizations")
+      .get<{
+        results: Array<{
+          id: string;
+          name: string;
+          slug: string;
+          plan?: string;
+        }>;
+      }>("/organizations")
       .then((data) => {
         if (data?.results?.length) {
           setOrgs(data.results);
           if (!currentOrganizationId) {
-            useOrganizationStore.getState().setCurrentOrganizationId(data.results[0].id);
+            useOrganizationStore
+              .getState()
+              .setCurrentOrganizationId(data.results[0].id);
           }
         }
       })
@@ -108,13 +138,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="bg-[#000000] text-zinc-100 flex min-h-screen font-sans antialiased">
+    <div className="flex min-h-screen bg-[#000000] font-sans text-zinc-100 antialiased">
       {/* Vercel-style Left Navigation Sidebar */}
-      <aside className="border-border/60 bg-[#09090b] flex w-60 shrink-0 flex-col border-r">
+      <aside className="border-border/60 flex w-60 shrink-0 flex-col border-r bg-[#09090b]">
         {/* Workspace Selector */}
-        <div className="p-3 border-b border-border/40">
+        <div className="border-border/40 border-b p-3">
           <DropdownMenu>
-            <DropdownMenuTrigger className="hover:bg-zinc-800/60 flex w-full items-center justify-between rounded-md p-1.5 text-left transition-colors cursor-pointer">
+            <DropdownMenuTrigger className="flex w-full cursor-pointer items-center justify-between rounded-md p-1.5 text-left transition-colors hover:bg-zinc-800/60">
               <div className="flex items-center gap-2 overflow-hidden">
                 <UserAvatar name={activeOrg?.name || "Bloom Labs"} size={22} />
                 <div className="truncate">
@@ -124,28 +154,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 font-mono">
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
                   {activeOrg?.plan || "Hobby"}
                 </span>
-                <CaretUpDown className="text-zinc-500 size-3 shrink-0" />
+                <CaretUpDown className="size-3 shrink-0 text-zinc-500" />
               </div>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="start" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-200">
-              <DropdownMenuLabel className="text-[11px] text-zinc-400">Workspaces</DropdownMenuLabel>
+            <DropdownMenuContent
+              align="start"
+              className="w-56 border-zinc-800 bg-zinc-900 text-zinc-200"
+            >
+              <DropdownMenuLabel className="text-[11px] text-zinc-400">
+                Workspaces
+              </DropdownMenuLabel>
               {orgs.map((org) => (
                 <DropdownMenuItem
                   key={org.id}
-                  onClick={() => useOrganizationStore.getState().setCurrentOrganizationId(org.id)}
-                  className="text-xs cursor-pointer hover:bg-zinc-800 focus:bg-zinc-800"
+                  onClick={() =>
+                    useOrganizationStore
+                      .getState()
+                      .setCurrentOrganizationId(org.id)
+                  }
+                  className="cursor-pointer text-xs hover:bg-zinc-800 focus:bg-zinc-800"
                 >
                   <span className="truncate">{org.name}</span>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator className="bg-zinc-800" />
               <DropdownMenuItem
+                onClick={() => router.push("/organizations")}
+                className="cursor-pointer text-xs text-zinc-300 hover:bg-zinc-800 focus:bg-zinc-800"
+              >
+                Manage all organizations
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onClick={() => router.push("/onboarding")}
-                className="text-xs cursor-pointer font-medium text-[#FF4B8B] hover:bg-zinc-800 focus:bg-zinc-800"
+                className="cursor-pointer text-xs font-medium text-[#FF4B8B] hover:bg-zinc-800 focus:bg-zinc-800"
               >
                 + Create new workspace
               </DropdownMenuItem>
@@ -153,24 +198,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </DropdownMenu>
 
           {/* Find Search Input (F) */}
-          <div className="mt-2 relative">
-            <MagnifyingGlass className="absolute left-2.5 top-2 size-3 text-zinc-500" />
+          <div className="relative mt-2">
+            <MagnifyingGlass className="absolute top-2 left-2.5 size-3 text-zinc-500" />
             <input
               type="text"
               placeholder="Find"
-              className="w-full rounded-md border border-zinc-800/80 bg-zinc-900/60 py-1 pl-7 pr-6 text-xs text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-700 focus:outline-none"
+              className="w-full rounded-md border border-zinc-800/80 bg-zinc-900/60 py-1 pr-6 pl-7 text-xs text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-700 focus:outline-none"
             />
-            <kbd className="absolute right-2 top-1.5 rounded border border-zinc-800 bg-zinc-900 px-1 text-[9px] font-mono text-zinc-500">
+            <kbd className="absolute top-1.5 right-2 rounded border border-zinc-800 bg-zinc-900 px-1 font-mono text-[9px] text-zinc-500">
               F
             </kbd>
           </div>
         </div>
 
         {/* Main Nav Items */}
-        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        <div className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
           <nav className="space-y-0.5 text-xs">
             {MAIN_NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/overview" && pathname.startsWith(item.href));
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/overview" && pathname.startsWith(item.href));
               const Icon = item.icon;
               return (
                 <Link
@@ -183,11 +230,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className="size-4 shrink-0" weight={isActive ? "fill" : "regular"} />
+                    <Icon
+                      className="size-4 shrink-0"
+                      weight={isActive ? "fill" : "regular"}
+                    />
                     <span>{item.label}</span>
                   </div>
                   {item.badge && (
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.2 text-[9px] text-zinc-400 font-mono">
+                    <span className="py-0.2 rounded bg-zinc-800 px-1.5 font-mono text-[9px] text-zinc-400">
                       {item.badge}
                     </span>
                   )}
@@ -214,10 +264,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Icon className="size-4 shrink-0" weight={isActive ? "fill" : "regular"} />
+                      <Icon
+                        className="size-4 shrink-0"
+                        weight={isActive ? "fill" : "regular"}
+                      />
                       <span>{item.label}</span>
                     </div>
-                    {isExternal && <ArrowSquareOut className="size-3 text-zinc-500" />}
+                    {isExternal && (
+                      <ArrowSquareOut className="size-3 text-zinc-500" />
+                    )}
                   </Link>
                 );
               })}
@@ -227,10 +282,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Promo / Upgrade Card */}
         <div className="p-3">
-          <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-3 text-xs space-y-2">
+          <div className="space-y-2 rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-3 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-200">Bloom Cloud Pro</span>
-              <span className="rounded bg-[#FF4B8B]/20 text-[#FF4B8B] px-1.5 py-0.2 text-[9px] font-semibold">
+              <span className="font-semibold text-zinc-200">
+                Bloom Cloud Pro
+              </span>
+              <span className="py-0.2 rounded bg-[#FF4B8B]/20 px-1.5 text-[9px] font-semibold text-[#FF4B8B]">
                 Trial
               </span>
             </div>
@@ -241,7 +298,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               size="sm"
               variant="outline"
               onClick={() => setUpgradeModalOpen(true)}
-              className="w-full h-7 text-xs border-zinc-700 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 cursor-pointer"
+              className="h-7 w-full cursor-pointer border-zinc-700 bg-zinc-800/60 text-xs text-zinc-200 hover:bg-zinc-800"
             >
               Explore Plans ↗
             </Button>
@@ -252,27 +309,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="border-t border-zinc-800/60 p-2.5">
           <div className="flex items-center justify-between">
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-zinc-800/50 p-1 rounded-md transition-colors cursor-pointer text-left overflow-hidden">
+              <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2 overflow-hidden rounded-md p-1 text-left transition-colors hover:bg-zinc-800/50">
                 <UserAvatar
                   name={userProfile.username}
-                  src={userProfile.username === "chidi09" || userProfile.username === "dev" ? "https://github.com/Chidi09.png" : undefined}
+                  src={
+                    userProfile.username === "chidi09" ||
+                    userProfile.username === "dev"
+                      ? "https://github.com/Chidi09.png"
+                      : undefined
+                  }
                   size={24}
                 />
                 <div className="truncate">
-                  <p className="truncate text-xs font-medium text-zinc-200">{userProfile.username}</p>
+                  <p className="truncate text-xs font-medium text-zinc-200">
+                    {userProfile.username}
+                  </p>
                 </div>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-800 text-zinc-200">
+              <DropdownMenuContent
+                align="end"
+                className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
+              >
                 <DropdownMenuLabel className="text-xs text-zinc-400">
                   {userProfile.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-zinc-800" />
-                <DropdownMenuItem onClick={() => router.push("/settings")} className="text-xs cursor-pointer">
+                <DropdownMenuItem
+                  onClick={() => router.push("/settings")}
+                  className="cursor-pointer text-xs"
+                >
                   Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSignOut} className="text-xs text-red-400 cursor-pointer">
-                  <SignOut className="size-3.5 mr-1.5" />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="cursor-pointer text-xs text-red-400"
+                >
+                  <SignOut className="mr-1.5 size-3.5" />
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -282,7 +355,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 type="button"
                 aria-label="Notifications"
-                className="hover:text-zinc-300 p-1 rounded-md transition-colors cursor-pointer"
+                className="cursor-pointer rounded-md p-1 transition-colors hover:text-zinc-300"
               >
                 <Bell className="size-3.5" />
               </button>
@@ -294,11 +367,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main App Container */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header Bar */}
-        <header className="border-b border-zinc-800/60 bg-[#09090b]/80 flex h-12 shrink-0 items-center justify-between px-6 backdrop-blur-md">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-800/60 bg-[#09090b]/80 px-6 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+              className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-300 transition-colors hover:text-zinc-100"
             >
               <span>All Projects</span>
               <CaretDown className="size-3 text-zinc-500" />
@@ -306,12 +379,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-medium">Overview</span>
+            <span className="text-xs font-medium text-zinc-400">Overview</span>
           </div>
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[#000000]">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-[#000000] p-6">
+          {children}
+        </main>
       </div>
 
       {/* Global Pro Upgrade Modal */}
