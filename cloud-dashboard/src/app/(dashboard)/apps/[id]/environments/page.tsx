@@ -617,66 +617,68 @@ export default function AppEnvironmentsPage() {
                   </div>
                 ) : (
                   <div className="border-border/80 overflow-hidden rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Key</TableHead>
-                          <TableHead className="text-xs">Value</TableHead>
-                          <TableHead className="w-[40px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {editEnvVars.map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="p-2">
-                              <Input
-                                placeholder="KEY_NAME"
-                                value={row.key}
-                                onChange={(e) => {
-                                  const keyVal = e.target.value;
-                                  setEditEnvVars((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, key: keyVal } : r,
-                                    ),
-                                  );
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Input
-                                placeholder="value"
-                                value={row.value}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEditEnvVars((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, value: val } : r,
-                                    ),
-                                  );
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setEditEnvVars((prev) =>
-                                    prev.filter((_, i) => i !== idx),
-                                  )
-                                }
-                                className="text-muted-foreground hover:text-destructive size-7 p-0"
-                              >
-                                <Trash className="size-3.5" />
-                              </Button>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Key</TableHead>
+                            <TableHead className="text-xs">Value</TableHead>
+                            <TableHead className="w-[40px]"></TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {editEnvVars.map((row, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="p-2">
+                                <Input
+                                  placeholder="KEY_NAME"
+                                  value={row.key}
+                                  onChange={(e) => {
+                                    const keyVal = e.target.value;
+                                    setEditEnvVars((prev) =>
+                                      prev.map((r, i) =>
+                                        i === idx ? { ...r, key: keyVal } : r,
+                                      ),
+                                    );
+                                  }}
+                                  className="h-8 font-mono text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="p-2">
+                                <Input
+                                  placeholder="value"
+                                  value={row.value}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEditEnvVars((prev) =>
+                                      prev.map((r, i) =>
+                                        i === idx ? { ...r, value: val } : r,
+                                      ),
+                                    );
+                                  }}
+                                  className="h-8 font-mono text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="p-2 text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setEditEnvVars((prev) =>
+                                      prev.filter((_, i) => i !== idx),
+                                    )
+                                  }
+                                  className="text-muted-foreground hover:text-destructive size-7 p-0"
+                                >
+                                  <Trash className="size-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -715,65 +717,67 @@ export default function AppEnvironmentsPage() {
                   </div>
                 ) : (
                   <div className="border-border/80 overflow-hidden rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Flag Name</TableHead>
-                          <TableHead className="w-[100px] text-center text-xs">
-                            Status
-                          </TableHead>
-                          <TableHead className="w-[40px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {editFeatureFlags.map((flag, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="p-2">
-                              <Input
-                                placeholder="enable_feature_name"
-                                value={flag.key}
-                                onChange={(e) => {
-                                  const keyVal = e.target.value;
-                                  setEditFeatureFlags((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, key: keyVal } : r,
-                                    ),
-                                  );
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              <Switch
-                                checked={flag.enabled}
-                                onCheckedChange={(val) => {
-                                  setEditFeatureFlags((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, enabled: val } : r,
-                                    ),
-                                  );
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setEditFeatureFlags((prev) =>
-                                    prev.filter((_, i) => i !== idx),
-                                  )
-                                }
-                                className="text-muted-foreground hover:text-destructive size-7 p-0"
-                              >
-                                <Trash className="size-3.5" />
-                              </Button>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Flag Name</TableHead>
+                            <TableHead className="w-[100px] text-center text-xs">
+                              Status
+                            </TableHead>
+                            <TableHead className="w-[40px]"></TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {editFeatureFlags.map((flag, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="p-2">
+                                <Input
+                                  placeholder="enable_feature_name"
+                                  value={flag.key}
+                                  onChange={(e) => {
+                                    const keyVal = e.target.value;
+                                    setEditFeatureFlags((prev) =>
+                                      prev.map((r, i) =>
+                                        i === idx ? { ...r, key: keyVal } : r,
+                                      ),
+                                    );
+                                  }}
+                                  className="h-8 font-mono text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="p-2 text-center">
+                                <Switch
+                                  checked={flag.enabled}
+                                  onCheckedChange={(val) => {
+                                    setEditFeatureFlags((prev) =>
+                                      prev.map((r, i) =>
+                                        i === idx ? { ...r, enabled: val } : r,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="p-2 text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setEditFeatureFlags((prev) =>
+                                      prev.filter((_, i) => i !== idx),
+                                    )
+                                  }
+                                  className="text-muted-foreground hover:text-destructive size-7 p-0"
+                                >
+                                  <Trash className="size-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </div>

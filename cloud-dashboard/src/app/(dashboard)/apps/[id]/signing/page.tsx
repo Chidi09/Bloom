@@ -7,17 +7,15 @@ import {
   Trash,
   ArrowsClockwise,
   DownloadSimple,
-  Certificate,
-  Key,
-  AppleLogo,
-  AndroidLogo,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status/status-badge";
+import { ProviderIcon } from "@/components/status/provider-icon";
+import { PlatformIcon } from "@/components/status/platform-icon";
 import {
   Card,
   CardContent,
@@ -242,9 +240,8 @@ export default function AppSigningPage() {
   const getExpiryStatus = (expiresAt?: string | null, isExpiring?: boolean) => {
     if (!expiresAt) {
       return {
+        status: "pending",
         label: "No Expiration",
-        variant: "outline" as const,
-        badgeClass: "text-muted-foreground border-border",
       };
     }
 
@@ -256,27 +253,21 @@ export default function AppSigningPage() {
 
     if (daysUntilExpiry <= 0) {
       return {
+        status: "error",
         label: "Expired",
-        variant: "destructive" as const,
-        badgeClass:
-          "bg-[var(--status-error-bg)] text-[var(--status-error)] border-[var(--status-error)]/30",
       };
     }
 
     if (daysUntilExpiry <= 30 || isExpiring) {
       return {
+        status: "warning",
         label: `Expires in ${daysUntilExpiry}d`,
-        variant: "default" as const,
-        badgeClass:
-          "bg-[var(--status-warning-bg)] text-[var(--status-warning)] border-[var(--status-warning)]/30",
       };
     }
 
     return {
+      status: "healthy",
       label: `Expires ${expiryDate.toLocaleDateString()}`,
-      variant: "secondary" as const,
-      badgeClass:
-        "bg-[var(--status-success-bg)] text-[var(--status-success)] border-[var(--status-success)]/30",
     };
   };
 
@@ -378,26 +369,11 @@ export default function AppSigningPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <div className="border-border/80 bg-muted/50 flex size-8.5 shrink-0 items-center justify-center rounded-md border shadow-xs">
-                        {identity.kind === "keystore" ? (
-                          <AndroidLogo
-                            className="size-4 text-[var(--status-success)]"
-                            weight="fill"
-                          />
-                        ) : identity.kind === "certificate" ? (
-                          <Certificate
-                            className="size-4 text-[var(--petal-blue)]"
-                            weight="bold"
-                          />
-                        ) : identity.kind === "provisioning_profile" ? (
-                          <AppleLogo
-                            className="text-foreground size-4"
-                            weight="fill"
-                          />
+                        {identity.kind === "keystore" ||
+                        identity.platform === "android" ? (
+                          <PlatformIcon platform="android" size="sm" />
                         ) : (
-                          <Key
-                            className="size-4 text-[var(--petal-purple)]"
-                            weight="bold"
-                          />
+                          <ProviderIcon provider="apple" size="sm" />
                         )}
                       </div>
                       <div className="space-y-0.5">
@@ -410,12 +386,11 @@ export default function AppSigningPage() {
                       </div>
                     </div>
 
-                    <Badge
-                      variant="outline"
-                      className={`font-mono text-[10px] ${expiry.badgeClass}`}
-                    >
-                      {expiry.label}
-                    </Badge>
+                    <StatusBadge
+                      status={expiry.status}
+                      label={expiry.label}
+                      size="sm"
+                    />
                   </div>
                 </CardHeader>
 

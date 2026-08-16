@@ -6,12 +6,6 @@ import {
   Plus,
   Trash,
   ArrowsClockwise,
-  AppleLogo,
-  AndroidLogo,
-  GithubLogo,
-  GitlabLogo,
-  ShieldCheck,
-  Lightning,
   Clock,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -74,10 +68,6 @@ interface ProviderOption {
   name: string;
   category: "Store Distribution" | "CodePush" | "Source Control";
   description: string;
-  icon: React.ComponentType<{
-    className?: string;
-    weight?: "regular" | "bold" | "fill";
-  }>;
 }
 
 const PROVIDERS: ProviderOption[] = [
@@ -87,42 +77,36 @@ const PROVIDERS: ProviderOption[] = [
     category: "Store Distribution",
     description:
       "App Store Connect API Key for TestFlight & App Store releases",
-    icon: AppleLogo,
   },
   {
     id: "google_play",
     name: "Google Play Console",
     category: "Store Distribution",
     description: "Google Cloud Service Account for Play Store tracks",
-    icon: AndroidLogo,
   },
   {
     id: "shorebird",
     name: "Shorebird CodePush",
     category: "CodePush",
     description: "Over-the-air instantaneous patch distribution for Flutter",
-    icon: Lightning,
   },
   {
     id: "github",
     name: "GitHub App",
     category: "Source Control",
     description: "Automated PR previews, triggers, and deployment check suites",
-    icon: GithubLogo,
   },
   {
     id: "gitlab",
     name: "GitLab",
     category: "Source Control",
     description: "GitLab CI/CD integration and pipeline triggers",
-    icon: GitlabLogo,
   },
   {
     id: "bitbucket",
     name: "Bitbucket Cloud",
     category: "Source Control",
     description: "Atlassian Bitbucket repository webhooks & deployment sync",
-    icon: ShieldCheck,
   },
 ];
 
@@ -339,29 +323,29 @@ export default function CredentialsPage() {
     switch (cred.provider) {
       case "apple":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Key ID:</span>
+              <span className="text-muted-foreground">Key ID:</span>
               <span>{meta.key_id || "••••••••"}</span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Issuer ID:</span>
+              <span className="text-muted-foreground">Issuer ID:</span>
               <span className="max-w-[150px] truncate">
                 {meta.issuer_id || "••••••••"}
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Team ID:</span>
+              <span className="text-muted-foreground">Team ID:</span>
               <span>{meta.team_id || "••••••••"}</span>
             </div>
           </div>
         );
       case "google_play":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="text-[11px]">
-              <span className="block text-zinc-500">Client Email:</span>
-              <span className="truncate text-zinc-200">
+              <span className="text-muted-foreground block">Client Email:</span>
+              <span className="text-foreground truncate">
                 {meta.client_email || "••••@iam.gserviceaccount.com"}
               </span>
             </div>
@@ -369,9 +353,9 @@ export default function CredentialsPage() {
         );
       case "shorebird":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">App ID:</span>
+              <span className="text-muted-foreground">App ID:</span>
               <span className="max-w-[170px] truncate">
                 {meta.app_id || "••••••••"}
               </span>
@@ -380,27 +364,27 @@ export default function CredentialsPage() {
         );
       case "github":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Installation ID:</span>
+              <span className="text-muted-foreground">Installation ID:</span>
               <span>{meta.installation_id || "••••••••"}</span>
             </div>
           </div>
         );
       case "gitlab":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Application ID:</span>
+              <span className="text-muted-foreground">Application ID:</span>
               <span>{meta.application_id || "••••••••"}</span>
             </div>
           </div>
         );
       case "bitbucket":
         return (
-          <div className="space-y-1 font-mono text-xs text-zinc-300">
+          <div className="text-foreground space-y-1 font-mono text-xs">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-zinc-500">Workspace:</span>
+              <span className="text-muted-foreground">Workspace:</span>
               <span>{meta.workspace || "••••••••"}</span>
             </div>
           </div>
@@ -411,7 +395,7 @@ export default function CredentialsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Organization", href: "/organizations" },
@@ -425,7 +409,7 @@ export default function CredentialsPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchCredentials()}
-              className="h-8 gap-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -437,7 +421,7 @@ export default function CredentialsPage() {
                   resetForm();
                   setDialogOpen(true);
                 }}
-                className="h-8 gap-1.5 bg-zinc-100 text-xs font-semibold text-zinc-950 hover:bg-zinc-200"
+                className="h-8 gap-1.5"
               >
                 <Plus className="size-3.5" weight="bold" />
                 <span>Add Credential</span>
@@ -465,7 +449,7 @@ export default function CredentialsPage() {
       )}
 
       {isLoading ? (
-        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-20">
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
           <BloomSpinner size={28} label="Loading platform credentials..." />
         </div>
       ) : credentials.length === 0 ? (
@@ -486,19 +470,19 @@ export default function CredentialsPage() {
             return (
               <Card
                 key={cred.id}
-                className="border-border/80 bg-zinc-950/60 transition-colors hover:border-zinc-700"
+                className="border-border/80 bg-card hover:border-border flex flex-col justify-between shadow-xs transition-colors duration-150"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border/80 flex size-8 items-center justify-center rounded-md border bg-zinc-900 text-zinc-200">
+                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 items-center justify-center rounded-md border shadow-xs">
                         <ProviderIcon provider={cred.provider} size="sm" />
                       </div>
                       <div>
-                        <CardTitle className="text-xs font-semibold text-zinc-100">
+                        <CardTitle className="text-foreground text-xs font-semibold">
                           {cred.name}
                         </CardTitle>
-                        <p className="text-[10px] text-zinc-400">
+                        <p className="text-muted-foreground text-[10px]">
                           {providerInfo.name}
                         </p>
                       </div>
@@ -508,11 +492,11 @@ export default function CredentialsPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-3 pt-0">
-                  <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 p-2.5">
+                  <div className="border-border/60 bg-muted/20 rounded-md border p-2.5">
                     {renderMetadata(cred)}
                   </div>
 
-                  <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                  <div className="text-muted-foreground flex items-center justify-between font-mono text-[10px]">
                     <div className="flex items-center gap-1">
                       <Clock className="size-3" />
                       <span>
@@ -525,14 +509,14 @@ export default function CredentialsPage() {
                   </div>
                 </CardContent>
 
-                <CardFooter className="flex items-center justify-between border-t border-zinc-800/80 pt-3">
+                <CardFooter className="border-border/60 flex items-center justify-between border-t pt-3">
                   {canTest && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => void handleTestConnection(cred)}
                       disabled={isTesting}
-                      className="h-7 gap-1 text-xs"
+                      className="h-7 gap-1 text-xs transition-colors"
                     >
                       {isTesting ? (
                         <BloomSpinner size={12} className="mr-1" />
@@ -548,7 +532,7 @@ export default function CredentialsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setCredentialToDelete(cred)}
-                      className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 size-7 h-7 p-0 transition-colors"
                     >
                       <Trash className="size-3.5" />
                     </Button>
@@ -562,14 +546,14 @@ export default function CredentialsPage() {
 
       {/* Add Credential Dialog Wizard */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <form onSubmit={handleCreateCredential} className="space-y-4">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
-                <Key className="size-4 text-zinc-400" />
+                <Key className="text-muted-foreground size-4" />
                 <span>Store Platform Credential</span>
               </DialogTitle>
-              <DialogDescription className="text-xs text-zinc-400">
+              <DialogDescription>
                 Credentials are encrypted with AES-256-GCM and only decrypted in
                 isolated build workers.
               </DialogDescription>
@@ -577,29 +561,23 @@ export default function CredentialsPage() {
 
             <div className="space-y-3 py-1">
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="provider-select"
-                  className="text-xs font-medium text-zinc-300"
-                >
+                <Label htmlFor="provider-select">
                   Target Platform / Provider
                 </Label>
                 <Select
                   value={selectedProvider}
                   onValueChange={(v) => setSelectedProvider(v as ProviderType)}
                 >
-                  <SelectTrigger
-                    id="provider-select"
-                    className="border-zinc-700 bg-zinc-950 text-xs"
-                  >
+                  <SelectTrigger id="provider-select" className="text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                  <SelectContent>
                     {PROVIDERS.map((p) => (
                       <SelectItem key={p.id} value={p.id} className="text-xs">
                         <div className="flex items-center gap-2">
                           <ProviderIcon provider={p.id} size={14} />
                           <span>{p.name}</span>
-                          <span className="text-[10px] text-zinc-500">
+                          <span className="text-muted-foreground text-[10px]">
                             ({p.category})
                           </span>
                         </div>
@@ -610,30 +588,22 @@ export default function CredentialsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="cred-name"
-                  className="text-xs font-medium text-zinc-300"
-                >
-                  Credential Name / Label
-                </Label>
+                <Label htmlFor="cred-name">Credential Name / Label</Label>
                 <Input
                   id="cred-name"
                   value={credentialName}
                   onChange={(e) => setCredentialName(e.target.value)}
                   placeholder="e.g. Production App Store API Key"
-                  className="border-zinc-700 bg-zinc-950 text-xs"
+                  className="text-xs"
                   required
                 />
               </div>
 
               {/* Dynamic Metadata Fields based on Provider */}
               {selectedProvider === "apple" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="apple-key"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="apple-key" className="text-[11px]">
                       Key ID
                     </Label>
                     <Input
@@ -641,16 +611,13 @@ export default function CredentialsPage() {
                       value={appleKeyId}
                       onChange={(e) => setAppleKeyId(e.target.value)}
                       placeholder="e.g. 2X9R4HXF34"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1.5">
-                      <Label
-                        htmlFor="apple-issuer"
-                        className="text-[11px] font-medium text-zinc-300"
-                      >
+                      <Label htmlFor="apple-issuer" className="text-[11px]">
                         Issuer ID (UUID)
                       </Label>
                       <Input
@@ -658,15 +625,12 @@ export default function CredentialsPage() {
                         value={appleIssuerId}
                         onChange={(e) => setAppleIssuerId(e.target.value)}
                         placeholder="57246542-96fe-1a63-..."
-                        className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                        className="font-mono text-xs"
                         required
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label
-                        htmlFor="apple-team"
-                        className="text-[11px] font-medium text-zinc-300"
-                      >
+                      <Label htmlFor="apple-team" className="text-[11px]">
                         Team ID
                       </Label>
                       <Input
@@ -674,7 +638,7 @@ export default function CredentialsPage() {
                         value={appleTeamId}
                         onChange={(e) => setAppleTeamId(e.target.value)}
                         placeholder="e.g. A3B8C9D0E1"
-                        className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                        className="font-mono text-xs"
                         required
                       />
                     </div>
@@ -683,12 +647,9 @@ export default function CredentialsPage() {
               )}
 
               {selectedProvider === "google_play" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="google-email"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="google-email" className="text-[11px]">
                       Service Account Client Email
                     </Label>
                     <Input
@@ -697,7 +658,7 @@ export default function CredentialsPage() {
                       value={googleClientEmail}
                       onChange={(e) => setGoogleClientEmail(e.target.value)}
                       placeholder="deployer@project.iam.gserviceaccount.com"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
@@ -705,12 +666,9 @@ export default function CredentialsPage() {
               )}
 
               {selectedProvider === "shorebird" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="shorebird-app"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="shorebird-app" className="text-[11px]">
                       Shorebird App ID (UUID)
                     </Label>
                     <Input
@@ -718,7 +676,7 @@ export default function CredentialsPage() {
                       value={shorebirdAppId}
                       onChange={(e) => setShorebirdAppId(e.target.value)}
                       placeholder="8c7f6b5a-4d3e-2a1b-0c9d-8e7f6a5b4c3d"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
@@ -726,12 +684,9 @@ export default function CredentialsPage() {
               )}
 
               {selectedProvider === "github" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="gh-install"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="gh-install" className="text-[11px]">
                       GitHub App Installation ID
                     </Label>
                     <Input
@@ -739,7 +694,7 @@ export default function CredentialsPage() {
                       value={githubInstallationId}
                       onChange={(e) => setGithubInstallationId(e.target.value)}
                       placeholder="e.g. 54829104"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
@@ -747,12 +702,9 @@ export default function CredentialsPage() {
               )}
 
               {selectedProvider === "gitlab" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="gl-app"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="gl-app" className="text-[11px]">
                       GitLab Application ID
                     </Label>
                     <Input
@@ -760,7 +712,7 @@ export default function CredentialsPage() {
                       value={gitlabApplicationId}
                       onChange={(e) => setGitlabApplicationId(e.target.value)}
                       placeholder="e.g. gl_app_992144"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
@@ -768,12 +720,9 @@ export default function CredentialsPage() {
               )}
 
               {selectedProvider === "bitbucket" && (
-                <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="border-border/60 bg-muted/20 space-y-2 rounded-md border p-3">
                   <div className="space-y-1.5">
-                    <Label
-                      htmlFor="bb-workspace"
-                      className="text-[11px] font-medium text-zinc-300"
-                    >
+                    <Label htmlFor="bb-workspace" className="text-[11px]">
                       Bitbucket Workspace Slug
                     </Label>
                     <Input
@@ -781,7 +730,7 @@ export default function CredentialsPage() {
                       value={bitbucketWorkspace}
                       onChange={(e) => setBitbucketWorkspace(e.target.value)}
                       placeholder="e.g. bloom-workspace"
-                      className="border-zinc-800 bg-zinc-900 font-mono text-xs"
+                      className="font-mono text-xs"
                       required
                     />
                   </div>
@@ -790,10 +739,7 @@ export default function CredentialsPage() {
 
               {/* Secret Token Textarea */}
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="secret-token"
-                  className="text-xs font-medium text-zinc-300"
-                >
+                <Label htmlFor="secret-token">
                   Secret Material (Private Key .p8 / Service Account JSON /
                   Token)
                 </Label>
@@ -803,24 +749,23 @@ export default function CredentialsPage() {
                   onChange={(e) => setSecretToken(e.target.value)}
                   placeholder="Paste private key text, JSON credential, or secret token here..."
                   rows={4}
-                  className="border-zinc-700 bg-zinc-950 font-mono text-xs leading-relaxed"
+                  className="font-mono text-xs leading-relaxed"
                   required
                 />
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-muted-foreground text-[11px]">
                   Encrypted immediately upon receipt. Plaintext secret is never
                   returned by the API.
                 </p>
               </div>
             </div>
 
-            <DialogFooter className="border-t border-zinc-800 pt-3">
+            <DialogFooter className="border-border/60 border-t pt-3">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setDialogOpen(false)}
                 disabled={isCreating}
-                className="text-xs"
               >
                 Cancel
               </Button>
@@ -828,10 +773,9 @@ export default function CredentialsPage() {
                 type="submit"
                 size="sm"
                 disabled={isCreating || !credentialName || !secretToken}
-                className="bg-zinc-100 text-xs font-semibold text-zinc-950 hover:bg-zinc-200"
               >
                 {isCreating ? (
-                  <BloomSpinner size={14} className="mr-2" />
+                  <BloomSpinner size={14} speed="fast" className="mr-2" />
                 ) : null}
                 Encrypt & Save Credential
               </Button>
@@ -845,14 +789,12 @@ export default function CredentialsPage() {
         open={!!credentialToDelete}
         onOpenChange={(open) => !open && setCredentialToDelete(null)}
       >
-        <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-base">
-              Remove Platform Credential?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-zinc-400">
+            <AlertDialogTitle>Remove Platform Credential?</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to delete credential{" "}
-              <strong className="font-mono text-zinc-200">
+              <strong className="text-foreground font-mono">
                 {credentialToDelete?.name}
               </strong>
               ? Builds and automated store release pipelines relying on this key
@@ -860,15 +802,15 @@ export default function CredentialsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} className="text-xs">
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCredential}
               disabled={isDeleting}
-              className="bg-red-600 text-xs font-semibold text-white hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? <BloomSpinner size={14} className="mr-2" /> : null}
+              {isDeleting ? (
+                <BloomSpinner size={14} speed="fast" className="mr-2" />
+              ) : null}
               Delete Credential
             </AlertDialogAction>
           </AlertDialogFooter>
