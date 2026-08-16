@@ -3761,7 +3761,7 @@ Expected: found 1 matching candidate widget
         category: "saas",
         platforms: ["ios", "android", "web", "desktop"],
         tags: ["supabase", "auth", "state_management", "riverpod"],
-        icon_provider: "cloudflare",
+        icon_provider: "supabase",
       },
       latest_version: "1.4.0",
       versions_count: 4,
@@ -3865,6 +3865,96 @@ Expected: found 1 matching candidate widget
       created_at: new Date(Date.now() - 86400000 * 120).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
     },
+    {
+      id: "tmpl_005",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Stripe Payments & Subscriptions Kit",
+      slug: "stripe-payments-subscriptions-kit",
+      description:
+        "Drop-in Flutter payment sheets, subscription billing, invoices, and webhook-driven entitlement sync powered by Stripe.",
+      visibility: "public",
+      status: "published",
+      is_free: false,
+      price_amount: 5900,
+      price_currency: "usd",
+      metadata: {
+        category: "payments",
+        platforms: ["ios", "android", "web"],
+        tags: ["stripe", "billing", "subscriptions", "webhooks"],
+        icon_provider: "stripe",
+      },
+      latest_version: "1.2.0",
+      versions_count: 3,
+      rating_count: 21,
+      rating_bayesian_milli: 4780,
+      install_count: 410,
+      featured_type: "paid",
+      is_featured: false,
+      is_editorial_featured: false,
+      is_paid_featured: true,
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+    {
+      id: "tmpl_006",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Resend Transactional Email Starter",
+      slug: "resend-transactional-email-starter",
+      description:
+        "Wire up welcome emails, password resets, and receipts from your Flutter backend using Resend's API, with retry-safe queued sends.",
+      visibility: "public",
+      status: "published",
+      is_free: true,
+      price_amount: 0,
+      price_currency: "usd",
+      metadata: {
+        category: "devtool",
+        platforms: ["ios", "android", "web", "desktop"],
+        tags: ["resend", "email", "notifications", "transactional"],
+        icon_provider: "resend",
+      },
+      latest_version: "1.0.1",
+      versions_count: 2,
+      rating_count: 9,
+      rating_bayesian_milli: 4530,
+      install_count: 165,
+      featured_type: "none",
+      is_featured: false,
+      is_editorial_featured: false,
+      is_paid_featured: false,
+      created_at: new Date(Date.now() - 86400000 * 18).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "tmpl_007",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Bloom UI Starter Template",
+      slug: "bloom-ui-starter-template",
+      description:
+        "Fresh Bloom project pre-wired with the full Bloom UI component library, all 8 style presets, dark mode, and a themed onboarding + dashboard shell.",
+      visibility: "public",
+      status: "published",
+      is_free: true,
+      price_amount: 0,
+      price_currency: "usd",
+      metadata: {
+        category: "starter",
+        platforms: ["ios", "android", "web", "desktop"],
+        tags: ["bloom", "bloom_ui", "design_system", "starter"],
+        icon_provider: "bloom",
+      },
+      latest_version: "1.3.0",
+      versions_count: 4,
+      rating_count: 37,
+      rating_bayesian_milli: 4890,
+      install_count: 1260,
+      featured_type: "editorial",
+      is_featured: true,
+      is_editorial_featured: true,
+      is_paid_featured: false,
+      created_at: new Date(Date.now() - 86400000 * 75).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
   ];
 
   public templateVersions: MockTemplateVersion[] = [
@@ -3917,6 +4007,66 @@ A robust boilerplate for launching cross-platform apps with serverless auth and 
       created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 6).toISOString(),
     },
+    {
+      id: "ver_004",
+      template_id: "tmpl_005",
+      version: "1.2.0",
+      changelog:
+        "Added subscription proration handling and invoice PDF export.",
+      manifest: {
+        min_flutter: "3.24.0",
+        dependencies: ["flutter_stripe", "webhook_listener"],
+      },
+      readme: `# Stripe Payments & Subscriptions Kit
+
+Drop-in payment sheets, subscription billing, and webhook-driven entitlement sync.
+
+## Quickstart
+1. Apply the template via Bloom Cloud
+2. Add your Stripe secret key to the Secrets vault
+3. Point your webhook endpoint at \`/webhooks/stripe\`
+`,
+      install_count: 180,
+      created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+    {
+      id: "ver_005",
+      template_id: "tmpl_006",
+      version: "1.0.1",
+      changelog: "Fixed retry backoff timing for queued sends.",
+      manifest: {
+        min_flutter: "3.22.0",
+        dependencies: ["resend_dart"],
+      },
+      readme:
+        "# Resend Transactional Email Starter\n\nWelcome emails, password resets, and receipts with retry-safe queued sends.",
+      install_count: 90,
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "ver_006",
+      template_id: "tmpl_007",
+      version: "1.3.0",
+      changelog: "Upgraded to Bloom UI 0.1.0 with all 8 style presets.",
+      manifest: {
+        min_flutter: "3.24.0",
+        dependencies: ["bloom_ui"],
+      },
+      readme: `# Bloom UI Starter Template
+
+A fresh Bloom project pre-wired with the full Bloom UI component library.
+
+## Quickstart
+1. Apply the template via Bloom Cloud
+2. Run \`bloom ui init\` to confirm your style preset
+3. Run \`flutter run\`
+`,
+      install_count: 640,
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
   ];
 
   public templateReviews: MockReview[] = [
@@ -3963,6 +4113,34 @@ A robust boilerplate for launching cross-platform apps with serverless auth and 
       author_responded_at: new Date(Date.now() - 86400000 * 4).toISOString(),
       created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
       updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+    {
+      id: "rev_004",
+      template_id: "tmpl_005",
+      buyer_organization_id: "org_retail_plus",
+      rating: 5,
+      title: "Subscription billing done right",
+      comment:
+        "Webhook entitlement sync just worked. Saved us from writing our own Stripe reconciliation logic.",
+      status: "published",
+      author_response: null,
+      author_responded_at: null,
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    },
+    {
+      id: "rev_005",
+      template_id: "tmpl_007",
+      buyer_organization_id: "org_acme_corp",
+      rating: 5,
+      title: "Best way to start a Bloom project",
+      comment:
+        "All 8 presets look great out of the box, and dark mode just worked with zero config.",
+      status: "published",
+      author_response: "Glad it's working well for you!",
+      author_responded_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
     },
   ];
 

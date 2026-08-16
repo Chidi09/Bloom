@@ -25,6 +25,7 @@ export type ProviderName =
   | "digitalocean"
   | "fastly"
   | "shorebird"
+  | "squarespace"
   | "apple"
   | string;
 
@@ -42,6 +43,12 @@ const DOMAIN_MAP: Record<string, string> = {
   digitalocean: "digitalocean.com",
   fastly: "fastly.com",
   shorebird: "shorebird.dev",
+  squarespace: "squarespace.com",
+  stripe: "stripe.com",
+  supabase: "supabase.com",
+  resend: "resend.com",
+  bloom: "bloom.dev",
+  flutter: "flutter.dev",
 };
 
 interface ProviderIconProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -86,7 +93,14 @@ export function ProviderIcon({
   // Check phosphor native icons first
   if (norm === "github") {
     return (
-      <span className={cn("inline-flex shrink-0 items-center justify-center", sizeClass, className)} {...props}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
         <GithubLogo className="h-full w-full" weight="fill" />
       </span>
     );
@@ -94,7 +108,14 @@ export function ProviderIcon({
 
   if (norm === "gitlab") {
     return (
-      <span className={cn("inline-flex shrink-0 items-center justify-center text-orange-500", sizeClass, className)} {...props}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center text-orange-500",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
         <GitlabLogo className="h-full w-full" weight="fill" />
       </span>
     );
@@ -102,7 +123,14 @@ export function ProviderIcon({
 
   if (norm === "apple" || norm.includes("app_store")) {
     return (
-      <span className={cn("inline-flex shrink-0 items-center justify-center text-zinc-100", sizeClass, className)} {...props}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center text-zinc-100",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
         <AppleLogo className="h-full w-full" weight="fill" />
       </span>
     );
@@ -110,7 +138,14 @@ export function ProviderIcon({
 
   if (norm === "google_play") {
     return (
-      <span className={cn("inline-flex shrink-0 items-center justify-center", sizeClass, className)} {...props}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
         <Image
           src="/auth/google-logo.png"
           alt={alt || "Google Play"}
@@ -128,7 +163,14 @@ export function ProviderIcon({
   if (targetDomain) {
     const faviconUrl = `https://www.google.com/s2/favicons?domain=${targetDomain}&sz=64`;
     return (
-      <span className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[2px]", sizeClass, className)} {...props}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[2px]",
+          sizeClass,
+          className,
+        )}
+        {...props}
+      >
         <Image
           src={faviconUrl}
           alt={alt || provider}
@@ -143,7 +185,14 @@ export function ProviderIcon({
 
   // Fallbacks
   return (
-    <span className={cn("inline-flex shrink-0 items-center justify-center text-muted-foreground", sizeClass, className)} {...props}>
+    <span
+      className={cn(
+        "text-muted-foreground inline-flex shrink-0 items-center justify-center",
+        sizeClass,
+        className,
+      )}
+      {...props}
+    >
       <Globe className="h-full w-full" weight="bold" />
     </span>
   );
