@@ -238,7 +238,7 @@ export default function GitConnectionsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Organization", href: "/organizations" },
@@ -252,7 +252,7 @@ export default function GitConnectionsPage() {
               variant="outline"
               size="sm"
               onClick={() => void fetchConnections()}
-              className="h-8 gap-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+              className="h-8 gap-1.5 transition-colors"
             >
               <ArrowsClockwise className="size-3.5" />
               <span>Refresh</span>
@@ -261,7 +261,7 @@ export default function GitConnectionsPage() {
               <Button
                 size="sm"
                 onClick={() => setConnectDialogOpen(true)}
-                className="h-8 gap-1.5 bg-zinc-100 text-xs font-semibold text-zinc-950 hover:bg-zinc-200"
+                className="h-8 gap-1.5"
               >
                 <Plug className="size-3.5" weight="bold" />
                 <span>Connect Provider</span>
@@ -289,7 +289,7 @@ export default function GitConnectionsPage() {
       )}
 
       {isLoading ? (
-        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-20">
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
           <BloomSpinner size={28} label="Loading Git host connections..." />
         </div>
       ) : connections.length === 0 ? (
@@ -301,7 +301,7 @@ export default function GitConnectionsPage() {
           onAction={canManage ? () => setConnectDialogOpen(true) : undefined}
         />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
             <div className="overflow-x-auto">
               <Table>
@@ -349,12 +349,12 @@ export default function GitConnectionsPage() {
                                 isBitbucket &&
                                   "border-[#0052cc]/40 bg-[#0052cc]/10 text-[#0052cc]",
                                 isGithub &&
-                                  "border-border/80 bg-zinc-900 text-zinc-200",
+                                  "border-border/80 bg-muted/50 text-foreground",
                               )}
                             >
                               {getProviderIcon(conn.provider)}
                             </div>
-                            <span className="text-xs font-semibold text-zinc-100 uppercase">
+                            <span className="text-foreground text-xs font-semibold uppercase">
                               {conn.provider}
                             </span>
                           </div>
@@ -362,18 +362,18 @@ export default function GitConnectionsPage() {
 
                         <TableCell>
                           <div className="space-y-0.5 font-mono text-xs">
-                            <span className="font-semibold text-zinc-200">
+                            <span className="text-foreground font-semibold">
                               {meta?.account_name || "bloom-labs"}
                             </span>
                             {meta?.account_type && (
-                              <span className="block text-[10px] text-zinc-500">
+                              <span className="text-muted-foreground block text-[10px]">
                                 {meta.account_type}
                               </span>
                             )}
                           </div>
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
+                        <TableCell className="text-muted-foreground font-mono text-xs">
                           <div className="flex items-center gap-1.5">
                             <TooltipProvider>
                               <Tooltip>
@@ -392,7 +392,7 @@ export default function GitConnectionsPage() {
                               onClick={() =>
                                 handleCopyInstId(conn.installation_id, conn.id)
                               }
-                              className="text-zinc-500 transition-colors hover:text-zinc-200"
+                              className="text-muted-foreground hover:text-foreground transition-colors"
                               title="Copy Installation ID"
                             >
                               {copiedInstId === conn.id ? (
@@ -412,7 +412,7 @@ export default function GitConnectionsPage() {
                           />
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
+                        <TableCell className="text-muted-foreground font-mono text-xs">
                           {new Date(conn.created_at).toLocaleDateString()}
                         </TableCell>
 
@@ -422,7 +422,7 @@ export default function GitConnectionsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => void handleOpenRepositories(conn)}
-                              className="h-7 gap-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                              className="h-7 gap-1.5 text-xs transition-colors"
                             >
                               <FolderSimple className="size-3.5" />
                               <span>Repositories</span>
@@ -433,7 +433,7 @@ export default function GitConnectionsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setConnectionToDisconnect(conn)}
-                                className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 size-7 h-7 p-0 transition-colors"
                               >
                                 <Trash className="size-3.5" />
                               </Button>
@@ -449,36 +449,36 @@ export default function GitConnectionsPage() {
           </div>
 
           {/* Webhook & Branch Deploy Policies Notice Card */}
-          <Card className="border-border/80 bg-zinc-950/40">
+          <Card className="border-border/80 bg-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
-                  <GitBranch className="size-4 text-zinc-400" />
+                <CardTitle className="text-foreground flex items-center gap-2 text-sm font-semibold">
+                  <GitBranch className="text-muted-foreground size-4" />
                   <span>Branch Deploy & Webhook Delivery Policies</span>
                 </CardTitle>
                 <Badge
                   variant="outline"
-                  className="font-mono text-[10px] text-zinc-400"
+                  className="text-muted-foreground font-mono text-[10px]"
                 >
                   Auto-Sync
                 </Badge>
               </div>
-              <CardDescription className="text-xs text-zinc-400">
+              <CardDescription className="text-muted-foreground text-xs">
                 Inbound push and pull request webhooks are cryptographically
                 validated using HMAC-SHA256 signatures.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border border-zinc-800/80 bg-zinc-900/30 p-3 text-xs text-zinc-400">
+              <div className="border-border/60 bg-muted/20 text-muted-foreground rounded-md border p-3 text-xs">
                 <div className="flex items-start gap-2.5">
-                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" />
+                  <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" />
                   <div className="space-y-1 text-xs">
-                    <p className="font-medium text-zinc-300">
+                    <p className="text-foreground font-medium">
                       Automatic Pull Request Preview Environments
                     </p>
-                    <p className="text-[11px] leading-relaxed text-zinc-500">
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
                       Push events to{" "}
-                      <code className="font-mono text-zinc-300">main</code> or
+                      <code className="text-foreground font-mono">main</code> or
                       feature branches automatically create isolated WASM web
                       preview deployments with preview URLs commented directly
                       onto the pull request.
@@ -493,13 +493,10 @@ export default function GitConnectionsPage() {
 
       {/* Repositories Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent
-          side="right"
-          className="w-full border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-lg"
-        >
-          <SheetHeader className="border-b border-zinc-800 pb-4">
+        <SheetContent side="right" className="w-full sm:max-w-lg">
+          <SheetHeader className="border-border border-b pb-4">
             <SheetTitle className="flex items-center gap-2 text-base">
-              <FolderSimple className="size-4 text-zinc-400" />
+              <FolderSimple className="text-muted-foreground size-4" />
               <span>
                 Available Repositories (
                 {(selectedConnection?.metadata?.account_name as
@@ -507,7 +504,7 @@ export default function GitConnectionsPage() {
                 )
               </span>
             </SheetTitle>
-            <SheetDescription className="text-xs text-zinc-400">
+            <SheetDescription className="text-muted-foreground text-xs">
               Repositories accessible via this installation for application
               linking.
             </SheetDescription>
@@ -522,7 +519,7 @@ export default function GitConnectionsPage() {
                   value={repoSearchQuery}
                   onChange={(e) => setRepoSearchQuery(e.target.value)}
                   placeholder="Filter repositories by name or branch..."
-                  className="h-8 border-zinc-700 bg-zinc-950 pl-8 font-mono text-xs text-zinc-100"
+                  className="h-8 pl-8 font-mono text-xs"
                 />
               </div>
             )}
@@ -552,14 +549,14 @@ export default function GitConnectionsPage() {
 
                 if (filteredRepos.length === 0) {
                   return (
-                    <div className="rounded-md border border-zinc-800 bg-zinc-950/60 p-6 text-center text-xs text-zinc-400">
+                    <div className="border-border bg-muted/20 text-muted-foreground rounded-md border p-6 text-center text-xs">
                       No repositories match &quot;{repoSearchQuery}&quot;
                     </div>
                   );
                 }
 
                 return (
-                  <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-950/60">
+                  <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -576,7 +573,7 @@ export default function GitConnectionsPage() {
                               className="hover:bg-muted/40 transition-colors"
                             >
                               <TableCell>
-                                <div className="max-w-[200px] truncate font-mono text-xs font-semibold text-zinc-100">
+                                <div className="text-foreground max-w-[200px] truncate font-mono text-xs font-semibold">
                                   {repo.full_name}
                                 </div>
                               </TableCell>
@@ -584,7 +581,7 @@ export default function GitConnectionsPage() {
                               <TableCell>
                                 <Badge
                                   variant="outline"
-                                  className="font-mono text-[10px] text-zinc-400"
+                                  className="text-muted-foreground font-mono text-[10px]"
                                 >
                                   {repo.default_branch || "main"}
                                 </Badge>
@@ -594,7 +591,7 @@ export default function GitConnectionsPage() {
                                 <Link
                                   href={repo.url}
                                   target="_blank"
-                                  className="inline-flex items-center gap-1 font-mono text-xs text-zinc-400 hover:text-zinc-200"
+                                  className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
                                 >
                                   <span>Open</span>
                                   <ArrowSquareOut className="size-3" />
@@ -615,13 +612,13 @@ export default function GitConnectionsPage() {
 
       {/* Connect Provider Dialog */}
       <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Plug className="size-4 text-zinc-400" />
+              <Plug className="text-muted-foreground size-4" />
               <span>Connect Git Provider</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-muted-foreground text-xs">
               Authorize Bloom Cloud to read repository structures and receive
               webhook events.
             </DialogDescription>
@@ -632,9 +629,13 @@ export default function GitConnectionsPage() {
               variant="outline"
               onClick={() => void handleConnectProvider("github")}
               disabled={isConnecting}
-              className="h-11 w-full justify-start gap-3 border-zinc-800 bg-zinc-950 text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
+              className="border-border/80 bg-card hover:bg-muted/60 text-foreground h-11 w-full justify-start gap-3 text-xs font-semibold transition-colors"
             >
-              <ProviderIcon provider="github" size={20} />
+              {isConnecting ? (
+                <BloomSpinner size={16} />
+              ) : (
+                <ProviderIcon provider="github" size={20} />
+              )}
               <span>Connect GitHub Organization</span>
             </Button>
 
@@ -642,9 +643,13 @@ export default function GitConnectionsPage() {
               variant="outline"
               onClick={() => void handleConnectProvider("gitlab")}
               disabled={isConnecting}
-              className="h-11 w-full justify-start gap-3 border-zinc-800 bg-zinc-950 text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
+              className="border-border/80 bg-card hover:bg-muted/60 text-foreground h-11 w-full justify-start gap-3 text-xs font-semibold transition-colors"
             >
-              <ProviderIcon provider="gitlab" size={20} />
+              {isConnecting ? (
+                <BloomSpinner size={16} />
+              ) : (
+                <ProviderIcon provider="gitlab" size={20} />
+              )}
               <span>Connect GitLab Group / Account</span>
             </Button>
 
@@ -652,14 +657,18 @@ export default function GitConnectionsPage() {
               variant="outline"
               onClick={() => void handleConnectProvider("bitbucket")}
               disabled={isConnecting}
-              className="h-11 w-full justify-start gap-3 border-zinc-800 bg-zinc-950 text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
+              className="border-border/80 bg-card hover:bg-muted/60 text-foreground h-11 w-full justify-start gap-3 text-xs font-semibold transition-colors"
             >
-              <ProviderIcon provider="bitbucket" size={20} />
+              {isConnecting ? (
+                <BloomSpinner size={16} />
+              ) : (
+                <ProviderIcon provider="bitbucket" size={20} />
+              )}
               <span>Connect Bitbucket Workspace</span>
             </Button>
           </div>
 
-          <DialogFooter className="border-t border-zinc-800 pt-3">
+          <DialogFooter className="border-border border-t pt-3">
             <Button
               type="button"
               variant="outline"
@@ -678,14 +687,14 @@ export default function GitConnectionsPage() {
         open={!!connectionToDisconnect}
         onOpenChange={(open) => !open && setConnectionToDisconnect(null)}
       >
-        <AlertDialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">
               Disconnect Git Provider?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-zinc-400">
+            <AlertDialogDescription className="text-muted-foreground text-xs">
               Are you sure you want to disconnect{" "}
-              <strong className="font-mono text-zinc-200">
+              <strong className="text-foreground font-mono">
                 {connectionToDisconnect?.provider.toUpperCase()}
               </strong>
               ? Automated pull request previews and webhook build triggers will
@@ -699,7 +708,7 @@ export default function GitConnectionsPage() {
             <AlertDialogAction
               onClick={handleDisconnect}
               disabled={isDisconnecting}
-              className="bg-red-600 text-xs font-semibold text-white hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold"
             >
               {isDisconnecting ? (
                 <BloomSpinner size={14} className="mr-2" />
