@@ -5,7 +5,6 @@ import {
   Clock,
   Prohibit,
   WarningCircle,
-  ArrowsClockwise,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -85,15 +84,12 @@ export function StatusBadge({
                       : "Success";
   } else if (norm === "running" || norm === "building") {
     colorClasses =
-      "bg-[var(--status-running-bg)] text-[var(--status-running)] border-[var(--status-running)]/30 animate-pulse";
+      "bg-[var(--status-running-bg)] text-[var(--status-running)] border-[var(--status-running)]/30 motion-safe:animate-pulse";
     icon = (
-      <ArrowsClockwise
-        weight="bold"
-        className={cn(
-          size === "sm" ? "size-3 shrink-0" : "size-3.5 shrink-0",
-          "animate-spin",
-        )}
-      />
+      <span className="relative flex size-2 shrink-0 items-center justify-center">
+        <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--status-running)] opacity-75 motion-safe:animate-ping" />
+        <span className="relative inline-flex size-1.5 rounded-full bg-[var(--status-running)]" />
+      </span>
     );
     defaultLabel = "Running";
   } else if (norm === "trialing" || norm === "sent" || norm === "rolling_out") {
@@ -106,7 +102,11 @@ export function StatusBadge({
       />
     );
     defaultLabel =
-      norm === "trialing" ? "Trialing" : norm === "sent" ? "Sent" : "Rolling Out";
+      norm === "trialing"
+        ? "Trialing"
+        : norm === "sent"
+          ? "Sent"
+          : "Rolling Out";
   } else if (
     norm === "blocked" ||
     norm === "warning" ||

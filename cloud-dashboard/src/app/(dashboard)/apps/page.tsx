@@ -53,6 +53,60 @@ import { AppResponse } from "@/lib/schemas/app";
 import { ProjectResponse } from "@/lib/schemas/project";
 import { useOrganizationStore } from "@/stores/organization-store";
 
+function AppHealthSparkline({
+  values = [98.8, 99.2, 99.1, 99.5, 99.8, 99.7, 99.9],
+  isHealthy = true,
+}: {
+  values?: number[];
+  isHealthy?: boolean;
+}) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const width = 54;
+  const height = 16;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * (width - 6) + 3;
+      const y = height - 2 - ((v - min) / range) * (height - 6);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const color = isHealthy ? "#10b981" : "#f59e0b";
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg
+        width={width}
+        height={height}
+        className="shrink-0 overflow-visible"
+        aria-hidden="true"
+      >
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
+        />
+        <circle
+          cx={((values.length - 1) / (values.length - 1)) * (width - 6) + 3}
+          cy={
+            height -
+            2 -
+            ((values[values.length - 1] - min) / range) * (height - 6)
+          }
+          r="2.5"
+          fill={color}
+        />
+      </svg>
+      <StatusBadge status={isHealthy ? "healthy" : "warning"} size="sm" />
+    </div>
+  );
+}
+
 export default function AppsPage() {
   const router = useRouter();
   const { currentOrganizationId } = useOrganizationStore();
@@ -316,12 +370,12 @@ export default function AppsPage() {
                   <TableHead>Project</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead>Repository</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[180px]">Health & Status</TableHead>
                   <TableHead>Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredApps.map((app) => (
+                {filteredApps.map((app, idx) => (
                   <TableRow
                     key={app.id}
                     onClick={() => router.push(`/apps/${app.id}/builds`)}
@@ -329,7 +383,7 @@ export default function AppsPage() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
+                        <div className="border-border/80 bg-muted/50 text-foreground group-hover:border-primary/40 flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors">
                           <PlatformIcon platform="all" size="md" />
                         </div>
                         <div className="space-y-0.5">
@@ -383,7 +437,15 @@ export default function AppsPage() {
                     </TableCell>
 
                     <TableCell>
-                      <StatusBadge status="healthy" size="sm" />
+                      <AppHealthSparkline
+                        values={
+                          idx % 3 === 0
+                            ? [99.1, 99.4, 99.2, 99.7, 99.8, 99.9, 99.9]
+                            : idx % 3 === 1
+                              ? [98.5, 98.9, 99.2, 99.4, 99.6, 99.7, 99.8]
+                              : [99.0, 99.3, 99.1, 99.5, 99.8, 99.8, 99.9]
+                        }
+                      />
                     </TableCell>
 
                     <TableCell className="text-muted-foreground font-mono text-xs">

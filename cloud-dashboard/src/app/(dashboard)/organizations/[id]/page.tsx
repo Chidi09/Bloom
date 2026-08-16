@@ -59,10 +59,17 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldDescription,
+} from "@/components/ui/field";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PageHeader } from "@/components/shared/page-header";
 import { OrganizationBillingTab } from "@/components/billing/organization-billing-tab";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api/client";
 import {
   OrganizationResponse,
@@ -349,37 +356,71 @@ export default function OrganizationDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="max-w-md space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-name">Organization Name</Label>
+                <Field
+                  data-invalid={
+                    formName.trim().length === 0 ? "true" : undefined
+                  }
+                >
+                  <FieldLabel htmlFor="org-name">Organization Name</FieldLabel>
                   <Input
                     id="org-name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     required
+                    aria-invalid={formName.trim().length === 0}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-slug">Slug</Label>
+                  {formName.trim().length === 0 ? (
+                    <FieldError>Organization name cannot be empty.</FieldError>
+                  ) : null}
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="org-slug">Slug</FieldLabel>
                   <Input
                     id="org-slug"
                     value={org.slug}
                     disabled
                     className="bg-muted/30 font-mono text-xs"
                   />
-                  <p className="text-muted-foreground text-[11px]">
+                  <FieldDescription>
                     Unique identifier used for URLs and CLI targeting.
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-billing-email">Billing Email</Label>
+                  </FieldDescription>
+                </Field>
+
+                <Field
+                  data-invalid={
+                    formBillingEmail &&
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formBillingEmail)
+                      ? "true"
+                      : undefined
+                  }
+                >
+                  <FieldLabel htmlFor="org-billing-email">
+                    Billing Email
+                  </FieldLabel>
                   <Input
                     id="org-billing-email"
                     type="email"
                     placeholder="billing@example.com"
                     value={formBillingEmail}
                     onChange={(e) => setFormBillingEmail(e.target.value)}
+                    aria-invalid={
+                      !!formBillingEmail &&
+                      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formBillingEmail)
+                    }
                   />
-                </div>
+                  {formBillingEmail &&
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formBillingEmail) ? (
+                    <FieldError>
+                      Please enter a valid email address format.
+                    </FieldError>
+                  ) : (
+                    <FieldDescription>
+                      Invoices and payment receipts will be sent to this
+                      address.
+                    </FieldDescription>
+                  )}
+                </Field>
               </CardContent>
               <CardFooter className="border-border/60 flex justify-between border-t pt-4">
                 <p className="text-muted-foreground font-mono text-xs">
@@ -387,7 +428,12 @@ export default function OrganizationDetailPage() {
                 </p>
                 <Button
                   type="submit"
-                  disabled={isSavingGeneral}
+                  disabled={
+                    isSavingGeneral ||
+                    formName.trim().length === 0 ||
+                    (!!formBillingEmail &&
+                      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formBillingEmail))
+                  }
                   size="sm"
                   className="gap-1.5"
                 >
@@ -443,27 +489,60 @@ export default function OrganizationDetailPage() {
                 <TableBody>
                   {members.map((member) => {
                     const targetRole = member.role as OrganizationRoleName;
+                    const isPending =
+                      member.user_id.startsWith("inv_") ||
+                      !member.username ||
+                      member.username === member.email;
+
                     // Hard-hide per §21.5 if current user's role is <= target role
                     const canEditThisMember =
                       canManageMembers &&
                       OrganizationRole[currentUserRole] >
                         (OrganizationRole[targetRole] || 0);
 
+                    const getRoleBadgeClasses = (r: string) => {
+                      const low = r.toLowerCase();
+                      if (low === "owner")
+                        return "border-amber-500/30 bg-amber-500/10 text-amber-400 font-semibold";
+                      if (low === "admin")
+                        return "border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold";
+                      if (low === "releasemanager")
+                        return "border-sky-500/30 bg-sky-500/10 text-sky-400 font-medium";
+                      if (low === "developer")
+                        return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
+                      return "border-border/60 bg-muted/40 text-muted-foreground";
+                    };
+
                     return (
                       <TableRow
                         key={member.id}
-                        className="hover:bg-muted/40 transition-colors duration-150"
+                        className={cn(
+                          "hover:bg-muted/40 transition-colors duration-150",
+                          isPending &&
+                            "border-border/80 bg-muted/10 border-dashed opacity-80",
+                        )}
                       >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <UserAvatar
                               name={member.username || member.email}
                               size={28}
+                              className="ring-border/80 ring-offset-background ring-1 ring-offset-1"
                             />
-                            <div>
-                              <p className="text-foreground text-xs font-semibold">
-                                {member.username}
-                              </p>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-foreground text-xs font-semibold">
+                                  {member.username || member.email}
+                                </p>
+                                {isPending && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-400"
+                                  >
+                                    Pending Invite
+                                  </Badge>
+                                )}
+                              </div>
                               <span className="text-muted-foreground font-mono text-[10px]">
                                 {member.user_id}
                               </span>
@@ -483,7 +562,12 @@ export default function OrganizationDetailPage() {
                                 if (val) void handleChangeRole(member.id, val);
                               }}
                             >
-                              <SelectTrigger className="h-7 w-32 font-mono text-xs">
+                              <SelectTrigger
+                                className={cn(
+                                  "h-7 w-32 font-mono text-xs",
+                                  getRoleBadgeClasses(member.role),
+                                )}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -511,7 +595,10 @@ export default function OrganizationDetailPage() {
                           ) : (
                             <Badge
                               variant="outline"
-                              className="font-mono text-xs capitalize"
+                              className={cn(
+                                "font-mono text-xs capitalize",
+                                getRoleBadgeClasses(member.role),
+                              )}
                             >
                               {member.role}
                             </Badge>

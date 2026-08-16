@@ -35,6 +35,7 @@ import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/status/status-badge";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api/client";
 import { OrganizationResponse } from "@/lib/schemas/organization";
 import { useOrganizationStore } from "@/stores/organization-store";
@@ -207,7 +208,19 @@ export default function OrganizationsPage() {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className="font-mono text-xs capitalize"
+                          className={cn(
+                            "font-mono text-xs capitalize",
+                            org.role.toLowerCase() === "owner" &&
+                              "border-amber-500/30 bg-amber-500/10 font-semibold text-amber-400",
+                            org.role.toLowerCase() === "admin" &&
+                              "border-purple-500/30 bg-purple-500/10 font-semibold text-purple-400",
+                            org.role.toLowerCase() === "releasemanager" &&
+                              "border-sky-500/30 bg-sky-500/10 font-medium text-sky-400",
+                            org.role.toLowerCase() === "developer" &&
+                              "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+                            org.role.toLowerCase() === "viewer" &&
+                              "border-border/60 bg-muted/40 text-muted-foreground",
+                          )}
                         >
                           {org.role}
                         </Badge>

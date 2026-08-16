@@ -13,13 +13,16 @@ import {
   Plug,
   Copy,
   Check,
+  MagnifyingGlass,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status/status-badge";
 import { ProviderIcon } from "@/components/status/provider-icon";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -96,6 +99,7 @@ export default function GitConnectionsPage() {
     [],
   );
   const [isLoadingRepos, setIsLoadingRepos] = React.useState(false);
+  const [repoSearchQuery, setRepoSearchQuery] = React.useState("");
 
   // Connect Provider Dialog State
   const [connectDialogOpen, setConnectDialogOpen] = React.useState(false);
@@ -154,6 +158,7 @@ export default function GitConnectionsPage() {
 
   const handleOpenRepositories = async (conn: GitConnectionResponse) => {
     setSelectedConnection(conn);
+    setRepoSearchQuery("");
     setSheetOpen(true);
     setIsLoadingRepos(true);
     try {
@@ -318,14 +323,35 @@ export default function GitConnectionsPage() {
                       repositories_count?: number;
                     };
 
+                    const isGitlab = conn.provider.toLowerCase() === "gitlab";
+                    const isBitbucket =
+                      conn.provider.toLowerCase() === "bitbucket";
+                    const isGithub = conn.provider.toLowerCase() === "github";
+
                     return (
                       <TableRow
                         key={conn.id}
-                        className="hover:bg-muted/40 transition-colors"
+                        className={cn(
+                          "hover:bg-muted/40 transition-colors",
+                          isGitlab && "border-l-2 border-l-[#fc6d26]",
+                          isBitbucket && "border-l-2 border-l-[#0052cc]",
+                          isGithub &&
+                            "border-l-2 border-l-zinc-300 dark:border-l-zinc-100",
+                        )}
                       >
                         <TableCell>
                           <div className="flex items-center gap-2.5">
-                            <div className="border-border/80 flex size-7 items-center justify-center rounded-md border bg-zinc-900 text-zinc-200">
+                            <div
+                              className={cn(
+                                "flex size-7 items-center justify-center rounded-md border text-xs shadow-xs",
+                                isGitlab &&
+                                  "border-[#fc6d26]/40 bg-[#fc6d26]/10 text-[#fc6d26]",
+                                isBitbucket &&
+                                  "border-[#0052cc]/40 bg-[#0052cc]/10 text-[#0052cc]",
+                                isGithub &&
+                                  "border-border/80 bg-zinc-900 text-zinc-200",
+                              )}
+                            >
                               {getProviderIcon(conn.provider)}
                             </div>
                             <span className="text-xs font-semibold text-zinc-100 uppercase">
@@ -487,7 +513,20 @@ export default function GitConnectionsPage() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="py-4">
+          <div className="space-y-3 py-4">
+            {repositories.length > 0 && (
+              <div className="relative">
+                <MagnifyingGlass className="text-muted-foreground absolute top-2.5 left-2.5 size-3.5" />
+                <Input
+                  type="text"
+                  value={repoSearchQuery}
+                  onChange={(e) => setRepoSearchQuery(e.target.value)}
+                  placeholder="Filter repositories by name or branch..."
+                  className="h-8 border-zinc-700 bg-zinc-950 pl-8 font-mono text-xs text-zinc-100"
+                />
+              </div>
+            )}
+
             {isLoadingRepos ? (
               <div className="flex items-center justify-center py-12">
                 <BloomSpinner size={24} label="Querying repositories..." />
@@ -499,53 +538,76 @@ export default function GitConnectionsPage() {
                 description="Make sure repository permissions are granted to the Bloom Cloud App."
               />
             ) : (
-              <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-950/60">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Repository</TableHead>
-                        <TableHead className="w-[100px]">Branch</TableHead>
-                        <TableHead className="text-right">Link</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {repositories.map((repo) => (
-                        <TableRow
-                          key={repo.id}
-                          className="hover:bg-muted/40 transition-colors"
-                        >
-                          <TableCell>
-                            <div className="max-w-[200px] truncate font-mono text-xs font-semibold text-zinc-100">
-                              {repo.full_name}
-                            </div>
-                          </TableCell>
+              (() => {
+                const filteredRepos = repositories.filter(
+                  (r) =>
+                    r.full_name
+                      .toLowerCase()
+                      .includes(repoSearchQuery.toLowerCase()) ||
+                    (r.default_branch &&
+                      r.default_branch
+                        .toLowerCase()
+                        .includes(repoSearchQuery.toLowerCase())),
+                );
 
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className="font-mono text-[10px] text-zinc-400"
-                            >
-                              {repo.default_branch || "main"}
-                            </Badge>
-                          </TableCell>
+                if (filteredRepos.length === 0) {
+                  return (
+                    <div className="rounded-md border border-zinc-800 bg-zinc-950/60 p-6 text-center text-xs text-zinc-400">
+                      No repositories match &quot;{repoSearchQuery}&quot;
+                    </div>
+                  );
+                }
 
-                          <TableCell className="text-right">
-                            <Link
-                              href={repo.url}
-                              target="_blank"
-                              className="inline-flex items-center gap-1 font-mono text-xs text-zinc-400 hover:text-zinc-200"
+                return (
+                  <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-950/60">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead>Repository</TableHead>
+                            <TableHead className="w-[100px]">Branch</TableHead>
+                            <TableHead className="text-right">Link</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredRepos.map((repo) => (
+                            <TableRow
+                              key={repo.id}
+                              className="hover:bg-muted/40 transition-colors"
                             >
-                              <span>Open</span>
-                              <ArrowSquareOut className="size-3" />
-                            </Link>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+                              <TableCell>
+                                <div className="max-w-[200px] truncate font-mono text-xs font-semibold text-zinc-100">
+                                  {repo.full_name}
+                                </div>
+                              </TableCell>
+
+                              <TableCell>
+                                <Badge
+                                  variant="outline"
+                                  className="font-mono text-[10px] text-zinc-400"
+                                >
+                                  {repo.default_branch || "main"}
+                                </Badge>
+                              </TableCell>
+
+                              <TableCell className="text-right">
+                                <Link
+                                  href={repo.url}
+                                  target="_blank"
+                                  className="inline-flex items-center gap-1 font-mono text-xs text-zinc-400 hover:text-zinc-200"
+                                >
+                                  <span>Open</span>
+                                  <ArrowSquareOut className="size-3" />
+                                </Link>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </div>
         </SheetContent>

@@ -9,13 +9,15 @@ import {
   Trash,
   Copy,
   Check,
-  Warning,
   LockKey,
   EnvelopeSimple,
   IdentificationBadge,
   ArrowsClockwise,
   UploadSimple,
   X,
+  Eye,
+  EyeSlash,
+  ShieldWarning,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -71,6 +73,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { api } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import { MeResponse, ApiTokenResponse } from "@/lib/schemas/account";
 
 const TIMEZONES = [
@@ -151,6 +154,7 @@ export default function AccountSettingsPage() {
     null,
   );
   const [copiedToken, setCopiedToken] = React.useState(false);
+  const [showTokenMask, setShowTokenMask] = React.useState(false);
 
   // Revoke Token State
   const [tokenToRevoke, setTokenToRevoke] =
@@ -886,53 +890,105 @@ export default function AccountSettingsPage() {
               </DialogFooter>
             </form>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base text-emerald-400">
-                  <Check className="size-4" />
-                  <span>API Token Generated</span>
-                </DialogTitle>
-                <DialogDescription className="text-xs text-zinc-400">
-                  Copy your personal token now. For security purposes, you will
-                  not be able to see it again.
-                </DialogDescription>
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                    <ShieldWarning className="size-4" weight="fill" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-semibold text-zinc-100">
+                      Personal API Token Created
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-zinc-400">
+                      Copy and store this token now — it will never be displayed
+                      again.
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
-              <Alert
-                variant="destructive"
-                className="border-amber-500/40 bg-amber-500/10 text-amber-300"
-              >
-                <Warning className="size-4 text-amber-400" />
-                <AlertTitle className="text-xs font-semibold">
-                  Important Security Notice
-                </AlertTitle>
-                <AlertDescription className="text-[11px] leading-relaxed text-amber-300/90">
-                  This token grants full programmatic access to your Bloom Cloud
-                  resources. Store it in a secure secret manager.
-                </AlertDescription>
-              </Alert>
-
-              <Card className="border-zinc-800 bg-zinc-950 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs break-all text-zinc-100">
-                    {createdRawToken}
-                  </span>
-                  <Button
-                    type="button"
+              {/* Security Card */}
+              <div className="rounded-xl border border-amber-500/40 bg-gradient-to-b from-amber-500/[0.08] via-zinc-950 to-zinc-950 p-4 shadow-[0_0_24px_-8px_rgba(245,158,11,0.2)]">
+                <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-amber-400">
+                    <LockKey className="size-3.5" />
+                    <span>SECRET ACCESS KEY</span>
+                  </div>
+                  <Badge
                     variant="outline"
-                    size="sm"
-                    onClick={() => copyToClipboard(createdRawToken)}
-                    className="h-8 shrink-0 gap-1 text-xs"
+                    className="border-amber-500/40 bg-amber-500/10 font-mono text-[10px] text-amber-300 uppercase"
                   >
-                    {copiedToken ? (
-                      <Check className="size-3 text-emerald-400" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                    <span>{copiedToken ? "Copied" : "Copy"}</span>
-                  </Button>
+                    Single Reveal
+                  </Badge>
                 </div>
-              </Card>
+
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/90 p-3 font-mono text-xs">
+                  <div className="min-w-0 flex-1 break-all">
+                    {showTokenMask ? (
+                      <span className="tracking-widest text-zinc-500 select-none">
+                        ••••••••••••••••••••••••••••••••••••••••
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-zinc-100 selection:bg-amber-500/30">
+                        {createdRawToken}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setShowTokenMask(!showTokenMask)}
+                      className="size-7 text-zinc-400 hover:text-zinc-100"
+                      title={showTokenMask ? "Reveal token" : "Mask token"}
+                    >
+                      {showTokenMask ? (
+                        <Eye className="size-3.5" />
+                      ) : (
+                        <EyeSlash className="size-3.5" />
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        createdRawToken && copyToClipboard(createdRawToken)
+                      }
+                      className={cn(
+                        "h-7 gap-1.5 text-xs font-semibold transition-all",
+                        copiedToken
+                          ? "border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                          : "bg-zinc-100 text-zinc-950 hover:bg-zinc-200",
+                      )}
+                    >
+                      {copiedToken ? (
+                        <>
+                          <Check className="size-3.5 text-emerald-400" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="size-3.5" />
+                          <span>Copy Token</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <p className="mt-2.5 text-[11px] leading-relaxed text-zinc-400">
+                  <span className="font-semibold text-amber-300/90">
+                    Warning:
+                  </span>{" "}
+                  Bloom Cloud encrypts stored credentials with SHA-256 hashes
+                  and cannot recover raw secret tokens. If lost, you will need
+                  to revoke and generate a new key.
+                </p>
+              </div>
 
               <DialogFooter className="border-t border-zinc-800 pt-3">
                 <Button
@@ -940,7 +996,7 @@ export default function AccountSettingsPage() {
                   onClick={handleCloseTokenDialog}
                   className="w-full bg-zinc-100 text-xs font-semibold text-zinc-950 hover:bg-zinc-200"
                 >
-                  Done
+                  I have safely saved this token
                 </Button>
               </DialogFooter>
             </div>

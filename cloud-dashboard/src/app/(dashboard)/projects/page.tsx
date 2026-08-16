@@ -18,6 +18,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -171,16 +177,18 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
             const projectApps = getAppsForProject(project.id);
+            const hasApps = projectApps.length > 0;
             return (
               <Card
                 key={project.id}
-                className="group border-border/80 bg-card hover:border-border hover:bg-muted/10 flex cursor-pointer flex-col justify-between shadow-xs transition-all duration-150"
+                className="group border-border/80 bg-card hover:border-primary/40 relative flex cursor-pointer flex-col justify-between overflow-hidden shadow-xs transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(255,75,139,0.18)]"
                 onClick={() => router.push(`/projects/${project.id}`)}
               >
+                <div className="via-primary/30 absolute top-0 right-0 left-0 h-0.5 bg-gradient-to-r from-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                 <CardHeader className="space-y-2 pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
+                      <div className="border-border/80 bg-muted/50 text-foreground group-hover:border-primary/40 flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors">
                         <FolderSimple className="size-4" weight="bold" />
                       </div>
                       <div className="space-y-0.5">
@@ -193,16 +201,33 @@ export default function ProjectsPage() {
                       </div>
                     </div>
 
-                    <Badge
-                      variant="outline"
-                      className="bg-muted/30 gap-1 font-mono text-[10px]"
-                    >
-                      <DeviceMobile className="size-3" />
-                      <span>
-                        {projectApps.length}{" "}
-                        {projectApps.length === 1 ? "app" : "apps"}
-                      </span>
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {hasApps ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="relative flex size-2">
+                              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 motion-safe:animate-ping" />
+                              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">All apps operational</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="size-2 rounded-full bg-zinc-600" />
+                      )}
+                      <Badge
+                        variant="outline"
+                        className="bg-muted/30 gap-1 font-mono text-[10px]"
+                      >
+                        <DeviceMobile className="size-3" />
+                        <span>
+                          {projectApps.length}{" "}
+                          {projectApps.length === 1 ? "app" : "apps"}
+                        </span>
+                      </Badge>
+                    </div>
                   </div>
 
                   <CardDescription className="text-muted-foreground line-clamp-2 pt-0.5 text-xs leading-relaxed">

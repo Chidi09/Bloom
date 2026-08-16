@@ -69,6 +69,7 @@ import { EnvironmentResponse } from "@/lib/schemas/environment";
 import { useOrganizationStore } from "@/stores/organization-store";
 import { useOrganizationEvents } from "@/lib/hooks/use-organization-events";
 import { OrganizationRoleName, hasRole } from "@/lib/auth/roles";
+import { cn } from "@/lib/utils";
 
 export default function AppBuildsPage() {
   const params = useParams<{ id: string }>();
@@ -301,7 +302,11 @@ export default function AppBuildsPage() {
                         {/* Scannable Surface Layer Row (§22.6) */}
                         <TableRow
                           onClick={() => toggleRow(b.id)}
-                          className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
+                          className={cn(
+                            "hover:bg-muted/40 group cursor-pointer transition-colors duration-150",
+                            isRunningOrQueued &&
+                              "border-l-2 border-l-sky-500 bg-sky-500/[0.04]",
+                          )}
                         >
                           <TableCell className="p-2 text-center">
                             {isExpanded ? (

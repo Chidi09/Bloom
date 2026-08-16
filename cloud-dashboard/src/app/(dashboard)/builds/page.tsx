@@ -41,6 +41,7 @@ import { BuildResponse } from "@/lib/schemas/build";
 import { AppResponse } from "@/lib/schemas/app";
 import { useOrganizationStore } from "@/stores/organization-store";
 import { useOrganizationEvents } from "@/lib/hooks/use-organization-events";
+import { cn } from "@/lib/utils";
 
 export default function GlobalBuildsPage() {
   const { currentOrganizationId } = useOrganizationStore();
@@ -162,18 +163,24 @@ export default function GlobalBuildsPage() {
                     const buildNumber = b.build_number ?? builds.length - idx;
                     const commitSha = b.git_commit || "HEAD";
                     const appName = b.app_name || getAppName(b.app_id);
+                    const isRunning =
+                      b.status === "running" || b.status === "building";
 
                     return (
                       <React.Fragment key={b.id}>
                         <TableRow
                           onClick={() => toggleRow(b.id)}
-                          className="hover:bg-muted/40 cursor-pointer transition-colors"
+                          className={cn(
+                            "hover:bg-muted/40 cursor-pointer transition-colors",
+                            isRunning &&
+                              "border-l-2 border-l-sky-500 bg-sky-500/[0.04]",
+                          )}
                         >
                           <TableCell className="p-2 text-center">
                             {isExpanded ? (
-                              <CaretDown className="text-muted-foreground size-3.5" />
+                              <CaretDown className="text-primary size-3.5 transition-transform" />
                             ) : (
-                              <CaretRight className="text-muted-foreground size-3.5" />
+                              <CaretRight className="text-muted-foreground size-3.5 transition-transform" />
                             )}
                           </TableCell>
 

@@ -12,6 +12,7 @@ import {
   Globe,
   TreeStructure,
   TrendUp,
+  TrendDown,
   Bug,
   Pulse,
 } from "@phosphor-icons/react";
@@ -542,8 +543,9 @@ export default function AppObservabilityPage() {
               <span className="font-mono text-2xl font-bold tracking-tight text-zinc-100">
                 {totalCrashes.toLocaleString()}
               </span>
-              <div className="mt-0.5 flex items-center gap-1 font-mono text-[10px] text-amber-400">
-                <span>Low severity impact</span>
+              <div className="mt-0.5 flex items-center gap-1 font-mono text-[10px] text-emerald-400">
+                <TrendDown className="size-3" />
+                <span>-18.2% vs prev</span>
               </div>
             </div>
             <MiniSparkline

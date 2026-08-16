@@ -13,8 +13,10 @@ import {
   FileCode,
   DotsThreeVertical,
   PencilSimple,
+  ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,17 +253,16 @@ export default function AppSecretsPage() {
     }
   };
 
-  const handleRollback = async () => {
+  const handleRollback = async (versionToRestore?: number) => {
     if (!targetSecret) return;
 
+    const v = versionToRestore ?? rollbackVersion;
     setIsRollingBack(true);
     try {
       await api.post(`/secrets/${targetSecret.id}/rollback`, {
-        version: rollbackVersion,
+        version: v,
       });
-      toast.success(
-        `Secret "${targetSecret.key}" restored to version v${rollbackVersion}`,
-      );
+      toast.success(`Secret "${targetSecret.key}" restored to version v${v}`);
       setRollbackOpen(false);
       setTargetSecret(null);
       await fetchSecrets(selectedEnvId);
@@ -701,48 +702,102 @@ export default function AppSecretsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Rollback Dialog */}
+      {/* Rollback & Version History Timeline Dialog */}
       <Dialog open={rollbackOpen} onOpenChange={setRollbackOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rollback Secret</DialogTitle>
-            <DialogDescription>
-              Restore previous configuration for{" "}
-              <strong className="text-foreground">{targetSecret?.key}</strong>.
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ClockCounterClockwise className="text-primary size-4" />
+              <span>Version History & Rollback</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Chronological immutable versions for secret{" "}
+              <strong className="text-foreground font-mono">
+                {targetSecret?.key}
+              </strong>
+              .
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-3">
-            <Label htmlFor="target-ver">
-              Target Version (Current: v{targetSecret?.version})
-            </Label>
-            <Input
-              id="target-ver"
-              type="number"
-              min={1}
-              max={(targetSecret?.version ?? 2) - 1}
-              value={rollbackVersion}
-              onChange={(e) =>
-                setRollbackVersion(parseInt(e.target.value, 10) || 1)
-              }
-              className="font-mono text-xs"
-            />
+          <div className="space-y-4 py-2">
+            {targetSecret && (
+              <div className="before:bg-border/80 relative space-y-4 pl-6 before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5">
+                {Array.from(
+                  { length: targetSecret.version },
+                  (_, i) => targetSecret.version - i,
+                ).map((ver) => {
+                  const isCurrent = ver === targetSecret.version;
+                  return (
+                    <div
+                      key={ver}
+                      className="relative flex items-start justify-between gap-3"
+                    >
+                      {/* Timeline Node */}
+                      <div
+                        className={cn(
+                          "ring-background absolute top-1 -left-6 flex size-3 items-center justify-center rounded-full ring-4",
+                          isCurrent
+                            ? "bg-primary"
+                            : "border-border/80 bg-muted-foreground/30 border",
+                        )}
+                      />
+
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={isCurrent ? "default" : "outline"}
+                            className={cn(
+                              "px-1.5 py-0 font-mono text-[10px]",
+                              isCurrent
+                                ? "bg-primary text-primary-foreground font-semibold"
+                                : "text-muted-foreground border-border/80",
+                            )}
+                          >
+                            v{ver}
+                          </Badge>
+                          {isCurrent && (
+                            <span className="text-[11px] font-medium text-emerald-400">
+                              Active Version
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-muted-foreground text-[11px]">
+                          {isCurrent
+                            ? `Updated ${new Date(targetSecret.updated_at).toLocaleDateString()}`
+                            : `Historical snapshot`}
+                        </p>
+                      </div>
+
+                      {!isCurrent && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isRollingBack}
+                          onClick={() => void handleRollback(ver)}
+                          className="h-7 shrink-0 gap-1.5 text-xs hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                        >
+                          <ArrowCounterClockwise className="size-3" />
+                          <span>Restore</span>
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-border/60 border-t pt-3">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => setRollbackOpen(false)}
               disabled={isRollingBack}
+              className="w-full text-xs sm:w-auto"
             >
-              Cancel
-            </Button>
-            <Button onClick={handleRollback} disabled={isRollingBack}>
-              {isRollingBack ? (
-                <BloomSpinner size={14} speed="fast" className="mr-2" />
-              ) : null}
-              Rollback to v{rollbackVersion}
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

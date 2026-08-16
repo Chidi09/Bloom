@@ -13,6 +13,8 @@ import {
   Pulse,
   DeviceMobile,
   ArrowsClockwise,
+  Gear,
+  Hammer,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -20,6 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Card,
   CardContent,
@@ -267,78 +275,120 @@ export default function ProjectDetailPage() {
           ) : (
             <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[260px]">Application</TableHead>
-                      <TableHead>Branch</TableHead>
-                      <TableHead>Repository</TableHead>
-                      <TableHead>Updated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {apps.map((app) => (
-                      <TableRow
-                        key={app.id}
-                        onClick={() => router.push(`/apps/${app.id}/builds`)}
-                        className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
-                              <PlatformIcon platform="all" size="sm" />
-                            </div>
-                            <div className="space-y-0.5">
-                              <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
-                                {app.name}
-                              </span>
-                              <span className="text-muted-foreground block font-mono text-[10px]">
-                                {app.slug}
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
-                          >
-                            <GitBranch className="size-3" />
-                            <span>{app.default_branch || "main"}</span>
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell>
-                          {app.repository_url ? (
-                            <Link
-                              href={app.repository_url}
-                              target="_blank"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
-                            >
-                              <span className="max-w-[150px] truncate">
-                                {app.repository_url.replace(
-                                  "https://github.com/",
-                                  "",
-                                )}
-                              </span>
-                              <ArrowSquareOut className="size-3 shrink-0" />
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground font-mono text-xs italic">
-                              None
-                            </span>
-                          )}
-                        </TableCell>
-
-                        <TableCell className="text-muted-foreground font-mono text-xs">
-                          {new Date(app.updated_at).toLocaleDateString()}
-                        </TableCell>
+                <TooltipProvider>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[240px]">Application</TableHead>
+                        <TableHead>Branch</TableHead>
+                        <TableHead>Repository</TableHead>
+                        <TableHead>Updated</TableHead>
+                        <TableHead className="w-[100px] text-right">
+                          Quick Actions
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {apps.map((app) => (
+                        <TableRow
+                          key={app.id}
+                          onClick={() => router.push(`/apps/${app.id}/builds`)}
+                          className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="border-border/80 bg-muted/50 text-foreground group-hover:border-primary/40 flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors">
+                                <PlatformIcon platform="all" size="sm" />
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
+                                  {app.name}
+                                </span>
+                                <span className="text-muted-foreground block font-mono text-[10px]">
+                                  {app.slug}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge
+                              variant="secondary"
+                              className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
+                            >
+                              <GitBranch className="size-3" />
+                              <span>{app.default_branch || "main"}</span>
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell>
+                            {app.repository_url ? (
+                              <Link
+                                href={app.repository_url}
+                                target="_blank"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
+                              >
+                                <span className="max-w-[140px] truncate">
+                                  {app.repository_url.replace(
+                                    "https://github.com/",
+                                    "",
+                                  )}
+                                </span>
+                                <ArrowSquareOut className="size-3 shrink-0" />
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground font-mono text-xs italic">
+                                None
+                              </span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="text-muted-foreground font-mono text-xs">
+                            {new Date(app.updated_at).toLocaleDateString()}
+                          </TableCell>
+
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                              <Tooltip>
+                                <TooltipTrigger
+                                  className="text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md p-0"
+                                  onClick={() =>
+                                    router.push(`/apps/${app.id}/builds`)
+                                  }
+                                >
+                                  <Hammer className="size-3.5" />
+                                  <span className="sr-only">Builds</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">Builds & Pipeline</p>
+                                </TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger
+                                  className="text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md p-0"
+                                  onClick={() =>
+                                    router.push(`/apps/${app.id}/settings`)
+                                  }
+                                >
+                                  <Gear className="size-3.5" />
+                                  <span className="sr-only">App Settings</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">App Settings</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TooltipProvider>
               </div>
             </div>
           )}
