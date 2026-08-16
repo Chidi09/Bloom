@@ -66,6 +66,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PlatformIcon } from "@/components/status/platform-icon";
 import { StatusBadge } from "@/components/status/status-badge";
+import { DeviceFrame } from "@/components/status/device-frame";
 import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
 import { DeploymentResponse } from "@/lib/schemas/deployment";
@@ -304,6 +305,7 @@ export default function AppDeploymentsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[70px]">Preview</TableHead>
                   <TableHead className="w-[110px]">Platform</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Release</TableHead>
@@ -326,6 +328,13 @@ export default function AppDeploymentsPage() {
                       key={dep.id}
                       className="hover:bg-muted/40 group transition-colors duration-150"
                     >
+                      <TableCell className="py-2.5">
+                        <DeviceFrame
+                          platform={dep.platform}
+                          imageUrl={dep.preview_image_url}
+                        />
+                      </TableCell>
+
                       <TableCell>
                         <div className="flex items-center gap-1.5 font-mono text-xs uppercase">
                           <PlatformIcon platform={dep.platform} size="sm" />

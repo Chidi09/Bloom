@@ -158,6 +158,7 @@ export interface MockDeployment {
     | "rolled_back";
   external_id?: string | null;
   external_url?: string | null;
+  preview_image_url?: string | null;
   error_message?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
@@ -1045,6 +1046,7 @@ class MockDataStore {
       external_id: "tf_build_142_99",
       external_url:
         "https://appstoreconnect.apple.com/apps/1684920/testflight/ios",
+      preview_image_url: "https://picsum.photos/seed/bloom-dep-ios-142/400/800",
       error_message: null,
       started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
       finished_at: new Date(
@@ -1071,6 +1073,8 @@ class MockDataStore {
       external_id: "gp_track_internal_142",
       external_url:
         "https://play.google.com/console/developers/app/internal-testing",
+      preview_image_url:
+        "https://picsum.photos/seed/bloom-dep-android-142/400/800",
       error_message: null,
       started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
       finished_at: new Date(
@@ -1096,6 +1100,7 @@ class MockDataStore {
       status: "live",
       external_id: "wh_deploy_wallet_prod",
       external_url: "https://wallet.bloom.dev",
+      preview_image_url: "https://picsum.photos/seed/bloom-dep-web-142/800/500",
       error_message: null,
       started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
       finished_at: new Date(
@@ -1120,6 +1125,7 @@ class MockDataStore {
       external_id: "tf_build_143_01",
       external_url:
         "https://appstoreconnect.apple.com/apps/1684920/testflight/ios",
+      preview_image_url: null,
       error_message: null,
       started_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
       finished_at: null,
@@ -2105,6 +2111,7 @@ class MockDataStore {
           : platform === "ios"
             ? "https://appstoreconnect.apple.com"
             : "https://play.google.com/console",
+      preview_image_url: null,
       error_message: null,
       started_at: new Date().toISOString(),
       finished_at: null,

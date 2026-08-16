@@ -20,6 +20,7 @@ export const deploymentResponseSchema = z.object({
   ]),
   external_id: z.string().optional().nullable(),
   external_url: z.string().optional().nullable(),
+  preview_image_url: z.string().optional().nullable(),
   error_message: z.string().optional().nullable(),
   started_at: z.string().optional().nullable(),
   finished_at: z.string().optional().nullable(),
