@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   UserPlus,
   Trash,
@@ -93,6 +93,9 @@ const ROLE_OPTIONS: OrganizationRoleName[] = [
 export default function OrganizationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab =
+    searchParams.get("tab") === "billing" ? "billing" : "general";
   const orgId = params.id;
   const { currentOrganizationId, setCurrentOrganizationId } =
     useOrganizationStore();
@@ -322,7 +325,7 @@ export default function OrganizationDetailPage() {
         }
       />
 
-      <Tabs defaultValue="general" className="w-full space-y-5">
+      <Tabs defaultValue={initialTab} className="w-full space-y-5">
         <TabsList className="bg-muted/40 border-border/80 border p-1">
           <TabsTrigger value="general" className="text-xs transition-colors">
             General

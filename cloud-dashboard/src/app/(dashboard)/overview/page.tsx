@@ -328,13 +328,13 @@ export default function OverviewPage() {
               className="w-48 border-zinc-800 bg-zinc-900 text-zinc-200"
             >
               <DropdownMenuItem
-                onClick={() => router.push("/onboarding")}
+                onClick={() => router.push("/onboarding?step=app")}
                 className="cursor-pointer text-xs font-medium text-zinc-100"
               >
                 + New Project
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => router.push("/onboarding")}
+                onClick={() => router.push("/onboarding?step=app")}
                 className="cursor-pointer text-xs"
               >
                 + New Application
@@ -511,7 +511,11 @@ export default function OverviewPage() {
               <div className="flex justify-center border-t border-zinc-800/60 pt-2">
                 <button
                   type="button"
-                  onClick={() => router.push("/usage")}
+                  onClick={() =>
+                    router.push(
+                      `/organizations/${currentOrganizationId}?tab=billing`,
+                    )
+                  }
                   className="flex cursor-pointer items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300"
                 >
                   <span>View detailed usage breakdown</span>
@@ -607,7 +611,10 @@ export default function OverviewPage() {
               {apps.length === 0 ? (
                 <>
                   <p className="mb-3">No applications yet.</p>
-                  <Button size="sm" onClick={() => router.push("/onboarding")}>
+                  <Button
+                    size="sm"
+                    onClick={() => router.push("/onboarding?step=app")}
+                  >
                     Create your first app
                   </Button>
                 </>

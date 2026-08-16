@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import {
   Buildings,
@@ -80,7 +80,15 @@ type OsChoice = "macos" | "windows";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3>(1);
+  const searchParams = useSearchParams();
+  const { currentOrganizationId } = useOrganizationStore();
+  // Skip workspace creation when an org already exists and the caller
+  // explicitly wants to go straight to app setup (e.g. "New Application").
+  const skipToAppSetup =
+    searchParams.get("step") === "app" && !!currentOrganizationId;
+  const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3>(
+    skipToAppSetup ? 2 : 1,
+  );
 
   // Step 1 state (Organization)
   const [orgName, setOrgName] = React.useState("");
