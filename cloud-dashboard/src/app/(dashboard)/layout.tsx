@@ -76,6 +76,104 @@ export default function DashboardLayout({
   const { setAccessToken } = useAuthStore();
   const { currentOrganizationId } = useOrganizationStore();
   const [upgradeModalOpen, setUpgradeModalOpen] = React.useState(false);
+  const [buildBadge, setBuildBadge] = React.useState<{
+    count: number;
+    color: "red" | "yellow";
+  } | null>(null);
+  const [appCount, setAppCount] = React.useState<number | null>(null);
+  const [projectCount, setProjectCount] = React.useState<number | null>(null);
+  const [credentialBadge, setCredentialBadge] = React.useState<{
+    count: number;
+    color: "red" | "yellow";
+  } | null>(null);
+
+  React.useEffect(() => {
+    const run = async () => {
+      if (!currentOrganizationId) {
+        setBuildBadge(null);
+        return;
+      }
+      try {
+        const res = await api.get<{ results: { status: string }[] }>("/builds");
+        const builds = res?.results ?? [];
+        const failed = builds.filter((b) => b.status === "failed").length;
+        const active = builds.filter((b) =>
+          ["pending", "queued", "running"].includes(b.status),
+        ).length;
+        const attention = failed + active;
+        if (attention === 0) {
+          setBuildBadge(null);
+          return;
+        }
+        setBuildBadge({
+          count: attention,
+          color: failed > active ? "red" : "yellow",
+        });
+      } catch {
+        setBuildBadge(null);
+      }
+    };
+    void run();
+  }, [currentOrganizationId]);
+
+  React.useEffect(() => {
+    const run = async () => {
+      if (!currentOrganizationId) {
+        setAppCount(null);
+        setProjectCount(null);
+        return;
+      }
+      try {
+        const [appsRes, projectsRes] = await Promise.all([
+          api.get<{ results: unknown[] }>("/apps"),
+          api.get<{ results: unknown[] }>("/projects"),
+        ]);
+        setAppCount(appsRes?.results?.length ?? 0);
+        setProjectCount(projectsRes?.results?.length ?? 0);
+      } catch {
+        setAppCount(null);
+        setProjectCount(null);
+      }
+    };
+    void run();
+  }, [currentOrganizationId]);
+
+  React.useEffect(() => {
+    const run = async () => {
+      if (!currentOrganizationId) {
+        setCredentialBadge(null);
+        return;
+      }
+      try {
+        const res = await api.get<{
+          results: { expires_at?: string | null }[];
+        }>("/credentials");
+        const credentials = res?.results ?? [];
+        const now = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        let expired = 0;
+        let expiringSoon = 0;
+        for (const c of credentials) {
+          if (!c.expires_at) continue;
+          const diff = new Date(c.expires_at).getTime() - now;
+          if (diff <= 0) expired += 1;
+          else if (diff <= thirtyDaysMs) expiringSoon += 1;
+        }
+        const attention = expired + expiringSoon;
+        if (attention === 0) {
+          setCredentialBadge(null);
+          return;
+        }
+        setCredentialBadge({
+          count: attention,
+          color: expired > 0 ? "red" : "yellow",
+        });
+      } catch {
+        setCredentialBadge(null);
+      }
+    };
+    void run();
+  }, [currentOrganizationId]);
 
   const [orgs, setOrgs] = React.useState<
     Array<{ id: string; name: string; slug: string; plan?: string }>
@@ -139,7 +237,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#000000] font-sans text-zinc-100 antialiased">
+    <div className="flex h-screen overflow-hidden bg-[#000000] font-sans text-zinc-100 antialiased">
       {/* Vercel-style Left Navigation Sidebar */}
       <aside className="border-border/60 flex w-60 shrink-0 flex-col border-r bg-[#09090b]">
         {/* Workspace Selector */}
@@ -239,11 +337,42 @@ export default function DashboardLayout({
                     />
                     <span>{item.label}</span>
                   </div>
-                  {item.badge && (
-                    <span className="py-0.2 rounded bg-zinc-800 px-1.5 font-mono text-[9px] text-zinc-400">
-                      {item.badge}
+                  {item.href === "/builds" && buildBadge && (
+                    <span
+                      className={`py-0.2 rounded px-1.5 font-mono text-[9px] font-semibold ${
+                        buildBadge.color === "red"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-amber-500/15 text-amber-400"
+                      }`}
+                    >
+                      {buildBadge.count}
                     </span>
                   )}
+                  {item.href === "/credentials" && credentialBadge && (
+                    <span
+                      className={`py-0.2 rounded px-1.5 font-mono text-[9px] font-semibold ${
+                        credentialBadge.color === "red"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-amber-500/15 text-amber-400"
+                      }`}
+                    >
+                      {credentialBadge.count}
+                    </span>
+                  )}
+                  {item.href === "/apps" &&
+                    appCount !== null &&
+                    appCount > 0 && (
+                      <span className="py-0.2 rounded bg-zinc-800 px-1.5 font-mono text-[9px] text-zinc-400">
+                        {appCount}
+                      </span>
+                    )}
+                  {item.href === "/projects" &&
+                    projectCount !== null &&
+                    projectCount > 0 && (
+                      <span className="py-0.2 rounded bg-zinc-800 px-1.5 font-mono text-[9px] text-zinc-400">
+                        {projectCount}
+                      </span>
+                    )}
                 </Link>
               );
             })}
