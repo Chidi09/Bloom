@@ -1542,6 +1542,55 @@ export const handlers = [
     },
   ),
 
+  http.get(`${API}/marketplace/seller/account`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const acct = mockStore.getSellerAccount(orgId);
+    if (!acct) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "No seller account found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(acct);
+  }),
+
+  http.post(`${API}/marketplace/seller/onboarding`, async ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    let body: { refresh_url?: string; return_url?: string } = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const link = mockStore.createSellerOnboarding(
+      orgId,
+      body.refresh_url || "",
+      body.return_url || "",
+    );
+    return HttpResponse.json(link);
+  }),
+
+  http.post(`${API}/marketplace/seller/refresh`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const acct = mockStore.refreshSellerStatus(orgId);
+    if (!acct) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "No seller account found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(acct);
+  }),
+
   // Templates (Org-scoped)
   http.get(`${API}/templates`, ({ request }) => {
     const orgId =

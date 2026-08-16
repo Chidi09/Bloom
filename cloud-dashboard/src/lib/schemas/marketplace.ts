@@ -177,3 +177,25 @@ export const reviewReportResponseSchema = z.object({
   created_at: z.string(),
 });
 export type ReviewReportResponse = z.infer<typeof reviewReportResponseSchema>;
+
+export const sellerAccountResponseSchema = z.object({
+  id: z.string(),
+  organization_id: z.string(),
+  stripe_account_id: z.string(),
+  payouts_enabled: z.boolean(),
+  charges_enabled: z.boolean(),
+  details_submitted: z.boolean(),
+  default_currency: z.string().nullable().optional(),
+  last_payouts_checked_at: z.string().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type SellerAccountResponse = z.infer<typeof sellerAccountResponseSchema>;
+
+export const sellerOnboardingLinkResponseSchema = z.object({
+  url: z.string(),
+  expires_at: z.number(),
+});
+export type SellerOnboardingLinkResponse = z.infer<
+  typeof sellerOnboardingLinkResponseSchema
+>;

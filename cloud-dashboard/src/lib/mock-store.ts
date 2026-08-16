@@ -410,6 +410,19 @@ export interface MockSubscription {
   updated_at: string;
 }
 
+export interface MockSellerAccount {
+  id: string;
+  organization_id: string;
+  stripe_account_id: string;
+  payouts_enabled: boolean;
+  charges_enabled: boolean;
+  details_submitted: boolean;
+  default_currency: string | null;
+  last_payouts_checked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MockInvoice {
   id: string;
   subscription_id: string;
@@ -3533,6 +3546,8 @@ Expected: found 1 matching candidate widget
     },
   ];
 
+  public sellerAccounts: Record<string, MockSellerAccount> = {};
+
   public subscriptions: Record<string, MockSubscription> = {
     "00000000-0000-0000-0000-000000000010": {
       id: "sub_001",
@@ -3652,6 +3667,47 @@ Expected: found 1 matching candidate widget
     sub.status = immediately ? "cancelled" : "active";
     sub.updated_at = new Date().toISOString();
     return sub;
+  }
+
+  public getSellerAccount(orgId: string): MockSellerAccount | null {
+    return this.sellerAccounts[orgId] || null;
+  }
+
+  public createSellerOnboarding(
+    orgId: string,
+    _refreshUrl: string,
+    _returnUrl: string,
+  ): { url: string; expires_at: number } {
+    if (!this.sellerAccounts[orgId]) {
+      this.sellerAccounts[orgId] = {
+        id: `seller_${Math.random().toString(16).slice(2, 8)}`,
+        organization_id: orgId,
+        stripe_account_id: `acct_${Math.random().toString(16).slice(2, 12)}`,
+        payouts_enabled: false,
+        charges_enabled: false,
+        details_submitted: false,
+        default_currency: null,
+        last_payouts_checked_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+    return {
+      url: `https://connect.stripe.com/setup/s/${Math.random().toString(16).slice(2, 14)}`,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    };
+  }
+
+  public refreshSellerStatus(orgId: string): MockSellerAccount | null {
+    const acct = this.sellerAccounts[orgId];
+    if (!acct) return null;
+    acct.details_submitted = true;
+    acct.charges_enabled = true;
+    acct.payouts_enabled = true;
+    acct.default_currency = "usd";
+    acct.last_payouts_checked_at = new Date().toISOString();
+    acct.updated_at = new Date().toISOString();
+    return acct;
   }
 
   public getInvoices(orgId: string): MockInvoice[] {

@@ -52,6 +52,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { StatusBadge } from "@/components/status/status-badge";
+import { SellerOnboardingCard } from "@/components/billing/seller-onboarding-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
@@ -252,6 +253,8 @@ export default function OrgTemplatesManagementPage() {
           </div>
         }
       />
+
+      <SellerOnboardingCard />
 
       {error && (
         <Alert variant="destructive">

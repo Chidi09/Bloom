@@ -1615,6 +1615,43 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         return NextResponse.json(res);
       }
     }
+
+    if (path[1] === "seller") {
+      if (req.method === "GET" && path[2] === "account") {
+        const acct = mockStore.getSellerAccount(orgHeaderId);
+        if (!acct) {
+          return NextResponse.json(
+            { error: { status: 404, message: "No seller account found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(acct);
+      }
+      if (req.method === "POST" && path[2] === "onboarding") {
+        let body: { refresh_url?: string; return_url?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const link = mockStore.createSellerOnboarding(
+          orgHeaderId,
+          body.refresh_url || "",
+          body.return_url || "",
+        );
+        return NextResponse.json(link);
+      }
+      if (req.method === "POST" && path[2] === "refresh") {
+        const acct = mockStore.refreshSellerStatus(orgHeaderId);
+        if (!acct) {
+          return NextResponse.json(
+            { error: { status: 404, message: "No seller account found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(acct);
+      }
+    }
   }
 
   // Templates (Organization-scoped) endpoints
