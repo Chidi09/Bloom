@@ -34,6 +34,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { StatusBadge } from "@/components/status/status-badge";
 import { api } from "@/lib/api/client";
 import { OrganizationResponse } from "@/lib/schemas/organization";
 import { useOrganizationStore } from "@/stores/organization-store";
@@ -162,96 +163,96 @@ export default function OrganizationsPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[320px]">Organization</TableHead>
-                <TableHead>Your Role</TableHead>
-                <TableHead>Plan Tier</TableHead>
-                <TableHead>Created Date</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orgs.map((org) => {
-                const isCurrent = org.id === currentOrganizationId;
-                return (
-                  <TableRow
-                    key={org.id}
-                    onClick={() => router.push(`/organizations/${org.id}`)}
-                    className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
-                  >
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-semibold shadow-xs">
-                          {org.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-foreground group-hover:text-primary font-semibold transition-colors">
-                              {org.name}
-                            </span>
-                            {isCurrent && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-primary/10 text-primary border-primary/20 px-1.5 py-0 font-mono text-[10px]"
-                              >
-                                Active
-                              </Badge>
-                            )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[320px]">Organization</TableHead>
+                  <TableHead>Your Role</TableHead>
+                  <TableHead>Plan Tier</TableHead>
+                  <TableHead>Created Date</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orgs.map((org) => {
+                  const isCurrent = org.id === currentOrganizationId;
+                  return (
+                    <TableRow
+                      key={org.id}
+                      onClick={() => router.push(`/organizations/${org.id}`)}
+                      className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-semibold shadow-xs">
+                            {org.name.slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="text-muted-foreground block font-mono text-xs">
-                            {org.slug}
-                          </span>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-foreground group-hover:text-primary font-semibold transition-colors">
+                                {org.name}
+                              </span>
+                              {isCurrent && (
+                                <StatusBadge status="active" size="sm" />
+                              )}
+                            </div>
+                            <span className="text-muted-foreground block font-mono text-xs">
+                              {org.slug}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="font-mono text-xs capitalize"
-                      >
-                        {org.role}
-                      </Badge>
-                    </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-xs capitalize"
+                        >
+                          {org.role}
+                        </Badge>
+                      </TableCell>
 
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="bg-muted/60 text-foreground border-border/60 font-mono text-xs capitalize"
-                      >
-                        {org.plan}
-                      </Badge>
-                    </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className="bg-muted/60 text-foreground border-border/60 font-mono text-xs capitalize"
+                        >
+                          {org.plan}
+                        </Badge>
+                      </TableCell>
 
-                    <TableCell className="text-muted-foreground font-mono text-xs">
-                      {new Date(org.created_at).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </TableCell>
+                      <TableCell className="text-muted-foreground font-mono text-xs">
+                        {new Date(org.created_at).toLocaleDateString(
+                          undefined,
+                          {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          },
+                        )}
+                      </TableCell>
 
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground group-hover:text-foreground hover:bg-muted/80 h-7 gap-1 text-xs transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/organizations/${org.id}`);
-                        }}
-                      >
-                        <span>Manage</span>
-                        <ArrowRight className="size-3 transition-transform duration-150 group-hover:translate-x-0.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground group-hover:text-foreground hover:bg-muted/80 h-7 gap-1 text-xs transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/organizations/${org.id}`);
+                          }}
+                        >
+                          <span>Manage</span>
+                          <ArrowRight className="size-3 transition-transform duration-150 group-hover:translate-x-0.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

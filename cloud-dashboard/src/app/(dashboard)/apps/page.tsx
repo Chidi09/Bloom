@@ -308,90 +308,92 @@ export default function AppsPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[300px]">Application</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead>Repository</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredApps.map((app) => (
-                <TableRow
-                  key={app.id}
-                  onClick={() => router.push(`/apps/${app.id}/builds`)}
-                  className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
-                        <PlatformIcon platform="all" size="md" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
-                          {app.name}
-                        </span>
-                        <span className="text-muted-foreground block font-mono text-[10px]">
-                          {app.slug}
-                        </span>
-                      </div>
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="text-muted-foreground text-xs">
-                    <span className="text-foreground font-medium">
-                      {getProjectName(app.project_id)}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
-                    >
-                      <GitBranch className="size-3" />
-                      <span>{app.default_branch || "main"}</span>
-                    </Badge>
-                  </TableCell>
-
-                  <TableCell>
-                    {app.repository_url ? (
-                      <Link
-                        href={app.repository_url}
-                        target="_blank"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
-                      >
-                        <span className="max-w-[150px] truncate">
-                          {app.repository_url.replace(
-                            "https://github.com/",
-                            "",
-                          )}
-                        </span>
-                        <ArrowSquareOut className="size-3 shrink-0" />
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground font-mono text-xs italic">
-                        None
-                      </span>
-                    )}
-                  </TableCell>
-
-                  <TableCell>
-                    <StatusBadge status="healthy" size="sm" />
-                  </TableCell>
-
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {new Date(app.updated_at).toLocaleDateString()}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[300px]">Application</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Repository</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredApps.map((app) => (
+                  <TableRow
+                    key={app.id}
+                    onClick={() => router.push(`/apps/${app.id}/builds`)}
+                    className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="border-border/80 bg-muted/50 text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs">
+                          <PlatformIcon platform="all" size="md" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
+                            {app.name}
+                          </span>
+                          <span className="text-muted-foreground block font-mono text-[10px]">
+                            {app.slug}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground text-xs">
+                      <span className="text-foreground font-medium">
+                        {getProjectName(app.project_id)}
+                      </span>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
+                      >
+                        <GitBranch className="size-3" />
+                        <span>{app.default_branch || "main"}</span>
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      {app.repository_url ? (
+                        <Link
+                          href={app.repository_url}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs transition-colors"
+                        >
+                          <span className="max-w-[150px] truncate">
+                            {app.repository_url.replace(
+                              "https://github.com/",
+                              "",
+                            )}
+                          </span>
+                          <ArrowSquareOut className="size-3 shrink-0" />
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground font-mono text-xs italic">
+                          None
+                        </span>
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      <StatusBadge status="healthy" size="sm" />
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground font-mono text-xs">
+                      {new Date(app.updated_at).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

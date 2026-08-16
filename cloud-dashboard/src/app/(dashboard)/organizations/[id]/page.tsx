@@ -257,7 +257,7 @@ export default function OrganizationDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex max-w-5xl items-center justify-center py-12">
+      <div className="mx-auto flex max-w-6xl items-center justify-center py-12">
         <BloomSpinner size={32} label="Loading organization..." />
       </div>
     );
@@ -265,7 +265,7 @@ export default function OrganizationDetailPage() {
 
   if (error || !org) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4">
+      <div className="mx-auto max-w-6xl space-y-4">
         <Alert variant="destructive">
           <AlertTitle>Failed to load organization</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
@@ -287,7 +287,7 @@ export default function OrganizationDetailPage() {
   const canDeleteOrg = hasRole(currentUserRole, "Owner");
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         breadcrumbs={[
           { label: "Organizations", href: "/organizations" },
@@ -427,120 +427,124 @@ export default function OrganizationDetailPage() {
           </div>
 
           <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[300px]">Member</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Joined Date</TableHead>
-                  {canManageMembers && (
-                    <TableHead className="text-right">Actions</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((member) => {
-                  const targetRole = member.role as OrganizationRoleName;
-                  // Hard-hide per §21.5 if current user's role is <= target role
-                  const canEditThisMember =
-                    canManageMembers &&
-                    OrganizationRole[currentUserRole] >
-                      (OrganizationRole[targetRole] || 0);
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[300px]">Member</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Joined Date</TableHead>
+                    {canManageMembers && (
+                      <TableHead className="text-right">Actions</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member) => {
+                    const targetRole = member.role as OrganizationRoleName;
+                    // Hard-hide per §21.5 if current user's role is <= target role
+                    const canEditThisMember =
+                      canManageMembers &&
+                      OrganizationRole[currentUserRole] >
+                        (OrganizationRole[targetRole] || 0);
 
-                  return (
-                    <TableRow
-                      key={member.id}
-                      className="hover:bg-muted/40 transition-colors duration-150"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <UserAvatar
-                            name={member.username || member.email}
-                            size={28}
-                          />
-                          <div>
-                            <p className="text-foreground text-xs font-semibold">
-                              {member.username}
-                            </p>
-                            <span className="text-muted-foreground font-mono text-[10px]">
-                              {member.user_id}
-                            </span>
+                    return (
+                      <TableRow
+                        key={member.id}
+                        className="hover:bg-muted/40 transition-colors duration-150"
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <UserAvatar
+                              name={member.username || member.email}
+                              size={28}
+                            />
+                            <div>
+                              <p className="text-foreground text-xs font-semibold">
+                                {member.username}
+                              </p>
+                              <span className="text-muted-foreground font-mono text-[10px]">
+                                {member.user_id}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="text-muted-foreground font-mono text-xs">
-                        {member.email}
-                      </TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {member.email}
+                        </TableCell>
 
-                      <TableCell>
-                        {canEditThisMember ? (
-                          <Select
-                            defaultValue={member.role}
-                            onValueChange={(val) => {
-                              if (val) void handleChangeRole(member.id, val);
-                            }}
-                          >
-                            <SelectTrigger className="h-7 w-32 font-mono text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ROLE_OPTIONS.map((r) => {
-                                // Can only assign roles lower than or equal to current role
-                                if (
-                                  OrganizationRole[r] >=
-                                    OrganizationRole[currentUserRole] &&
-                                  currentUserRole !== "Owner"
-                                ) {
-                                  return null;
-                                }
-                                return (
-                                  <SelectItem
-                                    key={r}
-                                    value={r}
-                                    className="font-mono text-xs"
-                                  >
-                                    {r}
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-xs capitalize"
-                          >
-                            {member.role}
-                          </Badge>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="text-muted-foreground font-mono text-xs">
-                        {new Date(member.created_at).toLocaleDateString()}
-                      </TableCell>
-
-                      {canManageMembers && (
-                        <TableCell className="text-right">
-                          {canEditThisMember && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => void handleRemoveMember(member.id)}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 gap-1 px-2 text-xs transition-colors"
+                        <TableCell>
+                          {canEditThisMember ? (
+                            <Select
+                              defaultValue={member.role}
+                              onValueChange={(val) => {
+                                if (val) void handleChangeRole(member.id, val);
+                              }}
                             >
-                              <Trash className="size-3.5" />
-                              <span>Remove</span>
-                            </Button>
+                              <SelectTrigger className="h-7 w-32 font-mono text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ROLE_OPTIONS.map((r) => {
+                                  // Can only assign roles lower than or equal to current role
+                                  if (
+                                    OrganizationRole[r] >=
+                                      OrganizationRole[currentUserRole] &&
+                                    currentUserRole !== "Owner"
+                                  ) {
+                                    return null;
+                                  }
+                                  return (
+                                    <SelectItem
+                                      key={r}
+                                      value={r}
+                                      className="font-mono text-xs"
+                                    >
+                                      {r}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs capitalize"
+                            >
+                              {member.role}
+                            </Badge>
                           )}
                         </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {new Date(member.created_at).toLocaleDateString()}
+                        </TableCell>
+
+                        {canManageMembers && (
+                          <TableCell className="text-right">
+                            {canEditThisMember && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  void handleRemoveMember(member.id)
+                                }
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 gap-1 px-2 text-xs transition-colors"
+                              >
+                                <Trash className="size-3.5" />
+                                <span>Remove</span>
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
 

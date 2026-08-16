@@ -294,125 +294,127 @@ export default function AppDeploymentsPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[110px]">Platform</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Release</TableHead>
-                <TableHead>Environment</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>External Link</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deployments.map((dep) => {
-                const env = environments.find(
-                  (e) => e.id === dep.environment_id,
-                );
-                const rel = releases.find((r) => r.id === dep.release_id);
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[110px]">Platform</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Release</TableHead>
+                  <TableHead>Environment</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>External Link</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deployments.map((dep) => {
+                  const env = environments.find(
+                    (e) => e.id === dep.environment_id,
+                  );
+                  const rel = releases.find((r) => r.id === dep.release_id);
 
-                return (
-                  <TableRow
-                    key={dep.id}
-                    className="hover:bg-muted/40 group transition-colors duration-150"
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 font-mono text-xs uppercase">
-                        <PlatformIcon platform={dep.platform} size="sm" />
-                        <span>{dep.platform}</span>
-                      </div>
-                    </TableCell>
+                  return (
+                    <TableRow
+                      key={dep.id}
+                      className="hover:bg-muted/40 group transition-colors duration-150"
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 font-mono text-xs uppercase">
+                          <PlatformIcon platform={dep.platform} size="sm" />
+                          <span>{dep.platform}</span>
+                        </div>
+                      </TableCell>
 
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="bg-muted/60 text-foreground border-border/40 font-mono text-[10px]"
-                      >
-                        {formatTargetLabel(dep.target)}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-foreground font-mono text-xs font-semibold">
-                      {dep.release_version || rel?.version || "--"}
-                    </TableCell>
-
-                    <TableCell>
-                      <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
-                        <TreeStructure className="size-3" />
-                        <span>
-                          {dep.environment_name || env?.name || "Production"}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <StatusBadge status={dep.status} size="sm" />
-                    </TableCell>
-
-                    <TableCell>
-                      {dep.external_url ? (
-                        <Link
-                          href={dep.external_url}
-                          target="_blank"
-                          className="hover:bg-muted text-primary inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-xs transition-colors hover:underline"
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className="bg-muted/60 text-foreground border-border/40 font-mono text-[10px]"
                         >
-                          <span>Console</span>
-                          <ArrowSquareOut className="size-3" />
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          --
-                        </span>
-                      )}
-                    </TableCell>
+                          {formatTargetLabel(dep.target)}
+                        </Badge>
+                      </TableCell>
 
-                    <TableCell className="text-muted-foreground font-mono text-xs">
-                      <div className="flex items-center gap-1">
-                        <Clock className="size-3" />
-                        <span>
-                          {dep.duration_seconds
-                            ? `${dep.duration_seconds}s`
-                            : "--"}
-                        </span>
-                      </div>
-                    </TableCell>
+                      <TableCell className="text-foreground font-mono text-xs font-semibold">
+                        {dep.release_version || rel?.version || "--"}
+                      </TableCell>
 
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link
-                          href={`/apps/${appId}/deployments/${dep.id}`}
-                          className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
-                        >
-                          <span>Detail</span>
-                          <ArrowRight className="size-3" />
-                        </Link>
+                      <TableCell>
+                        <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
+                          <TreeStructure className="size-3" />
+                          <span>
+                            {dep.environment_name || env?.name || "Production"}
+                          </span>
+                        </div>
+                      </TableCell>
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
-                            <DotsThreeVertical className="size-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {dep.status !== "rolled_back" && (
-                              <DropdownMenuItem
-                                onClick={() => setRollbackId(dep.id)}
-                                className="text-destructive cursor-pointer gap-1.5 text-xs"
-                              >
-                                <ArrowCounterClockwise className="size-3.5" />
-                                <span>Rollback</span>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      <TableCell>
+                        <StatusBadge status={dep.status} size="sm" />
+                      </TableCell>
+
+                      <TableCell>
+                        {dep.external_url ? (
+                          <Link
+                            href={dep.external_url}
+                            target="_blank"
+                            className="hover:bg-muted text-primary inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-xs transition-colors hover:underline"
+                          >
+                            <span>Console</span>
+                            <ArrowSquareOut className="size-3" />
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            --
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="text-muted-foreground font-mono text-xs">
+                        <div className="flex items-center gap-1">
+                          <Clock className="size-3" />
+                          <span>
+                            {dep.duration_seconds
+                              ? `${dep.duration_seconds}s`
+                              : "--"}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/apps/${appId}/deployments/${dep.id}`}
+                            className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
+                          >
+                            <span>Detail</span>
+                            <ArrowRight className="size-3" />
+                          </Link>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
+                              <DotsThreeVertical className="size-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {dep.status !== "rolled_back" && (
+                                <DropdownMenuItem
+                                  onClick={() => setRollbackId(dep.id)}
+                                  className="text-destructive cursor-pointer gap-1.5 text-xs"
+                                >
+                                  <ArrowCounterClockwise className="size-3.5" />
+                                  <span>Rollback</span>
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

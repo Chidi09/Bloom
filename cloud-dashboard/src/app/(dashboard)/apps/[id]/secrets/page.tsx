@@ -486,125 +486,127 @@ export default function AppSecretsPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <TooltipProvider>
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>Key Name</TableHead>
-                  <TableHead>Encrypted Value</TableHead>
-                  <TableHead className="w-[90px]">Format</TableHead>
-                  <TableHead className="w-[90px]">Version</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {secrets.map((sec) => (
-                  <TableRow
-                    key={sec.id}
-                    className="hover:bg-muted/40 group transition-colors duration-150"
-                  >
-                    <TableCell className="text-muted-foreground p-3 text-center">
-                      <LockSimple className="size-3.5" />
-                    </TableCell>
+          <div className="overflow-x-auto">
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[40px]"></TableHead>
+                    <TableHead>Key Name</TableHead>
+                    <TableHead>Encrypted Value</TableHead>
+                    <TableHead className="w-[90px]">Format</TableHead>
+                    <TableHead className="w-[90px]">Version</TableHead>
+                    <TableHead>Last Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {secrets.map((sec) => (
+                    <TableRow
+                      key={sec.id}
+                      className="hover:bg-muted/40 group transition-colors duration-150"
+                    >
+                      <TableCell className="text-muted-foreground p-3 text-center">
+                        <LockSimple className="size-3.5" />
+                      </TableCell>
 
-                    <TableCell className="text-foreground font-mono text-xs font-semibold">
-                      {sec.key}
-                    </TableCell>
+                      <TableCell className="text-foreground font-mono text-xs font-semibold">
+                        {sec.key}
+                      </TableCell>
 
-                    <TableCell>
-                      <Tooltip>
-                        <TooltipTrigger className="bg-muted/50 border-border/60 text-muted-foreground inline-flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[11px]">
-                          <span>••••••••••••</span>
-                          <span className="text-muted-foreground/80 text-[10px]">
-                            (write-only)
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">
-                            Decrypted only in worker builds. Never exposed over
-                            client API.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TableCell>
+                      <TableCell>
+                        <Tooltip>
+                          <TooltipTrigger className="bg-muted/50 border-border/60 text-muted-foreground inline-flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[11px]">
+                            <span>••••••••••••</span>
+                            <span className="text-muted-foreground/80 text-[10px]">
+                              (write-only)
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">
+                              Decrypted only in worker builds. Never exposed
+                              over client API.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TableCell>
 
-                    <TableCell>
-                      {sec.is_json ? (
-                        <Badge
-                          variant="secondary"
-                          className="bg-muted/60 text-foreground border-border/40 gap-1 font-mono text-[10px]"
-                        >
-                          <FileCode className="size-3" />
-                          <span>JSON</span>
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          Text
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="text-foreground font-mono text-[10px]"
-                      >
-                        v{sec.version}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-muted-foreground font-mono text-xs">
-                      {new Date(sec.updated_at).toLocaleDateString()}
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
-                          <DotsThreeVertical className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => openEditSecret(sec)}
-                            className="cursor-pointer gap-1.5 text-xs"
+                      <TableCell>
+                        {sec.is_json ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-muted/60 text-foreground border-border/40 gap-1 font-mono text-[10px]"
                           >
-                            <PencilSimple className="size-3.5" />
-                            <span>Update value</span>
-                          </DropdownMenuItem>
+                            <FileCode className="size-3" />
+                            <span>JSON</span>
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            Text
+                          </span>
+                        )}
+                      </TableCell>
 
-                          {sec.version > 1 && (
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="text-foreground font-mono text-[10px]"
+                        >
+                          v{sec.version}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-muted-foreground font-mono text-xs">
+                        {new Date(sec.updated_at).toLocaleDateString()}
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
+                            <DotsThreeVertical className="size-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => {
-                                setTargetSecret(sec);
-                                setRollbackVersion(sec.version - 1);
-                                setRollbackOpen(true);
-                              }}
+                              onClick={() => openEditSecret(sec)}
                               className="cursor-pointer gap-1.5 text-xs"
                             >
-                              <ClockCounterClockwise className="size-3.5" />
-                              <span>Rollback version</span>
+                              <PencilSimple className="size-3.5" />
+                              <span>Update value</span>
                             </DropdownMenuItem>
-                          )}
 
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setDeletingSecret(sec);
-                              setDeleteAlertOpen(true);
-                            }}
-                            className="text-destructive cursor-pointer gap-1.5 text-xs"
-                          >
-                            <Trash className="size-3.5" />
-                            <span>Delete</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TooltipProvider>
+                            {sec.version > 1 && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setTargetSecret(sec);
+                                  setRollbackVersion(sec.version - 1);
+                                  setRollbackOpen(true);
+                                }}
+                                className="cursor-pointer gap-1.5 text-xs"
+                              >
+                                <ClockCounterClockwise className="size-3.5" />
+                                <span>Rollback version</span>
+                              </DropdownMenuItem>
+                            )}
+
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setDeletingSecret(sec);
+                                setDeleteAlertOpen(true);
+                              }}
+                              className="text-destructive cursor-pointer gap-1.5 text-xs"
+                            >
+                              <Trash className="size-3.5" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
+          </div>
         </div>
       )}
 
@@ -803,7 +805,7 @@ export default function AppSecretsPage() {
                     Encrypted on save
                   </span>
                 </div>
-                <div className="border-border/80 max-h-[160px] overflow-y-auto rounded-md border">
+                <div className="border-border/80 max-h-[160px] overflow-auto rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>

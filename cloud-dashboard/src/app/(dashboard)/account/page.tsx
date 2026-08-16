@@ -626,57 +626,59 @@ export default function AccountSettingsPage() {
             />
           ) : (
             <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[300px]">
-                      Token Label / Name
-                    </TableHead>
-                    <TableHead>Created Date</TableHead>
-                    <TableHead>Last Used</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tokens.map((token) => (
-                    <TableRow
-                      key={token.id}
-                      className="hover:bg-muted/40 transition-colors"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <Key className="size-4 text-zinc-400" />
-                          <span className="font-mono text-xs font-semibold text-zinc-100">
-                            {token.name}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        {new Date(token.created_at).toLocaleDateString()}
-                      </TableCell>
-
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        {token.last_used_at
-                          ? new Date(token.last_used_at).toLocaleDateString()
-                          : "Never"}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setTokenToRevoke(token)}
-                          className="h-7 gap-1 text-xs text-red-400 hover:bg-red-950/40 hover:text-red-300"
-                        >
-                          <Trash className="size-3.5" />
-                          <span>Revoke</span>
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[300px]">
+                        Token Label / Name
+                      </TableHead>
+                      <TableHead>Created Date</TableHead>
+                      <TableHead>Last Used</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {tokens.map((token) => (
+                      <TableRow
+                        key={token.id}
+                        className="hover:bg-muted/40 transition-colors"
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <Key className="size-4 text-zinc-400" />
+                            <span className="font-mono text-xs font-semibold text-zinc-100">
+                              {token.name}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs text-zinc-400">
+                          {new Date(token.created_at).toLocaleDateString()}
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs text-zinc-400">
+                          {token.last_used_at
+                            ? new Date(token.last_used_at).toLocaleDateString()
+                            : "Never"}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTokenToRevoke(token)}
+                            className="h-7 gap-1 text-xs text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                          >
+                            <Trash className="size-3.5" />
+                            <span>Revoke</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </TabsContent>

@@ -156,13 +156,8 @@ export default function ProjectsPage() {
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="border-border/80 bg-card h-44 animate-pulse rounded-lg border p-5"
-            />
-          ))}
+        <div className="border-border/80 bg-card flex items-center justify-center rounded-lg border py-16">
+          <BloomSpinner size={28} label="Loading projects..." />
         </div>
       ) : projects.length === 0 ? (
         <EmptyState

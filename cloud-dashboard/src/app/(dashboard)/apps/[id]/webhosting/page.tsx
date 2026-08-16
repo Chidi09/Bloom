@@ -602,120 +602,124 @@ export default function AppWebHostingPage() {
             />
           ) : (
             <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[120px]">Target</TableHead>
-                    <TableHead>Preview / Live URL</TableHead>
-                    <TableHead className="w-[130px]">Status</TableHead>
-                    <TableHead>Deployed By</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {deployments.map((dep) => {
-                    const isLive = dep.status === "live";
-                    const isRolledBack = dep.status === "rolled_back";
-                    const isFailed = dep.status === "failed";
-                    const isDeployingState = dep.status === "deploying";
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[120px]">Target</TableHead>
+                      <TableHead>Preview / Live URL</TableHead>
+                      <TableHead className="w-[130px]">Status</TableHead>
+                      <TableHead>Deployed By</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deployments.map((dep) => {
+                      const isLive = dep.status === "live";
+                      const isRolledBack = dep.status === "rolled_back";
+                      const isFailed = dep.status === "failed";
+                      const isDeployingState = dep.status === "deploying";
 
-                    return (
-                      <TableRow
-                        key={dep.id}
-                        className="hover:bg-muted/40 group transition-colors"
-                      >
-                        <TableCell>
-                          <Badge
-                            variant={
-                              dep.target === "production"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="font-mono text-[10px] uppercase"
-                          >
-                            {dep.target}
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Link
-                              href={dep.url}
-                              target="_blank"
-                              className="font-mono text-xs font-medium text-zinc-100 hover:text-emerald-400 hover:underline"
-                            >
-                              {dep.url}
-                            </Link>
-                            <ArrowSquareOut className="size-3 text-zinc-500" />
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {isDeployingState && <BloomSpinner size={12} />}
-                            <StatusBadge
-                              status={
-                                isLive
-                                  ? "healthy"
-                                  : isFailed
-                                    ? "failed"
-                                    : isRolledBack
-                                      ? "rolled_back"
-                                      : "running"
+                      return (
+                        <TableRow
+                          key={dep.id}
+                          className="hover:bg-muted/40 group transition-colors"
+                        >
+                          <TableCell>
+                            <Badge
+                              variant={
+                                dep.target === "production"
+                                  ? "default"
+                                  : "secondary"
                               }
-                              label={dep.status.replace("_", " ")}
-                              size="sm"
-                            />
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {dep.deployed_by_id.slice(0, 8)}...
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger className="cursor-help">
-                                {new Date(dep.created_at).toLocaleDateString()}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs">
-                                  {new Date(dep.created_at).toLocaleString()}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableCell>
-
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {isLive && canRollback && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setRollbackDepId(dep.id)}
-                                className="h-7 gap-1 px-2 text-xs text-zinc-400 hover:text-zinc-200"
-                              >
-                                <ClockCounterClockwise className="size-3.5" />
-                                <span>Rollback</span>
-                              </Button>
-                            )}
-                            <Link
-                              href={dep.url}
-                              target="_blank"
-                              className="border-border bg-card hover:bg-muted inline-flex h-7 items-center justify-center rounded-md border px-2 text-xs font-medium text-zinc-200 transition-colors"
+                              className="font-mono text-[10px] uppercase"
                             >
-                              Visit ↗
-                            </Link>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                              {dep.target}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={dep.url}
+                                target="_blank"
+                                className="font-mono text-xs font-medium text-zinc-100 hover:text-emerald-400 hover:underline"
+                              >
+                                {dep.url}
+                              </Link>
+                              <ArrowSquareOut className="size-3 text-zinc-500" />
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {isDeployingState && <BloomSpinner size={12} />}
+                              <StatusBadge
+                                status={
+                                  isLive
+                                    ? "healthy"
+                                    : isFailed
+                                      ? "failed"
+                                      : isRolledBack
+                                        ? "rolled_back"
+                                        : "running"
+                                }
+                                label={dep.status.replace("_", " ")}
+                                size="sm"
+                              />
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {dep.deployed_by_id.slice(0, 8)}...
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger className="cursor-help">
+                                  {new Date(
+                                    dep.created_at,
+                                  ).toLocaleDateString()}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">
+                                    {new Date(dep.created_at).toLocaleString()}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isLive && canRollback && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setRollbackDepId(dep.id)}
+                                  className="h-7 gap-1 px-2 text-xs text-zinc-400 hover:text-zinc-200"
+                                >
+                                  <ClockCounterClockwise className="size-3.5" />
+                                  <span>Rollback</span>
+                                </Button>
+                              )}
+                              <Link
+                                href={dep.url}
+                                target="_blank"
+                                className="border-border bg-card hover:bg-muted inline-flex h-7 items-center justify-center rounded-md border px-2 text-xs font-medium text-zinc-200 transition-colors"
+                              >
+                                Visit ↗
+                              </Link>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -738,109 +742,113 @@ export default function AppWebHostingPage() {
             />
           ) : (
             <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[280px]">Domain</TableHead>
-                    <TableHead>TLS Certificate</TableHead>
-                    <TableHead>DNS Status</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {domains.map((dom) => {
-                    const isActive = dom.certificate_status === "active";
-                    const isPending =
-                      dom.certificate_status === "pending" ||
-                      dom.certificate_status === "issuing";
-                    const isVerifying = verifyingDomainId === dom.id;
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[280px]">Domain</TableHead>
+                      <TableHead>TLS Certificate</TableHead>
+                      <TableHead>DNS Status</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {domains.map((dom) => {
+                      const isActive = dom.certificate_status === "active";
+                      const isPending =
+                        dom.certificate_status === "pending" ||
+                        dom.certificate_status === "issuing";
+                      const isVerifying = verifyingDomainId === dom.id;
 
-                    return (
-                      <TableRow
-                        key={dom.id}
-                        className="hover:bg-muted/40 group transition-colors"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Globe className="size-4 text-zinc-400" />
-                            <span className="font-mono text-xs font-semibold text-zinc-100">
-                              {dom.domain}
-                            </span>
-                          </div>
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={dom.id}
+                          className="hover:bg-muted/40 group transition-colors"
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Globe className="size-4 text-zinc-400" />
+                              <span className="font-mono text-xs font-semibold text-zinc-100">
+                                {dom.domain}
+                              </span>
+                            </div>
+                          </TableCell>
 
-                        <TableCell>
-                          <StatusBadge
-                            status={
-                              isActive
-                                ? "healthy"
-                                : isPending
-                                  ? "pending"
-                                  : "error"
-                            }
-                            label={dom.certificate_status}
-                            size="sm"
-                          />
-                        </TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={
+                                isActive
+                                  ? "healthy"
+                                  : isPending
+                                    ? "pending"
+                                    : "error"
+                              }
+                              label={dom.certificate_status}
+                              size="sm"
+                            />
+                          </TableCell>
 
-                        <TableCell>
-                          <button
-                            type="button"
-                            onClick={() => setRecordsDialogDomain(dom)}
-                            className="inline-flex cursor-pointer items-center gap-1.5 font-mono text-xs text-zinc-400 hover:text-zinc-200 hover:underline"
-                          >
-                            <span>
-                              {dom.required_records.length} records configured
-                            </span>
-                            <ArrowSquareOut className="size-3" />
-                          </button>
-                        </TableCell>
+                          <TableCell>
+                            <button
+                              type="button"
+                              onClick={() => setRecordsDialogDomain(dom)}
+                              className="inline-flex cursor-pointer items-center gap-1.5 font-mono text-xs text-zinc-400 hover:text-zinc-200 hover:underline"
+                            >
+                              <span>
+                                {dom.required_records.length} records configured
+                              </span>
+                              <ArrowSquareOut className="size-3" />
+                            </button>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {dom.certificate_expires_at
-                            ? new Date(
-                                dom.certificate_expires_at,
-                              ).toLocaleDateString()
-                            : "—"}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {dom.certificate_expires_at
+                              ? new Date(
+                                  dom.certificate_expires_at,
+                                ).toLocaleDateString()
+                              : "—"}
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {canManageDomains && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void handleVerifyDomain(dom.id)}
-                                disabled={isVerifying}
-                                className="h-7 gap-1 text-xs"
-                              >
-                                {isVerifying ? (
-                                  <BloomSpinner size={12} className="mr-1" />
-                                ) : (
-                                  <ArrowsClockwise className="size-3" />
-                                )}
-                                <span>Verify DNS</span>
-                              </Button>
-                            )}
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {canManageDomains && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    void handleVerifyDomain(dom.id)
+                                  }
+                                  disabled={isVerifying}
+                                  className="h-7 gap-1 text-xs"
+                                >
+                                  {isVerifying ? (
+                                    <BloomSpinner size={12} className="mr-1" />
+                                  ) : (
+                                    <ArrowsClockwise className="size-3" />
+                                  )}
+                                  <span>Verify DNS</span>
+                                </Button>
+                              )}
 
-                            {canManageDomains && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDomainToDelete(dom)}
-                                className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
-                              >
-                                <Trash className="size-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                              {canManageDomains && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDomainToDelete(dom)}
+                                  className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                                >
+                                  <Trash className="size-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -884,58 +892,69 @@ export default function AppWebHostingPage() {
         </CardHeader>
         <CardContent>
           <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-900/30">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[200px]">Source Route</TableHead>
-                  <TableHead>Target Destination</TableHead>
-                  <TableHead className="w-[100px]">Type</TableHead>
-                  <TableHead>Security Headers Applied</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="font-mono text-xs">
-                <TableRow className="hover:bg-transparent">
-                  <TableCell className="text-zinc-300">/docs/*</TableCell>
-                  <TableCell className="text-zinc-400">
-                    https://bloom.dev/docs/:splat
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      301 Perm
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    X-Frame-Options: SAMEORIGIN
-                  </TableCell>
-                </TableRow>
-                <TableRow className="hover:bg-transparent">
-                  <TableCell className="text-zinc-300">/app/*</TableCell>
-                  <TableCell className="text-zinc-400">
-                    /index.html (SPA Fallback)
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      Rewrite
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    Content-Security-Policy: default-src &apos;self&apos;
-                  </TableCell>
-                </TableRow>
-                <TableRow className="hover:bg-transparent">
-                  <TableCell className="text-zinc-300">{"/*"}</TableCell>
-                  <TableCell className="text-zinc-400">—</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      Edge Cache
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    Strict-Transport-Security: max-age=31536000
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[200px]">Source Route</TableHead>
+                    <TableHead>Target Destination</TableHead>
+                    <TableHead className="w-[100px]">Type</TableHead>
+                    <TableHead>Security Headers Applied</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="font-mono text-xs">
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell className="text-zinc-300">/docs/*</TableCell>
+                    <TableCell className="text-zinc-400">
+                      https://bloom.dev/docs/:splat
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px]"
+                      >
+                        301 Perm
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-zinc-500">
+                      X-Frame-Options: SAMEORIGIN
+                    </TableCell>
+                  </TableRow>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell className="text-zinc-300">/app/*</TableCell>
+                    <TableCell className="text-zinc-400">
+                      /index.html (SPA Fallback)
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px]"
+                      >
+                        Rewrite
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-zinc-500">
+                      Content-Security-Policy: default-src &apos;self&apos;
+                    </TableCell>
+                  </TableRow>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell className="text-zinc-300">{"/*"}</TableCell>
+                    <TableCell className="text-zinc-400">—</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px]"
+                      >
+                        Edge Cache
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-zinc-500">
+                      Strict-Transport-Security: max-age=31536000
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -4,8 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import {
   GitFork,
-  GithubLogo,
-  GitlabLogo,
   Trash,
   ArrowsClockwise,
   ArrowSquareOut,
@@ -300,126 +298,128 @@ export default function GitConnectionsPage() {
       ) : (
         <div className="space-y-6">
           <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[200px]">Git Host</TableHead>
-                  <TableHead>Account / Organization</TableHead>
-                  <TableHead>Installation ID</TableHead>
-                  <TableHead>Connection Status</TableHead>
-                  <TableHead>Connected Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {connections.map((conn) => {
-                  const meta = conn.metadata as {
-                    account_name?: string;
-                    account_type?: string;
-                    repositories_count?: number;
-                  };
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[200px]">Git Host</TableHead>
+                    <TableHead>Account / Organization</TableHead>
+                    <TableHead>Installation ID</TableHead>
+                    <TableHead>Connection Status</TableHead>
+                    <TableHead>Connected Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {connections.map((conn) => {
+                    const meta = conn.metadata as {
+                      account_name?: string;
+                      account_type?: string;
+                      repositories_count?: number;
+                    };
 
-                  return (
-                    <TableRow
-                      key={conn.id}
-                      className="hover:bg-muted/40 transition-colors"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="border-border/80 flex size-7 items-center justify-center rounded-md border bg-zinc-900 text-zinc-200">
-                            {getProviderIcon(conn.provider)}
-                          </div>
-                          <span className="text-xs font-semibold text-zinc-100 uppercase">
-                            {conn.provider}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="space-y-0.5 font-mono text-xs">
-                          <span className="font-semibold text-zinc-200">
-                            {meta?.account_name || "bloom-labs"}
-                          </span>
-                          {meta?.account_type && (
-                            <span className="block text-[10px] text-zinc-500">
-                              {meta.account_type}
+                    return (
+                      <TableRow
+                        key={conn.id}
+                        className="hover:bg-muted/40 transition-colors"
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <div className="border-border/80 flex size-7 items-center justify-center rounded-md border bg-zinc-900 text-zinc-200">
+                              {getProviderIcon(conn.provider)}
+                            </div>
+                            <span className="text-xs font-semibold text-zinc-100 uppercase">
+                              {conn.provider}
                             </span>
-                          )}
-                        </div>
-                      </TableCell>
+                          </div>
+                        </TableCell>
 
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        <div className="flex items-center gap-1.5">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger className="max-w-[140px] cursor-help truncate">
-                                {conn.installation_id}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="font-mono text-xs">
-                                  {conn.installation_id}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopyInstId(conn.installation_id, conn.id)
-                            }
-                            className="text-zinc-500 transition-colors hover:text-zinc-200"
-                            title="Copy Installation ID"
-                          >
-                            {copiedInstId === conn.id ? (
-                              <Check className="size-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="size-3" />
+                        <TableCell>
+                          <div className="space-y-0.5 font-mono text-xs">
+                            <span className="font-semibold text-zinc-200">
+                              {meta?.account_name || "bloom-labs"}
+                            </span>
+                            {meta?.account_type && (
+                              <span className="block text-[10px] text-zinc-500">
+                                {meta.account_type}
+                              </span>
                             )}
-                          </button>
-                        </div>
-                      </TableCell>
+                          </div>
+                        </TableCell>
 
-                      <TableCell>
-                        <StatusBadge
-                          status="healthy"
-                          label="Connected"
-                          size="sm"
-                        />
-                      </TableCell>
-
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        {new Date(conn.created_at).toLocaleDateString()}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void handleOpenRepositories(conn)}
-                            className="h-7 gap-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
-                          >
-                            <FolderSimple className="size-3.5" />
-                            <span>Repositories</span>
-                          </Button>
-
-                          {canManage && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setConnectionToDisconnect(conn)}
-                              className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                        <TableCell className="font-mono text-xs text-zinc-400">
+                          <div className="flex items-center gap-1.5">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger className="max-w-[140px] cursor-help truncate">
+                                  {conn.installation_id}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="font-mono text-xs">
+                                    {conn.installation_id}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCopyInstId(conn.installation_id, conn.id)
+                              }
+                              className="text-zinc-500 transition-colors hover:text-zinc-200"
+                              title="Copy Installation ID"
                             >
-                              <Trash className="size-3.5" />
+                              {copiedInstId === conn.id ? (
+                                <Check className="size-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="size-3" />
+                              )}
+                            </button>
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <StatusBadge
+                            status="healthy"
+                            label="Connected"
+                            size="sm"
+                          />
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs text-zinc-400">
+                          {new Date(conn.created_at).toLocaleDateString()}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleOpenRepositories(conn)}
+                              className="h-7 gap-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                            >
+                              <FolderSimple className="size-3.5" />
+                              <span>Repositories</span>
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+
+                            {canManage && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setConnectionToDisconnect(conn)}
+                                className="size-7 h-7 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                              >
+                                <Trash className="size-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
 
           {/* Webhook & Branch Deploy Policies Notice Card */}
@@ -500,49 +500,51 @@ export default function GitConnectionsPage() {
               />
             ) : (
               <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-950/60">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Repository</TableHead>
-                      <TableHead className="w-[100px]">Branch</TableHead>
-                      <TableHead className="text-right">Link</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {repositories.map((repo) => (
-                      <TableRow
-                        key={repo.id}
-                        className="hover:bg-muted/40 transition-colors"
-                      >
-                        <TableCell>
-                          <div className="max-w-[200px] truncate font-mono text-xs font-semibold text-zinc-100">
-                            {repo.full_name}
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-[10px] text-zinc-400"
-                          >
-                            {repo.default_branch || "main"}
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell className="text-right">
-                          <Link
-                            href={repo.url}
-                            target="_blank"
-                            className="inline-flex items-center gap-1 font-mono text-xs text-zinc-400 hover:text-zinc-200"
-                          >
-                            <span>Open</span>
-                            <ArrowSquareOut className="size-3" />
-                          </Link>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Repository</TableHead>
+                        <TableHead className="w-[100px]">Branch</TableHead>
+                        <TableHead className="text-right">Link</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {repositories.map((repo) => (
+                        <TableRow
+                          key={repo.id}
+                          className="hover:bg-muted/40 transition-colors"
+                        >
+                          <TableCell>
+                            <div className="max-w-[200px] truncate font-mono text-xs font-semibold text-zinc-100">
+                              {repo.full_name}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-[10px] text-zinc-400"
+                            >
+                              {repo.default_branch || "main"}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <Link
+                              href={repo.url}
+                              target="_blank"
+                              className="inline-flex items-center gap-1 font-mono text-xs text-zinc-400 hover:text-zinc-200"
+                            >
+                              <span>Open</span>
+                              <ArrowSquareOut className="size-3" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </div>
@@ -570,7 +572,7 @@ export default function GitConnectionsPage() {
               disabled={isConnecting}
               className="h-11 w-full justify-start gap-3 border-zinc-800 bg-zinc-950 text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
             >
-              <GithubLogo className="size-5" weight="fill" />
+              <ProviderIcon provider="github" size={20} />
               <span>Connect GitHub Organization</span>
             </Button>
 
@@ -580,7 +582,7 @@ export default function GitConnectionsPage() {
               disabled={isConnecting}
               className="h-11 w-full justify-start gap-3 border-zinc-800 bg-zinc-950 text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
             >
-              <GitlabLogo className="size-5" weight="fill" />
+              <ProviderIcon provider="gitlab" size={20} />
               <span>Connect GitLab Group / Account</span>
             </Button>
 

@@ -335,132 +335,134 @@ export default function AppReleasesPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <TooltipProvider>
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[110px]">Version</TableHead>
-                  <TableHead className="w-[80px]">Build</TableHead>
-                  <TableHead>Commit</TableHead>
-                  <TableHead>Platforms</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Rollout</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {releases.map((rel) => {
-                  const commitSha = rel.commit || "HEAD";
-                  const isPending = rel.status === "pending_approval";
+          <div className="overflow-x-auto">
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[110px]">Version</TableHead>
+                    <TableHead className="w-[80px]">Build</TableHead>
+                    <TableHead>Commit</TableHead>
+                    <TableHead>Platforms</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[100px]">Rollout</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {releases.map((rel) => {
+                    const commitSha = rel.commit || "HEAD";
+                    const isPending = rel.status === "pending_approval";
 
-                  return (
-                    <TableRow
-                      key={rel.id}
-                      className="hover:bg-muted/40 group transition-colors duration-150"
-                    >
-                      <TableCell>
-                        <Link
-                          href={`/apps/${appId}/releases/${rel.id}`}
-                          className="text-foreground group-hover:text-primary font-mono text-xs font-semibold transition-colors hover:underline"
-                        >
-                          {rel.version}
-                        </Link>
-                      </TableCell>
-
-                      <TableCell className="text-muted-foreground font-mono text-xs">
-                        #{rel.build_number}
-                      </TableCell>
-
-                      <TableCell>
-                        <Tooltip>
-                          <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
-                            {commitSha.slice(0, 7)}
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="font-mono text-xs">{commitSha}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          {rel.platforms?.map((p) => (
-                            <PlatformIcon key={p} platform={p} size="sm" />
-                          ))}
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <StatusBadge status={rel.status} size="sm" />
-                      </TableCell>
-
-                      <TableCell className="text-muted-foreground font-mono text-xs">
-                        {getRolloutSummary(rel.rollout_status || {})}
-                      </TableCell>
-
-                      <TableCell className="text-muted-foreground font-mono text-xs">
-                        {new Date(rel.created_at).toLocaleDateString()}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                    return (
+                      <TableRow
+                        key={rel.id}
+                        className="hover:bg-muted/40 group transition-colors duration-150"
+                      >
+                        <TableCell>
                           <Link
                             href={`/apps/${appId}/releases/${rel.id}`}
-                            className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
+                            className="text-foreground group-hover:text-primary font-mono text-xs font-semibold transition-colors hover:underline"
                           >
-                            <span>Detail</span>
-                            <ArrowRight className="size-3" />
+                            {rel.version}
                           </Link>
+                        </TableCell>
 
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
-                              <DotsThreeVertical className="size-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {/* Hard-gated Approve/Reject per §21.5 */}
-                              {canApprove && isPending && (
-                                <>
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          #{rel.build_number}
+                        </TableCell>
+
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
+                              {commitSha.slice(0, 7)}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="font-mono text-xs">{commitSha}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {rel.platforms?.map((p) => (
+                              <PlatformIcon key={p} platform={p} size="sm" />
+                            ))}
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <StatusBadge status={rel.status} size="sm" />
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {getRolloutSummary(rel.rollout_status || {})}
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {new Date(rel.created_at).toLocaleDateString()}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Link
+                              href={`/apps/${appId}/releases/${rel.id}`}
+                              className="border-border/80 hover:bg-muted text-foreground inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
+                            >
+                              <span>Detail</span>
+                              <ArrowRight className="size-3" />
+                            </Link>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors">
+                                <DotsThreeVertical className="size-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {/* Hard-gated Approve/Reject per §21.5 */}
+                                {canApprove && isPending && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        void handleApprove(rel.id, true)
+                                      }
+                                      className="cursor-pointer gap-1.5 text-xs text-[var(--status-success)]"
+                                    >
+                                      <ThumbsUp className="size-3.5" />
+                                      <span>Approve Release</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        void handleApprove(rel.id, false)
+                                      }
+                                      className="text-destructive cursor-pointer gap-1.5 text-xs"
+                                    >
+                                      <ThumbsDown className="size-3.5" />
+                                      <span>Reject Release</span>
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+
+                                {rel.status !== "rolled_back" && (
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      void handleApprove(rel.id, true)
-                                    }
-                                    className="cursor-pointer gap-1.5 text-xs text-[var(--status-success)]"
-                                  >
-                                    <ThumbsUp className="size-3.5" />
-                                    <span>Approve Release</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      void handleApprove(rel.id, false)
-                                    }
+                                    onClick={() => setRollbackId(rel.id)}
                                     className="text-destructive cursor-pointer gap-1.5 text-xs"
                                   >
-                                    <ThumbsDown className="size-3.5" />
-                                    <span>Reject Release</span>
+                                    <ArrowCounterClockwise className="size-3.5" />
+                                    <span>Rollback</span>
                                   </DropdownMenuItem>
-                                </>
-                              )}
-
-                              {rel.status !== "rolled_back" && (
-                                <DropdownMenuItem
-                                  onClick={() => setRollbackId(rel.id)}
-                                  className="text-destructive cursor-pointer gap-1.5 text-xs"
-                                >
-                                  <ArrowCounterClockwise className="size-3.5" />
-                                  <span>Rollback</span>
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TooltipProvider>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
+          </div>
         </div>
       )}
 
@@ -755,34 +757,36 @@ export default function AppReleasesPage() {
               },
             ];
             return (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px]">Field</TableHead>
-                    <TableHead>v{left.version}</TableHead>
-                    <TableHead>v{right.version}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.label}>
-                      <TableCell className="text-muted-foreground text-xs font-medium">
-                        {row.label}
-                      </TableCell>
-                      <TableCell
-                        className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
-                      >
-                        {row.a}
-                      </TableCell>
-                      <TableCell
-                        className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
-                      >
-                        {row.b}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Field</TableHead>
+                      <TableHead>v{left.version}</TableHead>
+                      <TableHead>v{right.version}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.label}>
+                        <TableCell className="text-muted-foreground text-xs font-medium">
+                          {row.label}
+                        </TableCell>
+                        <TableCell
+                          className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
+                        >
+                          {row.a}
+                        </TableCell>
+                        <TableCell
+                          className={`font-mono text-xs ${row.changed ? "text-amber-400" : ""}`}
+                        >
+                          {row.b}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             );
           })()}
         </DialogContent>

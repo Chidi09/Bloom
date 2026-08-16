@@ -942,101 +942,108 @@ export default function AppObservabilityPage() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="border-border/60 overflow-hidden rounded-md border bg-zinc-900/30">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[120px]">Platform</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>7d Trend</TableHead>
-                    <TableHead>Crash-Free</TableHead>
-                    <TableHead>Sessions</TableHead>
-                    <TableHead className="text-right">Health Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {appStatus?.environments.map((env, i) => {
-                    const isWeb = env.platform === "web";
-                    const isIos = env.platform === "ios";
-                    const rate = env.crash_free_rate
-                      ? (env.crash_free_rate * 100).toFixed(2)
-                      : isWeb
-                        ? "100.00"
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[120px]">Platform</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>7d Trend</TableHead>
+                      <TableHead>Crash-Free</TableHead>
+                      <TableHead>Sessions</TableHead>
+                      <TableHead className="text-right">
+                        Health Status
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {appStatus?.environments.map((env, i) => {
+                      const isWeb = env.platform === "web";
+                      const isIos = env.platform === "ios";
+                      const rate = env.crash_free_rate
+                        ? (env.crash_free_rate * 100).toFixed(2)
+                        : isWeb
+                          ? "100.00"
+                          : isIos
+                            ? "99.80"
+                            : "99.60";
+                      const sparkData = isWeb
+                        ? SPARKLINE_DATA_WEB
                         : isIos
-                          ? "99.80"
-                          : "99.60";
-                    const sparkData = isWeb
-                      ? SPARKLINE_DATA_WEB
-                      : isIos
-                        ? SPARKLINE_DATA_IOS
-                        : SPARKLINE_DATA_ANDROID;
-                    const sparkColor = isWeb
-                      ? "#22d3ee"
-                      : isIos
-                        ? "#3b82f6"
-                        : "#22c55e";
+                          ? SPARKLINE_DATA_IOS
+                          : SPARKLINE_DATA_ANDROID;
+                      const sparkColor = isWeb
+                        ? "#22d3ee"
+                        : isIos
+                          ? "#3b82f6"
+                          : "#22c55e";
 
-                    return (
-                      <TableRow
-                        key={i}
-                        className="hover:bg-muted/40 transition-colors"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-zinc-200">
-                            <PlatformIcon platform={env.platform} size="sm" />
-                            <span className="uppercase">{env.platform}</span>
-                          </div>
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={i}
+                          className="hover:bg-muted/40 transition-colors"
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2 font-mono text-xs font-semibold text-zinc-200">
+                              <PlatformIcon platform={env.platform} size="sm" />
+                              <span className="uppercase">{env.platform}</span>
+                            </div>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-300 capitalize">
-                          {env.environment}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-300 capitalize">
+                            {env.environment}
+                          </TableCell>
 
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-200">
-                            <span className="font-semibold">
-                              {env.version || "v1.4.2"}
-                            </span>
-                            {env.build_number && (
-                              <Badge
-                                variant="outline"
-                                className="text-[9px] text-zinc-400"
-                              >
-                                #{env.build_number}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-200">
+                              <span className="font-semibold">
+                                {env.version || "v1.4.2"}
+                              </span>
+                              {env.build_number && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] text-zinc-400"
+                                >
+                                  #{env.build_number}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
 
-                        <TableCell>
-                          <TableSparkline data={sparkData} color={sparkColor} />
-                        </TableCell>
+                          <TableCell>
+                            <TableSparkline
+                              data={sparkData}
+                              color={sparkColor}
+                            />
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs font-semibold text-emerald-400">
-                          {rate}%
-                        </TableCell>
+                          <TableCell className="font-mono text-xs font-semibold text-emerald-400">
+                            {rate}%
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {(isWeb
-                            ? 14200
-                            : isIos
-                              ? 42580
-                              : 38920
-                          ).toLocaleString()}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {(isWeb
+                              ? 14200
+                              : isIos
+                                ? 42580
+                                : 38920
+                            ).toLocaleString()}
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <StatusBadge
-                            status="healthy"
-                            label={env.status || "Healthy"}
-                            size="sm"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          <TableCell className="text-right">
+                            <StatusBadge
+                              status="healthy"
+                              label={env.status || "Healthy"}
+                              size="sm"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </CardContent>
         </Card>

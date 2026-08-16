@@ -271,206 +271,212 @@ export default function AppBuildsPage() {
         />
       ) : (
         <div className="border-border/80 bg-card overflow-hidden rounded-lg border shadow-xs">
-          <TooltipProvider>
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[36px]"></TableHead>
-                  <TableHead className="w-[120px]">Status</TableHead>
-                  <TableHead>Build</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Branch / Commit</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Triggered By</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {builds.map((b, idx) => {
-                  const isExpanded = !!expandedRows[b.id];
-                  const buildNumber = b.build_number ?? builds.length - idx;
-                  const commitSha = b.git_commit || "HEAD";
-                  const isRunningOrQueued =
-                    b.status === "running" ||
-                    b.status === "queued" ||
-                    b.status === "pending";
+          <div className="overflow-x-auto">
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[36px]"></TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead>Build</TableHead>
+                    <TableHead>Platform</TableHead>
+                    <TableHead>Branch / Commit</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Triggered By</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {builds.map((b, idx) => {
+                    const isExpanded = !!expandedRows[b.id];
+                    const buildNumber = b.build_number ?? builds.length - idx;
+                    const commitSha = b.git_commit || "HEAD";
+                    const isRunningOrQueued =
+                      b.status === "running" ||
+                      b.status === "queued" ||
+                      b.status === "pending";
 
-                  return (
-                    <React.Fragment key={b.id}>
-                      {/* Scannable Surface Layer Row (§22.6) */}
-                      <TableRow
-                        onClick={() => toggleRow(b.id)}
-                        className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
-                      >
-                        <TableCell className="p-2 text-center">
-                          {isExpanded ? (
-                            <CaretDown className="text-primary size-3.5 transition-transform" />
-                          ) : (
-                            <CaretRight className="text-muted-foreground group-hover:text-foreground size-3.5 transition-transform" />
-                          )}
-                        </TableCell>
-
-                        <TableCell>
-                          <StatusBadge status={b.status} size="sm" />
-                        </TableCell>
-
-                        <TableCell className="text-foreground font-mono text-xs font-semibold">
-                          #{buildNumber}
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <PlatformIcon platform={b.platform} size="sm" />
-                            <span className="text-muted-foreground font-mono text-xs uppercase">
-                              {b.platform}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="secondary"
-                              className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
-                            >
-                              <GitBranch className="size-3" />
-                              <span>{b.git_branch || "main"}</span>
-                            </Badge>
-
-                            <Tooltip>
-                              <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
-                                {commitSha.slice(0, 7)}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="font-mono text-xs">{commitSha}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="text-muted-foreground font-mono text-xs">
-                          <div className="flex items-center gap-1">
-                            <Clock className="size-3" />
-                            <span>
-                              {b.duration_seconds
-                                ? `${b.duration_seconds}s`
-                                : "--"}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <UserAvatar name={b.author || "dev"} size={18} />
-                            <span className="text-foreground text-xs">
-                              {b.author || "dev"}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell
-                          className="text-right"
-                          onClick={(e) => e.stopPropagation()}
+                    return (
+                      <React.Fragment key={b.id}>
+                        {/* Scannable Surface Layer Row (§22.6) */}
+                        <TableRow
+                          onClick={() => toggleRow(b.id)}
+                          className="hover:bg-muted/40 group cursor-pointer transition-colors duration-150"
                         >
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md transition-colors">
-                              <DotsThreeVertical className="size-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => toggleRow(b.id)}
-                                className="cursor-pointer text-xs"
+                          <TableCell className="p-2 text-center">
+                            {isExpanded ? (
+                              <CaretDown className="text-primary size-3.5 transition-transform" />
+                            ) : (
+                              <CaretRight className="text-muted-foreground group-hover:text-foreground size-3.5 transition-transform" />
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <StatusBadge status={b.status} size="sm" />
+                          </TableCell>
+
+                          <TableCell className="text-foreground font-mono text-xs font-semibold">
+                            #{buildNumber}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <PlatformIcon platform={b.platform} size="sm" />
+                              <span className="text-muted-foreground font-mono text-xs uppercase">
+                                {b.platform}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="secondary"
+                                className="bg-muted/60 text-foreground border-border/40 gap-1 px-1.5 py-0 font-mono text-[10px]"
                               >
-                                {isExpanded
-                                  ? "Collapse stages"
-                                  : "View stages & logs"}
-                              </DropdownMenuItem>
-                              {/* Hard-hide cancel per §21.5 if role cannot cancel or status is terminal */}
-                              {canCancelBuild && isRunningOrQueued && (
+                                <GitBranch className="size-3" />
+                                <span>{b.git_branch || "main"}</span>
+                              </Badge>
+
+                              <Tooltip>
+                                <TooltipTrigger className="text-muted-foreground hover:text-foreground cursor-help font-mono text-xs transition-colors">
+                                  {commitSha.slice(0, 7)}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="font-mono text-xs">
+                                    {commitSha}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-muted-foreground font-mono text-xs">
+                            <div className="flex items-center gap-1">
+                              <Clock className="size-3" />
+                              <span>
+                                {b.duration_seconds
+                                  ? `${b.duration_seconds}s`
+                                  : "--"}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <UserAvatar name={b.author || "dev"} size={18} />
+                              <span className="text-foreground text-xs">
+                                {b.author || "dev"}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="hover:bg-muted/80 text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-md transition-colors">
+                                <DotsThreeVertical className="size-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
                                 <DropdownMenuItem
-                                  onClick={() => void handleCancelBuild(b.id)}
-                                  className="text-destructive cursor-pointer gap-1.5 text-xs"
+                                  onClick={() => toggleRow(b.id)}
+                                  className="cursor-pointer text-xs"
                                 >
-                                  <Prohibit className="size-3.5" />
-                                  <span>Cancel Build</span>
+                                  {isExpanded
+                                    ? "Collapse stages"
+                                    : "View stages & logs"}
                                 </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-
-                      {/* Inline Accordion Row (§22.4 / §22.6 Instant Triage) */}
-                      {isExpanded && (
-                        <TableRow className="bg-muted/15 hover:bg-muted/15">
-                          <TableCell colSpan={8} className="p-4">
-                            <Collapsible open={isExpanded}>
-                              <CollapsibleContent className="space-y-4">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <h3 className="text-foreground text-xs font-semibold">
-                                      Pipeline Stages
-                                    </h3>
-                                    <span className="text-muted-foreground font-mono text-[10px]">
-                                      Flutter {b.flutter_version || "3.27.0"} ·
-                                      Dart {b.dart_version || "3.6.0"}
-                                    </span>
-                                  </div>
-
-                                  {/* Stage progress badges */}
-                                  <div className="flex flex-wrap gap-2">
-                                    {b.stages && b.stages.length > 0 ? (
-                                      b.stages.map((stg) => (
-                                        <div
-                                          key={stg.stage}
-                                          className="border-border/80 bg-card flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs shadow-xs"
-                                        >
-                                          <StatusBadge
-                                            status={stg.status}
-                                            size="sm"
-                                            showIcon={false}
-                                          />
-                                          <span className="text-foreground font-mono font-medium">
-                                            {stg.stage}
-                                          </span>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                                        <CheckCircle className="size-3.5 text-[var(--status-success)]" />
-                                        <span>Standard automated pipeline</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Log snippet */}
-                                <div className="space-y-1.5">
-                                  <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
-                                    <TerminalWindow className="size-3.5" />
-                                    <span>
-                                      Live Log Preview (last 10 lines)
-                                    </span>
-                                  </div>
-                                  <pre className="border-border/80 text-foreground/90 overflow-x-auto rounded-md border bg-black p-3.5 font-mono text-[11px] leading-relaxed shadow-inner">
-                                    {b.stages
-                                      ?.flatMap((s) => s.log_snippet)
-                                      .filter(Boolean)
-                                      .join("\n") ||
-                                      `[00:00.01] Worker initialized for build #${buildNumber}\n[00:00.15] Target platform: ${b.platform}\n[00:01.02] Resolved branch: ${b.git_branch || "main"} (${commitSha.slice(0, 7)})\n[00:02.40] Compiling artifacts with bloom-engine...\n[00:04.10] Build status: ${b.status}`}
-                                  </pre>
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
+                                {/* Hard-hide cancel per §21.5 if role cannot cancel or status is terminal */}
+                                {canCancelBuild && isRunningOrQueued && (
+                                  <DropdownMenuItem
+                                    onClick={() => void handleCancelBuild(b.id)}
+                                    className="text-destructive cursor-pointer gap-1.5 text-xs"
+                                  >
+                                    <Prohibit className="size-3.5" />
+                                    <span>Cancel Build</span>
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TooltipProvider>
+
+                        {/* Inline Accordion Row (§22.4 / §22.6 Instant Triage) */}
+                        {isExpanded && (
+                          <TableRow className="bg-muted/15 hover:bg-muted/15">
+                            <TableCell colSpan={8} className="p-4">
+                              <Collapsible open={isExpanded}>
+                                <CollapsibleContent className="space-y-4">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <h3 className="text-foreground text-xs font-semibold">
+                                        Pipeline Stages
+                                      </h3>
+                                      <span className="text-muted-foreground font-mono text-[10px]">
+                                        Flutter {b.flutter_version || "3.27.0"}{" "}
+                                        · Dart {b.dart_version || "3.6.0"}
+                                      </span>
+                                    </div>
+
+                                    {/* Stage progress badges */}
+                                    <div className="flex flex-wrap gap-2">
+                                      {b.stages && b.stages.length > 0 ? (
+                                        b.stages.map((stg) => (
+                                          <div
+                                            key={stg.stage}
+                                            className="border-border/80 bg-card flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs shadow-xs"
+                                          >
+                                            <StatusBadge
+                                              status={stg.status}
+                                              size="sm"
+                                              showIcon={false}
+                                            />
+                                            <span className="text-foreground font-mono font-medium">
+                                              {stg.stage}
+                                            </span>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                                          <CheckCircle className="size-3.5 text-[var(--status-success)]" />
+                                          <span>
+                                            Standard automated pipeline
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Log snippet */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
+                                      <TerminalWindow className="size-3.5" />
+                                      <span>
+                                        Live Log Preview (last 10 lines)
+                                      </span>
+                                    </div>
+                                    <pre className="border-border/80 text-foreground/90 overflow-x-auto rounded-md border bg-black p-3.5 font-mono text-[11px] leading-relaxed shadow-inner">
+                                      {b.stages
+                                        ?.flatMap((s) => s.log_snippet)
+                                        .filter(Boolean)
+                                        .join("\n") ||
+                                        `[00:00.01] Worker initialized for build #${buildNumber}\n[00:00.15] Target platform: ${b.platform}\n[00:01.02] Resolved branch: ${b.git_branch || "main"} (${commitSha.slice(0, 7)})\n[00:02.40] Compiling artifacts with bloom-engine...\n[00:04.10] Build status: ${b.status}`}
+                                    </pre>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
+          </div>
         </div>
       )}
 
