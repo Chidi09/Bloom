@@ -5,10 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
   UserPlus,
   Trash,
-  CreditCard,
   FloppyDisk,
   WarningOctagon,
-  ArrowSquareOut,
   ArrowsClockwise,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -64,6 +62,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PageHeader } from "@/components/shared/page-header";
+import { OrganizationBillingTab } from "@/components/billing/organization-billing-tab";
 import { api } from "@/lib/api/client";
 import {
   OrganizationResponse,
@@ -545,49 +544,12 @@ export default function OrganizationDetailPage() {
           </div>
         </TabsContent>
 
-        {/* BILLING TAB (Placeholder card per spec) */}
+        {/* BILLING TAB */}
         <TabsContent value="billing" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <CreditCard className="text-primary size-5" />
-                <CardTitle className="text-base">
-                  Subscription & Usage
-                </CardTitle>
-              </div>
-              <CardDescription>
-                Overview of current plan limits, monthly build minutes, and
-                invoices.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-border/80 bg-muted/20 space-y-2 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground text-sm font-semibold">
-                    Current Plan: {org.plan.toUpperCase()}
-                  </span>
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    Active
-                  </Badge>
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Need more build concurrency, custom domains, or team seats?
-                  Manage your full subscription below.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="border-border/60 border-t pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/usage")}
-                className="gap-1.5"
-              >
-                <span>Full billing — /organizations/{org.id}/billing</span>
-                <ArrowSquareOut className="size-3.5" />
-              </Button>
-            </CardFooter>
-          </Card>
+          <OrganizationBillingTab
+            organizationId={org.id}
+            canManageBilling={hasRole(currentUserRole, "Admin")}
+          />
         </TabsContent>
 
         {/* DANGER ZONE TAB */}

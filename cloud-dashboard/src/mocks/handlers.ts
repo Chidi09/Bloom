@@ -1138,14 +1138,519 @@ export const handlers = [
     });
   }),
 
-  http.delete(`${API}/git-connections/:id`, ({ params }) => {
+  http.delete(`${API}/git-connections/:id`, ({ params, request }) => {
+    const path = new URL(request.url).pathname.split("/").filter(Boolean);
+    if (request.method === "DELETE" && path.length >= 2) {
+      const success = mockStore.deleteGitConnection(params.id as string);
+      if (!success) {
+        return HttpResponse.json(
+          { error: { status: 404, message: "Git connection not found" } },
+          { status: 404 },
+        );
+      }
+      return new HttpResponse(null, { status: 204 });
+    }
+  }),
+
+  // Workflows
+  http.get(`${API}/workflows`, ({ request }) => {
+    const url = new URL(request.url);
+    const appId = url.searchParams.get("app_id") || undefined;
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const list = mockStore.getWorkflows(appId, orgId);
+    return HttpResponse.json({
+      count: list.length,
+      page: 1,
+      total_pages: 1,
+      results: list,
+    });
+  }),
+
+  http.post(`${API}/workflows`, async ({ request }) => {
+    const body = (await request.json()) as {
+      app_id?: string;
+      name?: string;
+      slug?: string;
+      description?: string;
+      definition?: string;
+      is_active?: boolean;
+    };
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const wf = mockStore.createWorkflow(
+      body.app_id || mockStore.apps[0]?.id || "app_001",
+      orgId,
+      {
+        name: body.name || "New Workflow",
+        slug: body.slug || "new-workflow",
+        description: body.description,
+        definition: body.definition || "name: Workflow\njobs: {}",
+        is_active: body.is_active ?? true,
+      },
+    );
+    return HttpResponse.json(wf, { status: 201 });
+  }),
+
+  http.get(`${API}/workflows/runs/:id`, ({ params }) => {
     const id = params.id as string;
-    const success = mockStore.deleteGitConnection(id);
-    if (!success)
+    const run = mockStore.getWorkflowRun(id);
+    if (!run) {
       return HttpResponse.json(
-        { error: { status: 404, message: "Git connection not found" } },
+        { error: { status: 404, message: "Workflow run not found" } },
         { status: 404 },
       );
-    return new HttpResponse(null, { status: 204 });
+    }
+    return HttpResponse.json(run);
+  }),
+
+  http.post(
+    `${API}/workflows/runs/:id/approve`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      let body: { approved?: boolean; reason?: string } = { approved: true };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      const run = mockStore.approveWorkflowRun(
+        id,
+        body.approved ?? true,
+        body.reason,
+      );
+      if (!run) {
+        return HttpResponse.json(
+          { error: { status: 404, message: "Workflow run not found" } },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json(run);
+    },
+  ),
+
+  http.get(`${API}/workflows/:id/runs`, ({ params }) => {
+    const id = params.id as string;
+    const runs = mockStore.getWorkflowRuns(id);
+    return HttpResponse.json({
+      count: runs.length,
+      page: 1,
+      total_pages: 1,
+      results: runs,
+    });
+  }),
+
+  http.post(`${API}/workflows/:id/runs`, async ({ params, request }) => {
+    const id = params.id as string;
+    let body: {
+      git_commit?: string;
+      git_branch?: string;
+      git_ref?: string;
+      trigger_event?: string;
+    } = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const run = mockStore.createWorkflowRun(id, body);
+    return HttpResponse.json(run, { status: 201 });
+  }),
+
+  http.get(`${API}/workflows/:id`, ({ params }) => {
+    const id = params.id as string;
+    const wf = mockStore.getWorkflow(id);
+    if (!wf) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Workflow not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(wf);
+  }),
+
+  http.patch(`${API}/workflows/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    let body: Record<string, unknown> = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const updated = mockStore.updateWorkflow(id, body);
+    if (!updated) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Workflow not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(updated);
+  }),
+
+  // Audit Log
+  http.get(`${API}/audit-log`, ({ request }) => {
+    const url = new URL(request.url);
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const action = url.searchParams.get("action") || undefined;
+    const actor = url.searchParams.get("actor") || undefined;
+    const from = url.searchParams.get("from") || undefined;
+    const to = url.searchParams.get("to") || undefined;
+    const list = mockStore.getAuditLogs(orgId, { action, actor, from, to });
+    return HttpResponse.json({
+      count: list.length,
+      page: 1,
+      total_pages: 1,
+      results: list,
+    });
+  }),
+
+  // Billing
+  http.get(`${API}/billing/plans`, () => {
+    return HttpResponse.json(mockStore.getBillingPlans());
+  }),
+
+  http.get(`${API}/billing/subscription`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    return HttpResponse.json(mockStore.getSubscription(orgId));
+  }),
+
+  http.post(`${API}/billing/subscribe`, async ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    let body: { plan_id?: string; provider?: string; callback_url?: string } =
+      {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const res = mockStore.subscribe(
+      orgId,
+      body.plan_id || "pro",
+      body.provider,
+      body.callback_url,
+    );
+    return HttpResponse.json(res);
+  }),
+
+  http.post(`${API}/billing/cancel`, async ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    let body: { reason?: string; immediately?: boolean } = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const res = mockStore.cancelSubscription(
+      orgId,
+      body.reason,
+      body.immediately,
+    );
+    return HttpResponse.json(res);
+  }),
+
+  http.get(`${API}/billing/invoices`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    return HttpResponse.json(mockStore.getInvoices(orgId));
+  }),
+
+  http.get(`${API}/billing/usage`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    return HttpResponse.json(mockStore.getUsageSummary(orgId));
+  }),
+
+  // Marketplace
+  http.get(`${API}/marketplace/templates`, ({ request }) => {
+    const url = new URL(request.url);
+    const q =
+      url.searchParams.get("q") || url.searchParams.get("search") || undefined;
+    const category = url.searchParams.get("category") || undefined;
+    return HttpResponse.json(mockStore.getMarketplaceTemplates(q, category));
+  }),
+
+  http.get(`${API}/marketplace/templates/:id`, ({ params }) => {
+    const id = params.id as string;
+    const tmpl = mockStore.getMarketplaceTemplate(id);
+    if (!tmpl) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Template not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(tmpl);
+  }),
+
+  http.get(
+    `${API}/marketplace/templates/:id/versions/:versionId`,
+    ({ params }) => {
+      const id = params.id as string;
+      const versionId = params.versionId as string;
+      const ver = mockStore.getMarketplaceTemplateVersion(id, versionId);
+      if (!ver) {
+        return HttpResponse.json(
+          { error: { status: 404, message: "Version not found" } },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json(ver);
+    },
+  ),
+
+  http.post(
+    `${API}/marketplace/templates/:id/purchase`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      const orgId =
+        request.headers.get("x-bloom-organization-id") ||
+        mockStore.organizations[0]?.id ||
+        "";
+      let body: { template_version_id?: string; idempotency_key?: string } = {};
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      const purch = mockStore.purchaseTemplate(
+        orgId,
+        id,
+        body.template_version_id,
+        body.idempotency_key,
+      );
+      return HttpResponse.json(purch, { status: 201 });
+    },
+  ),
+
+  http.get(`${API}/marketplace/templates/:id/reviews`, ({ params }) => {
+    const id = params.id as string;
+    const reviews = mockStore.getTemplateReviews(id);
+    return HttpResponse.json({
+      count: reviews.length,
+      page: 1,
+      total_pages: 1,
+      results: reviews,
+    });
+  }),
+
+  http.post(
+    `${API}/marketplace/templates/:id/reviews`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      const orgId =
+        request.headers.get("x-bloom-organization-id") ||
+        mockStore.organizations[0]?.id ||
+        "";
+      let body: { rating: number; title?: string; comment?: string } = {
+        rating: 5,
+      };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      const rev = mockStore.createTemplateReview(id, orgId, body);
+      return HttpResponse.json(rev, { status: 201 });
+    },
+  ),
+
+  http.post(
+    `${API}/marketplace/reviews/:id/reply`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      let body: { response: string } = { response: "" };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      const rev = mockStore.replyTemplateReview(id, body.response);
+      if (!rev) {
+        return HttpResponse.json(
+          { error: { status: 404, message: "Review not found" } },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json(rev);
+    },
+  ),
+
+  http.post(
+    `${API}/marketplace/reviews/:id/report`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      const orgId =
+        request.headers.get("x-bloom-organization-id") ||
+        mockStore.organizations[0]?.id ||
+        "";
+      let body: { reason: string; details?: string } = { reason: "spam" };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      const rep = mockStore.reportTemplateReview(
+        id,
+        orgId,
+        body.reason,
+        body.details,
+      );
+      return HttpResponse.json(rep, { status: 201 });
+    },
+  ),
+
+  http.get(`${API}/marketplace/purchases`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const url = new URL(request.url);
+    const cursor = url.searchParams.get("cursor") || undefined;
+    return HttpResponse.json(mockStore.getPurchases(orgId, cursor));
+  }),
+
+  http.post(
+    `${API}/marketplace/purchases/:id/refund`,
+    async ({ params, request }) => {
+      const id = params.id as string;
+      let body: { reason?: string } = {};
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        // ignore
+      }
+      return HttpResponse.json(mockStore.refundPurchase(id, body.reason));
+    },
+  ),
+
+  // Templates (Org-scoped)
+  http.get(`${API}/templates`, ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    const results = mockStore.getOrgTemplates(orgId);
+    return HttpResponse.json({
+      count: results.length,
+      page: 1,
+      total_pages: 1,
+      results,
+    });
+  }),
+
+  http.post(`${API}/templates`, async ({ request }) => {
+    const orgId =
+      request.headers.get("x-bloom-organization-id") ||
+      mockStore.organizations[0]?.id ||
+      "";
+    let body: Record<string, unknown> = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const created = mockStore.createOrgTemplate(orgId, body);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.get(`${API}/templates/:id`, ({ params }) => {
+    const id = params.id as string;
+    const tmpl = mockStore.getMarketplaceTemplate(id);
+    if (!tmpl) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Template not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(tmpl);
+  }),
+
+  http.patch(`${API}/templates/:id`, async ({ params, request }) => {
+    const id = params.id as string;
+    let body: Record<string, unknown> = {};
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const updated = mockStore.updateOrgTemplate(id, body);
+    if (!updated) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Template not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(updated);
+  }),
+
+  http.post(`${API}/templates/:id/publish`, ({ params }) => {
+    const id = params.id as string;
+    const published = mockStore.publishOrgTemplate(id);
+    if (!published) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Template not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(published);
+  }),
+
+  http.post(`${API}/templates/:id/archive`, ({ params }) => {
+    const id = params.id as string;
+    const archived = mockStore.archiveOrgTemplate(id);
+    if (!archived) {
+      return HttpResponse.json(
+        { error: { status: 404, message: "Template not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(archived);
+  }),
+
+  http.get(`${API}/templates/:id/versions`, ({ params }) => {
+    const id = params.id as string;
+    const versions = mockStore.getTemplateVersions(id);
+    return HttpResponse.json({
+      count: versions.length,
+      page: 1,
+      total_pages: 1,
+      results: versions,
+    });
+  }),
+
+  http.post(`${API}/templates/:id/versions`, async ({ params, request }) => {
+    const id = params.id as string;
+    let body: {
+      version: string;
+      changelog?: string;
+      manifest?: Record<string, unknown>;
+      readme?: string;
+    } = { version: "1.0.0" };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      // ignore
+    }
+    const ver = mockStore.createTemplateVersion(id, body);
+    return HttpResponse.json(ver, { status: 201 });
   }),
 ];

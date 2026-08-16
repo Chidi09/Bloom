@@ -8,6 +8,11 @@ import { mockStore } from "@/lib/mock-store";
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_API_URL;
 
 async function proxy(req: NextRequest, path: string[]) {
+  // Special bypass: /audit-log has no queryable backend route yet, pure mockStore handler
+  if (path[0] === "audit-log") {
+    return handleMockFallback(req, path);
+  }
+
   if (!BACKEND_ORIGIN) {
     return NextResponse.json(
       {
@@ -936,26 +941,60 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     }
   }
 
-  // Billing & Usage endpoints
-  if (req.method === "GET" && p === "billing/usage") {
-    return NextResponse.json({
-      organization_id: mockStore.usage.organization_id,
-      plan_name: mockStore.usage.plan_name,
-      current_period_start: mockStore.usage.current_period_start,
-      current_period_end: mockStore.usage.current_period_end,
-      build_minutes_used: mockStore.usage.build_minutes_used,
-      build_minutes_limit: mockStore.usage.build_minutes_limit,
-      artifact_storage_gb_used: mockStore.usage.artifact_storage_gb_used,
-      artifact_storage_gb_limit: mockStore.usage.artifact_storage_gb_limit,
-      web_bandwidth_gb_used: mockStore.usage.web_bandwidth_gb_used,
-      web_bandwidth_gb_limit: mockStore.usage.web_bandwidth_gb_limit,
-      deploy_count: mockStore.usage.deploy_count,
-    });
+  // Billing endpoints
+  if (path[0] === "billing") {
+    if (req.method === "GET" && path[1] === "plans") {
+      return NextResponse.json(mockStore.getBillingPlans());
+    }
+    if (req.method === "GET" && path[1] === "subscription") {
+      return NextResponse.json(mockStore.getSubscription(orgHeaderId));
+    }
+    if (req.method === "POST" && path[1] === "subscribe") {
+      let body: { plan_id?: string; provider?: string; callback_url?: string } =
+        {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const res = mockStore.subscribe(
+        orgHeaderId,
+        body.plan_id || "pro",
+        body.provider,
+        body.callback_url,
+      );
+      return NextResponse.json(res);
+    }
+    if (req.method === "POST" && path[1] === "cancel") {
+      let body: { reason?: string; immediately?: boolean } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const res = mockStore.cancelSubscription(
+        orgHeaderId,
+        body.reason,
+        body.immediately,
+      );
+      return NextResponse.json(res);
+    }
+    if (req.method === "GET" && path[1] === "invoices") {
+      const invs = mockStore.getInvoices(orgHeaderId);
+      return NextResponse.json(invs);
+    }
+    if (req.method === "GET" && path[1] === "usage") {
+      return NextResponse.json(mockStore.getUsageSummary(orgHeaderId));
+    }
   }
 
   // Account Profile & API Tokens
   if (req.method === "PATCH" && p === "auth/me") {
-    let body: { display_name?: string; avatar_url?: string | null; timezone?: string } = {};
+    let body: {
+      display_name?: string;
+      avatar_url?: string | null;
+      timezone?: string;
+    } = {};
     try {
       body = await req.json();
     } catch {
@@ -982,7 +1021,9 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     } catch {
       // ignore
     }
-    const { tokenRecord, rawToken } = mockStore.createApiToken(body.name || "API Token");
+    const { tokenRecord, rawToken } = mockStore.createApiToken(
+      body.name || "API Token",
+    );
     return NextResponse.json(
       {
         id: tokenRecord.id,
@@ -995,7 +1036,12 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     );
   }
 
-  if (req.method === "DELETE" && path[0] === "auth" && path[1] === "token" && path[2]) {
+  if (
+    req.method === "DELETE" &&
+    path[0] === "auth" &&
+    path[1] === "token" &&
+    path[2]
+  ) {
     const success = mockStore.revokeApiToken(path[2]);
     if (!success) {
       return NextResponse.json(
@@ -1061,7 +1107,11 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         }
         return NextResponse.json(dep);
       }
-      if (req.method === "POST" && path.length === 4 && path[3] === "rollback") {
+      if (
+        req.method === "POST" &&
+        path.length === 4 &&
+        path[3] === "rollback"
+      ) {
         const dep = mockStore.rollbackWebDeployment(path[2]);
         if (!dep) {
           return NextResponse.json(
@@ -1085,7 +1135,10 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         });
       }
       if (req.method === "POST" && path.length === 2) {
-        let body: { app_id: string; domain: string } = { app_id: "", domain: "" };
+        let body: { app_id: string; domain: string } = {
+          app_id: "",
+          domain: "",
+        };
         try {
           body = await req.json();
         } catch {
@@ -1156,7 +1209,13 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
     }
     if (req.method === "POST" && path.length === 1) {
       let body: {
-        provider: "apple" | "google_play" | "shorebird" | "github" | "gitlab" | "bitbucket";
+        provider:
+          | "apple"
+          | "google_play"
+          | "shorebird"
+          | "github"
+          | "gitlab"
+          | "bitbucket";
         name: string;
         metadata: Record<string, unknown>;
         expires_at?: string | null;
@@ -1242,7 +1301,11 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
       }
       return NextResponse.json(conn);
     }
-    if (req.method === "GET" && path.length === 3 && path[2] === "repositories") {
+    if (
+      req.method === "GET" &&
+      path.length === 3 &&
+      path[2] === "repositories"
+    ) {
       const repos = mockStore.getGitRepositories(path[1]);
       return NextResponse.json({
         count: repos.length,
@@ -1260,6 +1323,399 @@ async function handleMockFallback(req: NextRequest, path: string[]) {
         );
       }
       return new NextResponse(null, { status: 204 });
+    }
+  }
+
+  // Workflows endpoints
+  if (path[0] === "workflows") {
+    // GET /workflows
+    if (req.method === "GET" && path.length === 1) {
+      const appId = req.nextUrl.searchParams.get("app_id") || undefined;
+      const results = mockStore.getWorkflows(appId, orgHeaderId);
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
+    }
+
+    // POST /workflows
+    if (req.method === "POST" && path.length === 1) {
+      let body: {
+        app_id?: string;
+        name?: string;
+        slug?: string;
+        description?: string;
+        definition?: string;
+        is_active?: boolean;
+      } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const wf = mockStore.createWorkflow(
+        body.app_id || mockStore.apps[0]?.id || "app_001",
+        orgHeaderId,
+        {
+          name: body.name || "New Workflow",
+          slug: body.slug || "new-workflow",
+          description: body.description,
+          definition: body.definition || "name: Workflow\njobs: {}",
+          is_active: body.is_active ?? true,
+        },
+      );
+      return NextResponse.json(wf, { status: 201 });
+    }
+
+    // GET /workflows/runs/{id}
+    if (req.method === "GET" && path.length === 3 && path[1] === "runs") {
+      const run = mockStore.getWorkflowRun(path[2]);
+      if (!run) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Workflow run not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(run);
+    }
+
+    // POST /workflows/runs/{id}/approve
+    if (
+      req.method === "POST" &&
+      path.length === 4 &&
+      path[1] === "runs" &&
+      path[3] === "approve"
+    ) {
+      let body: { approved?: boolean; reason?: string } = { approved: true };
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const run = mockStore.approveWorkflowRun(
+        path[2],
+        body.approved ?? true,
+        body.reason,
+      );
+      if (!run) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Workflow run not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(run);
+    }
+
+    // GET /workflows/{id}/runs
+    if (req.method === "GET" && path.length === 3 && path[2] === "runs") {
+      const runs = mockStore.getWorkflowRuns(path[1]);
+      return NextResponse.json({
+        count: runs.length,
+        page: 1,
+        total_pages: 1,
+        results: runs,
+      });
+    }
+
+    // POST /workflows/{id}/runs
+    if (req.method === "POST" && path.length === 3 && path[2] === "runs") {
+      let body: {
+        git_commit?: string;
+        git_branch?: string;
+        git_ref?: string;
+        trigger_event?: string;
+      } = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const run = mockStore.createWorkflowRun(path[1], body);
+      return NextResponse.json(run, { status: 201 });
+    }
+
+    // GET /workflows/{id}
+    if (req.method === "GET" && path.length === 2) {
+      const wf = mockStore.getWorkflow(path[1]);
+      if (!wf) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Workflow not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(wf);
+    }
+
+    // PATCH /workflows/{id}
+    if (req.method === "PATCH" && path.length === 2) {
+      let body: Record<string, unknown> = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const updated = mockStore.updateWorkflow(path[1], body);
+      if (!updated) {
+        return NextResponse.json(
+          { error: { status: 404, message: "Workflow not found" } },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(updated);
+    }
+  }
+
+  // Audit Log endpoints
+  if (path[0] === "audit-log") {
+    if (req.method === "GET") {
+      const action = req.nextUrl.searchParams.get("action") || undefined;
+      const actor = req.nextUrl.searchParams.get("actor") || undefined;
+      const from = req.nextUrl.searchParams.get("from") || undefined;
+      const to = req.nextUrl.searchParams.get("to") || undefined;
+      const logs = mockStore.getAuditLogs(orgHeaderId, {
+        action,
+        actor,
+        from,
+        to,
+      });
+      return NextResponse.json({
+        count: logs.length,
+        page: 1,
+        total_pages: 1,
+        results: logs,
+      });
+    }
+  }
+
+  // Marketplace endpoints
+  if (path[0] === "marketplace") {
+    if (path[1] === "templates") {
+      if (req.method === "GET" && path.length === 2) {
+        const q =
+          req.nextUrl.searchParams.get("q") ||
+          req.nextUrl.searchParams.get("search") ||
+          undefined;
+        const category = req.nextUrl.searchParams.get("category") || undefined;
+        const results = mockStore.getMarketplaceTemplates(q, category);
+        return NextResponse.json(results);
+      }
+      if (req.method === "GET" && path.length === 3) {
+        const tmpl = mockStore.getMarketplaceTemplate(path[2]);
+        if (!tmpl) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Template not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(tmpl);
+      }
+      if (req.method === "GET" && path.length === 5 && path[3] === "versions") {
+        const ver = mockStore.getMarketplaceTemplateVersion(path[2], path[4]);
+        if (!ver) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Version not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(ver);
+      }
+      if (
+        req.method === "POST" &&
+        path.length === 4 &&
+        path[3] === "purchase"
+      ) {
+        let body: { template_version_id?: string; idempotency_key?: string } =
+          {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const purch = mockStore.purchaseTemplate(
+          orgHeaderId,
+          path[2],
+          body.template_version_id,
+          body.idempotency_key,
+        );
+        return NextResponse.json(purch, { status: 201 });
+      }
+      if (req.method === "GET" && path.length === 4 && path[3] === "reviews") {
+        const reviews = mockStore.getTemplateReviews(path[2]);
+        return NextResponse.json({
+          count: reviews.length,
+          page: 1,
+          total_pages: 1,
+          results: reviews,
+        });
+      }
+      if (req.method === "POST" && path.length === 4 && path[3] === "reviews") {
+        let body: { rating: number; title?: string; comment?: string } = {
+          rating: 5,
+        };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const rev = mockStore.createTemplateReview(path[2], orgHeaderId, body);
+        return NextResponse.json(rev, { status: 201 });
+      }
+    }
+
+    if (path[1] === "reviews") {
+      if (req.method === "POST" && path.length === 4 && path[3] === "reply") {
+        let body: { response: string } = { response: "" };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const rev = mockStore.replyTemplateReview(path[2], body.response);
+        if (!rev) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Review not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(rev);
+      }
+      if (req.method === "POST" && path.length === 4 && path[3] === "report") {
+        let body: { reason: string; details?: string } = { reason: "spam" };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const rep = mockStore.reportTemplateReview(
+          path[2],
+          orgHeaderId,
+          body.reason,
+          body.details,
+        );
+        return NextResponse.json(rep, { status: 201 });
+      }
+    }
+
+    if (path[1] === "purchases") {
+      if (req.method === "GET" && path.length === 2) {
+        const cursor = req.nextUrl.searchParams.get("cursor") || undefined;
+        const res = mockStore.getPurchases(orgHeaderId, cursor);
+        return NextResponse.json(res);
+      }
+      if (req.method === "POST" && path.length === 4 && path[3] === "refund") {
+        let body: { reason?: string } = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const res = mockStore.refundPurchase(path[2], body.reason);
+        return NextResponse.json(res);
+      }
+    }
+  }
+
+  // Templates (Organization-scoped) endpoints
+  if (path[0] === "templates") {
+    if (req.method === "GET" && path.length === 1) {
+      const results = mockStore.getOrgTemplates(orgHeaderId);
+      return NextResponse.json({
+        count: results.length,
+        page: 1,
+        total_pages: 1,
+        results,
+      });
+    }
+
+    if (req.method === "POST" && path.length === 1) {
+      let body: Record<string, unknown> = {};
+      try {
+        body = await req.json();
+      } catch {
+        // ignore
+      }
+      const created = mockStore.createOrgTemplate(orgHeaderId, body);
+      return NextResponse.json(created, { status: 201 });
+    }
+
+    if (path.length >= 2) {
+      const tmplId = path[1];
+      if (req.method === "GET" && path.length === 2) {
+        const tmpl = mockStore.getMarketplaceTemplate(tmplId);
+        if (!tmpl) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Template not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(tmpl);
+      }
+      if (req.method === "PATCH" && path.length === 2) {
+        let body: Record<string, unknown> = {};
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const updated = mockStore.updateOrgTemplate(tmplId, body);
+        if (!updated) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Template not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(updated);
+      }
+      if (req.method === "POST" && path.length === 3 && path[2] === "publish") {
+        const published = mockStore.publishOrgTemplate(tmplId);
+        if (!published) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Template not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(published);
+      }
+      if (req.method === "POST" && path.length === 3 && path[2] === "archive") {
+        const archived = mockStore.archiveOrgTemplate(tmplId);
+        if (!archived) {
+          return NextResponse.json(
+            { error: { status: 404, message: "Template not found" } },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json(archived);
+      }
+      if (req.method === "GET" && path.length === 3 && path[2] === "versions") {
+        const versions = mockStore.getTemplateVersions(tmplId);
+        return NextResponse.json({
+          count: versions.length,
+          page: 1,
+          total_pages: 1,
+          results: versions,
+        });
+      }
+      if (
+        req.method === "POST" &&
+        path.length === 3 &&
+        path[2] === "versions"
+      ) {
+        let body: {
+          version: string;
+          changelog?: string;
+          manifest?: Record<string, unknown>;
+          readme?: string;
+        } = { version: "1.0.0" };
+        try {
+          body = await req.json();
+        } catch {
+          // ignore
+        }
+        const ver = mockStore.createTemplateVersion(tmplId, body);
+        return NextResponse.json(ver, { status: 201 });
+      }
     }
   }
 

@@ -299,6 +299,207 @@ export interface MockGitRepository {
   url: string;
 }
 
+export interface MockWorkflow {
+  id: string;
+  app_id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  definition: string;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockWorkflowRunStep {
+  id: string;
+  step_order: number;
+  name: string;
+  step_kind:
+    | "test"
+    | "build"
+    | "deploy_preview"
+    | "approval_gate"
+    | "deploy_production"
+    | "custom";
+  status:
+    "pending" | "running" | "blocked" | "completed" | "failed" | "skipped";
+  requires_approval: boolean;
+  started_at?: string | null;
+  finished_at?: string | null;
+  log_snippet?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface MockWorkflowRun {
+  id: string;
+  workflow_id: string;
+  organization_id: string;
+  git_commit: string;
+  git_branch: string;
+  git_ref: string;
+  status:
+    "pending" | "running" | "blocked" | "success" | "failed" | "cancelled";
+  trigger_event: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  metadata: Record<string, unknown>;
+  steps: MockWorkflowRunStep[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockAuditLogEntry {
+  id: string;
+  organization_id: string;
+  actor: { name: string; email: string } | string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  before_snapshot: Record<string, unknown> | null;
+  after_snapshot: Record<string, unknown> | null;
+  ip_address: string;
+  created_at: string;
+}
+
+export interface MockPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  price_minor: number;
+  currency: string;
+  entitlements: {
+    max_projects: number;
+    max_apps: number;
+    max_seats: number;
+    build_minutes_monthly: number;
+    artifact_storage_gb: number;
+    web_bandwidth_gb: number;
+    features: {
+      testflight_deployments: boolean;
+      google_play_deployments: boolean;
+      web_hosting: boolean;
+      shorebird: boolean;
+      workflows: boolean;
+      priority_support: boolean;
+    };
+  };
+  active: boolean;
+  created_at: string;
+}
+
+export interface MockSubscription {
+  id: string;
+  organization_id: string;
+  plan_id: string;
+  plan_name: string;
+  status: "trialing" | "active" | "past_due" | "locked" | "cancelled";
+  trial_ends_at: string | null;
+  activated_at: string | null;
+  current_period_start: string;
+  current_period_end: string;
+  provider_customer_id: string | null;
+  provider_subscription_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockInvoice {
+  id: string;
+  subscription_id: string;
+  organization_id: string;
+  amount_cents: number;
+  status: "draft" | "sent" | "paid" | "overdue" | "void";
+  due_date: string;
+  paid_at?: string | null;
+  provider_invoice_id?: string | null;
+  created_at: string;
+}
+
+export interface MockTemplate {
+  id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  visibility: "private" | "public";
+  status: "draft" | "published" | "archived";
+  is_free: boolean;
+  price_amount: number;
+  price_currency: string;
+  metadata: Record<string, unknown>;
+  latest_version?: string | null;
+  versions_count: number;
+  rating_count: number;
+  rating_bayesian_milli: number;
+  install_count: number;
+  featured_type: "none" | "editorial" | "paid";
+  is_featured: boolean;
+  is_editorial_featured: boolean;
+  is_paid_featured: boolean;
+  featured_until?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockTemplateVersion {
+  id: string;
+  template_id: string;
+  version: string;
+  changelog: string;
+  manifest: Record<string, unknown>;
+  readme: string;
+  install_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockPurchase {
+  id: string;
+  buyer_organization_id: string;
+  template_id: string;
+  template_name: string;
+  template_version_id?: string | null;
+  seller_organization_id: string;
+  amount: number;
+  currency: string;
+  platform_fee: number;
+  seller_amount: number;
+  status: "pending" | "succeeded" | "refunded" | "failed";
+  client_secret?: string | null;
+  created_at: string;
+}
+
+export interface MockReview {
+  id: string;
+  template_id: string;
+  buyer_organization_id: string;
+  rating: number;
+  title: string;
+  comment: string;
+  status: "published" | "hidden" | "archived";
+  author_response?: string | null;
+  author_responded_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockReviewReport {
+  id: string;
+  review_id: string;
+  reporter_organization_id: string;
+  reason: string;
+  details: string;
+  status: string;
+  created_at: string;
+}
+
 class MockDataStore {
   public currentUser: MockUser = {
     id: "00000000-0000-0000-0000-000000000001",
@@ -2607,6 +2808,1403 @@ class MockDataStore {
 
   public getGitRepositories(connectionId: string): MockGitRepository[] {
     return this.gitRepositories.filter((r) => r.connection_id === connectionId);
+  }
+
+  // Workflows mock data & methods
+  public workflows: MockWorkflow[] = [
+    {
+      id: "wf_001",
+      app_id: "app_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Release & Deploy Pipeline",
+      slug: "release-pipeline",
+      description:
+        "Full CI/CD pipeline including tests, multiplatform compilation, approval gate, and store delivery.",
+      definition: `name: Release & Deploy Pipeline
+on:
+  push:
+    branches: [main]
+jobs:
+  test:
+    name: Run Unit & Widget Tests
+    kind: test
+    run: flutter test --coverage
+
+  build:
+    name: Compile Android & iOS Artifacts
+    needs: [test]
+    kind: build
+    platforms: [android, ios]
+
+  approval:
+    name: Production Release Gate
+    needs: [build]
+    kind: approval_gate
+    requires_approval: true
+
+  deploy:
+    name: Deploy to App Store & Google Play
+    needs: [approval]
+    kind: deploy_production
+    targets: [testflight, play_store]`,
+      is_active: true,
+      created_by: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "wf_002",
+      app_id: "app_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Nightly Integration Suite",
+      slug: "nightly-integration-suite",
+      description:
+        "Runs end-to-end integration tests on simulated devices nightly.",
+      definition: `name: Nightly Integration Suite
+on:
+  schedule:
+    cron: "0 2 * * *"
+jobs:
+  integration_test:
+    name: Integration Testing
+    kind: test
+    run: flutter test integration_test/app_test.dart`,
+      is_active: true,
+      created_by: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 20).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
+    {
+      id: "wf_003",
+      app_id: "app_002",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Flutter Web Preview",
+      slug: "flutter-web-preview",
+      description:
+        "Builds web distribution and deploys to preview URL on pull request.",
+      definition: `name: Flutter Web Preview
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  build_web:
+    name: Build Web Output
+    kind: build
+    platform: web
+  preview:
+    name: Deploy to Web Preview
+    needs: [build_web]
+    kind: deploy_preview`,
+      is_active: false,
+      created_by: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+  ];
+
+  public workflowRuns: MockWorkflowRun[] = [
+    {
+      id: "wfr_001",
+      workflow_id: "wf_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      git_commit: "7f2b1a9c4d8e5f1b0a2c3d4e5f6a7b8c9d0e1f2a",
+      git_branch: "main",
+      git_ref: "refs/heads/main",
+      status: "blocked",
+      trigger_event: "manual",
+      started_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      finished_at: null,
+      approved_by: null,
+      approved_at: null,
+      metadata: { runner: "bloom-hosted-linux-arm64", priority: "high" },
+      steps: [
+        {
+          id: "step_001",
+          step_order: 1,
+          name: "Run Unit & Widget Tests",
+          step_kind: "test",
+          status: "completed",
+          requires_approval: false,
+          started_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+          finished_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+          log_snippet: `Running "flutter pub get" in /workspace...
+Resolved dependencies (0.8s).
+Running "flutter test --coverage"...
+00:01 +1: test/widget_test.dart: App smoke test
+00:03 +14: test/unit/auth_test.dart: Auth token refresh flow
+00:05 +32: test/unit/store_test.dart: Cache invalidation checks
+00:06 +48: All 48 tests passed!
+Coverage generated at coverage/lcov.info (94.2% statement coverage).`,
+          metadata: { test_count: 48, passed: 48, failed: 0 },
+          created_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+        },
+        {
+          id: "step_002",
+          step_order: 2,
+          name: "Compile Android & iOS Artifacts",
+          step_kind: "build",
+          status: "completed",
+          requires_approval: false,
+          started_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+          finished_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+          log_snippet: `Compiling release bundle for android (arm64-v8a, armeabi-v7a, x86_64)...
+Running Gradle task ':app:bundleRelease'...
+✓ Built build/app/outputs/bundle/release/app-release.aab (28.4MB).
+Compiling release IPA for iOS...
+✓ Built build/ios/ipa/BloomApp.ipa (34.2MB).
+Codesigning verified with distribution certificate.`,
+          metadata: { android_size_mb: 28.4, ios_size_mb: 34.2 },
+          created_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+        },
+        {
+          id: "step_003",
+          step_order: 3,
+          name: "Production Release Gate",
+          step_kind: "approval_gate",
+          status: "blocked",
+          requires_approval: true,
+          started_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+          finished_at: null,
+          log_snippet: `[APPROVAL REQUIRED]
+Execution paused at production release gate.
+Target destinations: App Store (TestFlight), Google Play (Production Track).
+Awaiting manual decision from an authorized Release Manager or Admin.`,
+          metadata: { gate_type: "production_rollout", timeout_hours: 24 },
+          created_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+        },
+        {
+          id: "step_004",
+          step_order: 4,
+          name: "Deploy to App Store & Google Play",
+          step_kind: "deploy_production",
+          status: "pending",
+          requires_approval: false,
+          started_at: null,
+          finished_at: null,
+          log_snippet: null,
+          metadata: {},
+          created_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+        },
+      ],
+      created_by: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      updated_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+    },
+    {
+      id: "wfr_002",
+      workflow_id: "wf_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      git_commit: "93e8cc1a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e",
+      git_branch: "main",
+      git_ref: "refs/heads/main",
+      status: "success",
+      trigger_event: "push",
+      started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      finished_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 60 * 15,
+      ).toISOString(),
+      approved_by: "dev@bloom.dev",
+      approved_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 60 * 8,
+      ).toISOString(),
+      metadata: { runner: "bloom-hosted-linux-arm64" },
+      steps: [
+        {
+          id: "step_010",
+          step_order: 1,
+          name: "Run Unit & Widget Tests",
+          step_kind: "test",
+          status: "completed",
+          requires_approval: false,
+          started_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+          finished_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 2,
+          ).toISOString(),
+          log_snippet: "All 48 tests passed successfully.",
+          metadata: {},
+          created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        },
+        {
+          id: "step_011",
+          step_order: 2,
+          name: "Compile Android & iOS Artifacts",
+          step_kind: "build",
+          status: "completed",
+          requires_approval: false,
+          started_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 2,
+          ).toISOString(),
+          finished_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 8,
+          ).toISOString(),
+          log_snippet: "Artifacts compiled and signed successfully.",
+          metadata: {},
+          created_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 2,
+          ).toISOString(),
+        },
+        {
+          id: "step_012",
+          step_order: 3,
+          name: "Production Release Gate",
+          step_kind: "approval_gate",
+          status: "completed",
+          requires_approval: true,
+          started_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 8,
+          ).toISOString(),
+          finished_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 9,
+          ).toISOString(),
+          log_snippet:
+            "Approved by dev@bloom.dev (Reason: verified QA regression suite).",
+          metadata: {},
+          created_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 8,
+          ).toISOString(),
+        },
+        {
+          id: "step_013",
+          step_order: 4,
+          name: "Deploy to App Store & Google Play",
+          step_kind: "deploy_production",
+          status: "completed",
+          requires_approval: false,
+          started_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 9,
+          ).toISOString(),
+          finished_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 15,
+          ).toISOString(),
+          log_snippet:
+            "Uploaded build #14 to TestFlight and Google Play track 'internal'.",
+          metadata: {},
+          created_at: new Date(
+            Date.now() - 86400000 * 2 + 1000 * 60 * 9,
+          ).toISOString(),
+        },
+      ],
+      created_by: "00000000-0000-0000-0000-000000000001",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      updated_at: new Date(
+        Date.now() - 86400000 * 2 + 1000 * 60 * 15,
+      ).toISOString(),
+    },
+    {
+      id: "wfr_003",
+      workflow_id: "wf_002",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      git_commit: "4410ad2c3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+      git_branch: "develop",
+      git_ref: "refs/heads/develop",
+      status: "failed",
+      trigger_event: "schedule",
+      started_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      finished_at: new Date(
+        Date.now() - 86400000 * 3 + 1000 * 60 * 3,
+      ).toISOString(),
+      approved_by: null,
+      approved_at: null,
+      metadata: {},
+      steps: [
+        {
+          id: "step_020",
+          step_order: 1,
+          name: "Integration Testing",
+          step_kind: "test",
+          status: "failed",
+          requires_approval: false,
+          started_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+          finished_at: new Date(
+            Date.now() - 86400000 * 3 + 1000 * 60 * 3,
+          ).toISOString(),
+          log_snippet: `Launching integration test suite on device emulator...
+00:15 +0: test/integration/checkout_flow_test.dart: Complete cart checkout
+EXCEPTION: TimeoutException after 0:00:30.000000: Test timed out waiting for element 'Pay Now'.
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞═════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: found 1 matching candidate widget
+  Actual: found 0 matching candidate widgets
+════════════════════════════════════════════════════════════════════════════════`,
+          metadata: { failure_count: 1 },
+          created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+        },
+      ],
+      created_by: "system",
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      updated_at: new Date(
+        Date.now() - 86400000 * 3 + 1000 * 60 * 3,
+      ).toISOString(),
+    },
+  ];
+
+  public getWorkflows(appId?: string, orgId?: string): MockWorkflow[] {
+    let list = this.workflows;
+    if (appId) list = list.filter((w) => w.app_id === appId);
+    if (orgId) list = list.filter((w) => w.organization_id === orgId);
+    return list;
+  }
+
+  public getWorkflow(id: string): MockWorkflow | undefined {
+    return this.workflows.find((w) => w.id === id);
+  }
+
+  public createWorkflow(
+    appId: string,
+    orgId: string,
+    data: {
+      name: string;
+      slug: string;
+      description?: string;
+      definition: string;
+      is_active?: boolean;
+    },
+  ): MockWorkflow {
+    const id = `wf_${Math.random().toString(16).slice(2, 8)}`;
+    const wf: MockWorkflow = {
+      id,
+      app_id: appId,
+      organization_id: orgId,
+      name: data.name,
+      slug: data.slug,
+      description: data.description || null,
+      definition: data.definition,
+      is_active: data.is_active ?? true,
+      created_by: this.currentUser.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.workflows.unshift(wf);
+    return wf;
+  }
+
+  public updateWorkflow(
+    id: string,
+    data: Partial<MockWorkflow>,
+  ): MockWorkflow | undefined {
+    const wf = this.workflows.find((w) => w.id === id);
+    if (!wf) return undefined;
+    Object.assign(wf, data, { updated_at: new Date().toISOString() });
+    return wf;
+  }
+
+  public getWorkflowRuns(workflowId: string): MockWorkflowRun[] {
+    return this.workflowRuns.filter((r) => r.workflow_id === workflowId);
+  }
+
+  public getWorkflowRun(id: string): MockWorkflowRun | undefined {
+    return this.workflowRuns.find((r) => r.id === id);
+  }
+
+  public createWorkflowRun(
+    workflowId: string,
+    data: {
+      git_commit?: string;
+      git_branch?: string;
+      git_ref?: string;
+      trigger_event?: string;
+    },
+  ): MockWorkflowRun {
+    const wf = this.getWorkflow(workflowId);
+    const id = `wfr_${Math.random().toString(16).slice(2, 8)}`;
+    const run: MockWorkflowRun = {
+      id,
+      workflow_id: workflowId,
+      organization_id:
+        wf?.organization_id || "00000000-0000-0000-0000-000000000010",
+      git_commit:
+        data.git_commit ||
+        "a" +
+          Math.random().toString(16).slice(2, 10) +
+          "b" +
+          Math.random().toString(16).slice(2, 10),
+      git_branch: data.git_branch || "main",
+      git_ref: data.git_ref || `refs/heads/${data.git_branch || "main"}`,
+      status: "running",
+      trigger_event: data.trigger_event || "manual",
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      approved_by: null,
+      approved_at: null,
+      metadata: {},
+      steps: [
+        {
+          id: `step_${Math.random().toString(16).slice(2, 8)}`,
+          step_order: 1,
+          name: "Unit & Widget Tests",
+          step_kind: "test",
+          status: "running",
+          requires_approval: false,
+          started_at: new Date().toISOString(),
+          finished_at: null,
+          log_snippet: "Running test suites...",
+          metadata: {},
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: `step_${Math.random().toString(16).slice(2, 8)}`,
+          step_order: 2,
+          name: "Build Pipeline",
+          step_kind: "build",
+          status: "pending",
+          requires_approval: false,
+          started_at: null,
+          finished_at: null,
+          log_snippet: null,
+          metadata: {},
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: `step_${Math.random().toString(16).slice(2, 8)}`,
+          step_order: 3,
+          name: "Approval Gate",
+          step_kind: "approval_gate",
+          status: "pending",
+          requires_approval: true,
+          started_at: null,
+          finished_at: null,
+          log_snippet: null,
+          metadata: {},
+          created_at: new Date().toISOString(),
+        },
+      ],
+      created_by: this.currentUser.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.workflowRuns.unshift(run);
+    return run;
+  }
+
+  public approveWorkflowRun(
+    runId: string,
+    approved: boolean,
+    reason?: string,
+  ): MockWorkflowRun | undefined {
+    const run = this.getWorkflowRun(runId);
+    if (!run) return undefined;
+
+    const blockedStep = run.steps.find(
+      (s) => s.step_kind === "approval_gate" && s.status === "blocked",
+    );
+    if (blockedStep) {
+      blockedStep.status = approved ? "completed" : "failed";
+      blockedStep.finished_at = new Date().toISOString();
+      blockedStep.log_snippet = approved
+        ? `[APPROVED] Execution resumed by ${this.currentUser.email}.${reason ? ` Reason: ${reason}` : ""}`
+        : `[REJECTED] Terminated by ${this.currentUser.email}.${reason ? ` Reason: ${reason}` : ""}`;
+    }
+
+    run.status = approved ? "running" : "failed";
+    run.approved_by = this.currentUser.email;
+    run.approved_at = new Date().toISOString();
+    run.updated_at = new Date().toISOString();
+
+    if (approved) {
+      // simulate subsequent steps executing
+      const nextPending = run.steps.find((s) => s.status === "pending");
+      if (nextPending) {
+        nextPending.status = "running";
+        nextPending.started_at = new Date().toISOString();
+      }
+    }
+
+    return run;
+  }
+
+  // Audit Logs mock data & methods
+  public auditLogs: MockAuditLogEntry[] = [
+    {
+      id: "audit_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Bloom Developer", email: "dev@bloom.dev" },
+      action: "secret.created",
+      resource_type: "secret",
+      resource_id: "sec_prod_api_key",
+      before_snapshot: null,
+      after_snapshot: {
+        key: "SUPABASE_SERVICE_ROLE_KEY",
+        environment_id: "env_prod_001",
+        value: "[REDACTED]",
+        version: 1,
+      },
+      ip_address: "192.168.1.42",
+      created_at: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    },
+    {
+      id: "audit_002",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Chidi Developer", email: "chidi@bloom.dev" },
+      action: "workflow.approved",
+      resource_type: "workflow_run",
+      resource_id: "wfr_002",
+      before_snapshot: { status: "blocked", requires_approval: true },
+      after_snapshot: {
+        status: "approved",
+        approved_by: "chidi@bloom.dev",
+        gate: "Production Release Gate",
+      },
+      ip_address: "172.56.21.9",
+      created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    },
+    {
+      id: "audit_003",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Bloom Developer", email: "dev@bloom.dev" },
+      action: "signing_identity.created",
+      resource_type: "signing_identity",
+      resource_id: "sig_ios_dist_2026",
+      before_snapshot: null,
+      after_snapshot: {
+        platform: "ios",
+        kind: "certificate",
+        name: "Apple Distribution 2026",
+        fingerprint: "SHA256:9f:3b:4e:[REDACTED]",
+        expires_at: "2027-08-01T00:00:00Z",
+      },
+      ip_address: "192.168.1.42",
+      created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+    {
+      id: "audit_004",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Chidi Developer", email: "chidi@bloom.dev" },
+      action: "secret.updated",
+      resource_type: "secret",
+      resource_id: "sec_prod_db_url",
+      before_snapshot: {
+        key: "DATABASE_URL",
+        value: "[REDACTED]",
+        version: 2,
+      },
+      after_snapshot: {
+        key: "DATABASE_URL",
+        value: "[REDACTED]",
+        version: 3,
+      },
+      ip_address: "172.56.21.9",
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "audit_005",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Bloom Developer", email: "dev@bloom.dev" },
+      action: "member.invited",
+      resource_type: "organization_member",
+      resource_id: "mem_sarah_09",
+      before_snapshot: null,
+      after_snapshot: {
+        email: "sarah.chen@bloom.dev",
+        role: "Developer",
+        organization_id: "00000000-0000-0000-0000-000000000010",
+      },
+      ip_address: "192.168.1.42",
+      created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+    {
+      id: "audit_006",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      actor: { name: "Billing Webhook", email: "system@billing.bloom.dev" },
+      action: "billing.invoice_paid",
+      resource_type: "invoice",
+      resource_id: "inv_001",
+      before_snapshot: { status: "sent", amount_cents: 2900 },
+      after_snapshot: {
+        status: "paid",
+        amount_cents: 2900,
+        paid_at: "2026-08-01T10:00:00Z",
+      },
+      ip_address: "52.14.88.201",
+      created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
+    },
+  ];
+
+  public getAuditLogs(
+    orgId?: string,
+    filters?: { action?: string; actor?: string; from?: string; to?: string },
+  ): MockAuditLogEntry[] {
+    let logs = this.auditLogs;
+    if (orgId) logs = logs.filter((l) => l.organization_id === orgId);
+    if (filters?.action && filters.action !== "all") {
+      logs = logs.filter((l) =>
+        l.action.toLowerCase().includes(filters.action!.toLowerCase()),
+      );
+    }
+    if (filters?.actor) {
+      const q = filters.actor.toLowerCase();
+      logs = logs.filter((l) => {
+        const actorName =
+          typeof l.actor === "string"
+            ? l.actor
+            : `${l.actor.name} ${l.actor.email}`;
+        return actorName.toLowerCase().includes(q);
+      });
+    }
+    if (filters?.from) {
+      const fromTime = new Date(filters.from).getTime();
+      logs = logs.filter((l) => new Date(l.created_at).getTime() >= fromTime);
+    }
+    if (filters?.to) {
+      const toTime = new Date(filters.to).getTime();
+      logs = logs.filter((l) => new Date(l.created_at).getTime() <= toTime);
+    }
+    return logs;
+  }
+
+  // Billing mock data & methods
+  public plans: MockPlan[] = [
+    {
+      id: "plan_free",
+      name: "free",
+      description:
+        "For hobbyists and individual developers starting out with Flutter cloud builds.",
+      price_minor: 0,
+      currency: "USD",
+      entitlements: {
+        max_projects: 3,
+        max_apps: 5,
+        max_seats: 2,
+        build_minutes_monthly: 500,
+        artifact_storage_gb: 5,
+        web_bandwidth_gb: 10,
+        features: {
+          testflight_deployments: false,
+          google_play_deployments: false,
+          web_hosting: true,
+          shorebird: false,
+          workflows: true,
+          priority_support: false,
+        },
+      },
+      active: true,
+      created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
+    },
+    {
+      id: "plan_pro",
+      name: "pro",
+      description:
+        "For professional teams automating multiplatform mobile & web releases with higher concurrency.",
+      price_minor: 2900,
+      currency: "USD",
+      entitlements: {
+        max_projects: 20,
+        max_apps: 50,
+        max_seats: 10,
+        build_minutes_monthly: 5000,
+        artifact_storage_gb: 50,
+        web_bandwidth_gb: 100,
+        features: {
+          testflight_deployments: true,
+          google_play_deployments: true,
+          web_hosting: true,
+          shorebird: true,
+          workflows: true,
+          priority_support: true,
+        },
+      },
+      active: true,
+      created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
+    },
+    {
+      id: "plan_enterprise",
+      name: "enterprise",
+      description:
+        "Dedicated infrastructure, unlimited concurrency, custom SLA, and priority support for large orgs.",
+      price_minor: 29900,
+      currency: "USD",
+      entitlements: {
+        max_projects: 100,
+        max_apps: 500,
+        max_seats: 100,
+        build_minutes_monthly: 50000,
+        artifact_storage_gb: 500,
+        web_bandwidth_gb: 1000,
+        features: {
+          testflight_deployments: true,
+          google_play_deployments: true,
+          web_hosting: true,
+          shorebird: true,
+          workflows: true,
+          priority_support: true,
+        },
+      },
+      active: true,
+      created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
+    },
+  ];
+
+  public subscriptions: Record<string, MockSubscription> = {
+    "00000000-0000-0000-0000-000000000010": {
+      id: "sub_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      plan_id: "plan_pro",
+      plan_name: "pro",
+      status: "active",
+      trial_ends_at: null,
+      activated_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+      current_period_start: new Date(Date.now() - 86400000 * 15).toISOString(),
+      current_period_end: new Date(Date.now() + 86400000 * 15).toISOString(),
+      provider_customer_id: "cus_mock_99201",
+      provider_subscription_id: "sub_mock_88123",
+      created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 15).toISOString(),
+    },
+  };
+
+  public invoices: MockInvoice[] = [
+    {
+      id: "inv_001",
+      subscription_id: "sub_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      amount_cents: 2900,
+      status: "paid",
+      due_date: "2026-08-01",
+      paid_at: "2026-08-01T10:00:00Z",
+      provider_invoice_id: "in_1Pm9K02eZvKYlo2CL",
+      created_at: "2026-08-01T08:00:00Z",
+    },
+    {
+      id: "inv_002",
+      subscription_id: "sub_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      amount_cents: 2900,
+      status: "paid",
+      due_date: "2026-07-01",
+      paid_at: "2026-07-01T10:00:00Z",
+      provider_invoice_id: "in_1Pj7Y82eZvKYlo2CK",
+      created_at: "2026-07-01T08:00:00Z",
+    },
+    {
+      id: "inv_003",
+      subscription_id: "sub_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      amount_cents: 2900,
+      status: "paid",
+      due_date: "2026-06-01",
+      paid_at: "2026-06-01T10:00:00Z",
+      provider_invoice_id: "in_1Ph5X62eZvKYlo2CJ",
+      created_at: "2026-06-01T08:00:00Z",
+    },
+  ];
+
+  public getBillingPlans(): MockPlan[] {
+    return this.plans;
+  }
+
+  public getSubscription(orgId: string): MockSubscription {
+    if (this.subscriptions[orgId]) {
+      return this.subscriptions[orgId];
+    }
+    const newSub: MockSubscription = {
+      id: `sub_${Math.random().toString(16).slice(2, 8)}`,
+      organization_id: orgId,
+      plan_id: "plan_free",
+      plan_name: "free",
+      status: "active",
+      trial_ends_at: null,
+      activated_at: new Date().toISOString(),
+      current_period_start: new Date().toISOString(),
+      current_period_end: new Date(Date.now() + 86400000 * 30).toISOString(),
+      provider_customer_id: null,
+      provider_subscription_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.subscriptions[orgId] = newSub;
+    return newSub;
+  }
+
+  public subscribe(
+    orgId: string,
+    planId: string,
+    _provider?: string,
+    _callbackUrl?: string,
+  ): {
+    subscription: MockSubscription;
+    authorization_url?: string;
+    reference?: string;
+  } {
+    const plan =
+      this.plans.find((p) => p.id === planId || p.name === planId) ||
+      this.plans[1];
+    const sub = this.getSubscription(orgId);
+    sub.plan_id = plan.id;
+    sub.plan_name = plan.name;
+    sub.status = "active";
+    sub.updated_at = new Date().toISOString();
+
+    const isPaid = plan.price_minor > 0;
+    return {
+      subscription: sub,
+      authorization_url: isPaid
+        ? `https://checkout.stripe.com/pay/cs_test_${Math.random().toString(16).slice(2, 12)}`
+        : undefined,
+      reference: `ref_${Math.random().toString(16).slice(2, 10)}`,
+    };
+  }
+
+  public cancelSubscription(
+    orgId: string,
+    reason?: string,
+    immediately?: boolean,
+  ): MockSubscription {
+    const sub = this.getSubscription(orgId);
+    sub.status = immediately ? "cancelled" : "active";
+    sub.updated_at = new Date().toISOString();
+    return sub;
+  }
+
+  public getInvoices(orgId: string): MockInvoice[] {
+    return this.invoices.filter((i) => i.organization_id === orgId);
+  }
+
+  public getUsageSummary(orgId: string) {
+    return {
+      organization_id: orgId,
+      plan_name: this.getSubscription(orgId).plan_name,
+      current_period_start: new Date(Date.now() - 86400000 * 15).toISOString(),
+      current_period_end: new Date(Date.now() + 86400000 * 15).toISOString(),
+      build_minutes_used: 1240,
+      build_minutes_limit: 5000,
+      artifact_storage_gb_used: 14,
+      artifact_storage_gb_limit: 50,
+      web_bandwidth_gb_used: 28,
+      web_bandwidth_gb_limit: 100,
+      deploy_count: 36,
+      enforcement: {
+        overall_decision: "allow" as const,
+        build_minutes_decision: "allow" as const,
+        storage_decision: "allow" as const,
+        bandwidth_decision: "allow" as const,
+      },
+    };
+  }
+
+  // Marketplace & Templates mock data & methods
+  public templates: MockTemplate[] = [
+    {
+      id: "tmpl_001",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Flutter Supabase SaaS Starter",
+      slug: "flutter-supabase-saas-starter",
+      description:
+        "Production-ready fullstack Flutter kit with Supabase Auth, Row-Level Security, multi-tenant workspace isolation, and automated webhosting pipelines.",
+      visibility: "public",
+      status: "published",
+      is_free: true,
+      price_amount: 0,
+      price_currency: "usd",
+      metadata: {
+        category: "saas",
+        platforms: ["ios", "android", "web", "desktop"],
+        tags: ["supabase", "auth", "state_management", "riverpod"],
+        icon_provider: "cloudflare",
+      },
+      latest_version: "1.4.0",
+      versions_count: 4,
+      rating_count: 42,
+      rating_bayesian_milli: 4850,
+      install_count: 1840,
+      featured_type: "editorial",
+      is_featured: true,
+      is_editorial_featured: true,
+      is_paid_featured: false,
+      created_at: new Date(Date.now() - 86400000 * 90).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    },
+    {
+      id: "tmpl_002",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "E-Commerce Mobile & Web Suite",
+      slug: "ecommerce-mobile-web-suite",
+      description:
+        "Complete Flutter storefront with Stripe payment sheets, dynamic product filtering, cart state, order tracking, and inventory webhooks.",
+      visibility: "public",
+      status: "published",
+      is_free: false,
+      price_amount: 4900,
+      price_currency: "usd",
+      metadata: {
+        category: "ecommerce",
+        platforms: ["ios", "android", "web"],
+        tags: ["stripe", "cart", "catalog", "checkout"],
+        icon_provider: "vercel",
+      },
+      latest_version: "2.1.0",
+      versions_count: 5,
+      rating_count: 29,
+      rating_bayesian_milli: 4620,
+      install_count: 520,
+      featured_type: "paid",
+      is_featured: true,
+      is_editorial_featured: false,
+      is_paid_featured: true,
+      created_at: new Date(Date.now() - 86400000 * 60).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+    },
+    {
+      id: "tmpl_003",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Fintech Banking & Crypto Wallet",
+      slug: "fintech-banking-crypto-wallet",
+      description:
+        "Bank-grade Flutter client template with biometric FaceID authentication, hardware enclave signing, and animated transaction charts.",
+      visibility: "public",
+      status: "published",
+      is_free: false,
+      price_amount: 8900,
+      price_currency: "usd",
+      metadata: {
+        category: "fintech",
+        platforms: ["ios", "android"],
+        tags: ["biometrics", "charts", "security", "wallet"],
+        icon_provider: "fastly",
+      },
+      latest_version: "1.0.2",
+      versions_count: 2,
+      rating_count: 18,
+      rating_bayesian_milli: 4910,
+      install_count: 240,
+      featured_type: "none",
+      is_featured: false,
+      is_editorial_featured: false,
+      is_paid_featured: false,
+      created_at: new Date(Date.now() - 86400000 * 40).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+    },
+    {
+      id: "tmpl_004",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      name: "Bloom Cloud-Native App Scaffold",
+      slug: "bloom-cloud-native-scaffold",
+      description:
+        "Official starter template pre-wired with Bloom Cloud CI/CD workflows, Shorebird code push, and automated store signing.",
+      visibility: "public",
+      status: "published",
+      is_free: true,
+      price_amount: 0,
+      price_currency: "usd",
+      metadata: {
+        category: "devtool",
+        platforms: ["ios", "android", "web", "desktop"],
+        tags: ["bloom", "cicd", "shorebird", "workflows"],
+        icon_provider: "github",
+      },
+      latest_version: "1.1.0",
+      versions_count: 3,
+      rating_count: 64,
+      rating_bayesian_milli: 4940,
+      install_count: 3100,
+      featured_type: "editorial",
+      is_featured: true,
+      is_editorial_featured: true,
+      is_paid_featured: false,
+      created_at: new Date(Date.now() - 86400000 * 120).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+  ];
+
+  public templateVersions: MockTemplateVersion[] = [
+    {
+      id: "ver_001",
+      template_id: "tmpl_001",
+      version: "1.4.0",
+      changelog:
+        "Added Supabase Realtime channel support and Flutter 3.24 upgrade.",
+      manifest: {
+        min_flutter: "3.24.0",
+        dependencies: ["supabase_flutter", "flutter_riverpod"],
+      },
+      readme: `# Flutter Supabase SaaS Starter
+
+A robust boilerplate for launching cross-platform apps with serverless auth and database.
+
+## Quickstart
+1. Clone repo or apply via Bloom Cloud
+2. Fill your \`.env\` with Supabase keys
+3. Run \`flutter run\`
+`,
+      install_count: 820,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+    },
+    {
+      id: "ver_002",
+      template_id: "tmpl_001",
+      version: "1.3.0",
+      changelog: "Initial public release with OAuth login (Google & Apple).",
+      manifest: { min_flutter: "3.22.0" },
+      readme: "# Flutter Supabase SaaS Starter v1.3.0",
+      install_count: 1020,
+      created_at: new Date(Date.now() - 86400000 * 40).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 40).toISOString(),
+    },
+    {
+      id: "ver_003",
+      template_id: "tmpl_002",
+      version: "2.1.0",
+      changelog: "Apple Pay & Google Pay direct checkout integrations.",
+      manifest: {
+        min_flutter: "3.24.0",
+        dependencies: ["flutter_stripe", "bloc"],
+      },
+      readme:
+        "# E-Commerce Mobile & Web Suite\n\nFull payment and cart management system.",
+      install_count: 520,
+      created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+    },
+  ];
+
+  public templateReviews: MockReview[] = [
+    {
+      id: "rev_001",
+      template_id: "tmpl_001",
+      buyer_organization_id: "org_acme_corp",
+      rating: 5,
+      title: "Saved our team weeks of auth setup",
+      comment:
+        "The Supabase integration is clean, and the Riverpod architecture is very easy to extend.",
+      status: "published",
+      author_response:
+        "Thank you for the kind feedback! We will be releasing a Stripe billing extension next week.",
+      author_responded_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+      id: "rev_002",
+      template_id: "tmpl_001",
+      buyer_organization_id: "org_pulse_mobile",
+      rating: 5,
+      title: "Flawless on iOS and Web",
+      comment:
+        "Worked straight out of the box with Bloom Web Hosting preview deployments.",
+      status: "published",
+      author_response: null,
+      author_responded_at: null,
+      created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 12).toISOString(),
+    },
+    {
+      id: "rev_003",
+      template_id: "tmpl_002",
+      buyer_organization_id: "org_retail_plus",
+      rating: 4,
+      title: "Great checkout flow, minor docs typo",
+      comment:
+        "The Stripe payment sheet implementation is solid. Docs could mention the required iOS pod setup more clearly.",
+      status: "published",
+      author_response:
+        "Thanks! Updated the README in version 2.1.0 to clarify Podfile configurations.",
+      author_responded_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
+      updated_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+    },
+  ];
+
+  public templatePurchases: MockPurchase[] = [
+    {
+      id: "purch_001",
+      buyer_organization_id: "00000000-0000-0000-0000-000000000010",
+      template_id: "tmpl_002",
+      template_name: "E-Commerce Mobile & Web Suite",
+      template_version_id: "ver_003",
+      seller_organization_id: "org_bloom_partners",
+      amount: 4900,
+      currency: "usd",
+      platform_fee: 490,
+      seller_amount: 4410,
+      status: "succeeded",
+      client_secret: null,
+      created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+    },
+  ];
+
+  public reviewReports: MockReviewReport[] = [];
+
+  public getMarketplaceTemplates(
+    search?: string,
+    category?: string,
+  ): MockTemplate[] {
+    let list = this.templates.filter(
+      (t) => t.status === "published" && t.visibility === "public",
+    );
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          (t.description || "").toLowerCase().includes(q),
+      );
+    }
+    if (category && category !== "all") {
+      list = list.filter((t) => {
+        const cat = (t.metadata as { category?: string })?.category;
+        return cat === category;
+      });
+    }
+    return list;
+  }
+
+  public getMarketplaceTemplate(id: string) {
+    const tmpl = this.templates.find((t) => t.id === id || t.slug === id);
+    if (!tmpl) return undefined;
+    const versions = this.templateVersions
+      .filter((v) => v.template_id === tmpl.id)
+      .map((v) => ({
+        id: v.id,
+        version: v.version,
+        changelog: v.changelog,
+        install_count: v.install_count,
+        created_at: v.created_at,
+      }));
+    return { ...tmpl, versions };
+  }
+
+  public getMarketplaceTemplateVersion(
+    templateId: string,
+    versionId: string,
+  ): MockTemplateVersion | undefined {
+    return this.templateVersions.find(
+      (v) =>
+        v.template_id === templateId &&
+        (v.id === versionId || v.version === versionId),
+    );
+  }
+
+  public purchaseTemplate(
+    buyerOrgId: string,
+    templateId: string,
+    versionId?: string,
+    _idempotencyKey?: string,
+  ): MockPurchase {
+    const tmpl = this.templates.find((t) => t.id === templateId);
+    const amount = tmpl?.price_amount || 0;
+    const platformFee = Math.round(amount * 0.1);
+    const sellerAmount = amount - platformFee;
+
+    const purchase: MockPurchase = {
+      id: `purch_${Math.random().toString(16).slice(2, 8)}`,
+      buyer_organization_id: buyerOrgId,
+      template_id: templateId,
+      template_name: tmpl?.name || "Template",
+      template_version_id: versionId || null,
+      seller_organization_id:
+        tmpl?.organization_id || "00000000-0000-0000-0000-000000000010",
+      amount,
+      currency: tmpl?.price_currency || "usd",
+      platform_fee: platformFee,
+      seller_amount: sellerAmount,
+      status: amount === 0 ? "succeeded" : "pending",
+      client_secret:
+        amount > 0
+          ? `pi_test_${Math.random().toString(16).slice(2, 10)}_secret_${Math.random().toString(16).slice(2, 10)}`
+          : null,
+      created_at: new Date().toISOString(),
+    };
+    this.templatePurchases.unshift(purchase);
+    return purchase;
+  }
+
+  public getTemplateReviews(templateId: string): MockReview[] {
+    return this.templateReviews.filter(
+      (r) => r.template_id === templateId && r.status === "published",
+    );
+  }
+
+  public createTemplateReview(
+    templateId: string,
+    buyerOrgId: string,
+    data: { rating: number; title?: string; comment?: string },
+  ): MockReview {
+    const review: MockReview = {
+      id: `rev_${Math.random().toString(16).slice(2, 8)}`,
+      template_id: templateId,
+      buyer_organization_id: buyerOrgId,
+      rating: data.rating,
+      title: data.title || "",
+      comment: data.comment || "",
+      status: "published",
+      author_response: null,
+      author_responded_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.templateReviews.unshift(review);
+
+    // recalculate ratings
+    const all = this.templateReviews.filter(
+      (r) => r.template_id === templateId,
+    );
+    const tmpl = this.templates.find((t) => t.id === templateId);
+    if (tmpl) {
+      tmpl.rating_count = all.length;
+      const sum = all.reduce((acc, cur) => acc + cur.rating, 0);
+      tmpl.rating_bayesian_milli = Math.round((sum / all.length) * 1000);
+    }
+
+    return review;
+  }
+
+  public replyTemplateReview(
+    reviewId: string,
+    responseText: string,
+  ): MockReview | undefined {
+    const rev = this.templateReviews.find((r) => r.id === reviewId);
+    if (!rev) return undefined;
+    rev.author_response = responseText;
+    rev.author_responded_at = new Date().toISOString();
+    rev.updated_at = new Date().toISOString();
+    return rev;
+  }
+
+  public reportTemplateReview(
+    reviewId: string,
+    reporterOrgId: string,
+    reason: string,
+    details?: string,
+  ): MockReviewReport {
+    const report: MockReviewReport = {
+      id: `rep_${Math.random().toString(16).slice(2, 8)}`,
+      review_id: reviewId,
+      reporter_organization_id: reporterOrgId,
+      reason,
+      details: details || "",
+      status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    this.reviewReports.push(report);
+    return report;
+  }
+
+  public getPurchases(
+    buyerOrgId: string,
+    _cursor?: string,
+  ): { results: MockPurchase[]; next_cursor: string | null } {
+    const list = this.templatePurchases.filter(
+      (p) => p.buyer_organization_id === buyerOrgId,
+    );
+    return {
+      results: list,
+      next_cursor: null,
+    };
+  }
+
+  public refundPurchase(purchaseId: string, _reason?: string) {
+    const purch = this.templatePurchases.find((p) => p.id === purchaseId);
+    if (purch) {
+      purch.status = "refunded";
+    }
+    return {
+      purchase_id: purchaseId,
+      stripe_refund_id: `re_${Math.random().toString(16).slice(2, 10)}`,
+      amount: purch?.amount || 0,
+      currency: purch?.currency || "usd",
+      status: "succeeded",
+    };
+  }
+
+  public getOrgTemplates(orgId: string): MockTemplate[] {
+    return this.templates.filter((t) => t.organization_id === orgId);
+  }
+
+  public createOrgTemplate(
+    orgId: string,
+    data: Partial<MockTemplate>,
+  ): MockTemplate {
+    const id = `tmpl_${Math.random().toString(16).slice(2, 8)}`;
+    const tmpl: MockTemplate = {
+      id,
+      organization_id: orgId,
+      name: data.name || "Untitled Template",
+      slug: (data.name || "untitled").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      description: data.description || null,
+      visibility: data.visibility || "private",
+      status: "draft",
+      is_free: data.is_free ?? true,
+      price_amount: data.price_amount || 0,
+      price_currency: data.price_currency || "usd",
+      metadata: data.metadata || {},
+      latest_version: null,
+      versions_count: 0,
+      rating_count: 0,
+      rating_bayesian_milli: 0,
+      install_count: 0,
+      featured_type: "none",
+      is_featured: false,
+      is_editorial_featured: false,
+      is_paid_featured: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.templates.unshift(tmpl);
+    return tmpl;
+  }
+
+  public updateOrgTemplate(
+    id: string,
+    data: Partial<MockTemplate>,
+  ): MockTemplate | undefined {
+    const tmpl = this.templates.find((t) => t.id === id);
+    if (!tmpl) return undefined;
+    Object.assign(tmpl, data, { updated_at: new Date().toISOString() });
+    return tmpl;
+  }
+
+  public publishOrgTemplate(id: string): MockTemplate | undefined {
+    const tmpl = this.templates.find((t) => t.id === id);
+    if (!tmpl) return undefined;
+    tmpl.status = "published";
+    tmpl.visibility = "public";
+    tmpl.updated_at = new Date().toISOString();
+    return tmpl;
+  }
+
+  public archiveOrgTemplate(id: string): MockTemplate | undefined {
+    const tmpl = this.templates.find((t) => t.id === id);
+    if (!tmpl) return undefined;
+    tmpl.status = "archived";
+    tmpl.updated_at = new Date().toISOString();
+    return tmpl;
+  }
+
+  public getTemplateVersions(templateId: string): MockTemplateVersion[] {
+    return this.templateVersions.filter((v) => v.template_id === templateId);
+  }
+
+  public createTemplateVersion(
+    templateId: string,
+    data: {
+      version: string;
+      changelog?: string;
+      manifest?: Record<string, unknown>;
+      readme?: string;
+    },
+  ): MockTemplateVersion {
+    const id = `ver_${Math.random().toString(16).slice(2, 8)}`;
+    const ver: MockTemplateVersion = {
+      id,
+      template_id: templateId,
+      version: data.version,
+      changelog: data.changelog || "",
+      manifest: data.manifest || {},
+      readme: data.readme || "",
+      install_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.templateVersions.unshift(ver);
+
+    const tmpl = this.templates.find((t) => t.id === templateId);
+    if (tmpl) {
+      tmpl.latest_version = data.version;
+      tmpl.versions_count = this.templateVersions.filter(
+        (v) => v.template_id === templateId,
+      ).length;
+    }
+
+    return ver;
   }
 }
 

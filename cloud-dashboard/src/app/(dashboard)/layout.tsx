@@ -21,6 +21,9 @@ import {
   Bell,
   ArrowSquareOut,
   CaretDown,
+  GitFork,
+  Storefront,
+  Scroll,
 } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
@@ -54,10 +57,13 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { label: "Projects", href: "/projects", icon: FolderSimple },
   { label: "Applications", href: "/apps", icon: DeviceMobile },
   { label: "Builds", href: "/builds", icon: Hammer },
+  { label: "Workflows", href: "/workflows", icon: GitFork },
+  { label: "Marketplace", href: "/marketplace", icon: Storefront },
   { label: "Organizations", href: "/organizations", icon: Buildings },
   { label: "Releases & Deploy", href: "/releases", icon: RocketLaunch },
   { label: "Environment & Secrets", href: "/secrets", icon: Key },
   { label: "Signing & Certificates", href: "/signing", icon: ShieldCheck },
+  { label: "Audit Log", href: "/audit-log", icon: Scroll },
 ];
 
 const SYSTEM_NAV_ITEMS: NavItem[] = [
