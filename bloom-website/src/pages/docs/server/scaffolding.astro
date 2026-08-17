@@ -1,0 +1,235 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Terminal, ArrowRight, FolderTree, Cpu, Boxes, Layers, Database } from 'lucide-preact';
+
+const cliCreateCmd = `# Create a new Bloom Server project with PostgreSQL (default)
+bloom server create my_backend
+
+# Or create a server configured for SQLite
+bloom server create my_backend --db=sqlite
+
+# Inside a monorepo, point to local packages directory
+bloom server create my_backend --packages-path=/path/to/packages`;
+
+const startAppCmd = `# Add a new modular domain app (e.g. billing)
+bloom server startapp billing
+
+# Or specify the server directory explicitly
+bloom server startapp billing --server-dir=/path/to/my_backend`;
+
+const folderTreeSnippet = `my_backend/
+├── bin/
+│   └── server.dart          # Entrypoint: runs migrations and starts BloomApiRouter
+├── lib/
+│   ├── settings.dart        # Environment configuration, DB executor, and DI wiring
+│   ├── urls.dart            # Root router: mounts app-level URL routers
+│   └── apps/
+│       ├── accounts/        # Starter app: authentication, signup, login, user models
+│       │   ├── models.dart
+│       │   ├── serializers.dart
+│       │   ├── views.dart
+│       │   ├── permissions.dart
+│       │   └── urls.dart
+│       └── notes/           # Starter app: ownership-scoped CRUD ViewSet
+│           ├── models.dart
+│           ├── serializers.dart
+│           ├── views.dart
+│           ├── permissions.dart
+│           └── urls.dart
+├── migrations/
+│   ├── accounts/
+│   │   └── 0001_initial.sql # SQL DDL migration for accounts_users
+│   └── notes/
+│       └── 0001_initial.sql # SQL DDL migration for notes_notes
+├── storage/
+│   └── uploads/             # Local file uploads directory
+├── .env                     # Local environment secrets and DB connection config
+├── .env.example
+├── pubspec.yaml             # Wires core 7 runtime packages + build_runner dev deps
+└── README.md`;
+
+const rootUrlsSnippet = `// lib/urls.dart - Root URL Routing
+import 'package:bloom_framework/bloom_server.dart';
+import 'settings.dart';
+import 'apps/accounts/urls.dart' as accounts;
+import 'apps/notes/urls.dart' as notes;
+
+void registerUrls(BloomApiRouter router, BloomServerContext ctx) {
+  router.get('/api/health', (req) async {
+    return BloomResponse.json({'status': 'healthy'});
+  });
+
+  // Mount each modular app's router
+  accounts.registerUrls(router, ctx);
+  notes.registerUrls(router, ctx);
+}`;
+---
+
+<DocsLayout
+  title="Scaffolding a Server"
+  description="Generate production-ready Bloom Server backends and modular domain apps with the bloom server CLI commands."
+  currentSlug="server-scaffolding"
+  category="Bloom Server"
+  toc={[
+    { id: 'create', title: 'bloom server create' },
+    { id: 'structure', title: 'Project Structure & Layout' },
+    { id: 'core-packages', title: 'Core Packages Installed' },
+    { id: 'startapp', title: 'bloom server startapp' },
+    { id: 'routing', title: 'Mounting App Routes in urls.dart' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
+        <Terminal className="w-3.5 h-3.5" />
+        CLI Scaffolding
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Scaffolding a Server
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        The <code class="font-mono text-purple-400">bloom server</code> CLI commands provide Django-style scaffolding for entire backend server projects and modular domain applications.
+      </p>
+    </div>
+
+    <!-- Section: bloom server create -->
+    <section id="create" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Creating a New Server Project
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Run <code class="font-mono text-purple-400">bloom server create &lt;name&gt;</code> to generate a complete backend server repository configured with starter apps, migrations, and a database connection:
+      </p>
+      <CodeBlock code={cliCreateCmd} lang="bash" filename="Terminal" />
+
+      <div class="space-y-2 pt-2">
+        <h3 class="font-bold text-slate-900 dark:text-white text-sm">
+          CLI Options &amp; Flags:
+        </h3>
+        <ul class="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+          <li>
+            <code class="font-mono text-purple-400">&lt;name&gt;</code> — Required project name (lowercase letters, numbers, and underscores, starting with a letter).
+          </li>
+          <li>
+            <code class="font-mono text-purple-400">--db=&lt;postgres|sqlite&gt;</code> — Default database dialect for <code class="font-mono">settings.dart</code> (defaults to <code class="font-mono">postgres</code>).
+          </li>
+          <li>
+            <code class="font-mono text-purple-400">--packages-path=&lt;path&gt;</code> — Optional path to directory containing local <code class="font-mono">bloom_*</code> server packages.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section: Structure -->
+    <section id="structure" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Project Structure &amp; Layout
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        A scaffolded Bloom Server project follows a standardized, modular layout with two pre-configured starter apps: <code class="font-mono text-purple-400">accounts</code> (user authentication) and <code class="font-mono text-purple-400">notes</code> (ownership-scoped CRUD):
+      </p>
+      <CodeBlock code={folderTreeSnippet} lang="yaml" filename="Project Structure" />
+    </section>
+
+    <!-- Section: Core Packages -->
+    <section id="core-packages" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Core Packages Installed
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Every scaffolded server project wires in the "core 7" package list in <code class="font-mono text-purple-400">pubspec.yaml</code>, plus dev dependencies:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_framework</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">Core router, requests, responses, DI container, and env config.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_db</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">ORM runtime, QuerySet API, and PostgreSQL / SQLite executors.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_validate</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">Declarative request body validation schemas.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_auth_server</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">BCrypt password hashing, JWT tokens, and auth middleware.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_errors</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">Unified error middleware with dev/prod exception masking.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_rest</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">DRF-style ViewSets, serializers, pagination, and filters.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_migrate</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">DDL migration runner and schema version tracking.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_db_generator (dev)</span>
+          <p class="text-slate-600 dark:text-slate-400 mt-1">Optional build_runner codegen for @BloomModel annotations.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: startapp -->
+    <section id="startapp" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Scaffolding New Modular Apps
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        To add a new domain feature to your project, use <code class="font-mono text-purple-400">bloom server startapp &lt;app_name&gt;</code>:
+      </p>
+      <CodeBlock code={startAppCmd} lang="bash" filename="Terminal" />
+
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        This command generates:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">lib/apps/&lt;app_name&gt;/models.dart</code> — Starter model with <code class="font-mono">@BloomModel</code> and <code class="font-mono">ModelMeta</code>.</li>
+        <li><code class="font-mono text-purple-400">lib/apps/&lt;app_name&gt;/serializers.dart</code> — Placeholder for <code class="font-mono">BloomRequestSchema</code> subclasses.</li>
+        <li><code class="font-mono text-purple-400">lib/apps/&lt;app_name&gt;/views.dart</code> — Placeholder for view handlers and ViewSets.</li>
+        <li><code class="font-mono text-purple-400">lib/apps/&lt;app_name&gt;/permissions.dart</code> — Permissions exports.</li>
+        <li><code class="font-mono text-purple-400">lib/apps/&lt;app_name&gt;/urls.dart</code> — App-level route registration function.</li>
+        <li><code class="font-mono text-purple-400">migrations/&lt;app_name&gt;/0001_initial.sql</code> — Initial DDL migration SQL file.</li>
+      </ul>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The CLI also automatically wires the new app into <code class="font-mono text-purple-400">lib/urls.dart</code> by adding the import and registering its routes in <code class="font-mono text-purple-400">registerUrls()</code>.
+      </p>
+    </section>
+
+    <!-- Section: Routing -->
+    <section id="routing" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Mounting App Routes in urls.dart
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The root <code class="font-mono text-purple-400">lib/urls.dart</code> acts as the central router aggregator, similar to Django's root <code class="font-mono">urls.py</code>:
+      </p>
+      <CodeBlock code={rootUrlsSnippet} lang="dart" filename="lib/urls.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/overview"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Bloom Server Overview</span>
+      </a>
+      <a
+        href="/docs/server/orm-and-migrations"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: ORM & Migrations</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

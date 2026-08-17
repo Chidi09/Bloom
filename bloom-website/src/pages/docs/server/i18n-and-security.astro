@@ -1,0 +1,154 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldCheck, ArrowRight, Globe, Lock, Cpu, Zap, Radio } from 'lucide-preact';
+
+const i18nCode = `// lib/i18n.dart - ICU Message Formatting & Middleware
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_i18n/bloom_i18n.dart';
+
+void configureI18n(BloomApiRouter router) {
+  final locales = BloomLocales(defaultLocale: 'en-US');
+
+  // Register ICU MessageFormat catalogs
+  locales.addLocale('en-US', {
+    'welcome_user': 'Welcome back, {username}!',
+    'notifications': '{count, plural, =0 {No notifications} =1 {1 notification} other {# notifications}}',
+  });
+
+  locales.addLocale('es-ES', {
+    'welcome_user': '¡Bienvenido de nuevo, {username}!',
+    'notifications': '{count, plural, =0 {Sin notificaciones} =1 {1 notificación} other {# notificaciones}}',
+  });
+
+  // Resolve Accept-Language header or ?locale= query parameter
+  router.use(BloomLocaleMiddleware(
+    defaultLocale: 'en-US',
+    supportedLocales: ['en-US', 'es-ES'],
+    locales: locales,
+  ));
+
+  router.get('/api/welcome', (req) {
+    // Translate message using request-bound helper
+    final message = req.t('welcome_user', args: {'username': 'Alice'});
+    return BloomResponse.json({'locale': req.locale, 'message': message});
+  });
+}`;
+
+const securityCode = `// bin/server.dart - Production Security & CORS Middleware
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_security/bloom_security.dart';
+
+void main() async {
+  final router = BloomApiRouter();
+
+  // 1. Strict CORS Middleware with Origin Whitelisting
+  router.use(BloomAdvancedCorsMiddleware(
+    allowedOrigins: ['https://myapp.com', 'https://admin.myapp.com'],
+    allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowCredentials: true,
+    maxAge: const Duration(hours: 24),
+  ));
+
+  // 2. HTTP Security Headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)
+  router.use(const BloomSecurityHeadersMiddleware());
+
+  // 3. Sliding-Window Rate Limiter (100 requests / minute per client IP)
+  router.use(BloomRateLimitMiddleware(
+    maxRequests: 100,
+    window: const Duration(minutes: 1),
+    whitelist: {'127.0.0.1'},
+  ));
+
+  await router.serve(port: 8080);
+}`;
+---
+
+<DocsLayout
+  title="i18n & Security"
+  description="ICU message formatting, Accept-Language locale resolution, advanced CORS, security headers, and IP rate limiting."
+  currentSlug="server-i18n-and-security"
+  category="Bloom Server"
+  toc={[
+    { id: 'i18n', title: 'Internationalization (bloom_i18n)' },
+    { id: 'security', title: 'Security Headers & CORS (bloom_security)' },
+    { id: 'rate-limiting', title: 'Sliding-Window IP Rate Limiting' },
+    { id: 'websockets', title: 'Native WebSocket Upgrade' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        Security &amp; Localization
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        i18n &amp; Security
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <a href="https://pub.dev/packages/bloom_i18n" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_i18n</a> and <a href="https://pub.dev/packages/bloom_security" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_security</a> deliver enterprise-grade localization, CORS controls, security headers, and sliding-window rate limiting for Bloom backend applications.
+      </p>
+    </div>
+
+    <!-- Section: i18n -->
+    <section id="i18n" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Internationalization with bloom_i18n
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_i18n</code> supports standard ICU MessageFormat syntax (pluralization, select/gender cases, argument interpolation) backed by the standard <code class="font-mono">intl</code> package. <code class="font-mono text-purple-400">BloomLocaleMiddleware</code> parses quality-weighted <code class="font-mono">Accept-Language</code> headers:
+      </p>
+      <CodeBlock code={i18nCode} lang="dart" filename="lib/i18n.dart" />
+    </section>
+
+    <!-- Section: Security -->
+    <section id="security" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Security Headers &amp; CORS with bloom_security
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_security</code> provides production-hardened middleware for <code class="font-mono text-purple-400">BloomApiRouter</code>:
+      </p>
+      <CodeBlock code={securityCode} lang="dart" filename="bin/server.dart" />
+    </section>
+
+    <!-- Section: Rate Limiting -->
+    <section id="rate-limiting" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Sliding-Window IP Rate Limiting
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomRateLimitMiddleware</code> tracks requests per client IP across configurable sliding time windows. When limits are exceeded, the middleware returns HTTP <code class="font-mono">429 Too Many Requests</code> with standard <code class="font-mono">X-RateLimit-*</code> and <code class="font-mono">Retry-After</code> headers.
+      </p>
+    </section>
+
+    <!-- Section: WebSockets -->
+    <section id="websockets" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Native WebSocket Upgrade
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomWebSocketServer</code> and <code class="font-mono text-purple-400">serveWithWebSockets</code> allow serving both standard REST endpoints and realtime WebSocket listeners simultaneously on the same HTTP port.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/jobs-mail-and-storage"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Jobs, Mail & Storage</span>
+      </a>
+      <a
+        href="/docs/adapters/supabase"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Supabase Adapter</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

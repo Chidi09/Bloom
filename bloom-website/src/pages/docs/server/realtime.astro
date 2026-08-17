@@ -1,0 +1,171 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Zap, ArrowRight, ShieldCheck, Database, Radio, RefreshCw, Cpu } from 'lucide-preact';
+
+const serverRealtimeCode = `// bin/server.dart - Server-Side Pub/Sub & WebSockets
+import 'dart:io';
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_security/bloom_security.dart';
+import 'package:bloom_realtime/bloom_realtime.dart';
+
+void main() async {
+  final router = BloomApiRouter();
+  final hub = BloomChannelHub();
+
+  // POST endpoint triggering real-time broadcast to a list's channel
+  router.post('/api/lists/:id/todos', (req) async {
+    final listId = req.params['id']!;
+    final body = await req.json();
+
+    final newTodo = {'id': 101, 'listId': listId, 'title': body['title']};
+
+    // Broadcast to all clients subscribed to this list channel
+    hub.broadcast('lists:$listId', {
+      'action': 'todo_created',
+      'todo': newTodo,
+    });
+
+    return BloomResponse.json(newTodo, statusCode: 201);
+  });
+
+  // Serve HTTP and WebSocket upgrades
+  final wsServer = BloomWebSocketServer(apiRouter: router);
+  wsServer.register('/ws/realtime', (socket, httpRequest) {
+    hub.registerConnection(socket);
+  });
+
+  final server = await HttpServer.bind(InternetAddress.anyIPv4, 8080);
+  server.listen(wsServer.handleIoRequest);
+}`;
+
+const clientRealtimeCode = `// client.dart - Flutter / Client-Side Live Invalidation
+import 'package:bloom_framework/bloom_data.dart';
+import 'package:bloom_realtime/bloom_realtime.dart';
+
+void main() async {
+  // 1. Initialize Reconnecting Client
+  final realtime = BloomRealtimeClient(
+    uri: Uri.parse('ws://localhost:8080/ws/realtime'),
+  );
+  await realtime.connect();
+
+  const listId = '42';
+  final queryKey = ['lists', listId, 'todos'];
+
+  // 2. Wire broadcast events to automatically invalidate BloomData query cache
+  realtime.invalidateQueriesOnBroadcast(
+    channel: 'lists:$listId',
+    key: queryKey,
+  );
+
+  // 3. Define the reactive BloomQuery
+  final todosQuery = query<List<dynamic>>(
+    key: queryKey,
+    fetch: () => fetchTodosFromApi(listId),
+  );
+}`;
+---
+
+<DocsLayout
+  title="Realtime & WebSockets"
+  description="In-memory pub/sub channels, presence tracking, and live BloomData query cache invalidation over WebSockets."
+  currentSlug="server-realtime"
+  category="Bloom Server"
+  toc={[
+    { id: 'hub', title: 'BloomChannelHub Server Pub/Sub' },
+    { id: 'client-split', title: 'Server vs. Client Barrel Split' },
+    { id: 'query-invalidation', title: 'Live Query Cache Invalidation' },
+    { id: 'presence', title: 'Presence Tracking' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-mono font-bold">
+        <Radio className="w-3.5 h-3.5" />
+        Realtime Streams
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Realtime &amp; WebSockets
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <a href="https://pub.dev/packages/bloom_realtime" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_realtime</a> bridges backend mutations to connected clients over WebSockets, featuring channel pub/sub, presence tracking, and zero-boilerplate query invalidation.
+      </p>
+    </div>
+
+    <!-- Section: Hub -->
+    <section id="hub" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomChannelHub Server Pub/Sub
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomChannelHub</code> manages active WebSocket connections, topic subscriptions, broadcast fanout, and automatic dead-socket cleanup:
+      </p>
+      <CodeBlock code={serverRealtimeCode} lang="dart" filename="bin/server.dart" />
+    </section>
+
+    <!-- Section: Split -->
+    <section id="client-split" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Server vs. Client Barrel Split
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">
+            package:bloom_realtime/bloom_realtime.dart
+          </h3>
+          <p>
+            Pure Dart, server-safe barrel export with zero Flutter framework dependencies. Used inside server entrypoints and backend route handlers.
+          </p>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">
+            package:bloom_realtime/bloom_realtime_client.dart
+          </h3>
+          <p>
+            Client barrel adding the <code class="font-mono text-purple-400">RealtimeQueryBridge</code> and <code class="font-mono text-purple-400">BloomData</code> integration for Flutter applications.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Invalidation -->
+    <section id="query-invalidation" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Live Query Cache Invalidation
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Connect channel broadcasts directly to <code class="font-mono text-purple-400">BloomData.invalidateQueries(...)</code> on the client. When a backend event occurs, cached queries automatically refetch in the background:
+      </p>
+      <CodeBlock code={clientRealtimeCode} lang="dart" filename="lib/client.dart" />
+    </section>
+
+    <!-- Section: Presence -->
+    <section id="presence" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Presence Tracking
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomPresenceTracker</code> tracks real-time join/leave states with initial state snapshots and departure events when sockets disconnect.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/admin-panel"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Admin Panel</span>
+      </a>
+      <a
+        href="/docs/server/caching"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Caching</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,305 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Server, ArrowRight, ShieldCheck, Database, Layers, Zap, Cpu, Boxes } from 'lucide-preact';
+
+const quickExampleCode = `// bin/server.dart - Bootstrapping a Bloom Server
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_errors/bloom_errors.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_migrate/bloom_migrate.dart';
+
+Future<void> main(List<String> args) async {
+  // 1. Connect to PostgreSQL or SQLite via unified DbExecutor
+  final db = await PostgresDbExecutor.connect(
+    host: BloomEnv.get('DB_HOST', defaultValue: '127.0.0.1'),
+    port: BloomEnv.getInt('DB_PORT', defaultValue: 5432),
+    username: BloomEnv.get('DB_USER', defaultValue: 'postgres'),
+    password: BloomEnv.get('DB_PASSWORD', defaultValue: 'postgres'),
+    database: BloomEnv.get('DB_NAME', defaultValue: 'bloom_server_dev'),
+  );
+
+  // 2. Run pending schema migrations automatically
+  final runner = MigrationRunner(db: db, migrationsDirectory: 'migrations');
+  await runner.migrate();
+
+  // 3. Mount router with dev/prod error masking
+  final router = BloomApiRouter();
+  router.use(const BloomErrorMiddleware());
+
+  router.get('/api/health', (req) async {
+    return BloomResponse.json({'status': 'healthy'});
+  });
+
+  await router.serve(port: 8080);
+}`;
+---
+
+<DocsLayout
+  title="Bloom Server Overview"
+  description="A full-stack, Django-style backend ecosystem for Bloom applications sharing the same core framework as Flutter."
+  currentSlug="server-overview"
+  category="Bloom Server"
+  toc={[
+    { id: 'architecture', title: 'Unified Architecture' },
+    { id: 'comparison', title: 'Comparing Bloom Server vs. Other Dart Backends' },
+    { id: 'packages', title: 'The 15-Package Ecosystem' },
+    { id: 'publish-status', title: 'Package Availability & Pub.dev Status' },
+    { id: 'quickstart', title: 'Get Started' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
+        <Server className="w-3.5 h-3.5" />
+        Backend Architecture
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Bloom Server Overview
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom Server is a comprehensive 15-package backend ecosystem modeled on the architectural patterns of Django and the project's own <code class="font-mono text-purple-400">djangors-*</code> Rust crates. It delivers an integrated ORM, migrations, authentication, validation, REST ViewSets, realtime WebSockets, task queues, and an HTML admin panel—built directly on pure Dart.
+      </p>
+    </div>
+
+    <!-- Section: Unified Architecture -->
+    <section id="architecture" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Unified Architecture
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Unlike traditional multi-tier setups where backend and frontend exist in separate language silos or rely on generated client SDKs, Bloom Server shares the exact same foundation package—<code class="font-mono text-purple-400">bloom_framework</code>—between your server and Flutter client.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <div class="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
+            <Cpu className="w-4 h-4 text-purple-500" />
+            <span>Shared Client-Server Primitives</span>
+          </div>
+          <p class="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+            <code class="font-mono text-purple-400">BloomQuery</code> and <code class="font-mono text-purple-400">BloomMutation</code> on Flutter clients communicate seamlessly with <code class="font-mono text-purple-400">BloomRequest</code> and <code class="font-mono text-purple-400">BloomResponse</code> on the server without intermediary codegen tools or duplicate schema declarations.
+          </p>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <div class="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
+            <Boxes className="w-4 h-4 text-purple-500" />
+            <span>Django-Style Modular Apps</span>
+          </div>
+          <p class="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+            Server projects are organized into domain apps (<code class="font-mono text-purple-400">lib/apps/&lt;name&gt;/</code>) containing <code class="font-mono text-purple-400">models.dart</code>, <code class="font-mono text-purple-400">serializers.dart</code>, <code class="font-mono text-purple-400">views.dart</code>, <code class="font-mono text-purple-400">permissions.dart</code>, and <code class="font-mono text-purple-400">urls.dart</code>.
+          </p>
+        </div>
+      </div>
+      <CodeBlock code={quickExampleCode} lang="dart" filename="bin/server.dart" />
+    </section>
+
+    <!-- Section: Comparison -->
+    <section id="comparison" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Comparing Bloom Server vs. Other Dart Backends
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Understanding how Bloom Server compares to existing Dart backend solutions helps you choose the right tool for your project:
+      </p>
+      
+      <div class="space-y-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">
+            Bloom Server vs. Serverpod
+          </h3>
+          <p>
+            <strong>The Differentiator:</strong> Bloom Server's primary distinction is that client data primitives (<code class="font-mono text-purple-400">BloomQuery</code> / <code class="font-mono text-purple-400">BloomMutation</code>) and server primitives (<code class="font-mono text-purple-400">BloomRequest</code> / <code class="font-mono text-purple-400">BloomResponse</code>) come directly from the same <code class="font-mono text-purple-400">bloom_framework</code> package without any client SDK codegen step. In contrast, Serverpod generates a separate Dart client SDK bridging Dart-to-Dart communication.
+          </p>
+          <p>
+            <strong>The Tradeoff:</strong> Serverpod is a mature, production-proven framework with years of battle-testing. Bloom Server is a newly developed stack whose packages have just been released.
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">
+            Bloom Server vs. Dart Frog &amp; Shelf
+          </h3>
+          <p>
+            Dart Frog and Shelf are intentionally minimal, low-level HTTP routing toolkits designed around a "bring-your-own-everything" model (you supply your own ORM, auth, migrations, admin panel, job queues, and validation). Bloom Server is a full-stack, batteries-included framework containing an integrated ORM, auth, admin, and migration toolchain in one cohesive design.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: 15 Packages -->
+    <section id="packages" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        The 15-Package Ecosystem
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The Bloom Server stack consists of 15 modular packages designed to work together or as standalone libraries:
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <!-- Data Layer -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <Database className="w-4 h-4 text-pink-500" />
+            Data Layer &amp; Migrations
+          </h3>
+          <ul class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+            <li>
+              <a href="https://pub.dev/packages/bloom_db" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_db</a>
+              <p class="mt-0.5">Core ORM runtime and annotations for Bloom framework. SQLite and PostgreSQL, QuerySet API modeled on djangors-orm.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_db_generator" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_db_generator</a>
+              <p class="mt-0.5">build_runner code generator for bloom_db models — generates ModelMeta and row-mapping boilerplate from @BloomModel annotations.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_migrate" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_migrate</a>
+              <p class="mt-0.5">Database migrations CLI and library for Bloom applications using bloom_db.</p>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Auth & Security -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            Auth, Security &amp; Errors
+          </h3>
+          <ul class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+            <li>
+              <a href="https://pub.dev/packages/bloom_auth_server" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_auth_server</a>
+              <p class="mt-0.5">Server-side authentication primitives for the Bloom framework, including password hashing, session/bearer token issuance, rate limiting, password reset workflows, and auth middleware.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_security" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_security</a>
+              <p class="mt-0.5">Production-ready CORS, security headers, rate limiting, and WebSocket upgrade utilities for Bloom servers.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_errors" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_errors</a>
+              <p class="mt-0.5">Strongly-typed HTTP error hierarchy, sibling package error mapping, and dev/prod error-rendering middleware for Bloom.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_validate" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_validate</a>
+              <p class="mt-0.5">Declarative, strictly-typed request and DTO schema validation for Bloom API routes.</p>
+            </li>
+          </ul>
+        </div>
+
+        <!-- API & Administration -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <Layers className="w-4 h-4 text-cyan-500" />
+            API Layer &amp; Administration
+          </h3>
+          <ul class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+            <li>
+              <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_rest</span>
+              <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-mono">Publishing Soon</span>
+              <p class="mt-0.5">DRF-style (Django REST Framework) REST layer on top of BloomApiRouter and bloom_db, providing serializers, ViewSets, pagination, filters, permissions, and throttling.</p>
+            </li>
+            <li>
+              <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_admin</span>
+              <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-mono">Publishing Soon</span>
+              <p class="mt-0.5">Automatic server-rendered HTML administration interface for Bloom web applications.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_realtime" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_realtime</a>
+              <p class="mt-0.5">Real-time pub/sub layer for Bloom server + client apps (channels, broadcast, presence, query invalidation bridge).</p>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Operations & Infrastructure -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-3">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-500" />
+            Operations &amp; Infrastructure
+          </h3>
+          <ul class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+            <li>
+              <span class="font-mono font-bold text-purple-600 dark:text-purple-400">bloom_cache</span>
+              <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-mono">Publishing Soon</span>
+              <p class="mt-0.5">Server-side caching abstraction and backends (In-Memory LRU, Database, Redis) with HTTP response caching middleware for Bloom applications.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_jobs" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_jobs</a>
+              <p class="mt-0.5">Background job queue and worker system for Bloom server applications.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_mail" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_mail</a>
+              <p class="mt-0.5">Transactional email sending for Bloom server applications with swappable delivery backends.</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_storage" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_storage</a>
+              <p class="mt-0.5">Flexible, swappable file storage abstraction for Bloom server applications (Local Disk and S3-compatible backends like AWS S3, Cloudflare R2, MinIO, and Supabase Storage).</p>
+            </li>
+            <li>
+              <a href="https://pub.dev/packages/bloom_i18n" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-purple-600 dark:text-purple-400 hover:underline">bloom_i18n</a>
+              <p class="mt-0.5">Internationalization, locale resolution, ICU message formatting, and date localization for Bloom applications.</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Publish Status -->
+    <section id="publish-status" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Package Availability &amp; Pub.dev Status
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The current distribution status of Bloom Server packages across the ecosystem:
+      </p>
+
+      <div class="space-y-3 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+          <p class="font-bold text-emerald-600 dark:text-emerald-400 mb-1">
+            Available on Pub.dev
+          </p>
+          <p>
+            <code class="font-mono text-emerald-600 dark:text-emerald-400">bloom_framework ^0.2.2</code>, <code class="font-mono">bloom_db ^0.1.0</code>, <code class="font-mono">bloom_db_generator ^0.1.0</code>, <code class="font-mono">bloom_migrate ^0.1.0</code>, <code class="font-mono">bloom_validate ^0.1.0</code>, <code class="font-mono">bloom_auth_server ^0.1.0</code>, <code class="font-mono">bloom_mail ^0.1.0</code>, <code class="font-mono">bloom_jobs ^0.1.0</code>, <code class="font-mono">bloom_security ^0.1.0</code>, <code class="font-mono">bloom_storage ^0.1.0</code>, <code class="font-mono">bloom_realtime ^0.1.0</code>, <code class="font-mono">bloom_i18n ^0.1.0</code>, <code class="font-mono">bloom_errors ^0.1.0</code>.
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+          <p class="font-bold text-amber-600 dark:text-amber-400 mb-1">
+            Publishing Soon (Pending pub.dev Rate Limit)
+          </p>
+          <p>
+            <code class="font-mono">bloom_cache</code>, <code class="font-mono">bloom_admin</code>, and <code class="font-mono">bloom_rest</code> are currently available as monorepo path dependencies, with pub.dev release pending the daily new-package rate limit.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Get Started -->
+    <section id="quickstart" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Get Started
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Ready to build your first backend? Head over to the <a href="/docs/server/scaffolding" class="font-bold text-purple-600 dark:text-purple-400 hover:underline">Scaffolding a Server</a> guide to scaffold a new project with <code class="font-mono text-purple-400">bloom server create</code>.
+      </p>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        For a complete, real-world reference project that wires all fifteen packages together against PostgreSQL, explore <code class="font-mono text-purple-400">examples/bloom_fullstack_todo</code> in the <a href="https://github.com/bloom-framework/bloom" target="_blank" rel="noopener noreferrer" class="font-bold text-purple-600 dark:text-purple-400 hover:underline">Bloom monorepo</a>.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/cloud/hosting-and-automation"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Hosting, Observability & Automation</span>
+      </a>
+      <a
+        href="/docs/server/scaffolding"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Scaffolding a Server</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
