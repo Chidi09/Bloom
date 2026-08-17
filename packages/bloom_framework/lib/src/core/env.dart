@@ -42,6 +42,24 @@ class BloomEnv {
     });
   }
 
+  /// Seeds `--dart-define` values into the runtime map.
+  ///
+  /// `String.fromEnvironment`/`bool.hasEnvironment` are const constructors —
+  /// Dart only resolves them for literal keys known at compile time, so
+  /// `BloomEnv` cannot look a dart-define up generically by a runtime [key].
+  /// Callers declare their known dart-define keys as literals here (see
+  /// `boot.dart`'s `BLOOM_FLAVOR` handling for the pattern), and every other
+  /// `BloomEnv` accessor then reads them back out of the ordinary runtime map:
+  ///
+  /// ```dart
+  /// BloomEnv.loadDartDefines({
+  ///   if (const bool.hasEnvironment('APP_ENV'))
+  ///     'APP_ENV': const String.fromEnvironment('APP_ENV'),
+  /// });
+  /// ```
+  static void loadDartDefines(Map<String, String> defines, {bool overwrite = false}) =>
+      loadMap(defines, overwrite: overwrite);
+
   /// Validates a typed [BloomEnvironmentSchema] against current environment variables.
   /// Throws [BloomEnvironmentException] if any required keys are missing or malformed.
   static T validate<T extends BloomEnvironmentSchema>(T schema) {
@@ -60,9 +78,6 @@ class BloomEnv {
     if (_env.containsKey(key)) {
       return _env[key]!;
     }
-    if (bool.hasEnvironment(key)) {
-      return String.fromEnvironment(key);
-    }
     if (defaultValue != null) {
       return defaultValue;
     }
@@ -70,45 +85,29 @@ class BloomEnv {
   }
 
   /// Get environment variable string, or return `null` if not found.
-  static String? getOrNull(String key) {
-    if (_env.containsKey(key)) {
-      return _env[key];
-    }
-    if (bool.hasEnvironment(key)) {
-      return String.fromEnvironment(key);
-    }
-    return null;
-  }
+  static String? getOrNull(String key) => _env[key];
 
-  /// Get integer value with dart-define fallback.
+  /// Get integer value.
   static int getInt(String key, {int? defaultValue}) {
     if (_env.containsKey(key)) {
       final parsed = int.tryParse(_env[key]!);
       if (parsed != null) return parsed;
     }
-    if (bool.hasEnvironment(key)) {
-      final fromDef = int.fromEnvironment(key);
-      return fromDef;
-    }
     if (defaultValue != null) return defaultValue;
     throw StateError('BloomEnv: Missing required integer environment variable "$key".');
   }
 
-  /// Get double value with dart-define fallback.
+  /// Get double value.
   static double getDouble(String key, {double? defaultValue}) {
     if (_env.containsKey(key)) {
       final parsed = double.tryParse(_env[key]!);
-      if (parsed != null) return parsed;
-    }
-    if (bool.hasEnvironment(key)) {
-      final parsed = double.tryParse(String.fromEnvironment(key));
       if (parsed != null) return parsed;
     }
     if (defaultValue != null) return defaultValue;
     throw StateError('BloomEnv: Missing required double environment variable "$key".');
   }
 
-  /// Get boolean value with dart-define fallback.
+  /// Get boolean value.
   static bool getBool(String key, {bool? defaultValue}) {
     if (_env.containsKey(key)) {
       final val = _env[key]!;
@@ -116,15 +115,12 @@ class BloomEnv {
       if (lower == 'true' || lower == '1' || lower == 'yes') return true;
       if (lower == 'false' || lower == '0' || lower == 'no') return false;
     }
-    if (bool.hasEnvironment(key)) {
-      return bool.fromEnvironment(key);
-    }
     if (defaultValue != null) return defaultValue;
     throw StateError('BloomEnv: Missing required boolean environment variable "$key".');
   }
 
-  /// Check if environment variable exists in map or dart-define environment.
-  static bool contains(String key) => _env.containsKey(key) || bool.hasEnvironment(key);
+  /// Check if environment variable exists in the runtime map.
+  static bool contains(String key) => _env.containsKey(key);
 
   /// Check if environment variable exists (alias for contains).
   static bool has(String key) => contains(key);

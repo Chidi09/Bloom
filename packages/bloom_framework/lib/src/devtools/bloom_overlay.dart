@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../core/boot.dart';
 import '../core/env.dart';
 import '../data/cache.dart';
+import '../widgets/bloom_logo.dart';
 
 /// Universal in-app developer modal and diagnostics overlay for Bloom applications and Bloom Go.
 class BloomDevOverlay extends StatefulWidget {
@@ -100,7 +101,7 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.local_florist_rounded, color: Colors.deepPurple, size: 28),
+                const BloomLogo(size: 28),
                 const SizedBox(width: 10),
                 Text(
                   isRemote ? 'Connected: $projectName' : 'Bloom Dev Inspector',
