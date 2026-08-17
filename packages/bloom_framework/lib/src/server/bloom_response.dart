@@ -101,6 +101,11 @@ class BloomResponse {
     return BloomResponse.json({'error': message, 'statusCode': 404}, statusCode: 404);
   }
 
+  /// Helper constructor for 413 Payload Too Large.
+  factory BloomResponse.payloadTooLarge([String message = 'Payload Too Large']) {
+    return BloomResponse.json({'error': message, 'statusCode': 413}, statusCode: 413);
+  }
+
   /// Helper constructor for 500 Internal Server Error.
   factory BloomResponse.error(String message, {int statusCode = 500}) {
     return BloomResponse.json({'error': message, 'statusCode': statusCode}, statusCode: statusCode);

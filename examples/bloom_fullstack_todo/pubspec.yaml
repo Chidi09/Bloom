@@ -1,0 +1,51 @@
+name: bloom_fullstack_todo
+description: Fullstack Todo backend exercising all 15 Bloom framework packages against real PostgreSQL.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  # Bloom Core & Packages
+  bloom_framework:
+    path: ../../packages/bloom_framework
+  bloom_db:
+    path: ../../packages/bloom_db
+  bloom_validate:
+    path: ../../packages/bloom_validate
+  bloom_auth_server:
+    path: ../../packages/bloom_auth_server
+  bloom_mail:
+    path: ../../packages/bloom_mail
+  bloom_jobs:
+    path: ../../packages/bloom_jobs
+  bloom_security:
+    path: ../../packages/bloom_security
+  bloom_storage:
+    path: ../../packages/bloom_storage
+  bloom_realtime:
+    path: ../../packages/bloom_realtime
+  bloom_cache:
+    path: ../../packages/bloom_cache
+  bloom_i18n:
+    path: ../../packages/bloom_i18n
+  bloom_admin:
+    path: ../../packages/bloom_admin
+  bloom_migrate:
+    path: ../../packages/bloom_migrate
+  bloom_rest:
+    path: ../../packages/bloom_rest
+  bloom_errors:
+    path: ../../packages/bloom_errors
+
+  # Ecosystem dependencies
+  meta: ^1.15.0
+  intl: ^0.19.0
+  postgres: ^3.2.1
+  crypto: ^3.0.3
+
+dev_dependencies:
+  build_runner: ^2.4.9
+  bloom_db_generator:
+    path: ../../packages/bloom_db_generator

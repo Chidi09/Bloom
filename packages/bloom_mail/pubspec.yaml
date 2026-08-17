@@ -1,0 +1,15 @@
+name: bloom_mail
+description: Transactional email sending for Bloom server applications with swappable delivery backends.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../bloom_framework
+  mailer: ^6.1.2
+
+dev_dependencies:
+  flutter_lints: ^5.0.0

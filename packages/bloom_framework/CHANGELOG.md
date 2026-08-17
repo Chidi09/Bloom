@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+### Fixed
+
+* **`BloomRequest.params` defaulted to a `const {}` map**: any middleware that tried to attach convenience context (e.g. `bloom_i18n`'s resolved locale, `bloom_auth_server`'s verified `auth_user_id`/`auth_roles`) on a request with no path parameters crashed with `Unsupported operation: Cannot modify unmodifiable map` the moment it ran. `params` now always defaults to a fresh mutable map.
+* **`BloomApiRouter` discarded per-request middleware context on every route match**: route dispatch built a *new* `BloomRequest` via `copyWith(params: ...)` after global middlewares had already run and attached state (params, or framework-internal `Expando`-backed context) to the original request instance — silently dropping it before route-specific middlewares and the handler ever saw it. Path parameters are now merged into the same request instance in place, so global middleware state (locale resolution, auth claims, etc.) survives all the way to the handler.
+* **A pure-Dart server importing `bloom_server.dart` transitively pulled in `package:flutter`**: `bloom_realtime`'s single barrel exported both server-side (`BloomChannelHub`) and Flutter-app-only (`RealtimeQueryBridge`, which depends on `BloomData`'s `signals_flutter`-backed reactivity) code together, so any backend depending on it could not run under a plain `dart run`/`dart compile`. Split into `bloom_realtime.dart` (server-safe) and `bloom_realtime_client.dart` (Flutter client extras). Added a new Flutter-independent `bloom_core.dart` barrel (env config, DI container, logger) re-exported from `bloom_server.dart`, and a `bloom_data.dart` barrel for the client query/cache layer — server code should never import `bloom.dart` directly.
+
 ## 0.2.1
 
 ### Fixed

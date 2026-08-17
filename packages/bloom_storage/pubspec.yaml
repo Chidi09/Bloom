@@ -1,0 +1,18 @@
+name: bloom_storage
+description: Flexible, swappable file storage abstraction for Bloom server applications (Local Disk and S3-compatible backends like AWS S3, Cloudflare R2, MinIO, and Supabase Storage).
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../bloom_framework
+  crypto: ^3.0.3
+  http: ^1.2.0
+  path: ^1.9.0
+  meta: ^1.15.0
+
+dev_dependencies:
+  flutter_lints: ^5.0.0

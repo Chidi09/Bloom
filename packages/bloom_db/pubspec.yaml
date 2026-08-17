@@ -1,0 +1,19 @@
+name: bloom_db
+description: Core ORM runtime and annotations for Bloom framework.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  meta: ^1.15.0
+  sqlite3: ^2.4.6
+  postgres: ^3.2.1
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
+  build_runner: ^2.4.9
+  bloom_db_generator:
+    path: ../bloom_db_generator

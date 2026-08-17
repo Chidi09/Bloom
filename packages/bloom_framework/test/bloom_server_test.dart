@@ -48,6 +48,34 @@ void main() {
       final unauthorizedRes = BloomResponse.unauthorized();
       expect(unauthorizedRes.statusCode, 401);
       expect(unauthorizedRes.bodyJson['error'], 'Unauthorized');
+
+      final payloadTooLargeRes = BloomResponse.payloadTooLarge();
+      expect(payloadTooLargeRes.statusCode, 413);
+      expect(payloadTooLargeRes.bodyJson['error'], 'Payload Too Large');
+    });
+
+    test('BloomRequest detects isSecure accurately from URI scheme or explicit flag', () {
+      final httpsReq = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('https://example.com/api/test'),
+      );
+      expect(httpsReq.isSecure, isTrue);
+
+      final httpReq = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('http://example.com/api/test'),
+      );
+      expect(httpReq.isSecure, isFalse);
+
+      final proxiedReq = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('http://example.com/api/test'),
+        isSecure: true,
+      );
+      expect(proxiedReq.isSecure, isTrue);
+
+      final copiedReq = httpReq.copyWith(isSecure: true);
+      expect(copiedReq.isSecure, isTrue);
     });
   });
 
