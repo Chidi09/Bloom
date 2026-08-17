@@ -9,15 +9,19 @@ class BloomRequest {
   final Map<String, String> headers;
   final Map<String, String> params;
   final Uint8List rawBody;
+  final bool isSecure;
 
   BloomRequest({
     required this.method,
     required this.uri,
     this.headers = const {},
-    this.params = const {},
+    Map<String, String>? params,
     dynamic body,
     Uint8List? rawBody,
-  }) : rawBody = rawBody ?? _convertBody(body);
+    bool? isSecure,
+  })  : params = params ?? <String, String>{},
+        rawBody = rawBody ?? _convertBody(body),
+        isSecure = isSecure ?? (uri.scheme.toLowerCase() == 'https');
 
   static Uint8List _convertBody(dynamic body) {
     if (body == null) return Uint8List(0);
@@ -58,6 +62,7 @@ class BloomRequest {
     Map<String, String>? headers,
     Map<String, String>? params,
     Uint8List? rawBody,
+    bool? isSecure,
   }) {
     return BloomRequest(
       method: method ?? this.method,
@@ -65,6 +70,7 @@ class BloomRequest {
       headers: headers ?? this.headers,
       params: params ?? this.params,
       rawBody: rawBody ?? this.rawBody,
+      isSecure: isSecure ?? this.isSecure,
     );
   }
 }

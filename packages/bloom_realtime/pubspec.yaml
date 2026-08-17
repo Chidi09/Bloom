@@ -1,0 +1,16 @@
+name: bloom_realtime
+description: Real-time pub/sub layer for Bloom server + client apps (channels, broadcast, presence, query invalidation bridge).
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../bloom_framework
+  bloom_security:
+    path: ../bloom_security
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
