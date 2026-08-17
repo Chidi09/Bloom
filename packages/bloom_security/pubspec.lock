@@ -52,10 +52,11 @@ packages:
   bloom_framework:
     dependency: "direct main"
     description:
-      path: "../bloom_framework"
-      relative: true
-    source: path
-    version: "0.2.1"
+      name: bloom_framework
+      sha256: aa537b050fed75a0d2cd8b8a16ca1fffc8ed25c43de6d028678b2259be228fda
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.2"
   boolean_selector:
     dependency: transitive
     description:

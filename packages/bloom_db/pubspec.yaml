@@ -1,7 +1,15 @@
 name: bloom_db
-description: Core ORM runtime and annotations for Bloom framework.
+description: Core ORM runtime and annotations for Bloom framework. SQLite and PostgreSQL, QuerySet API modeled on djangors-orm.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - orm
+  - database
+  - postgres
+  - sqlite
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

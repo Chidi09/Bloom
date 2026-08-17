@@ -225,14 +225,13 @@ String generateCreateTableSql(
 /// Generates all explicit and implied index SQL statements for a [ModelMeta].
 List<String> generateIndexesSql(ModelMeta model, Dialect dialect) {
   final stmts = <String>[];
-  final isSqlite = dialect.type == DialectType.sqlite;
   final ifNotExists = 'IF NOT EXISTS ';
 
   // Explicit model indexes
   for (final idx in model.indexes) {
     if (idx.fields.isEmpty) continue;
     final colList = idx.fields.join(', ');
-    stmts.add('CREATE INDEX $ifNotExists${idx.name} ON ${model.tableName}(${colList});');
+    stmts.add('CREATE INDEX $ifNotExists${idx.name} ON ${model.tableName}($colList);');
   }
 
   // Field-level db_index

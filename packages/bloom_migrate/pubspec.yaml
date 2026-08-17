@@ -1,7 +1,14 @@
 name: bloom_migrate
 description: Database migrations CLI and library for Bloom applications using bloom_db.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - orm
+  - database
+  - migrations
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -13,8 +20,7 @@ dependencies:
   args: ^2.5.0
   path: ^1.9.0
   meta: ^1.15.0
-  bloom_db:
-    path: ../bloom_db
+  bloom_db: ^0.1.0
 
 dev_dependencies:
   test: ^1.25.0

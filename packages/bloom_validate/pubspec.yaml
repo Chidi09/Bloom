@@ -1,13 +1,18 @@
 name: bloom_validate
 description: Declarative, strictly-typed request and DTO schema validation for Bloom API routes.
-publish_to: 'none'
+version: 0.1.0
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - validation
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_framework:
-    path: ../bloom_framework
+  bloom_framework: ^0.2.2
 
 dev_dependencies:
   flutter_lints: ^5.0.0
