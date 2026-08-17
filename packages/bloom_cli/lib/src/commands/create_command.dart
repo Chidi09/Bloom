@@ -117,10 +117,10 @@ class CreateCommand extends Command<int> {
           if (Directory(siblingFramework).existsSync()) {
             depSpec = '  bloom_framework:\n    path: ${p.canonicalize(siblingFramework)}';
           } else {
-            depSpec = '  bloom_framework: ^0.1.0';
+            depSpec = '  bloom_framework: ^0.2.0';
           }
         } catch (_) {
-          depSpec = '  bloom_framework: ^0.1.0';
+          depSpec = '  bloom_framework: ^0.2.0';
         }
       }
 

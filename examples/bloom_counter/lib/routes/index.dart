@@ -18,11 +18,7 @@ class IndexRoute extends BloomRoute {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.local_florist_rounded,
-              size: 72,
-              color: Colors.deepPurple,
-            ),
+            const BloomLogo(size: 72),
             const SizedBox(height: 16),
             Text(
               'Welcome to Bloom',
