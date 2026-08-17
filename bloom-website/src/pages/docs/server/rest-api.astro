@@ -1,0 +1,187 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Layers, ArrowRight, ShieldCheck, Filter, Cpu, Database, Zap } from 'lucide-preact';
+
+const viewSetExampleCode = `// lib/apps/blog/views.dart - DRF-style ViewSet
+import 'package:bloom_cache/bloom_cache.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_rest/bloom_rest.dart';
+import 'models.dart';
+
+void registerBlogApi(BloomApiRouter router, DbExecutor db, BloomCache cache) {
+  // 1. Configure Model Serializer with FieldSet visibility rules
+  final serializer = BloomModelSerializer<Article>(
+    meta: Article.meta,
+    fields: BloomFieldSet.all().withReadOnly(['id', 'createdAt']),
+  );
+
+  // 2. Configure ViewSet options
+  final options = BloomViewSetOptions<Article>(
+    serializer: serializer,
+    config: const BloomViewSetConfig(
+      filterableFields: ['status'],
+      orderableFields: ['createdAt', 'title', 'id'],
+      defaultPageSize: 20,
+    ),
+    pagination: const PageNumberPagination(
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    ),
+    // Composed permissions
+    permission: const IsAuthenticated().and(const IsStaff()),
+    // Cache-backed throttling
+    throttle: BloomThrottle.fromRate(
+      scope: 'articles_api',
+      rate: '100/hour',
+      cache: cache,
+    ),
+    filterBackends: [
+      const BloomSearchFilter<Article>(['title', 'content']),
+      const BloomOrderingFilter<Article>(['createdAt', 'title']),
+    ],
+  );
+
+  // 3. Mount CRUD routes onto BloomApiRouter in a single call
+  mountViewSet<Article>(
+    router: router,
+    basePath: '/api/articles',
+    meta: Article.meta,
+    fromRow: Article.fromRow,
+    getDb: (req) => db,
+    options: options,
+  );
+}`;
+---
+
+<DocsLayout
+  title="REST API Layer"
+  description="Django REST Framework (DRF) style ViewSets, serializers, pagination, permissions, and filters for Bloom."
+  currentSlug="server-rest-api"
+  category="Bloom Server"
+  toc={[
+    { id: 'viewsets', title: 'BloomViewSet & Mounting' },
+    { id: 'serializers', title: 'Serializers & FieldSets' },
+    { id: 'pagination', title: 'Pluggable Pagination' },
+    { id: 'permissions', title: 'Composable Permissions' },
+    { id: 'throttling-filters', title: 'Throttling & Filters' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Layers className="w-3.5 h-3.5" />
+        REST API Layer
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        REST API Layer
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <code class="font-mono text-purple-400">bloom_rest</code> delivers a Django REST Framework (DRF) style API architecture on top of <code class="font-mono text-purple-400">BloomApiRouter</code> and <code class="font-mono text-purple-400">bloom_db</code>.
+      </p>
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+        <strong>Publishing Soon:</strong> <code class="font-mono">bloom_rest</code> is currently available as a monorepo path dependency. Its pub.dev publish is pending the daily new-package rate limit.
+      </div>
+    </div>
+
+    <!-- Section: ViewSets -->
+    <section id="viewsets" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomViewSet &amp; Mounting
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">mountViewSet&lt;T&gt;</code> binds a full suite of CRUD endpoints (<code class="font-mono">list</code>, <code class="font-mono">retrieve</code>, <code class="font-mono">create</code>, <code class="font-mono">update</code>, <code class="font-mono">destroy</code>) onto <code class="font-mono text-purple-400">BloomApiRouter</code> with pagination, permissions, throttling, and filtering in a single declaration:
+      </p>
+      <CodeBlock code={viewSetExampleCode} lang="dart" filename="lib/apps/blog/views.dart" />
+    </section>
+
+    <!-- Section: Serializers -->
+    <section id="serializers" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Serializers &amp; FieldSets
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomModelSerializer</code> inspects <code class="font-mono text-purple-400">ModelMeta</code> to serialize and deserialize model instances. <code class="font-mono text-purple-400">BloomFieldSet</code> provides granular control over field exposure:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">BloomFieldSet.all().withReadOnly(['id', 'createdAt'])</code> — Exposes all fields, preventing clients from mutating identifier or timestamp columns.</li>
+        <li><code class="font-mono text-purple-400">BloomFieldSet.only(['id', 'title', 'content'])</code> — Whitelists specific fields for serialization.</li>
+        <li><code class="font-mono text-purple-400">BloomFieldSet.exclude(['passwordHash'])</code> — Strips sensitive fields from serialized responses.</li>
+      </ul>
+    </section>
+
+    <!-- Section: Pagination -->
+    <section id="pagination" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Pluggable Pagination
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">PageNumberPagination</h3>
+          <p><code class="font-mono text-purple-400">?page=1&amp;page_size=20</code></p>
+          <p>Returns <code class="font-mono">count</code>, <code class="font-mono">total_pages</code>, <code class="font-mono">page</code>, and <code class="font-mono">results</code>.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">LimitOffsetPagination</h3>
+          <p><code class="font-mono text-purple-400">?limit=20&amp;offset=40</code></p>
+          <p>Returns <code class="font-mono">count</code>, <code class="font-mono">limit</code>, <code class="font-mono">offset</code>, and <code class="font-mono">results</code>.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">CursorPagination</h3>
+          <p><code class="font-mono text-purple-400">?cursor=eyJpZ...</code></p>
+          <p>Keyset pagination with opaque base64 cursors, immune to pagination drift.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Permissions -->
+    <section id="permissions" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Composable Permissions
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Permission classes can be composed with boolean logic (<code class="font-mono text-purple-400">.and()</code>, <code class="font-mono text-purple-400">.or()</code>, <code class="font-mono text-purple-400">.negate()</code>):
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">IsAuthenticated()</code> — Requires an authenticated session token.</li>
+        <li><code class="font-mono text-purple-400">IsStaff()</code> / <code class="font-mono text-purple-400">IsSuperuser()</code> — Requires administrative role claims.</li>
+        <li><code class="font-mono text-purple-400">AllowAny()</code> — Public access without restriction.</li>
+        <li><code class="font-mono text-purple-400">IsReadOnly()</code> — Permits safe methods (<code class="font-mono">GET</code>, <code class="font-mono">HEAD</code>, <code class="font-mono">OPTIONS</code>).</li>
+      </ul>
+    </section>
+
+    <!-- Section: Throttling & Filters -->
+    <section id="throttling-filters" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Throttling &amp; Filter Backends
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomThrottle.fromRate()</code> enforces DRF rate strings like <code class="font-mono">"100/hour"</code> or <code class="font-mono">"10/minute"</code> backed by <code class="font-mono text-purple-400">BloomCache</code>. Filter backends provide out-of-the-box support for query string parameters:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">BloomSearchFilter</code> — Multi-field search (<code class="font-mono">?search=term</code>).</li>
+        <li><code class="font-mono text-purple-400">BloomOrderingFilter</code> — Dynamic sort ordering (<code class="font-mono">?ordering=-createdAt,title</code>).</li>
+        <li><code class="font-mono text-purple-400">BloomFieldFilter</code> — Exact and lookup filtering (<code class="font-mono">?status=published&amp;view_count__gte=10</code>).</li>
+      </ul>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/validation-and-errors"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Validation & Errors</span>
+      </a>
+      <a
+        href="/docs/server/admin-panel"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Admin Panel</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,258 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Database, ArrowRight, Layers, Cpu, Terminal, Zap } from 'lucide-preact';
+
+const modelCode = `// lib/apps/blog/models.dart
+import 'package:bloom_db/bloom_db.dart';
+
+@BloomModel(app: 'blog', tableName: 'blog_posts')
+class Post extends Model {
+  @BloomField(primaryKey: true, auto: true, kind: FieldKind.bigInt)
+  final int id;
+
+  @BloomField(kind: FieldKind.char, maxLength: 255)
+  final String title;
+
+  @BloomField(kind: FieldKind.text)
+  final String content;
+
+  @BloomField(column: 'created_at', kind: FieldKind.dateTime)
+  final DateTime createdAt;
+
+  Post({
+    this.id = 0,
+    required this.title,
+    required this.content,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now().toUtc();
+
+  static final meta = ModelMeta(
+    structName: 'Post',
+    appLabel: 'blog',
+    tableName: 'blog_posts',
+    fields: [
+      FieldMeta(name: 'id', columnName: 'id', kind: FieldKind.bigInt, primaryKey: true, auto: true),
+      FieldMeta(name: 'title', columnName: 'title', kind: FieldKind.char, maxLength: 255),
+      FieldMeta(name: 'content', columnName: 'content', kind: FieldKind.text),
+      FieldMeta(name: 'createdAt', columnName: 'created_at', kind: FieldKind.dateTime),
+    ],
+    ordering: ['-createdAt', 'id'],
+  );
+
+  @override
+  ModelMeta get modelMeta => meta;
+
+  @override
+  List<(String, BloomValue)> fieldValues() => [
+        ('id', BloomValue.i64(id)),
+        ('title', BloomValue.text(title)),
+        ('content', BloomValue.text(content)),
+        ('createdAt', BloomValue.dateTime(createdAt)),
+      ];
+
+  static Post fromRow(DbRow row) => Post(
+        id: row.tryIntByName('id') ?? 0,
+        title: row.tryStringByName('title') ?? '',
+        content: row.tryStringByName('content') ?? '',
+        createdAt: row.tryDateTimeByName('created_at') ?? DateTime.now().toUtc(),
+      );
+
+  static QuerySet<Post> objects() => QuerySet<Post>(meta: meta, fromRow: fromRow);
+}`;
+
+const querysetCode = `// QuerySet queries and expressions
+final db = await PostgresDbExecutor.connect(
+  host: '127.0.0.1',
+  port: 5432,
+  username: 'postgres',
+  password: 'postgres',
+  database: 'bloom_dev',
+);
+
+// 1. Filtering with Q() expressions (&, |, ~)
+final recentPosts = await Post.objects()
+    .filter(Q('title__icontains', 'bloom') & ~Q('content', 'draft'))
+    .orderBy('-createdAt')
+    .limit(20)
+    .all(db);
+
+// 2. Exact lookup
+final post = await Post.objects().filter(Q('id', 42)).get(db);
+
+// 3. Update with F() expression
+await Post.objects()
+    .filter(Q('id', 42))
+    .update(db, {'view_count': F('view_count') + 1});
+
+// 4. Checking existence and counts
+final exists = await Post.objects().filter(Q('title', 'Launch')).exists(db);
+final total = await Post.objects().count(db);
+
+// 5. Atomic getOrCreate
+final (user, created) = await User.objects().getOrCreate(
+  db,
+  lookup: {'email': 'alice@example.com'},
+  defaults: {'name': 'Alice', 'created_at': DateTime.now().toUtc()},
+);`;
+
+const migrationSqlCode = `-- migrations/blog/0001_initial.sql
+-- up
+CREATE TABLE IF NOT EXISTS blog_posts (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS blog_posts_created_at_idx ON blog_posts(created_at);
+
+-- down
+DROP TABLE IF EXISTS blog_posts;`;
+
+const migrationCliCode = `# 1. Generate migration SQL from registered models
+dart run bloom_migrate makemigrations blog --dialect=postgres --name=initial
+
+# 2. Apply pending migrations against PostgreSQL or SQLite
+dart run bloom_migrate migrate --url=postgres://postgres:postgres@localhost:5432/bloom_dev
+dart run bloom_migrate migrate --url=sqlite:bloom.db
+
+# 3. Check migration status
+dart run bloom_migrate status --url=sqlite:bloom.db
+
+# 4. Roll back applied migrations
+dart run bloom_migrate rollback --url=sqlite:bloom.db --count=1`;
+---
+
+<DocsLayout
+  title="ORM & Migrations"
+  description="Django-style QuerySet API, dual SQLite/PostgreSQL support, and transactional SQL schema migrations."
+  currentSlug="server-orm-and-migrations"
+  category="Bloom Server"
+  toc={[
+    { id: 'models', title: 'Defining Models with bloom_db' },
+    { id: 'queryset', title: 'QuerySet API & Q() Expressions' },
+    { id: 'codegen', title: 'Codegen with bloom_db_generator' },
+    { id: 'migrations', title: 'Database Migrations with bloom_migrate' },
+    { id: 'migration-runner', title: 'Programmatic MigrationRunner' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-mono font-bold">
+        <Database className="w-3.5 h-3.5" />
+        Data &amp; Persistence
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        ORM &amp; Migrations
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <a href="https://pub.dev/packages/bloom_db" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_db</a> and <a href="https://pub.dev/packages/bloom_migrate" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_migrate</a> provide a unified, chainable <code class="font-mono text-purple-400">QuerySet</code> API modeled on Django's ORM and <code class="font-mono text-purple-400">djangors-orm</code>, with symmetric SQLite and PostgreSQL support and transactional DDL migrations.
+      </p>
+    </div>
+
+    <!-- Section: Models -->
+    <section id="models" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Defining Models with bloom_db
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Models subclass <code class="font-mono text-purple-400">Model</code> and declare field metadata via <code class="font-mono text-purple-400">ModelMeta</code> and <code class="font-mono text-purple-400">@BloomModel</code> annotations. All SQL query values use bound parameters to prevent SQL injection:
+      </p>
+      <CodeBlock code={modelCode} lang="dart" filename="lib/apps/blog/models.dart" />
+    </section>
+
+    <!-- Section: QuerySet -->
+    <section id="queryset" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        QuerySet API &amp; Q() Expressions
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        The <code class="font-mono text-purple-400">QuerySet&lt;T&gt;</code> API provides chainable querying methods: <code class="font-mono text-purple-400">filter</code>, <code class="font-mono text-purple-400">exclude</code>, <code class="font-mono text-purple-400">orderBy</code>, <code class="font-mono text-purple-400">limit</code>, <code class="font-mono text-purple-400">offset</code>, <code class="font-mono text-purple-400">get</code>, <code class="font-mono text-purple-400">first</code>, <code class="font-mono text-purple-400">all</code>, <code class="font-mono text-purple-400">exists</code>, <code class="font-mono text-purple-400">count</code>, <code class="font-mono text-purple-400">update</code>, <code class="font-mono text-purple-400">delete</code>, <code class="font-mono text-purple-400">bulkCreate</code>, <code class="font-mono text-purple-400">getOrCreate</code>, <code class="font-mono text-purple-400">updateOrCreate</code>, <code class="font-mono text-purple-400">values</code>, and <code class="font-mono text-purple-400">valuesList</code>:
+      </p>
+      <CodeBlock code={querysetCode} lang="dart" filename="QuerySet Usage" />
+    </section>
+
+    <!-- Section: Codegen -->
+    <section id="codegen" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Optional Codegen with bloom_db_generator
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        If you prefer not to write <code class="font-mono text-purple-400">ModelMeta</code>, <code class="font-mono text-purple-400">fieldValues()</code>, and <code class="font-mono text-purple-400">fromRow</code> by hand, <a href="https://pub.dev/packages/bloom_db_generator" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_db_generator</a> uses <code class="font-mono text-purple-400">build_runner</code> to generate the mapping mixins automatically:
+      </p>
+      <CodeBlock
+        code={`// pubspec.yaml
+dev_dependencies:
+  build_runner: ^2.4.9
+  bloom_db_generator: ^0.1.0
+
+// Run generator
+dart run build_runner build`}
+        lang="yaml"
+        filename="pubspec.yaml"
+      />
+    </section>
+
+    <!-- Section: Migrations -->
+    <section id="migrations" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Database Migrations with bloom_migrate
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Migration files live under <code class="font-mono text-purple-400">migrations/&lt;app&gt;/NNNN_name.sql</code> and contain structured <code class="font-mono">-- up</code> and <code class="font-mono">-- down</code> SQL blocks:
+      </p>
+      <CodeBlock code={migrationSqlCode} lang="yaml" filename="migrations/blog/0001_initial.sql" />
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed pt-2">
+        Manage migrations using the <code class="font-mono text-purple-400">bloom_migrate</code> CLI:
+      </p>
+      <CodeBlock code={migrationCliCode} lang="bash" filename="Terminal" />
+    </section>
+
+    <!-- Section: Programmatic MigrationRunner -->
+    <section id="migration-runner" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Programmatic MigrationRunner
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Execute pending migrations programmatically during server boot:
+      </p>
+      <CodeBlock
+        code={`import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_migrate/bloom_migrate.dart';
+
+Future<void> runStartupMigrations(DbExecutor db) async {
+  final runner = MigrationRunner(
+    db: db,
+    migrationsDirectory: 'migrations',
+  );
+
+  final applied = await runner.migrate();
+  for (final m in applied) {
+    print('Applied migration: \${m.app}/\${m.name}');
+  }
+}`}
+        lang="dart"
+        filename="lib/boot.dart"
+      />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/scaffolding"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Scaffolding a Server</span>
+      </a>
+      <a
+        href="/docs/server/auth"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Authentication</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,216 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldCheck, ArrowRight, Lock, Key, Cpu, Zap } from 'lucide-preact';
+
+const authExampleCode = `// lib/apps/accounts/views.dart - Authentication Flows
+import 'package:bloom_auth_server/bloom_auth_server.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_errors/bloom_errors.dart';
+import 'package:bloom_framework/bloom_server.dart';
+import 'models.dart';
+
+// Unified rate limiter: 5 attempts / 15m window, 1h lockout after 5 consecutive failures
+final authLimiter = AuthRateLimiter(
+  maxAttempts: 5,
+  window: const Duration(minutes: 15),
+  lockoutDuration: const Duration(hours: 1),
+);
+
+Future<BloomResponse> handleLogin(BloomRequest req, DbExecutor db) async {
+  final body = req.bodyJson as Map<String, dynamic>;
+  final email = body['email']?.toString().trim().toLowerCase() ?? '';
+  final password = body['password']?.toString() ?? '';
+
+  // 1. Verify rate limiting and lockout state
+  try {
+    authLimiter.verifyAllowed(email);
+  } on AccountLockedException catch (e) {
+    throw BloomTooManyRequestsException(
+      'Account is temporarily locked due to too many failed attempts.',
+      {'retryAfterSeconds': e.retryAfterSeconds},
+    );
+  } on RateLimitException catch (e) {
+    throw BloomTooManyRequestsException(
+      'Too many login attempts. Please try again later.',
+      {'retryAfterSeconds': e.retryAfterSeconds},
+    );
+  }
+
+  // 2. Lookup user and verify password
+  final user = await User.objects().filter(Q('email', email)).first(db);
+  if (user == null || !verifyPassword(password, user.passwordHash)) {
+    // Constant-time dummy verification preserves uniform latency
+    if (user == null) dummyVerifyPassword(password);
+    authLimiter.recordFailure(email);
+    throw BloomUnauthorizedException('Invalid email or password');
+  }
+
+  // 3. Successful authentication clears failure streaks
+  authLimiter.recordSuccess(email);
+
+  // 4. Issue cryptographically signed HMAC-SHA256 session token
+  final token = issueSessionToken(
+    userId: user.id.toString(),
+    email: user.email,
+    roles: const ['user'],
+    ttl: const Duration(days: 7),
+  );
+
+  return BloomResponse.json({'token': token, 'user': user.toJson()});
+}`;
+
+const middlewareGuardCode = `// lib/apps/accounts/urls.dart - Protecting Routes with Middleware
+import 'package:bloom_auth_server/bloom_auth_server.dart';
+import 'package:bloom_framework/bloom_server.dart';
+
+void registerUrls(BloomApiRouter router, BloomServerContext ctx) {
+  // Public routes
+  router.post('/api/auth/login', (req) => handleLogin(req, ctx.db));
+
+  // Protected route requiring valid session token
+  router.get(
+    '/api/accounts/me',
+    (req) async {
+      final userId = req.authUserId; // Extracted automatically
+      return BloomResponse.json({'userId': userId, 'claims': req.auth?.toMap()});
+    },
+    middlewares: [const BloomAuthMiddleware()],
+  );
+
+  // Role-gated route
+  router.get(
+    '/api/admin/metrics',
+    (req) async => BloomResponse.json({'status': 'ok'}),
+    middlewares: [BloomAuthMiddleware.requireRole('admin')],
+  );
+}`;
+---
+
+<DocsLayout
+  title="Authentication"
+  description="BCrypt password hashing, signed JWT session tokens, account lockout protection, and auth middleware."
+  currentSlug="server-auth"
+  category="Bloom Server"
+  toc={[
+    { id: 'overview-auth', title: 'Server-Side Authentication Primitives' },
+    { id: 'passwords-and-tokens', title: 'Password Hashing & Session Tokens' },
+    { id: 'rate-limiting', title: 'Rate Limiting & Account Lockout' },
+    { id: 'middleware', title: 'Route Protection with BloomAuthMiddleware' },
+    { id: 'password-reset', title: 'Hash-Bound Password Reset' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        Authentication &amp; Sessions
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Authentication
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <a href="https://pub.dev/packages/bloom_auth_server" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_auth_server</a> provides server-side authentication primitives modeled on <code class="font-mono text-purple-400">djangors-auth</code>, designed as the backend partner to <code class="font-mono text-purple-400">BloomAuth&lt;U&gt;</code> on Flutter clients.
+      </p>
+    </div>
+
+    <!-- Section: Overview -->
+    <section id="overview-auth" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Server-Side Authentication Primitives
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Authentication state is configured globally through <code class="font-mono text-purple-400">BLOOM_AUTH_SECRET</code> loaded by <code class="font-mono text-purple-400">BloomEnv</code>. The package provides constant-time password verification, sliding-window throttling, and JWT token issuance out of the box:
+      </p>
+      <CodeBlock code={authExampleCode} lang="dart" filename="lib/apps/accounts/views.dart" />
+    </section>
+
+    <!-- Section: Passwords & Tokens -->
+    <section id="passwords-and-tokens" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Password Hashing &amp; Session Tokens
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
+            <Lock className="w-4 h-4 text-emerald-500" />
+            OpenBSD BCrypt Hashing
+          </h3>
+          <p>
+            Uses <code class="font-mono text-purple-400">hashPassword(password, cost: 12)</code> with configurable rounds (4,096 iterations).
+          </p>
+          <p>
+            When a requested account is not found, <code class="font-mono text-purple-400">dummyVerifyPassword(password)</code> executes uniform verification cycles to defeat timing attacks and account enumeration.
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
+            <Key className="w-4 h-4 text-cyan-500" />
+            Signed Session JWTs
+          </h3>
+          <p>
+            <code class="font-mono text-purple-400">issueSessionToken()</code> generates RFC 7519 JWT bearer tokens signed with HMAC-SHA256.
+          </p>
+          <p>
+            Tokens include domain-separated <code class="font-mono text-purple-400">token_type: 'session'</code> claims to prevent token substitution attacks.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Rate Limiting -->
+    <section id="rate-limiting" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Rate Limiting &amp; Account Lockout
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">AuthRateLimiter</code> combines sliding-window rate limiting (<code class="font-mono">InMemoryRateLimiter</code>) and consecutive-failure account lockout (<code class="font-mono">InMemoryLockoutManager</code>) with fail-closed security semantics:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">verifyAllowed(identifier)</code> — Throws <code class="font-mono">AccountLockedException</code> or <code class="font-mono">RateLimitException</code> if thresholds are exceeded.</li>
+        <li><code class="font-mono text-purple-400">recordFailure(identifier)</code> — Increments attempt count and triggers account lockout after consecutive failed attempts.</li>
+        <li><code class="font-mono text-purple-400">recordSuccess(identifier)</code> — Clears failure streaks upon successful authentication.</li>
+      </ul>
+    </section>
+
+    <!-- Section: Middleware -->
+    <section id="middleware" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Route Protection with BloomAuthMiddleware
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Attach <code class="font-mono text-purple-400">BloomAuthMiddleware</code> to routes or routers to enforce bearer token validation, decode claims, and attach user information to <code class="font-mono text-purple-400">req.auth</code> and <code class="font-mono text-purple-400">req.authUserId</code>:
+      </p>
+      <CodeBlock code={middlewareGuardCode} lang="dart" filename="lib/apps/accounts/urls.dart" />
+    </section>
+
+    <!-- Section: Password Reset -->
+    <section id="password-reset" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Hash-Bound Password Reset
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">generatePasswordResetToken()</code> creates single-purpose tokens bound cryptographically to the user's current password hash. Whenever the user's password changes, all outstanding reset tokens are invalidated immediately without requiring database revocation tables.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/orm-and-migrations"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: ORM & Migrations</span>
+      </a>
+      <a
+        href="/docs/server/validation-and-errors"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Validation & Errors</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

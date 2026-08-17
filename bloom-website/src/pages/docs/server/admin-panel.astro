@@ -1,0 +1,145 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Sliders, ArrowRight, ShieldCheck, Database, Layers, CheckCircle2 } from 'lucide-preact';
+
+const adminSetupCode = `// lib/admin.dart - Configuring the BloomAdminSite
+import 'package:bloom_framework/bloom_framework.dart';
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_admin/bloom_admin.dart';
+import 'apps/blog/models.dart';
+import 'apps/accounts/models.dart';
+
+void configureAdminSite(BloomApiRouter router, DbExecutor db) {
+  // 1. Initialize admin site with branding
+  final adminSite = BloomAdminSite()
+    .withSiteHeader('Bloom App Administration')
+    .withSiteTitle('Bloom Control Center');
+
+  // 2. Register models with customized changelist & form options
+  adminSite.register<Post>(
+    meta: Post.meta,
+    fromRow: Post.fromRow,
+    config: const BloomModelAdminConfig(
+      listDisplay: ['id', 'title', 'createdAt'],
+      searchFields: ['title', 'content'],
+      listFilter: ['createdAt'],
+      listEditable: ['title'],
+    ),
+  );
+
+  adminSite.register<User>(
+    meta: User.meta,
+    fromRow: User.fromRow,
+    config: const BloomModelAdminConfig(
+      listDisplay: ['id', 'email', 'name', 'createdAt'],
+      searchFields: ['email', 'name'],
+    ),
+  );
+
+  // 3. Mount all admin routes under /admin
+  adminSite.mount(router, db: db, basePath: '/admin');
+}`;
+---
+
+<DocsLayout
+  title="Admin Panel"
+  description="Automatic server-rendered HTML administration interface with CSRF protection and model introspection."
+  currentSlug="server-admin-panel"
+  category="Bloom Server"
+  toc={[
+    { id: 'overview-admin', title: 'Server-Rendered HTML Admin' },
+    { id: 'setup', title: 'BloomAdminSite & Model Registration' },
+    { id: 'features', title: 'Changelists, Forms & CSRF Protection' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
+        <Sliders className="w-3.5 h-3.5" />
+        Administration
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Admin Panel
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <code class="font-mono text-purple-400">bloom_admin</code> provides an automatic, server-rendered HTML administration panel modeled on Django's Admin interface.
+      </p>
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+        <strong>Publishing Soon:</strong> <code class="font-mono">bloom_admin</code> is currently available as a monorepo path dependency. Its pub.dev publish is pending the daily new-package rate limit.
+      </div>
+    </div>
+
+    <!-- Section: Overview -->
+    <section id="overview-admin" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Server-Rendered HTML Admin
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Rather than requiring a separate single-page frontend app, <code class="font-mono text-purple-400">bloom_admin</code> renders semantic, accessible HTML directly on the server with zero client-side framework overhead.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">Model Introspection</h3>
+          <p>Inspects <code class="font-mono">ModelMeta</code> and <code class="font-mono">FieldMeta</code> to generate form inputs, checkboxes, and foreign key pickers automatically.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">Strict Auto-Escaping</h3>
+          <p>Built-in template engine auto-escapes all untrusted model content with <code class="font-mono">SafeHtml</code> wrappers to prevent XSS.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">CSRF Protection</h3>
+          <p>HMAC-SHA256 tokens are embedded in every form and verified on all state-changing <code class="font-mono">POST</code> and <code class="font-mono">DELETE</code> actions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Setup -->
+    <section id="setup" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        BloomAdminSite &amp; Model Registration
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Register models with custom changelist display columns, filters, and search fields:
+      </p>
+      <CodeBlock code={adminSetupCode} lang="dart" filename="lib/admin.dart" />
+    </section>
+
+    <!-- Section: Features -->
+    <section id="features" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Changelists, Forms &amp; Bulk Operations
+      </h2>
+      <ul class="list-disc list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400">
+        <li>
+          <strong>Real SQL Pagination:</strong> Pagination executes via <code class="font-mono">limit</code> and <code class="font-mono">offset</code> queries against the database without in-memory dataset slicing.
+        </li>
+        <li>
+          <strong>In-place Editing &amp; Bulk Actions:</strong> Checkbox selection enables multi-row edits (<code class="font-mono">listEditable</code>), bulk deletions, and custom bulk action handlers.
+        </li>
+        <li>
+          <strong>CSV Export:</strong> Built-in <code class="font-mono">/export-csv/</code> endpoints export changelist datasets with active filters applied.
+        </li>
+      </ul>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/rest-api"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: REST API Layer</span>
+      </a>
+      <a
+        href="/docs/server/realtime"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Realtime & WebSockets</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
