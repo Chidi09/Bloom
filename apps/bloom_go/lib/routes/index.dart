@@ -98,7 +98,7 @@ class _IndexRouteState extends State<IndexRoute> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.local_florist_rounded, color: Colors.deepPurple),
+            const BloomLogo(size: 24),
             const SizedBox(width: 8),
             Text('Bloom Go', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           ],

@@ -82,3 +82,4 @@ export 'bloom_observability.dart';
 
 // Widgets
 export 'src/widgets/app.dart';
+export 'src/widgets/bloom_logo.dart';
