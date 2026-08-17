@@ -36,9 +36,10 @@ packages:
   bloom_db:
     dependency: "direct main"
     description:
-      path: "../bloom_db"
-      relative: true
-    source: path
+      name: bloom_db
+      sha256: "9a1b0cc664e81ea9e3159e2d022e953b9be331826c3bf55057661cb3bae3453f"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   boolean_selector:
     dependency: transitive
