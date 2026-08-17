@@ -21,6 +21,7 @@ import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/registry_command.dart';
 import '../lib/src/commands/remove_command.dart';
 import '../lib/src/commands/security_command.dart';
+import '../lib/src/commands/server_command.dart';
 import '../lib/src/commands/symbols_command.dart';
 import '../lib/src/commands/templates_command.dart';
 import '../lib/src/commands/test_command.dart';
@@ -65,7 +66,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(AddCommand())
     ..addCommand(RemoveCommand())
     ..addCommand(UiCommand())
-    ..addCommand(DeployCommand());
+    ..addCommand(DeployCommand())
+    ..addCommand(ServerCommand());
 
   runner.argParser.addFlag(
     'version',
