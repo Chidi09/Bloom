@@ -59,7 +59,7 @@ config_plugin:
     path: $frameworkPath''';
     } else {
       frameworkDep = '''
-  bloom_framework: ^0.2.0''';
+  bloom_framework: ^0.2.1''';
     }
 
     return '''name: $name
