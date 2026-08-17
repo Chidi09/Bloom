@@ -1,6 +1,6 @@
 name: bloom_framework
 description: An opinionated application framework and developer platform built on Dart and Flutter.
-version: 0.2.0
+version: 0.2.1
 homepage: https://bloom.dev
 repository: https://github.com/bloom-framework/bloom
 issue_tracker: https://github.com/bloom-framework/bloom/issues
