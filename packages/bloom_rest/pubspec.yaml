@@ -1,0 +1,20 @@
+name: bloom_rest
+description: DRF-style (Django REST Framework) REST layer on top of BloomApiRouter and bloom_db, providing serializers, ViewSets, pagination, filters, permissions, and throttling.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  meta: ^1.15.0
+  bloom_framework:
+    path: ../bloom_framework
+  bloom_db:
+    path: ../bloom_db
+  bloom_cache:
+    path: ../bloom_cache
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
