@@ -1,0 +1,231 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { ShieldAlert, ArrowRight, CheckCircle2, AlertTriangle, Layers, Cpu } from 'lucide-preact';
+
+const schemaCode = `// lib/apps/notes/serializers.dart - Request DTO Schemas
+import 'package:bloom_validate/bloom_validate.dart';
+
+class CreateNoteSchema extends BloomRequestSchema {
+  CreateNoteSchema(super.data);
+  CreateNoteSchema.fromRequest(super.request) : super.fromRequest();
+
+  // Declarative, zero-codegen validation rules
+  late final String title = requireStringLength('title', min: 2, max: 200, description: 'Note title');
+  late final String body = optionalString('body', defaultValue: '') ?? '';
+  late final int priority = optionalIntRange('priority', min: 1, max: 5, defaultValue: 3)!;
+  late final List<String> tags = optionalList<String>('tags', (item) => item.toString(), defaultValue: const [])!;
+
+  @override
+  void validate() {
+    title;
+    body;
+    priority;
+    tags;
+  }
+}`;
+
+const handlerCode = `// Route handler with BloomRequestSchema and typed errors
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_errors/bloom_errors.dart';
+import 'package:bloom_validate/bloom_validate.dart';
+import 'serializers.dart';
+
+Future<BloomResponse> handleCreateNote(BloomRequest req) async {
+  // 1. Validate incoming JSON body
+  final CreateNoteSchema schema;
+  try {
+    schema = BloomRequestSchema.validateSchema(CreateNoteSchema.fromRequest(req));
+  } on BloomValidationException catch (e) {
+    // Converts to BloomValidationFailedException (HTTP 422)
+    throw BloomValidationFailedException(message: e.message, errors: e.errors);
+  }
+
+  // 2. Strongly-typed, clean access
+  final title = schema.title;
+  final body = schema.body;
+  final priority = schema.priority;
+
+  return BloomResponse.json({
+    'title': title,
+    'body': body,
+    'priority': priority,
+  }, statusCode: 201);
+}`;
+
+const errorMiddlewareCode = `// bin/server.dart - Registering BloomErrorMiddleware
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_errors/bloom_errors.dart';
+
+void main() async {
+  final router = BloomApiRouter();
+
+  // Outermost middleware intercepts all downstream errors
+  router.use(const BloomErrorMiddleware());
+
+  // Custom application error mapping
+  BloomErrorMapper.register<QuotaExceededException>((e) {
+    return BloomForbiddenException(
+      'Account monthly storage quota exceeded',
+      {'quota_bytes': e.quotaBytes, 'used_bytes': e.usedBytes},
+    );
+  });
+
+  await router.serve(port: 8080);
+}`;
+---
+
+<DocsLayout
+  title="Validation & Errors"
+  description="Declarative request schema validation and a strongly-typed HTTP exception hierarchy with dev/prod masking."
+  currentSlug="server-validation-and-errors"
+  category="Bloom Server"
+  toc={[
+    { id: 'validation', title: 'Request Schema Validation (bloom_validate)' },
+    { id: 'errors', title: 'Typed HTTP Exceptions (bloom_errors)' },
+    { id: 'middleware', title: 'Unified Error Middleware & Masking' },
+    { id: 'mapper', title: 'Sibling Exception Mapping' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <ShieldAlert className="w-3.5 h-3.5" />
+        Validation &amp; Diagnostics
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Validation &amp; Errors
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <a href="https://pub.dev/packages/bloom_validate" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_validate</a> and <a href="https://pub.dev/packages/bloom_errors" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_errors</a> provide zero-codegen declarative DTO schema validation and a standardized HTTP exception hierarchy with environment-aware error masking.
+      </p>
+    </div>
+
+    <!-- Section: Validation -->
+    <section id="validation" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Request Schema Validation with bloom_validate
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Subclass <code class="font-mono text-purple-400">BloomRequestSchema</code> to define request body contracts. Validation runs without code generators and accumulates all field errors in a single pass:
+      </p>
+      <CodeBlock code={schemaCode} lang="dart" filename="lib/apps/notes/serializers.dart" />
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed pt-2">
+        Inside route handlers, parse schemas using <code class="font-mono text-purple-400">BloomRequestSchema.validateSchema()</code>:
+      </p>
+      <CodeBlock code={handlerCode} lang="dart" filename="lib/apps/notes/views.dart" />
+    </section>
+
+    <!-- Section: Errors -->
+    <section id="errors" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Typed HTTP Exceptions with bloom_errors
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_errors</code> provides a complete set of strongly-typed exceptions carrying status codes, machine-readable error codes, and structured detail maps:
+      </p>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-left text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+          <thead class="bg-slate-100 dark:bg-zinc-900/80 font-mono text-slate-900 dark:text-white">
+            <tr>
+              <th class="p-3">Exception Class</th>
+              <th class="p-3">Status</th>
+              <th class="p-3">Error Code</th>
+              <th class="p-3">Description</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-zinc-800 font-mono">
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomBadRequestException</td>
+              <td class="p-3">400</td>
+              <td class="p-3">bad_request</td>
+              <td class="p-3 font-sans">Malformed request or invalid parameters.</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomUnauthorizedException</td>
+              <td class="p-3">401</td>
+              <td class="p-3">unauthorized</td>
+              <td class="p-3 font-sans">Missing or invalid session token.</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomForbiddenException</td>
+              <td class="p-3">403</td>
+              <td class="p-3">forbidden</td>
+              <td class="p-3 font-sans">Caller lacks permissions or resource is locked.</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomNotFoundException</td>
+              <td class="p-3">404</td>
+              <td class="p-3">not_found</td>
+              <td class="p-3 font-sans">Requested route, record, or file does not exist.</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomConflictException</td>
+              <td class="p-3">409</td>
+              <td class="p-3">conflict</td>
+              <td class="p-3 font-sans">Resource state conflict (e.g. duplicate key).</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomValidationFailedException</td>
+              <td class="p-3">422</td>
+              <td class="p-3">validation_failed</td>
+              <td class="p-3 font-sans">Payload validation failed (carries field error list).</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomTooManyRequestsException</td>
+              <td class="p-3">429</td>
+              <td class="p-3">too_many_requests</td>
+              <td class="p-3 font-sans">Rate limit exceeded (supports retry-after).</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-bold text-purple-600 dark:text-purple-400">BloomInternalException</td>
+              <td class="p-3">500</td>
+              <td class="p-3">internal_server_error</td>
+              <td class="p-3 font-sans">Unexpected server or infrastructure failure.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section: Middleware & Masking -->
+    <section id="middleware" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Unified Error Middleware &amp; Environment Masking
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomErrorMiddleware</code> serves as the outermost middleware on <code class="font-mono text-purple-400">BloomApiRouter</code>, formatting all exceptions into standardized JSON envelopes. In production (<code class="font-mono">APP_ENV=production</code>), unhandled exception traces are masked to protect server internals:
+      </p>
+      <CodeBlock code={errorMiddlewareCode} lang="dart" filename="bin/server.dart" />
+    </section>
+
+    <!-- Section: Mapper -->
+    <section id="mapper" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Sibling Exception Mapping
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomErrorMapper</code> automatically converts errors from <code class="font-mono text-purple-400">bloom_db</code>, <code class="font-mono text-purple-400">bloom_auth_server</code>, <code class="font-mono text-purple-400">bloom_storage</code>, and <code class="font-mono text-purple-400">bloom_validate</code> into their matching <code class="font-mono text-purple-400">BloomApiException</code> equivalents without tight compile-time coupling.
+      </p>
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/auth"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Authentication</span>
+      </a>
+      <a
+        href="/docs/server/rest-api"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: REST API Layer</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

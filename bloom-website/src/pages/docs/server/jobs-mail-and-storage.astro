@@ -1,0 +1,188 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Workflow, ArrowRight, Mail, HardDrive, Cpu, Zap, ShieldCheck } from 'lucide-preact';
+
+const jobsCode = `// Background Jobs with bloom_jobs
+import 'package:bloom_framework/bloom.dart';
+import 'package:bloom_jobs/bloom_jobs.dart';
+
+void configureJobs() async {
+  final registry = BloomTaskRegistry();
+  final queue = BloomTaskQueue();
+  final recurring = BloomRecurringRegistry();
+
+  // 1. Register a task handler
+  registry.register('send_welcome_email', (Map<String, dynamic> payload) async {
+    final email = payload['email'] as String;
+    final name = payload['name'] as String;
+    // Deliver welcome email via bloom_mail
+  });
+
+  // 2. Schedule recurring task every 30 minutes
+  recurring.register(
+    taskName: 'send_welcome_email',
+    interval: const Duration(minutes: 30),
+    payload: {'email': 'admin@example.com', 'name': 'Admin'},
+  );
+
+  // 3. Enqueue immediate or delayed tasks
+  await queue.enqueue('send_welcome_email', {'email': 'alice@example.com', 'name': 'Alice'});
+
+  // 4. Start background worker
+  final worker = BloomJobWorker(
+    queue: queue,
+    registry: registry,
+    recurringRegistry: recurring,
+  ).withPollInterval(const Duration(seconds: 1));
+
+  // worker.run();
+}`;
+
+const mailCode = `// Transactional Email with bloom_mail
+import 'package:bloom_mail/bloom_mail.dart';
+
+Future<void> sendNotification(BloomMailBackend mailer) async {
+  final message = BloomMailMessage(
+    to: ['alice@example.com'],
+    from: 'noreply@bloom.dev',
+    subject: 'Welcome to Bloom Server',
+    body: 'Your account is now ready.',
+    htmlBody: '<h1>Welcome!</h1><p>Your account is now ready.</p>',
+  );
+
+  // Deliver via Smtp, Console (dev), File, or InMemory (tests)
+  await mailer.send(message);
+}`;
+
+const storageCode = `// File Storage with bloom_storage
+import 'package:bloom_storage/bloom_storage.dart';
+
+void configureStorage() async {
+  // Option A: Local Disk for Development with Path Traversal Protection
+  final localBackend = LocalDiskBackend(
+    baseDirectory: './storage/uploads',
+    publicUrlPrefix: 'http://localhost:8080/files',
+  );
+  BloomStorage.register(localBackend);
+
+  // Option B: AWS S3, Cloudflare R2, MinIO, or Supabase Storage
+  final s3Backend = S3Backend(
+    config: BloomS3Config(
+      accessKeyId: 'ACCESS_KEY',
+      secretAccessKey: 'SECRET_KEY',
+      bucket: 'my-media-bucket',
+      region: 'auto',
+      endpoint: 'https://<account-id>.r2.cloudflarestorage.com',
+    ),
+  );
+
+  // Upload file
+  final url = await BloomStorage.upload('avatars/usr_1.png', bytes, contentType: 'image/png');
+
+  // Generate 30-minute presigned private download URL (SigV4)
+  final signedUrl = await BloomStorage.getSignedUrl('invoices/inv_01.pdf', expiry: Duration(minutes: 30));
+}`;
+---
+
+<DocsLayout
+  title="Jobs, Mail & Storage"
+  description="Background task queue workers, transactional email delivery, and swappable local/S3 file storage."
+  currentSlug="server-jobs-mail-and-storage"
+  category="Bloom Server"
+  toc={[
+    { id: 'jobs', title: 'Background Jobs (bloom_jobs)' },
+    { id: 'mail', title: 'Transactional Email (bloom_mail)' },
+    { id: 'storage', title: 'File Storage & S3 (bloom_storage)' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono font-bold">
+        <Workflow className="w-3.5 h-3.5" />
+        Infrastructure &amp; Tasks
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Jobs, Mail &amp; Storage
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom Server provides integrated infrastructure modules for asynchronous background job execution (<a href="https://pub.dev/packages/bloom_jobs" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_jobs</a>), transactional multi-backend email sending (<a href="https://pub.dev/packages/bloom_mail" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_mail</a>), and swappable local/S3 cloud file storage (<a href="https://pub.dev/packages/bloom_storage" target="_blank" rel="noopener noreferrer" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">bloom_storage</a>).
+      </p>
+    </div>
+
+    <!-- Section: Jobs -->
+    <section id="jobs" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Background Jobs with bloom_jobs
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_jobs</code> provides an asynchronous task queue and worker architecture modeled on <code class="font-mono text-purple-400">djangors-tasks</code>:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><code class="font-mono text-purple-400">BloomTaskRegistry</code> — Named task handler registry.</li>
+        <li><code class="font-mono text-purple-400">BloomTaskQueue</code> — In-memory FIFO queue with atomic <code class="font-mono">claimNext()</code> synchronization locks.</li>
+        <li><code class="font-mono text-purple-400">BloomRecurringRegistry</code> — Periodic scheduled interval triggers.</li>
+        <li><code class="font-mono text-purple-400">BloomJobWorker</code> — Polling worker loop with single-pass and continuous execution modes.</li>
+      </ul>
+      <CodeBlock code={jobsCode} lang="dart" filename="lib/jobs.dart" />
+    </section>
+
+    <!-- Section: Mail -->
+    <section id="mail" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Transactional Email with bloom_mail
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_mail</code> provides a standardized <code class="font-mono text-purple-400">BloomMailMessage</code> model and swappable delivery backends:
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">BloomSmtpBackend</h3>
+          <p>Real SMTP delivery with explicit STARTTLS or implicit SSL/TLS encryption.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">BloomConsoleBackend</h3>
+          <p>Formatted stdout logger for local rapid prototyping without credential leaks.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">BloomFileBackend</h3>
+          <p>Writes timestamped <code class="font-mono">.eml</code> files to disk for offline inspection.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">BloomInMemoryBackend</h3>
+          <p>Records sent messages in memory for unit test assertions.</p>
+        </div>
+      </div>
+      <CodeBlock code={mailCode} lang="dart" filename="lib/mail.dart" />
+    </section>
+
+    <!-- Section: Storage -->
+    <section id="storage" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        File Storage &amp; S3 with bloom_storage
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">bloom_storage</code> decouples your application from storage vendors. Switch between local disk and AWS S3, Cloudflare R2, MinIO, or Supabase Storage without modifying application code:
+      </p>
+      <CodeBlock code={storageCode} lang="dart" filename="lib/storage.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/caching"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Caching</span>
+      </a>
+      <a
+        href="/docs/server/i18n-and-security"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: i18n & Security</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,143 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Database, ArrowRight, Zap, RefreshCw, Cpu, Layers } from 'lucide-preact';
+
+const cacheExampleCode = `// lib/cache_example.dart - Caching with BloomCache
+import 'package:bloom_cache/bloom_cache.dart';
+
+void main() async {
+  // 1. Initialize In-Memory LRU Cache
+  final cache = InMemoryCache(maxCapacity: 1000);
+
+  // 2. getOrSet with Cache Stampede Protection
+  // Concurrent callers await the same in-flight computation
+  final stats = await cache.getOrSet<Map<String, dynamic>>(
+    'dashboard:stats',
+    () async {
+      // Expensive DB query or external calculation
+      return {'activeUsers': 420, 'updatedAt': DateTime.now().toIso8601String()};
+    },
+    ttl: const Duration(minutes: 5),
+  );
+
+  print('Active users: \${stats['activeUsers']}');
+}`;
+
+const middlewareCode = `// Response Caching Middleware
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_cache/bloom_cache.dart';
+
+void main() async {
+  final router = BloomApiRouter();
+  final cache = InMemoryCache(maxCapacity: 5000);
+
+  // Cache GET responses for 5 minutes (auto-bypasses Set-Cookie & non-GETs)
+  router.use(BloomCacheMiddleware(
+    cache: cache,
+    ttl: const Duration(minutes: 5),
+    excludePaths: ['/api/auth', '/healthz'],
+  ));
+
+  await router.serve(port: 8080);
+}`;
+---
+
+<DocsLayout
+  title="Caching"
+  description="In-Memory LRU, Database, and Redis caching backends with cache stampede prevention and HTTP response middleware."
+  currentSlug="server-caching"
+  category="Bloom Server"
+  toc={[
+    { id: 'backends', title: 'Swappable Cache Backends' },
+    { id: 'stampede', title: 'Cache Stampede Prevention (getOrSet)' },
+    { id: 'middleware', title: 'HTTP Response Caching Middleware' },
+  ]}
+>
+  <div class="space-y-12">
+    <!-- Header -->
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-mono font-bold">
+        <Zap className="w-3.5 h-3.5" />
+        High Performance
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Caching
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        <code class="font-mono text-purple-400">bloom_cache</code> provides a unified, backend-agnostic server caching layer modeled on <code class="font-mono text-purple-400">djangors-cache</code> for expensive computations, database results, and entire HTTP responses.
+      </p>
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+        <strong>Publishing Soon:</strong> <code class="font-mono">bloom_cache</code> is currently available as a monorepo path dependency. Its pub.dev publish is pending the daily new-package rate limit.
+      </div>
+    </div>
+
+    <!-- Section: Backends -->
+    <section id="backends" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Swappable Cache Backends
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        All backends implement the unified <code class="font-mono text-purple-400">BloomCache</code> interface (<code class="font-mono">get&lt;T&gt;</code>, <code class="font-mono">set&lt;T&gt;</code>, <code class="font-mono">delete</code>, <code class="font-mono">clear</code>, <code class="font-mono">getOrSet&lt;T&gt;</code>) with JSON serialization:
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-400">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">InMemoryCache</h3>
+          <p>Bounded in-memory cache with true O(1) Least-Recently-Used (LRU) eviction and TTL checks.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">DatabaseCache</h3>
+          <p>SQL-backed cache storing entries in <code class="font-mono">bloom_cache_entries</code> via PostgreSQL or SQLite.</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm">RedisCache</h3>
+          <p>Distributed caching using <code class="font-mono">package:redis</code> driver with millisecond TTL precision.</p>
+        </div>
+      </div>
+      <CodeBlock code={cacheExampleCode} lang="dart" filename="lib/cache_example.dart" />
+    </section>
+
+    <!-- Section: Stampede -->
+    <section id="stampede" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Cache Stampede Prevention (getOrSet)
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">getOrSet&lt;T&gt;</code> deduplicates concurrent in-flight computations for the same key. When multiple concurrent requests miss the cache simultaneously, the computation function runs exactly once, and all callers receive the resolved result.
+      </p>
+    </section>
+
+    <!-- Section: Middleware -->
+    <section id="middleware" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        HTTP Response Caching Middleware
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <code class="font-mono text-purple-400">BloomCacheMiddleware</code> caches complete GET responses. It automatically enforces safety rules:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <li><strong>Method Safety:</strong> Only <code class="font-mono">GET</code> requests are cached.</li>
+        <li><strong>Cookie Protection:</strong> Responses containing <code class="font-mono">Set-Cookie</code> are never cached to prevent session leakage.</li>
+        <li><strong>Dynamic Opt-Out:</strong> Handlers can bypass caching via <code class="font-mono">x-bloom-no-cache: true</code> or <code class="font-mono">cache-control: no-store</code>.</li>
+      </ul>
+      <CodeBlock code={middlewareCode} lang="dart" filename="bin/server.dart" />
+    </section>
+
+    <!-- Next Page Footer -->
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/server/realtime"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Realtime & WebSockets</span>
+      </a>
+      <a
+        href="/docs/server/jobs-mail-and-storage"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Jobs, Mail & Storage</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>
