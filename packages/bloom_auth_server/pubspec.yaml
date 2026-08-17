@@ -3,14 +3,17 @@ description: Server-side authentication primitives for the Bloom framework, incl
 version: 0.1.0
 homepage: https://bloom.dev
 repository: https://github.com/bloom-framework/bloom
-publish_to: 'none'
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - auth
+  - jwt
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_framework:
-    path: ../bloom_framework
+  bloom_framework: ^0.2.2
   bcrypt: ^1.1.3
   crypto: ^3.0.3
   dart_jsonwebtoken: ^3.4.1

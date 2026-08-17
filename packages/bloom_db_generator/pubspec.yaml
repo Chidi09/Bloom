@@ -1,7 +1,14 @@
 name: bloom_db_generator
-description: Code generator for bloom_db models.
+description: build_runner code generator for bloom_db models — generates ModelMeta and row-mapping boilerplate from @BloomModel annotations.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - orm
+  - codegen
+  - build-runner
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -10,8 +17,7 @@ dependencies:
   analyzer: ^6.4.1
   build: ^2.4.1
   source_gen: ^1.5.0
-  bloom_db:
-    path: ../bloom_db
+  bloom_db: ^0.1.0
 
 dev_dependencies:
   build_runner: ^2.4.9
