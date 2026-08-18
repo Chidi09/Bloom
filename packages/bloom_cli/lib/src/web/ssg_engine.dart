@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
+import 'prerender_engine.dart';
 import 'pwa_generator.dart';
 
 class DiscoveredRoute {
@@ -141,48 +142,76 @@ class BloomSsgEngine {
     final themeColor = pwaConfig['theme_color']?.toString() ?? '#10B981';
 
     final renderedRoutes = <String>[];
+    final prerenderEngine = BloomPrerenderEngine();
+    // Serve the prerender browser a PRISTINE copy of the compiled Flutter app,
+    // never `outputDir` itself: _generateHtmlPage progressively overwrites
+    // files inside `outputDir` (including index.html for the '/' route) as
+    // each route is generated, and this directory also acts as the SPA
+    // fallback for any not-yet-generated route. If the browser were pointed
+    // at `outputDir` directly, the first generated route's frozen HTML would
+    // permanently replace the real compiled index.html, and every
+    // subsequently-processed route would incorrectly boot against that
+    // frozen snapshot instead of a fresh copy of the real app.
+    Directory? stagingDir;
+    if (outputDir.existsSync()) {
+      stagingDir = Directory.systemTemp.createTempSync('bloom_ssg_prerender_staging_');
+      _copyDirectoryContents(outputDir, stagingDir);
+    }
+    await prerenderEngine.startWithStaticDir(stagingDir ?? outputDir);
 
-    // 1. Generate HTML for each static route and enumerated parameterized paths
-    for (final route in routes) {
-      if (route.isDynamic) {
-        if (route.staticPaths.isEmpty) {
-          print(Ansi.warn('  ⚠ Notice: Dynamic route "${route.path}" has no static_paths configured. Skipping static pre-rendering.'));
-          continue;
-        }
+    try {
+      // 1. Generate HTML for each static route and enumerated parameterized paths
+      for (final route in routes) {
+        if (route.isDynamic) {
+          if (route.staticPaths.isEmpty) {
+            print(Ansi.warn('  ⚠ Notice: Dynamic route "${route.path}" has no static_paths configured. Skipping static pre-rendering.'));
+            continue;
+          }
 
-        for (final paramVal in route.staticPaths) {
-          final instantiatedPath = route.path.replaceAll(RegExp(r'\[.*?\]'), paramVal);
-          _generateHtmlPage(
-            routePath: instantiatedPath,
+          for (final paramVal in route.staticPaths) {
+            final instantiatedPath = route.path.replaceAll(RegExp(r'\[.*?\]'), paramVal);
+            await _generateHtmlPage(
+              engine: prerenderEngine,
+              routePath: instantiatedPath,
+              appTitle: appTitle,
+              pageTitle: route.declaredTitle ?? '$appTitle - $instantiatedPath',
+              description: route.declaredDescription ?? 'Pre-rendered content for $instantiatedPath',
+              themeColor: themeColor,
+            );
+            renderedRoutes.add(instantiatedPath);
+          }
+        } else {
+          await _generateHtmlPage(
+            engine: prerenderEngine,
+            routePath: route.path,
             appTitle: appTitle,
-            pageTitle: route.declaredTitle ?? '$appTitle - $instantiatedPath',
-            description: route.declaredDescription ?? 'Pre-rendered content for $instantiatedPath',
+            pageTitle: route.declaredTitle ?? (route.path == '/' ? appTitle : '$appTitle - ${route.path.substring(1)}'),
+            description: route.declaredDescription ?? 'Pre-rendered content for ${route.path}',
             themeColor: themeColor,
           );
-          renderedRoutes.add(instantiatedPath);
+          renderedRoutes.add(route.path);
         }
-      } else {
-        _generateHtmlPage(
-          routePath: route.path,
+      }
+
+      // Ensure root index.html exists
+      if (!renderedRoutes.contains('/')) {
+        await _generateHtmlPage(
+          engine: prerenderEngine,
+          routePath: '/',
           appTitle: appTitle,
-          pageTitle: route.declaredTitle ?? (route.path == '/' ? appTitle : '$appTitle - ${route.path.substring(1)}'),
-          description: route.declaredDescription ?? 'Pre-rendered content for ${route.path}',
+          pageTitle: appTitle,
+          description: 'Welcome to $appTitle',
           themeColor: themeColor,
         );
-        renderedRoutes.add(route.path);
+        renderedRoutes.add('/');
       }
-    }
-
-    // Ensure root index.html exists
-    if (!renderedRoutes.contains('/')) {
-      _generateHtmlPage(
-        routePath: '/',
-        appTitle: appTitle,
-        pageTitle: appTitle,
-        description: 'Welcome to $appTitle',
-        themeColor: themeColor,
-      );
-      renderedRoutes.add('/');
+    } finally {
+      await prerenderEngine.close();
+      if (stagingDir != null && stagingDir.existsSync()) {
+        try {
+          stagingDir.deleteSync(recursive: true);
+        } catch (_) {}
+      }
     }
 
     // 2. Generate XML Sitemap with all concrete rendered routes
@@ -197,13 +226,14 @@ class BloomSsgEngine {
     print(Ansi.success('✔ Static site generation complete! Output written to ${outputDir.path}\n'));
   }
 
-  void _generateHtmlPage({
+  Future<void> _generateHtmlPage({
+    required BloomPrerenderEngine engine,
     required String routePath,
     required String appTitle,
     required String pageTitle,
     required String description,
     required String themeColor,
-  }) {
+  }) async {
     final cleanPath = routePath == '/' ? '' : (routePath.startsWith('/') ? routePath.substring(1) : routePath);
     final targetDir = cleanPath.isEmpty ? outputDir : Directory(p.join(outputDir.path, cleanPath));
     if (!targetDir.existsSync()) {
@@ -211,15 +241,38 @@ class BloomSsgEngine {
     }
 
     final targetFile = File(p.join(targetDir.path, 'index.html'));
-    final html = _buildHtmlTemplate(
-      title: pageTitle,
-      description: description,
-      routePath: routePath,
-      themeColor: themeColor,
-      appTitle: appTitle,
-    );
+    String? html = await engine.renderRoute(routePath);
+    if (html == null) {
+      html = _buildHtmlTemplate(
+        title: pageTitle,
+        description: description,
+        routePath: routePath,
+        themeColor: themeColor,
+        appTitle: appTitle,
+      );
+    }
 
     targetFile.writeAsStringSync(html);
+  }
+
+  /// Recursively copies every file under [source] into [destination],
+  /// preserving relative paths. Used to give the prerender browser a
+  /// pristine, read-only snapshot of the compiled app that SSG's own
+  /// progressive writes into [outputDir] can never mutate mid-build.
+  void _copyDirectoryContents(Directory source, Directory destination) {
+    if (!destination.existsSync()) {
+      destination.createSync(recursive: true);
+    }
+    for (final entity in source.listSync(recursive: true)) {
+      final relPath = p.relative(entity.path, from: source.path);
+      final targetPath = p.join(destination.path, relPath);
+      if (entity is Directory) {
+        Directory(targetPath).createSync(recursive: true);
+      } else if (entity is File) {
+        Directory(p.dirname(targetPath)).createSync(recursive: true);
+        entity.copySync(targetPath);
+      }
+    }
   }
 
   String _buildHtmlTemplate({

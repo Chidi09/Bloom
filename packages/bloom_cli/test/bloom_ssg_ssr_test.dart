@@ -206,7 +206,10 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
       File(p.join(routesDir.path, 'index.dart')).writeAsStringSync('class Index {}\n');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
-        ..addCommand(BuildCommand());
+        ..addCommand(BuildCommand(
+          processRunner: (cmd, args, {workingDirectory, environment, includeParentEnvironment = true, runInShell = false, mode = ProcessStartMode.normal}) async =>
+              ProcessResult(0, 0, 'mock build web success', ''),
+        ));
 
       // 1. Static SSG Build
       final ssgExit = await runner.run([

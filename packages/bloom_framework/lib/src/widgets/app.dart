@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../core/boot.dart';
 import '../lifecycle/lifecycle.dart';
 import '../router/router.dart';
+import '../web/prerender_bridge.dart';
 
 /// Root application widget for Bloom applications.
 /// Wraps [MaterialApp.router] and attaches the framework lifecycle system.
@@ -72,6 +73,7 @@ class _BloomAppState extends State<BloomApp> {
   void initState() {
     super.initState();
     BloomLifecycleManager.instance.initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) => signalPrerenderReady());
 
     if (widget.routerConfig != null) {
       _resolvedRouter = widget.routerConfig!;

@@ -262,7 +262,10 @@ Future<Map<String, dynamic>> loadItems(BloomRouteContext context) async {
 ''');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
-        ..addCommand(BuildCommand());
+        ..addCommand(BuildCommand(
+          processRunner: (cmd, args, {workingDirectory, environment, includeParentEnvironment = true, runInShell = false, mode = ProcessStartMode.normal}) async =>
+              ProcessResult(0, 0, 'mock build web success', ''),
+        ));
 
       final exitCode = await runner.run([
         'build',
