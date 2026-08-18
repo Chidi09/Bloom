@@ -59,7 +59,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
         Theming & Tokens
       </h1>
@@ -88,7 +88,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
           { name: 'Sera', desc: 'Teal & cyan, fintech precision', bg: 'bg-cyan-600' },
           { name: 'Rhea', desc: 'Sunset orange, dynamic energy', bg: 'bg-orange-600' },
         ].map((s) => (
-          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-950/60 border border-slate-200 dark:border-zinc-800 space-y-2">
             <div class="flex items-center gap-2">
               <div class={`w-4 h-4 rounded-full ${s.bg}`}></div>
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">{s.name}</h3>
@@ -100,7 +100,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
     </section>
 
     <!-- 5-Petal Palette -->
-    <section id="petal-palette" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+    <section id="petal-palette" class="space-y-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
         5-Petal Color Palette
       </h2>
@@ -133,7 +133,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
     </section>
 
     <!-- BuildContext Extensions -->
-    <section id="context-extensions" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+    <section id="context-extensions" class="space-y-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
         BuildContext Extensions
       </h2>
@@ -144,7 +144,7 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
     </section>
 
     <!-- Creating Custom Themes -->
-    <section id="custom-theme" class="space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+    <section id="custom-theme" class="space-y-6 pt-4 border-t border-slate-200 dark:border-zinc-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
         Creating Custom Themes
       </h2>
@@ -155,10 +155,10 @@ const customThemeCode = `final myCustomTheme = BloomTheme(
     </section>
 
     <!-- Next Page Footer -->
-    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
       <a
         href="/docs/installation"
-        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
       >
         <span>Previous: Installation</span>
       </a>

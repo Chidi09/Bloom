@@ -4,6 +4,7 @@ import Section from '../components/common/Section.astro';
 import GlassPanel from '../components/common/GlassPanel.astro';
 import TechMarquee from '../components/common/TechMarquee.astro';
 import HeroVideoBg from '../components/common/HeroVideoBg.astro';
+import HubFAQ from '../components/common/HubFAQ.astro';
 import { CommunityShowcase } from '../components/interactive/CommunityShowcase';
 import { OrchestrationPipeline } from '../components/interactive/OrchestrationPipeline';
 import { ChapterCards } from '../components/interactive/ChapterCards';
@@ -97,7 +98,7 @@ const fallingPetals = Array.from({ length: 25 }).map((_, i) => {
               <span class="text-slate-500 dark:text-slate-400 font-bold shrink-0">$</span>
               <span class="text-slate-800 dark:text-slate-200 font-semibold truncate">dart pub global activate bloom_cli</span>
             </div>
-            <button class="px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 group-hover:bg-slate-900 group-hover:text-white rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-200 dark:group-hover:text-white transition-colors flex items-center gap-1.5 shrink-0 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <button class="px-3 sm:px-4 py-2 bg-white dark:bg-zinc-900 group-hover:bg-slate-900 group-hover:text-white rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-200 dark:group-hover:text-white transition-colors flex items-center gap-1.5 shrink-0 border border-slate-200 dark:border-zinc-800 shadow-sm">
               <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.75} />
               <span class="hidden sm:inline">Copy</span>
             </button>
@@ -115,19 +116,19 @@ const fallingPetals = Array.from({ length: 25 }).map((_, i) => {
           </a>
           <a
             href="/docs/introduction"
-            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-slate-800 shadow-sm transition flex items-center gap-1.5"
+            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-zinc-950 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-zinc-800 shadow-sm transition flex items-center gap-1.5"
           >
             <span>Documentation</span>
           </a>
           <a
             href="/blocks"
-            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-slate-800 shadow-sm transition flex items-center gap-1.5"
+            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-zinc-950 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-zinc-800 shadow-sm transition flex items-center gap-1.5"
           >
             <span>Blocks</span>
           </a>
           <a
             href="/themes"
-            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-slate-800 shadow-sm transition flex items-center gap-1.5"
+            class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-zinc-950 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-zinc-800 shadow-sm transition flex items-center gap-1.5"
           >
             <span>Theme Studio</span>
           </a>
@@ -233,6 +234,11 @@ const fallingPetals = Array.from({ length: 25 }).map((_, i) => {
     </div>
 
     <CommunityShowcase client:visible />
+  </Section>
+
+  <!-- FAQ Section for SEO & Developer Discovery -->
+  <Section id="faq" className="pt-8 pb-20">
+    <HubFAQ />
   </Section>
 
   <!-- Hero Typewriter Script with Safe Re-entrancy -->

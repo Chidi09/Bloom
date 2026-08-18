@@ -74,9 +74,9 @@ export function UIStudioPicker() {
   const activeColor = colorsMap[accentColor];
 
   return (
-    <div className="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 relative border border-slate-200/60 dark:border-white/10 bg-slate-950/90 dark:bg-black/95 group">
+    <div className="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 relative border border-slate-200/60 dark:border-zinc-800 bg-white dark:bg-black group">
       {/* Token Configurator Sidebar - compact strip on mobile, full sidebar on lg */}
-      <div className="lg:col-span-3 bg-slate-50/60 dark:bg-[#090C10]/80 border-b lg:border-b-0 lg:border-r border-slate-200/60 dark:border-slate-800/80 relative z-10">
+      <div className="lg:col-span-3 bg-slate-50/60 dark:bg-zinc-950/90 border-b lg:border-b-0 lg:border-r border-slate-200/60 dark:border-zinc-800 relative z-10">
         {/* Mobile: horizontal compact strip */}
         <div className="flex flex-col lg:hidden p-4 gap-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -89,7 +89,7 @@ export function UIStudioPicker() {
                     onClick={() => setAccentColor(c)}
                     aria-label={`Select ${c} accent`}
                     className={`w-6 h-6 rounded-full ${colorsMap[c].bg} transition-all ${
-                      accentColor === c ? 'ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : 'opacity-70 hover:opacity-100'
+                      accentColor === c ? 'ring-2 ring-offset-1 ring-offset-white dark:ring-offset-black ring-slate-400 scale-110' : 'opacity-70 hover:opacity-100'
                     }`}
                   />
                 ))}
@@ -100,7 +100,7 @@ export function UIStudioPicker() {
               <input
                 type="range" min="0" max="24" value={radius}
                 onInput={(e) => setRadius(Number((e.target as HTMLInputElement).value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                 style={{ accentColor: activeColor.hex }}
               />
             </div>
@@ -118,7 +118,7 @@ export function UIStudioPicker() {
                 className={`px-2.5 py-1 rounded-lg transition-all ${
                   activeCategory === cat.id
                     ? `${activeColor.bg} text-white font-bold`
-                    : 'bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    : 'bg-slate-200/60 dark:bg-zinc-900 text-slate-600 dark:text-slate-400'
                 }`}
               >
                 {cat.label}
@@ -147,7 +147,7 @@ export function UIStudioPicker() {
                     onClick={() => setAccentColor(c)}
                     aria-label={`Select ${c} accent`}
                     className={`w-7 h-7 rounded-full ${colorsMap[c].bg} transition-all ${
-                      accentColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 dark:ring-slate-500 scale-110' : 'opacity-80 hover:opacity-100 hover:scale-105'
+                      accentColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-black ring-slate-400 dark:ring-zinc-600 scale-110' : 'opacity-80 hover:opacity-100 hover:scale-105'
                     }`}
                   />
                 ))}
@@ -162,7 +162,7 @@ export function UIStudioPicker() {
               <input
                 type="range" min="0" max="24" value={radius}
                 onInput={(e) => setRadius(Number((e.target as HTMLInputElement).value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                 style={{ accentColor: activeColor.hex }}
               />
             </div>
@@ -183,7 +183,7 @@ export function UIStudioPicker() {
                     className={`px-2.5 py-1 rounded-lg transition-all ${
                       activeCategory === cat.id
                         ? `${activeColor.bg} text-white font-bold`
-                        : 'bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        : 'bg-slate-200/60 dark:bg-zinc-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     {cat.label}
@@ -210,7 +210,7 @@ export function UIStudioPicker() {
         {/* CATEGORY 1: BUTTONS & BADGES */}
         {(activeCategory === 'all' || activeCategory === 'buttons') && (
           <div className="space-y-4">
-            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
               <span className="flex items-center gap-2">
                 <Zap className={`w-3.5 h-3.5 ${activeColor.text}`} />
                 Buttons & Badges (cva primitives)
@@ -272,7 +272,7 @@ export function UIStudioPicker() {
         {/* CATEGORY 2: INPUTS & FORM CONTROLS */}
         {(activeCategory === 'all' || activeCategory === 'inputs') && (
           <div className="space-y-4">
-            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
               <span className="flex items-center gap-2">
                 <Search className={`w-3.5 h-3.5 ${activeColor.text}`} />
                 Inputs, Textarea & Form Controls
@@ -315,7 +315,7 @@ export function UIStudioPicker() {
                     max="100"
                     value={progressVal}
                     onInput={(e) => setProgressVal(Number((e.target as HTMLInputElement).value))}
-                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                    className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                     style={{ accentColor: activeColor.hex }}
                   />
                 </CardContent>
@@ -333,7 +333,7 @@ export function UIStudioPicker() {
                     <div
                       onClick={() => setSwitchState1(!switchState1)}
                       className={`w-11 h-6 rounded-full p-1 cursor-pointer transition-colors ${
-                        switchState1 ? activeColor.bg : 'bg-slate-300 dark:bg-slate-700'
+                        switchState1 ? activeColor.bg : 'bg-slate-300 dark:bg-zinc-800'
                       }`}
                     >
                       <div className={`w-4 h-4 bg-white rounded-full transform transition-transform shadow ${switchState1 ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -358,7 +358,7 @@ export function UIStudioPicker() {
         {/* CATEGORY 3: CARDS, AVATARS & ALERTS */}
         {(activeCategory === 'all' || activeCategory === 'cards') && (
           <div className="space-y-4">
-            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
               <span className="flex items-center gap-2">
                 <CreditCard className={`w-3.5 h-3.5 ${activeColor.text}`} />
                 Mobile Cards, Avatars & Alerts
@@ -424,7 +424,7 @@ export function UIStudioPicker() {
         {/* CATEGORY 4: SHEETS, DATE PICKER & OVERLAYS */}
         {(activeCategory === 'all' || activeCategory === 'nav') && (
           <div className="space-y-4">
-            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-2">
               <span className="flex items-center gap-2">
                 <Smartphone className={`w-3.5 h-3.5 ${activeColor.text}`} />
                 Bottom Sheets, DatePicker & Controls

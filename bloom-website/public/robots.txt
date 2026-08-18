@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bloom.dev/sitemap-index.xml
+Sitemap: https://bloom-platform-ten.vercel.app/sitemap-index.xml
+
+# LLM Crawler & AI Model Specification
+# Reference: https://llmstxt.org/
+llms-txt: https://bloom-platform-ten.vercel.app/llms.txt
+llms-full-txt: https://bloom-platform-ten.vercel.app/llms-full.txt

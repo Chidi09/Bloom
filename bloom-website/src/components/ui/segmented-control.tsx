@@ -16,7 +16,7 @@ export function SegmentedControl({
 
   return (
     <div
-      className="p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex gap-1 w-full max-w-sm shadow-inner"
+      className="p-1 bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 flex gap-1 w-full max-w-sm shadow-inner"
       style={{ borderRadius: `${radiusPx}px` }}
     >
       {options.map((opt) => {
@@ -28,7 +28,7 @@ export function SegmentedControl({
             className={`flex-1 py-1.5 px-3 text-xs font-mono font-bold transition-all ${
               isSelected
                 ? 'text-white shadow-sm scale-[1.02]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
             }`}
             style={
               isSelected

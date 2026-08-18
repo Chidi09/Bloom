@@ -23,14 +23,14 @@ export function DatePicker({
 
   return (
     <div
-      className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-md max-w-xs"
+      className="p-4 bg-white dark:bg-black border border-slate-200 dark:border-zinc-800 shadow-md max-w-xs"
       style={{ borderRadius: `${radiusPx}px` }}
     >
       <div className="flex items-center justify-between mb-3 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
         <span>August 2026</span>
         <div className="flex gap-1">
-          <button className="px-2 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">‹</button>
-          <button className="px-2 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">›</button>
+          <button className="px-2 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-700 dark:text-slate-300">‹</button>
+          <button className="px-2 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-700 dark:text-slate-300">›</button>
         </div>
       </div>
 
@@ -49,7 +49,7 @@ export function DatePicker({
                 'h-7 w-7 text-xs font-mono font-bold rounded-lg transition-colors flex items-center justify-center',
                 isSelected
                   ? 'text-white shadow-sm'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-900'
               )}
               style={
                 isSelected

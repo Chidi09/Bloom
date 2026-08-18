@@ -1,0 +1,159 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Cpu, GitBranch, Rocket, Settings2, ArrowRight, ExternalLink } from 'lucide-preact';
+
+const buildCmd = `# Trigger a cloud build for a platform + environment
+bloom cloud build --platform ios --environment production
+bloom cloud build --platform android --environment staging
+
+# Watch logs live
+bloom cloud logs --build <build-id> --follow`;
+
+const releaseCmd = `# Create a release from a completed build
+bloom cloud release create --build <build-id> --changelog "Fix checkout tax calculation"
+
+# Approve (Release Manager+ only)
+bloom cloud release approve --release <release-id>`;
+
+const buildStages = [
+  { step: '01', title: 'Queued', desc: 'Build request accepted, waiting for a build worker.' },
+  { step: '02', title: 'Staging', desc: 'Source checked out at the target commit, dependencies resolved.' },
+  { step: '03', title: 'Compiling', desc: 'Platform-specific AOT compilation with the pinned Flutter/Dart/Bloom SDK versions.' },
+  { step: '04', title: 'Artifact Upload', desc: 'Signed .ipa/.aab/web bundle uploaded and attached to the build record.' },
+];
+
+const deployTargets = [
+  { name: 'TestFlight', desc: 'Internal/external tester distribution via App Store Connect.' },
+  { name: 'App Store', desc: 'Public release, subject to Apple review.' },
+  { name: 'Google Play (Internal/Closed)', desc: 'Staged Android tracks before production rollout.' },
+  { name: 'Web / Preview', desc: 'Instant preview URLs and production Flutter Web hosting.' },
+];
+---
+
+<DocsLayout
+  title="Build & Release Pipeline"
+  description="Remote build farm, release approvals, rollout percentages, and multi-target deployments."
+  currentSlug="cloud-build-and-release"
+  category="Cloud Platform"
+  toc={[
+    { id: 'builds', title: 'Remote Build Farm' },
+    { id: 'releases', title: 'Releases & Approvals' },
+    { id: 'deployments', title: 'Deployments' },
+    { id: 'environments', title: 'Environments' },
+  ]}
+>
+  <div class="space-y-12">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Cpu className="w-3.5 h-3.5" />
+        Build & Release Pipeline
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Build & Release Pipeline
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Compile in the cloud, gate releases behind approval, and deploy to every distribution target from one pipeline.
+      </p>
+      <a
+        href="https://cloud.bloom.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Open Cloud Dashboard</span>
+        <ExternalLink className="w-4 h-4" />
+      </a>
+    </div>
+
+    <section id="builds" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Remote Build Farm
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Every build runs on Bloom's managed workers&mdash;no local iOS/Android toolchain required. Trigger from the CLI or the "New Build" dialog in the dashboard's Builds tab:
+      </p>
+      <CodeBlock code={buildCmd} lang="bash" filename="Terminal" />
+      <div class="grid grid-cols-1 gap-3 pt-2">
+        {buildStages.map((stage) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start gap-4">
+            <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold font-mono text-xs shrink-0">
+              {stage.step}
+            </div>
+            <div class="space-y-1">
+              <h3 class="text-sm font-bold text-white font-mono">{stage.title}</h3>
+              <p class="text-xs text-slate-400 leading-relaxed">{stage.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+        Each build has its own deep-linkable detail page with a live stage timeline, streaming logs, and artifact downloads&mdash;reachable from any build row's "View details" action.
+      </p>
+    </section>
+
+    <section id="releases" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Releases & Approvals
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        A release wraps a completed build with a changelog and a rollout percentage. Releases below <code class="font-mono text-purple-400">pending_approval</code> can't ship until a Release Manager or above approves them:
+      </p>
+      <CodeBlock code={releaseCmd} lang="bash" filename="Terminal" />
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <GitBranch className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Every release can be rolled back to any prior version in one click, and two releases can be diffed side-by-side to see exactly what changed before approving.
+        </p>
+      </div>
+    </section>
+
+    <section id="deployments" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Deployments
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        A deployment ships a specific release to a specific target. Status tracking is platform-aware&mdash;TestFlight processing and App Store review states surface distinctly from a generic "in progress" spinner:
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        {deployTargets.map((target) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+            <h3 class="text-sm font-bold text-white font-mono">{target.name}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">{target.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section id="environments" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Environments
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Environments (Production, Staging, Preview, Dev by default) each pin their own Flutter/Dart/Bloom SDK versions, build flavor, environment variables, and feature flags&mdash;builds and releases are always scoped to exactly one.
+      </p>
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <Settings2 className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          An environment can't be deleted while it still has builds attached&mdash;the dashboard disables the delete action with an explanation rather than allowing a silent orphan.
+        </p>
+      </div>
+    </section>
+
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/cloud/overview"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Platform Overview</span>
+      </a>
+      <a
+        href="/docs/cloud/secrets-and-signing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Secrets, Signing & Git</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

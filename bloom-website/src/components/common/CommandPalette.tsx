@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'preact/hooks';
-import { Search, Terminal, Sliders, Code, Box, X, Copy, ChevronRight, Layers, Sparkles } from 'lucide-preact';
+import { Search, Terminal, Sliders, Code, Box, X, Copy, ChevronRight, Layers, Sparkles, Bot, FileText } from 'lucide-preact';
 import { showToast } from './ToastSystem';
 import { UI_REGISTRY } from '../../lib/ui-registry';
 
@@ -17,6 +17,46 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const staticCommands: CommandItem[] = [
+    {
+      id: 'cmd-copy-page-md',
+      title: 'Copy Current Page for LLM (Markdown)',
+      category: 'Actions',
+      icon: Bot,
+      action: async () => {
+        const path = window.location.pathname.replace(/\/$/, '') || '';
+        const mdPath = path === '' ? '/index.md' : `${path}.md`;
+        try {
+          const res = await fetch(mdPath);
+          const text = await res.text();
+          await navigator.clipboard.writeText(text);
+          showToast('LLM Markdown Copied!', 'Ready to paste into ChatGPT, Claude, or Cursor.', 'emerald');
+        } catch {
+          await navigator.clipboard.writeText(window.location.origin + mdPath);
+          showToast('Markdown URL Copied!', mdPath, 'indigo');
+        }
+        setIsOpen(false);
+      },
+    },
+    {
+      id: 'nav-llms-txt',
+      title: 'View /llms.txt (LLM Documentation Index)',
+      category: 'Navigation',
+      icon: Bot,
+      action: () => {
+        window.open('/llms.txt', '_blank');
+        setIsOpen(false);
+      },
+    },
+    {
+      id: 'nav-llms-full',
+      title: 'View /llms-full.txt (Consolidated Full Context)',
+      category: 'Navigation',
+      icon: FileText,
+      action: () => {
+        window.open('/llms-full.txt', '_blank');
+        setIsOpen(false);
+      },
+    },
     {
       id: 'cmd-copy',
       title: 'Copy CLI Install Command',
@@ -151,9 +191,9 @@ export function CommandPalette() {
       aria-modal="true"
       aria-label="Command Palette"
     >
-      <div className="bg-white dark:bg-[#0D1117] w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden transform scale-100 transition-all">
+      <div className="bg-white dark:bg-black w-full max-w-xl rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl overflow-hidden transform scale-100 transition-all">
         {/* Input Bar */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800/80 flex items-center gap-3">
+        <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
           <Search className="w-5 h-5 text-purple-500 shrink-0" strokeWidth={1.75} />
           <input
             ref={inputRef}
@@ -165,7 +205,7 @@ export function CommandPalette() {
           />
           <button
             onClick={() => setIsOpen(false)}
-            className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-mono rounded-lg hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="px-2 py-1 bg-slate-100 dark:bg-zinc-900 text-slate-500 text-xs font-mono rounded-lg hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             ESC
           </button>
@@ -184,16 +224,16 @@ export function CommandPalette() {
                 <button
                   key={cmd.id}
                   onClick={cmd.action}
-                  className="w-full p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 flex justify-between items-center text-slate-700 dark:text-slate-300 transition text-left group"
+                  className="w-full p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900 flex justify-between items-center text-slate-700 dark:text-slate-300 transition text-left group"
                 >
                   <div className="flex items-center gap-3 font-semibold">
-                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
+                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-900 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
                       <IconComponent className="w-4 h-4" strokeWidth={1.75} />
                     </div>
                     <span>{cmd.title}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-2 py-0.5 rounded">
+                    <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-zinc-900 px-2 py-0.5 rounded">
                       {cmd.category}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -205,10 +245,10 @@ export function CommandPalette() {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2.5 bg-slate-50 dark:bg-[#05080F] border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+        <div className="px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
           <span>Tip: Use ↑ ↓ to navigate</span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold">⌘K</kbd> to toggle
+            <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-800 rounded font-bold">⌘K</kbd> to toggle
           </span>
         </div>
       </div>

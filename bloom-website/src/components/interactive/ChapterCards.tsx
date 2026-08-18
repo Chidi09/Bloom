@@ -16,7 +16,7 @@ export function ChapterCards() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
       {/* CHAPTER 01 BUILD CARD */}
-      <div className="group relative p-8 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 hover:border-purple-500/50 dark:hover:border-purple-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
+      <div className="group relative p-8 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 hover:border-purple-500/50 dark:hover:border-purple-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <FolderTree className="w-24 h-24 text-purple-500" />
         </div>
@@ -26,7 +26,7 @@ export function ChapterCards() {
             <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold border border-purple-500/20">
               CHAPTER 01
             </span>
-            <span className="text-xs font-mono font-bold text-slate-400">FRAMEWORK</span>
+            <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">FRAMEWORK</span>
           </div>
 
           <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
@@ -34,21 +34,21 @@ export function ChapterCards() {
           </h3>
 
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6 font-normal">
-            Filesystem routing over <code className="font-mono text-purple-600 dark:text-purple-400">go_router</code>, zero-boilerplate <code className="font-mono text-purple-600 dark:text-purple-400">signals</code> state API, and automated CLI code generators.
+            Filesystem routing over <code className="font-mono text-purple-600 dark:text-purple-400 font-bold">go_router</code>, zero-boilerplate <code className="font-mono text-purple-600 dark:text-purple-400 font-bold">signals</code> state API, and automated CLI code generators.
           </p>
 
           {/* Interactive Micro-Demo: Route Previewer */}
-          <div className="p-4 rounded-2xl bg-slate-950 text-white border border-slate-800 mb-6 font-mono text-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-[10px] text-slate-400">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800 mb-6 font-mono text-xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-zinc-800 text-[10px] text-slate-500 dark:text-slate-400">
               <span>File-System Routes</span>
-              <span className="text-purple-400 font-bold">Generated AST</span>
+              <span className="text-purple-600 dark:text-purple-400 font-bold">Generated AST</span>
             </div>
 
             <div className="flex gap-1.5">
               <button
                 onClick={() => setSelectedRoute('home')}
                 className={`px-2 py-1 rounded text-[10px] transition-colors ${
-                  selectedRoute === 'home' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  selectedRoute === 'home' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-zinc-700'
                 }`}
               >
                 index.dart
@@ -56,7 +56,7 @@ export function ChapterCards() {
               <button
                 onClick={() => setSelectedRoute('user')}
                 className={`px-2 py-1 rounded text-[10px] transition-colors ${
-                  selectedRoute === 'user' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  selectedRoute === 'user' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-zinc-700'
                 }`}
               >
                 users/[id].dart
@@ -64,22 +64,22 @@ export function ChapterCards() {
               <button
                 onClick={() => setSelectedRoute('layout')}
                 className={`px-2 py-1 rounded text-[10px] transition-colors ${
-                  selectedRoute === 'layout' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  selectedRoute === 'layout' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-zinc-700'
                 }`}
               >
                 _layout.dart
               </button>
             </div>
 
-            <div className="text-[11px] text-slate-300 bg-slate-900/80 p-2.5 rounded border border-slate-800">
+            <div className="text-[11px] text-slate-700 dark:text-slate-300 bg-white dark:bg-zinc-900 p-2.5 rounded border border-slate-200 dark:border-zinc-800">
               {selectedRoute === 'home' && (
-                <span>Route: <strong className="text-teal-400">'/'</strong> → HomeView()</span>
+                <span>Route: <strong className="text-teal-600 dark:text-teal-400">'/'</strong> → HomeView()</span>
               )}
               {selectedRoute === 'user' && (
-                <span>Route: <strong className="text-teal-400">'/users/:id'</strong> → UserView(id: String)</span>
+                <span>Route: <strong className="text-teal-600 dark:text-teal-400">'/users/:id'</strong> → UserView(id: String)</span>
               )}
               {selectedRoute === 'layout' && (
-                <span>Route: <strong className="text-teal-400">'/_layout'</strong> → AppScaffold(child)</span>
+                <span>Route: <strong className="text-teal-600 dark:text-teal-400">'/_layout'</strong> → AppScaffold(child)</span>
               )}
             </div>
           </div>
@@ -95,7 +95,7 @@ export function ChapterCards() {
       </div>
 
       {/* CHAPTER 02 SHIP CARD */}
-      <div className="group relative p-8 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 hover:border-blue-500/50 dark:hover:border-blue-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
+      <div className="group relative p-8 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 hover:border-blue-500/50 dark:hover:border-blue-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <Send className="w-24 h-24 text-blue-500" />
         </div>
@@ -105,7 +105,7 @@ export function ChapterCards() {
             <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-mono font-bold border border-blue-500/20">
               CHAPTER 02
             </span>
-            <span className="text-xs font-mono font-bold text-slate-400">CLOUD OTA</span>
+            <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">CLOUD OTA</span>
           </div>
 
           <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
@@ -117,10 +117,10 @@ export function ChapterCards() {
           </p>
 
           {/* Interactive Micro-Demo: OTA Rollout Simulator */}
-          <div className="p-4 rounded-2xl bg-slate-950 text-white border border-slate-800 mb-6 font-mono text-xs space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800 mb-6 font-mono text-xs space-y-3">
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-slate-400">Canary Rollout</span>
-              <span className="text-blue-400 font-bold">{rolloutPct}% Traffic</span>
+              <span className="text-slate-500 dark:text-slate-400">Canary Rollout</span>
+              <span className="text-blue-600 dark:text-blue-400 font-bold">{rolloutPct}% Traffic</span>
             </div>
 
             <input
@@ -130,12 +130,12 @@ export function ChapterCards() {
               step="10"
               value={rolloutPct}
               onChange={(e) => setRolloutPct(Number((e.target as HTMLInputElement).value))}
-              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
 
-            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-              <span>Patch: <strong className="text-slate-200">v2.4.1 (142KB)</strong></span>
-              <span className="flex items-center gap-1 text-emerald-400 font-bold">
+            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1">
+              <span>Patch: <strong className="text-slate-900 dark:text-slate-200">v2.4.1 (142KB)</strong></span>
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                 <CheckCircle2 className="w-3 h-3" /> RSA-2048
               </span>
             </div>
@@ -152,7 +152,7 @@ export function ChapterCards() {
       </div>
 
       {/* CHAPTER 03 BLOOM CARD */}
-      <div className="group relative p-8 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 hover:border-pink-500/50 dark:hover:border-pink-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
+      <div className="group relative p-8 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 hover:border-pink-500/50 dark:hover:border-pink-400/50 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <Sliders className="w-24 h-24 text-pink-500" />
         </div>
@@ -162,7 +162,7 @@ export function ChapterCards() {
             <span className="px-3 py-1 rounded-full bg-pink-500/10 text-pink-600 dark:text-pink-400 text-xs font-mono font-bold border border-pink-500/20">
               CHAPTER 03
             </span>
-            <span className="text-xs font-mono font-bold text-slate-400">UI STUDIO</span>
+            <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">UI STUDIO</span>
           </div>
 
           <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
@@ -174,10 +174,10 @@ export function ChapterCards() {
           </p>
 
           {/* Interactive Micro-Demo: Token Live Preview */}
-          <div className="p-4 rounded-2xl bg-slate-950 text-white border border-slate-800 mb-6 font-mono text-xs space-y-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-800 mb-6 font-mono text-xs space-y-3">
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-slate-400">Live Token Sandbox</span>
-              <span className="text-pink-400 font-bold">r: {radius}px</span>
+              <span className="text-slate-500 dark:text-slate-400">Live Token Sandbox</span>
+              <span className="text-pink-600 dark:text-pink-400 font-bold">r: {radius}px</span>
             </div>
 
             <div className="flex items-center justify-between gap-2">
@@ -186,8 +186,9 @@ export function ChapterCards() {
                   <button
                     key={c}
                     onClick={() => setAccentColor(c)}
+                    aria-label={`Select accent ${c}`}
                     className={`w-5 h-5 rounded-full transition-transform ${
-                      accentColor === c ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'
+                      accentColor === c ? 'scale-125 ring-2 ring-purple-500 dark:ring-white' : 'opacity-70 hover:opacity-100'
                     }`}
                     style={{ backgroundColor: c }}
                   />

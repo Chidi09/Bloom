@@ -1,0 +1,124 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/common/Section.astro';
+import GlassPanel from '../components/common/GlassPanel.astro';
+import { ShieldCheck, Lock, Eye, Server, RefreshCw, FileText, ArrowLeft } from 'lucide-preact';
+---
+
+<Layout
+  title="Privacy Policy — Bloom Platform"
+  description="Privacy Policy for Bloom Framework, Bloom Cloud OTA, and Bloom UI. Understand how we handle data, telemetry, and protect your privacy."
+  petalHighlight="all"
+  nextChapterTitle="Terms and Conditions"
+  nextChapterLink="/terms"
+  nextChapterSubtitle="Review the open source terms, CLI usage rights, and cloud service commitments."
+>
+  <Section reveal={false} className="pt-16 pb-20 max-w-4xl mx-auto space-y-12">
+    <!-- Breadcrumb / Back -->
+    <div class="flex items-center gap-2 text-xs font-mono text-slate-500">
+      <a href="/" class="hover:text-purple-400 transition flex items-center gap-1">
+        <ArrowLeft className="w-3.5 h-3.5" />
+        <span>Hub</span>
+      </a>
+      <span>/</span>
+      <span class="text-slate-300">Privacy Policy</span>
+    </div>
+
+    <!-- Header -->
+    <div class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        <span>Privacy & Data Protection</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Privacy Policy
+      </h1>
+      <p class="text-slate-600 dark:text-slate-400 text-sm font-mono">
+        Last updated: August 15, 2026 • Version 1.2
+      </p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="space-y-10 text-slate-700 dark:text-slate-300 leading-relaxed text-sm sm:text-base">
+      
+      <!-- Section 1 -->
+      <section class="space-y-3 p-6 sm:p-8 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/60 border border-slate-200/80 dark:border-zinc-800/80">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Lock className="w-5 h-5 text-purple-400" />
+          <span>1. Introduction & Open Source Core</span>
+        </h2>
+        <p>
+          Bloom Platform ("Bloom", "we", "us", or "our") is dedicated to protecting your privacy. The Bloom Framework (<code class="font-mono text-purple-400">bloom_core</code>) and Bloom UI (<code class="font-mono text-purple-400">bloom_ui</code>) are 100% open-source software distributed under the MIT license. 
+        </p>
+        <p>
+          When you use the Bloom CLI or compile Bloom components locally on your workstation, all code generation, widget rendering, and AST parsing occur strictly on your local machine. We do not transmit your proprietary source code or local project assets to any remote servers.
+        </p>
+      </section>
+
+      <!-- Section 2 -->
+      <section class="space-y-3 p-6 sm:p-8 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/60 border border-slate-200/80 dark:border-zinc-800/80">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Server className="w-5 h-5 text-blue-400" />
+          <span>2. Bloom Cloud & OTA Patch Telemetry</span>
+        </h2>
+        <p>
+          When using Bloom Cloud Over-The-Air (OTA) deployment services (<code class="font-mono text-blue-400">bloom deploy --ota</code>), we collect and process the following necessary data to facilitate patch delivery:
+        </p>
+        <ul class="list-disc list-inside space-y-2 pl-2 text-slate-600 dark:text-slate-400">
+          <li><strong>Release & Patch Metadata:</strong> App version, release build number, patch hash, target platform (iOS, Android, macOS, Windows, Linux, Web), and channel (production, staging, preview).</li>
+          <li><strong>Client Health & Telemetry:</strong> Anonymized patch download success/failure status, crash telemetry associated with patched code paths, and patch adoption rates for automated rollback triggers.</li>
+          <li><strong>IP & Network Headers:</strong> Temporarily processed at our globally distributed edge nodes strictly for geo-routing, DDoS prevention, and rate limiting.</li>
+        </ul>
+      </section>
+
+      <!-- Section 3 -->
+      <section class="space-y-3 p-6 sm:p-8 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/60 border border-slate-200/80 dark:border-zinc-800/80">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Eye className="w-5 h-5 text-emerald-400" />
+          <span>3. Anonymous CLI & Web Telemetry</span>
+        </h2>
+        <p>
+          To prioritize feature development and discover build failure patterns across Flutter versions, the Bloom CLI collects minimal, anonymized usage telemetry (e.g. command names run such as <code class="font-mono text-slate-400">bloom build</code> or <code class="font-mono text-slate-400">bloom ui add</code>, OS architecture, and Dart SDK version).
+        </p>
+        <div class="p-4 rounded-2xl bg-black/40 border border-zinc-800 text-xs font-mono">
+          <p class="text-slate-400"># You can completely opt out of CLI telemetry at any time:</p>
+          <p class="text-purple-300">bloom config set telemetry false</p>
+        </div>
+      </section>
+
+      <!-- Section 4 -->
+      <section class="space-y-3 p-6 sm:p-8 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/60 border border-slate-200/80 dark:border-zinc-800/80">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <RefreshCw className="w-5 h-5 text-amber-400" />
+          <span>4. Cookies & Browser Local Storage</span>
+        </h2>
+        <p>
+          Our website and documentation portal use browser <code class="font-mono text-slate-400">sessionStorage</code> and <code class="font-mono text-slate-400">localStorage</code> solely to remember functional user preferences:
+        </p>
+        <ul class="list-disc list-inside space-y-1 pl-2 text-slate-600 dark:text-slate-400">
+          <li>Dark Mode / Light Mode theme state</li>
+          <li>Documentation sidebar scroll position and open accordion categories across page transitions</li>
+          <li>Interactive Theme Generator style token configurations</li>
+        </ul>
+        <p class="pt-2 text-xs text-slate-500">
+          We do not use tracking cookies or sell your browsing history to third-party ad brokers.
+        </p>
+      </section>
+
+      <!-- Section 5 -->
+      <section class="space-y-3 p-6 sm:p-8 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/60 border border-slate-200/80 dark:border-zinc-800/80">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <FileText className="w-5 h-5 text-purple-400" />
+          <span>5. Contact & Privacy Inquiries</span>
+        </h2>
+        <p>
+          If you have questions regarding this Privacy Policy or wish to exercise data rights, please open a discussion on our official repository or contact the core maintainers:
+        </p>
+        <p class="font-mono text-xs text-purple-400">
+          security@bloomframework.org • github.com/bloom-framework/bloom
+        </p>
+      </section>
+
+    </div>
+  </Section>
+</Layout>
