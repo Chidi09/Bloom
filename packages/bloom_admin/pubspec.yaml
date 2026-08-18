@@ -1,7 +1,13 @@
 name: bloom_admin
 description: Automatic server-rendered HTML administration interface for Bloom web applications.
 version: 0.1.0
-publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - admin
+  - server
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -9,10 +15,8 @@ environment:
 dependencies:
   meta: ^1.15.0
   crypto: ^3.0.3
-  bloom_framework:
-    path: ../bloom_framework
-  bloom_db:
-    path: ../bloom_db
+  bloom_framework: ^0.2.2
+  bloom_db: ^0.1.0
 
 dev_dependencies:
   test: ^1.25.0
