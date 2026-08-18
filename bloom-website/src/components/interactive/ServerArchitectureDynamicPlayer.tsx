@@ -253,7 +253,7 @@ class SendWelcomeEmailJob extends BloomJob<UserPayload> {
   },
 ];
 
-const ROTATION_INTERVAL_MS = 5000;
+const ROTATION_INTERVAL_MS = 6000;
 
 export function ServerArchitectureDynamicPlayer() {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -262,7 +262,36 @@ export function ServerArchitectureDynamicPlayer() {
   const [progress, setProgress] = useState(0);
   const [copied, setCopied] = useState(false);
 
+  // Typewriter streaming state
+  const [typedChars, setTypedChars] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
+
   const activeFeature = FEATURES[activeIndex];
+
+  // Reset and trigger typing stream whenever active feature changes
+  useEffect(() => {
+    setTypedChars(0);
+    setIsTyping(true);
+
+    const fullLength = activeFeature.code.length;
+    // Type fast enough to finish within ~1.2s
+    const chunkSize = Math.max(6, Math.ceil(fullLength / 60));
+    const typeIntervalMs = 18;
+
+    const typeTimer = setInterval(() => {
+      setTypedChars((prev) => {
+        const next = prev + chunkSize;
+        if (next >= fullLength) {
+          clearInterval(typeTimer);
+          setIsTyping(false);
+          return fullLength;
+        }
+        return next;
+      });
+    }, typeIntervalMs);
+
+    return () => clearInterval(typeTimer);
+  }, [activeIndex]);
 
   // Rotation timer loop
   useEffect(() => {
@@ -294,6 +323,9 @@ export function ServerArchitectureDynamicPlayer() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Sliced code for typewriter streaming
+  const displayedCode = activeFeature.code.slice(0, typedChars);
 
   return (
     <div 
@@ -335,6 +367,13 @@ export function ServerArchitectureDynamicPlayer() {
 
         {/* Playback & Status Controls */}
         <div className="flex items-center gap-2">
+          {isTyping && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono text-purple-300 bg-purple-500/10 border border-purple-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
+              STREAMING DART
+            </span>
+          )}
+
           {isHovered && (
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20">
               PAUSED ON HOVER
@@ -395,10 +434,16 @@ export function ServerArchitectureDynamicPlayer() {
         </div>
       </div>
 
-      {/* Code Body with Shiki-Grade Token Syntax Highlighting */}
-      <div className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed max-h-[440px] overflow-x-auto bg-[#0d1117]/95 scrollbar-thin">
+      {/* Code Body with Live Typewriter Character Streaming & Token Syntax Highlighting */}
+      <div className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed min-h-[380px] max-h-[440px] overflow-x-auto bg-[#0d1117]/95 scrollbar-thin relative">
         <pre className="text-slate-300 font-mono">
-          <code dangerouslySetInnerHTML={{ __html: highlightDart(activeFeature.code) }} />
+          <code dangerouslySetInnerHTML={{ __html: highlightDart(displayedCode) }} />
+          {/* Animated Blinking Insertion Cursor */}
+          <span 
+            className={`inline-block w-2 h-4 bg-purple-400 align-middle ml-0.5 shadow-[0_0_8px_rgba(168,85,247,0.8)] ${
+              isTyping ? 'animate-pulse' : 'animate-ping'
+            }`}
+          />
         </pre>
       </div>
 
