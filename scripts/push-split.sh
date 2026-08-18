@@ -3,7 +3,7 @@
 # slices (preserving history via git-filter-repo) and pushes each to its
 # own GitHub repo. Never push this repo's own `origin` directly — it has
 # no remote configured on purpose, since a plain push would mix public
-# framework code with private cloud/website code into one repo.
+# framework/website code with private cloud backend/dashboard code.
 #
 # Usage: scripts/push-split.sh [branch]   (defaults to current branch)
 
@@ -19,16 +19,24 @@ PRIVATE_REMOTE="https://github.com/Chidi09/bloom-cloud.git"
 
 echo "== Splitting '$BRANCH' from $ROOT =="
 
-# --- Public: packages/, apps/, benchmarks/, LICENSE, README.md ---
+# --- Public: packages/, apps/, benchmarks/, bloom-website/, docs/, examples/, LICENSE, README.md ---
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
 (
   cd "$WORKDIR/public"
-  git filter-repo --path packages/ --path apps/ --path benchmarks/ --path LICENSE --path README.md
+  git filter-repo \
+    --path packages/ \
+    --path apps/ \
+    --path benchmarks/ \
+    --path bloom-website/ \
+    --path docs/ \
+    --path examples/ \
+    --path LICENSE \
+    --path README.md
   git remote add origin "$PUBLIC_REMOTE"
   git branch -M main
   git push --force origin main
 )
-echo "== Pushed clean public split to $PUBLIC_REMOTE =="
+echo "== Pushed clean public split (including bloom-website) to $PUBLIC_REMOTE =="
 
 # --- Private: cloud-backend/, cloud-dashboard/, bloom-website/, docs/, examples/ ---
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
