@@ -25,8 +25,8 @@ import {
 >
   <div class="space-y-16">
     <!-- Header -->
-    <div class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+    <div class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
         <Sparkles className="w-3.5 h-3.5" />
         Production-Ready Screens
       </div>
@@ -48,7 +48,7 @@ import {
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
                   {block.title}
                 </h2>
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                   {block.category}
                 </span>
               </div>
@@ -59,32 +59,32 @@ import {
 
             <button
               onclick={`navigator.clipboard.writeText(\`${block.flutterCode}\`); window.dispatchEvent(new CustomEvent('bloom:toast', { detail: { title: 'Screen Code Copied', message: 'Full Flutter screen copied to clipboard.', type: 'emerald' } }))`}
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-white hover:bg-slate-800 transition shadow-md"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white border border-slate-800 dark:border-zinc-200 text-xs font-bold text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-md"
             >
-              <Code2 className="w-3.5 h-3.5 text-purple-400" />
+              <Code2 className="w-3.5 h-3.5 text-purple-400 dark:text-purple-600" />
               <span>Copy Flutter Code</span>
             </button>
           </div>
 
           <!-- Preview & Code Tabs -->
-          <div class="rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-950 overflow-hidden shadow-2xl">
-            <div class="p-6 bg-slate-950/60 flex items-center justify-center min-h-[340px]">
+          <div class="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-black overflow-hidden shadow-2xl">
+            <div class="p-6 bg-slate-50/50 dark:bg-black/60 flex items-center justify-center min-h-[340px]">
               {block.id === 'dashboard-01' && (
                 <div class="w-full max-w-2xl space-y-4">
                   <div class="grid grid-cols-2 gap-4">
-                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <div class="text-[11px] text-slate-400">Total Revenue</div>
-                      <div class="text-xl font-bold text-white">$45,231.89</div>
-                      <div class="text-[10px] text-emerald-400 font-mono">+20.1% vs last mo</div>
+                    <div class="p-4 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1 shadow-sm">
+                      <div class="text-[11px] text-slate-500 dark:text-slate-400">Total Revenue</div>
+                      <div class="text-xl font-bold text-slate-900 dark:text-white">$45,231.89</div>
+                      <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">+20.1% vs last mo</div>
                     </div>
-                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <div class="text-[11px] text-slate-400">Active Subscriptions</div>
-                      <div class="text-xl font-bold text-white">+2,350</div>
-                      <div class="text-[10px] text-purple-400 font-mono">+180 new today</div>
+                    <div class="p-4 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1 shadow-sm">
+                      <div class="text-[11px] text-slate-500 dark:text-slate-400">Active Subscriptions</div>
+                      <div class="text-xl font-bold text-slate-900 dark:text-white">+2,350</div>
+                      <div class="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-bold">+180 new today</div>
                     </div>
                   </div>
-                  <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                    <div class="text-xs font-bold text-white">Monthly Transaction Trend</div>
+                  <div class="p-4 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2 shadow-sm">
+                    <div class="text-xs font-bold text-slate-900 dark:text-white">Monthly Transaction Trend</div>
                     <div class="h-28 flex items-end gap-2 pt-2">
                       {[30, 45, 65, 80, 50, 95, 110].map((v, i) => (
                         <div key={i} class="flex-1 bg-gradient-to-t from-purple-600 to-pink-500 rounded-t" style={`height: ${v}%`} />
@@ -95,27 +95,27 @@ import {
               )}
 
               {block.id === 'auth-01' && (
-                <div class="w-full max-w-sm p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
+                <div class="w-full max-w-sm p-6 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-4 shadow-xl">
                   <div class="space-y-1">
-                    <div class="text-base font-bold text-white">Welcome Back</div>
-                    <div class="text-xs text-slate-400">Sign in to manage your Flutter deployments.</div>
+                    <div class="text-base font-bold text-slate-900 dark:text-white">Welcome Back</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">Sign in to manage your Flutter deployments.</div>
                   </div>
                   <div class="space-y-3">
-                    <input type="text" placeholder="name@example.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
-                    <input type="password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
-                    <button class="w-full py-2 bg-purple-600 rounded-lg text-xs font-bold text-white hover:bg-purple-500">Sign In</button>
+                    <input type="text" placeholder="name@example.com" class="w-full bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400" />
+                    <input type="password" placeholder="••••••••" class="w-full bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400" />
+                    <button class="w-full py-2 bg-purple-600 rounded-lg text-xs font-bold text-white hover:bg-purple-500 shadow-md">Sign In</button>
                   </div>
                 </div>
               )}
 
               {block.id === 'chat-01' && (
-                <div class="w-full max-w-md p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-                  <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <div class="w-full max-w-md p-4 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-4 shadow-xl">
+                  <div class="flex items-center gap-2 border-b border-slate-200 dark:border-zinc-800 pb-2">
                     <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] font-bold text-white">AI</div>
-                    <div class="text-xs font-bold text-white">Bloom Assistant</div>
+                    <div class="text-xs font-bold text-slate-900 dark:text-white">Bloom Assistant</div>
                   </div>
                   <div class="space-y-3 text-xs">
-                    <div class="p-3 rounded-xl bg-slate-800 text-slate-200 self-start max-w-[80%]">
+                    <div class="p-3 rounded-xl bg-slate-100 dark:bg-zinc-900 text-slate-800 dark:text-slate-200 self-start max-w-[80%]">
                       Hello! How can I assist with your Flutter app layout today?
                     </div>
                     <div class="p-3 rounded-xl bg-purple-600 text-white self-end ml-auto max-w-[80%]">
@@ -126,16 +126,16 @@ import {
               )}
 
               {block.id === 'settings-01' && (
-                <div class="w-full max-w-md p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-                  <div class="text-sm font-bold text-white">System Settings</div>
+                <div class="w-full max-w-md p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-4 shadow-xl">
+                  <div class="text-sm font-bold text-slate-900 dark:text-white">System Settings</div>
                   <div class="space-y-3 text-xs">
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950">
-                      <span class="text-slate-300">Dark Mode Sync</span>
-                      <span class="text-purple-400 font-mono">Enabled</span>
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-800">
+                      <span class="text-slate-700 dark:text-slate-300 font-medium">Dark Mode Sync</span>
+                      <span class="text-purple-600 dark:text-purple-400 font-mono font-bold">Enabled</span>
                     </div>
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950">
-                      <span class="text-slate-300">OTA Push Notifications</span>
-                      <span class="text-purple-400 font-mono">Active</span>
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-800">
+                      <span class="text-slate-700 dark:text-slate-300 font-medium">OTA Push Notifications</span>
+                      <span class="text-purple-600 dark:text-purple-400 font-mono font-bold">Active</span>
                     </div>
                   </div>
                 </div>
@@ -143,12 +143,12 @@ import {
             </div>
 
             <!-- Code Collapsible View -->
-            <details class="border-t border-slate-800 bg-black/80">
-              <summary class="px-5 py-3 text-xs font-mono text-slate-400 cursor-pointer hover:text-white flex items-center justify-between">
+            <details class="border-t border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-black">
+              <summary class="px-5 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-900 dark:hover:text-white flex items-center justify-between">
                 <span>View Full Flutter Screen Code</span>
                 <span class="text-[10px] font-bold">CLICK TO EXPAND</span>
               </summary>
-              <div class="p-4 border-t border-slate-800">
+              <div class="p-4 border-t border-slate-200 dark:border-zinc-800">
                 <CodeBlock code={block.flutterCode} lang="dart" filename={`${block.id}_screen.dart`} />
               </div>
             </details>

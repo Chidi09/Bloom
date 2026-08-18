@@ -29,17 +29,17 @@ export function BloomQueryPlayground() {
   };
 
   return (
-    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 shadow-2xl max-w-5xl mx-auto space-y-8">
+    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 shadow-2xl max-w-5xl mx-auto space-y-8">
       {/* Header & Interactive Control */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800 dark:border-white/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Zap className="w-5 h-5 text-slate-300" />
-            <h3 className="text-xl font-bold text-white tracking-tight">
+            <Zap className="w-5 h-5 text-amber-500" />
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Interactive Bloom Query &amp; Cache Sandbox
             </h3>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             Test automatic background refetching, focus revalidation, and optimistic mutations.
           </p>
         </div>
@@ -48,83 +48,62 @@ export function BloomQueryPlayground() {
           <button
             onClick={handleRefetch}
             disabled={queryStatus === 'FETCHING'}
-            className="px-4 py-2.5 rounded-xl bg-white text-slate-950 font-black text-xs shadow-md hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black text-xs shadow-md hover:bg-slate-800 dark:hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50"
           >
             Trigger Refetch
           </button>
           <button
             onClick={handleOptimisticAdd}
-            className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white font-bold text-xs hover:bg-zinc-800 transition-all active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition-all active:scale-95"
           >
             + Optimistic Item
           </button>
         </div>
       </div>
 
-      {/* Grid: 3 Pillars */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Pillar 1: Automatic Caching */}
-        <div className="p-6 rounded-2xl bg-black border border-zinc-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-slate-400">1. Global Cache</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-              queryStatus === 'FRESH' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40' : 'bg-amber-950/40 text-amber-400 border-amber-800/40'
+      {/* Main Sandbox Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+        {/* Left: Query Cache Node State */}
+        <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 font-mono text-xs space-y-4">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pb-2 border-b border-slate-200 dark:border-zinc-800">
+            <span>Query Cache Key: ['user', 42]</span>
+            <span className={`font-bold ${
+              queryStatus === 'FETCHING' ? 'text-amber-500 animate-pulse' : 'text-emerald-600 dark:text-emerald-400'
             }`}>
-              {queryStatus}
+              STATUS: {queryStatus}
             </span>
           </div>
 
-          <h4 className="text-sm font-bold text-white">Stale-While-Revalidate</h4>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Instant UI rendering from memory cache while fetching fresh data asynchronously.
-          </p>
-        </div>
-
-        {/* Pillar 2: Focus Revalidation */}
-        <div className="p-6 rounded-2xl bg-black border border-zinc-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-slate-400">2. Focus Listener</span>
-            <span className="px-2 py-0.5 rounded bg-zinc-900 text-slate-300 font-mono text-[10px] font-bold border border-zinc-800">
-              ACTIVE
-            </span>
+          <div className="space-y-2">
+            {items.map((item, idx) => (
+              <div key={idx} className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                <span className="text-slate-700 dark:text-slate-300">{item}</span>
+                <span className="text-[10px] font-mono text-slate-400">Cached</span>
+              </div>
+            ))}
           </div>
 
-          <h4 className="text-sm font-bold text-white">App Resume Refetch</h4>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Automatically refreshes query key states when device resumes focus.
-          </p>
-        </div>
-
-        {/* Pillar 3: Optimistic Mutations */}
-        <div className="p-6 rounded-2xl bg-black border border-zinc-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-slate-400">3. Mutations</span>
-            <span className="px-2 py-0.5 rounded bg-zinc-900 text-slate-300 font-mono text-[10px] font-bold border border-zinc-800">
-              AUTO_ROLLBACK
-            </span>
+          <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200 dark:border-zinc-800">
+            staleTime: 5m &nbsp;·&nbsp; gcTime: 24h &nbsp;·&nbsp; retry: 3
           </div>
-
-          <h4 className="text-sm font-bold text-white">Optimistic UI</h4>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Mutates UI state before server confirmation, rolling back cleanly if network fails.
-          </p>
-        </div>
-      </div>
-
-      {/* Live Data Items Preview */}
-      <div className="p-5 rounded-2xl bg-black border border-zinc-800 font-mono text-xs space-y-3">
-        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-zinc-800">
-          <span>Cached Query Results ({items.length})</span>
-          <span className="text-slate-300 font-bold">{log}</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {items.map((it, idx) => (
-            <div key={idx} className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center gap-2 text-slate-300">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-              <span className="truncate">{it}</span>
+        {/* Right: Real-time Event Logger */}
+        <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 flex flex-col justify-between font-mono text-xs">
+          <div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pb-2 border-b border-slate-200 dark:border-zinc-800 mb-3">
+              <span>Cache Lifecycle Event</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">MEMORY_ACTIVE</span>
             </div>
-          ))}
+
+            <div className="p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-slate-200 leading-relaxed">
+              {log}
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px]">
+            ⚡️ Mutations render on device immediately, auto-reverting if the remote API network call rejects.
+          </div>
         </div>
       </div>
     </div>

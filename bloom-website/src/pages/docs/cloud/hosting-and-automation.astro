@@ -1,0 +1,128 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Globe, Activity, Workflow, Store, ArrowRight, ExternalLink } from 'lucide-preact';
+
+const domainCmd = `# Add a custom domain to a Web-hosted app
+bloom cloud domains add app.acme.com
+
+# Verify DNS once records are added at your registrar
+bloom cloud domains verify app.acme.com`;
+
+const dnsRecords = `CNAME  app.acme.com  ->  cname.bloom-edge.dev
+TXT    _bloom-verify.app.acme.com  ->  bloom-verify=8f2a1c...`;
+---
+
+<DocsLayout
+  title="Hosting, Observability & Automation"
+  description="Flutter Web hosting with custom domains, release health monitoring, workflow automation, and the template marketplace."
+  currentSlug="cloud-hosting-and-automation"
+  category="Cloud Platform"
+  toc={[
+    { id: 'hosting', title: 'Web Hosting & Domains' },
+    { id: 'observability', title: 'Observability' },
+    { id: 'workflows', title: 'Workflow Automation' },
+    { id: 'marketplace', title: 'Template Marketplace' },
+  ]}
+>
+  <div class="space-y-12">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Globe className="w-3.5 h-3.5" />
+        Hosting, Observability & Automation
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Hosting, Observability & Automation
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Serve your Flutter Web build on your own domain, watch release health in real time, and automate the pipeline with custom workflows.
+      </p>
+      <a
+        href="https://cloud.bloom.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Open Cloud Dashboard</span>
+        <ExternalLink className="w-4 h-4" />
+      </a>
+    </div>
+
+    <section id="hosting" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Web Hosting & Domains
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Every Web deployment gets a preview URL automatically. Add a custom domain and Bloom Cloud generates the DNS records you need:
+      </p>
+      <CodeBlock code={domainCmd} lang="bash" filename="Terminal" />
+      <CodeBlock code={dnsRecords} lang="text" filename="DNS Records" />
+      <p class="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
+        The dashboard's Domains tab shows certificate status (pending/issued/failed) and a copy-to-clipboard button per record&mdash;no need to type them by hand.
+      </p>
+    </section>
+
+    <section id="observability" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Observability
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Each app's Observability tab surfaces release health and crash-free rate per active release, so a bad rollout is visible before support tickets start arriving.
+      </p>
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <Activity className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Health signals are tied to the release rollout percentage, so you can correlate a dip in crash-free rate directly with the version that caused it.
+        </p>
+      </div>
+    </section>
+
+    <section id="workflows" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Workflow Automation
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Workflows chain builds, approval gates, and deployments into a repeatable sequence triggered by an event (e.g. a push to a release branch). Each run's steps are tracked individually&mdash;pending, running, blocked, completed, failed, or skipped.
+      </p>
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <Workflow className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Workflow definitions are currently read-only in the dashboard once created&mdash;editing support is on the roadmap.
+        </p>
+      </div>
+    </section>
+
+    <section id="marketplace" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Template Marketplace
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Buy production-ready app templates to fork into a new project, or publish and sell your own. Sellers connect a payout account once and every purchase settles automatically.
+      </p>
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <Store className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Templates are versioned like releases&mdash;buyers always know exactly which version they purchased and can re-download it later.
+        </p>
+      </div>
+    </section>
+
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
+      <a
+        href="/docs/cloud/secrets-and-signing"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Previous: Secrets, Signing & Git</span>
+      </a>
+      <a
+        href="https://cloud.bloom.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Open Cloud Dashboard</span>
+        <ExternalLink className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

@@ -73,11 +73,11 @@ export function BuildArchitecturePlayground() {
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
   return (
-    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 shadow-2xl relative overflow-hidden max-w-6xl mx-auto">
+    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 shadow-2xl relative overflow-hidden max-w-6xl mx-auto">
       <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Tab Selectors */}
-      <div className="flex items-center gap-2 mb-8 pb-4 border-b border-slate-800 dark:border-white/10 relative z-10 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-2 mb-8 pb-4 border-b border-slate-200 dark:border-zinc-800 relative z-10 overflow-x-auto no-scrollbar">
         {tabs.map((t) => {
           const IconComp = t.icon;
           const isActive = t.id === activeTabId;
@@ -88,8 +88,8 @@ export function BuildArchitecturePlayground() {
               onClick={() => setActiveTabId(t.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs tracking-tight transition-all duration-200 border ${
                 isActive
-                  ? 'bg-white text-slate-950 border-white shadow-lg shadow-white/10 scale-105 font-black'
-                  : 'bg-slate-900/80 dark:bg-zinc-900/80 text-slate-400 border-slate-800 dark:border-zinc-800 hover:text-white hover:border-slate-700'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 border-slate-900 dark:border-white shadow-lg shadow-white/10 scale-105 font-black'
+                  : 'bg-slate-100 dark:bg-zinc-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-zinc-800 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-zinc-700'
               }`}
             >
               <IconComp className="w-4 h-4" />
@@ -104,23 +104,23 @@ export function BuildArchitecturePlayground() {
         {/* Left Column: Description & Highlights */}
         <div className="lg:col-span-5 space-y-5">
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-mono font-bold border border-purple-500/20">
+            <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold border border-purple-500/20">
               {activeTab.badge}
             </span>
           </div>
 
-          <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             {activeTab.name}
           </h3>
 
-          <p className="text-sm text-slate-300 leading-relaxed font-normal">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
             {activeTab.description}
           </p>
 
           <div className="space-y-3 pt-2">
             {activeTab.highlights.map((h, i) => (
-              <div key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-200 font-medium">
-                <CheckCircle2 className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+              <div key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
                 <span>{h}</span>
               </div>
             ))}
@@ -129,8 +129,8 @@ export function BuildArchitecturePlayground() {
 
         {/* Right Column: Code Editor */}
         <div className="lg:col-span-7">
-          <div className="rounded-2xl overflow-hidden bg-black border border-zinc-800 shadow-2xl font-mono text-xs">
-            <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/90 border-b border-zinc-800">
+          <div className="rounded-2xl overflow-hidden bg-slate-950 dark:bg-black border border-slate-800 dark:border-zinc-800 shadow-2xl font-mono text-xs">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 dark:bg-zinc-950 border-b border-slate-800 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />

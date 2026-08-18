@@ -96,7 +96,7 @@ export function OrchestrationPipeline() {
       {/* Step Selection Pipeline Nodes */}
       <div className="relative">
         {/* Connecting Progress Glow Line */}
-        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-800 -translate-y-1/2 -z-0 hidden md:block" />
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-200 dark:bg-zinc-800 -translate-y-1/2 -z-0 hidden md:block" />
         <div 
           className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-purple-500 via-teal-400 to-blue-500 -translate-y-1/2 transition-all duration-500 -z-0 hidden md:block"
           style={{ width: `${((activeStepId - 1) / (steps.length - 1)) * 100}%` }}
@@ -115,8 +115,8 @@ export function OrchestrationPipeline() {
                   isActive
                     ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 border-slate-900 dark:border-white shadow-xl shadow-purple-500/10 scale-105 font-bold'
                     : isCompleted
-                    ? 'bg-white/90 dark:bg-slate-900/90 text-slate-900 dark:text-slate-100 border-purple-500/40 dark:border-purple-400/40 shadow-sm'
-                    : 'bg-white/70 dark:bg-slate-900/70 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/80 hover:border-slate-400 dark:hover:border-slate-700'
+                    ? 'bg-white/90 dark:bg-zinc-900 text-slate-900 dark:text-slate-100 border-purple-500/40 dark:border-purple-400/40 shadow-sm'
+                    : 'bg-white/70 dark:bg-zinc-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-zinc-800 hover:border-slate-400 dark:hover:border-zinc-700'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -128,7 +128,7 @@ export function OrchestrationPipeline() {
                   {isCompleted ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-purple-500" />
                   ) : (
-                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-purple-400 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-purple-400 animate-pulse' : 'bg-slate-300 dark:bg-zinc-700'}`} />
                   )}
                 </div>
                 <div className="text-xs font-black tracking-tight uppercase">
@@ -141,7 +141,7 @@ export function OrchestrationPipeline() {
       </div>
 
       {/* Active Step Detailed Card */}
-      <div className="p-8 sm:p-10 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur border border-slate-800 dark:border-white/10 shadow-2xl relative overflow-hidden transition-all duration-500">
+      <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 shadow-2xl relative overflow-hidden transition-all duration-500">
         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
@@ -176,8 +176,8 @@ export function OrchestrationPipeline() {
 
           {/* Right Live Code Sandbox */}
           <div className="lg:col-span-6">
-            <div className="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl font-mono text-xs">
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+            <div className="rounded-2xl overflow-hidden bg-slate-950 dark:bg-black border border-slate-800 dark:border-zinc-800 shadow-xl font-mono text-xs">
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-900 dark:bg-zinc-950 border-b border-slate-800 dark:border-zinc-800">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />

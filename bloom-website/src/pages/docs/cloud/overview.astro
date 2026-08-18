@@ -1,0 +1,135 @@
+---
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import CodeBlock from '../../../components/common/CodeBlock.astro';
+import { Building2, ArrowRight, ShieldCheck, ScrollText, ExternalLink } from 'lucide-preact';
+
+const cliLinkCmd = `# Link a local Bloom project to a Cloud app
+bloom cloud link --org acme-inc --project storefront --app storefront-mobile
+
+# Verify the link
+bloom cloud whoami`;
+
+const roles = [
+  { name: 'Owner', desc: 'Full control, including billing, org deletion, and member removal.' },
+  { name: 'Admin', desc: 'Manage projects, apps, environments, and team membership. No billing or org deletion.' },
+  { name: 'Release Manager', desc: 'Approve/reject releases, trigger deployments and rollbacks. Cannot touch secrets or signing.' },
+  { name: 'Developer', desc: 'Trigger builds, view logs and releases. Cannot approve releases or manage secrets/signing.' },
+];
+---
+
+<DocsLayout
+  title="Cloud Platform Overview"
+  description="Organizations, projects, apps, and role-based access control for Bloom Cloud."
+  currentSlug="cloud-overview"
+  category="Cloud Platform"
+  toc={[
+    { id: 'hierarchy', title: 'Organization Hierarchy' },
+    { id: 'linking', title: 'Linking a Project' },
+    { id: 'rbac', title: 'Role-Based Access Control' },
+    { id: 'audit-log', title: 'Audit Log' },
+  ]}
+>
+  <div class="space-y-12">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Building2 className="w-3.5 h-3.5" />
+        Cloud Platform
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+        Platform Overview
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+        Bloom Cloud is the dashboard behind <code class="font-mono text-purple-400">bloom deploy</code>&mdash;organizations, projects, apps, builds, releases, and every piece of infrastructure OTA patching depends on.
+      </p>
+      <a
+        href="https://cloud.bloom.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Open Cloud Dashboard</span>
+        <ExternalLink className="w-4 h-4" />
+      </a>
+    </div>
+
+    <section id="hierarchy" class="space-y-4">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Organization Hierarchy
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Every resource in Bloom Cloud is scoped under a three-level hierarchy so teams, clients, and product lines stay cleanly isolated:
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+          <h3 class="text-sm font-bold text-white font-mono">Organization</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">The billing and membership boundary. Owns projects, seats, and a subscription plan.</p>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+          <h3 class="text-sm font-bold text-white font-mono">Project</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">Groups related apps&mdash;typically one product, one repository family.</p>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+          <h3 class="text-sm font-bold text-white font-mono">App</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">A single Flutter app&mdash;the unit builds, releases, environments, and secrets attach to.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="linking" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Linking a Project
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Link a local Bloom project to a Cloud app once, and every subsequent <code class="font-mono text-purple-400">bloom deploy</code> targets it automatically:
+      </p>
+      <CodeBlock code={cliLinkCmd} lang="bash" filename="Terminal" />
+    </section>
+
+    <section id="rbac" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Role-Based Access Control
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Roles are assigned per organization member and gate sensitive actions across every app in that org:
+      </p>
+      <div class="grid grid-cols-1 gap-3 pt-2">
+        {roles.map((role) => (
+          <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start gap-4">
+            <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div class="space-y-1">
+              <h3 class="text-sm font-bold text-white font-mono">{role.name}</h3>
+              <p class="text-xs text-slate-400 leading-relaxed">{role.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section id="audit-log" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Audit Log
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Builds, release approvals, secret rotations, signing identity changes, and rollbacks are all written to a per-organization audit trail, filterable by actor, resource, and date range from the <code class="font-mono text-purple-400">/audit-log</code> screen in the dashboard.
+      </p>
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+        <ScrollText className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Audit entries are immutable and retained for the lifetime of the organization&mdash;they cannot be edited or deleted by any role, including Owner.
+        </p>
+      </div>
+    </section>
+
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
+      <a
+        href="/docs/cloud/build-and-release"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
+      >
+        <span>Next: Build & Release Pipeline</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
+  </div>
+</DocsLayout>

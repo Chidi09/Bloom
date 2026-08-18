@@ -59,7 +59,7 @@ export function ScrollProgressRail({ currentRoute = 'hub' }: ScrollProgressRailP
       </div>
 
       {/* Progress Track */}
-      <div className="w-1.5 h-36 bg-slate-200 dark:bg-slate-800/80 rounded-full overflow-hidden relative shadow-inner">
+      <div className="w-1.5 h-36 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden relative shadow-inner">
         <div
           className="w-full bg-gradient-to-b from-purple-500 via-blue-500 to-cyan-400 rounded-full transition-all duration-150 ease-out"
           style={{ height: `${scrollPercent}%` }}

@@ -38,7 +38,7 @@ import {
 
       <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
         Composable UI Primitives.<br />
-        <span class="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+        <span class="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
           Zero Runtime Dependencies.
         </span>
       </h1>
@@ -65,7 +65,7 @@ import {
           href="https://pub.dev/packages/bloom_ui"
           target="_blank"
           rel="noopener noreferrer"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-lg"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 text-slate-900 dark:text-white text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-lg"
         >
           <span>View on pub.dev</span>
           <ExternalLink className="w-3.5 h-3.5" />
@@ -81,7 +81,7 @@ import {
         const categoryComponents = UI_REGISTRY.filter((c) => c.category === category);
         return (
           <div class="space-y-6">
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-4">
               <div>
                 <h2 class="text-2xl font-black text-slate-900 dark:text-white">{category}</h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -94,7 +94,7 @@ import {
               {categoryComponents.map((comp) => (
                 <a
                   href={`/ui/${comp.slug}`}
-                  class="group block p-6 rounded-2xl bg-slate-50/50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-purple-500/50 dark:hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl relative overflow-hidden backdrop-blur-md"
+                  class="group block p-6 rounded-2xl bg-slate-50/50 dark:bg-black/60 border border-slate-200/80 dark:border-zinc-800 hover:border-purple-500/50 dark:hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl relative overflow-hidden backdrop-blur-md"
                 >
                   <div class="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-bl-full group-hover:scale-125 transition-transform duration-500"></div>
                   
@@ -111,7 +111,7 @@ import {
                     {comp.description}
                   </p>
 
-                  <div class="flex items-center justify-between pt-3 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                  <div class="flex items-center justify-between pt-3 border-t border-slate-200/60 dark:border-zinc-800 text-[11px] font-mono text-slate-500 dark:text-slate-400">
                     <code>{comp.cliCommand}</code>
                     <ArrowRight className="w-3.5 h-3.5 text-purple-400 transform group-hover:translate-x-1 transition-transform" />
                   </div>

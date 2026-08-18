@@ -9,7 +9,7 @@ import { WirelessQRVisualizer } from '../components/interactive/WirelessQRVisual
 import { ProgrammaticUpdateExplorer } from '../components/interactive/ProgrammaticUpdateExplorer';
 import { EnterpriseOTATopology } from '../components/interactive/EnterpriseOTATopology';
 import HeroVideoBg from '../components/common/HeroVideoBg.astro';
-import { Box, ShieldCheck, Zap, ArrowRight, CheckCircle2, Globe, Lock, QrCode, Wifi } from 'lucide-preact';
+import { Box, ShieldCheck, Zap, ArrowRight, CheckCircle2, Globe, Lock, QrCode, Wifi, Building2, ScrollText, Cpu, GitBranch, Rocket, Settings2, KeyRound, FileKey, Route, Activity, Workflow, Store, CreditCard, ExternalLink } from 'lucide-preact';
 ---
 
 <Layout
@@ -29,7 +29,7 @@ import { Box, ShieldCheck, Zap, ArrowRight, CheckCircle2, Globe, Lock, QrCode, W
       
       <div class="text-center max-w-3xl mx-auto space-y-6">
         <!-- Vercel/Linear Style Status Badge -->
-        <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-black/90 border border-slate-700/60 dark:border-slate-700/60 text-xs font-mono text-slate-300 shadow-md">
+        <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-black/90 border border-slate-700/60 dark:border-zinc-800 text-xs font-mono text-slate-300 shadow-md">
           <span class="flex h-2 w-2 relative shrink-0">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
@@ -115,5 +115,169 @@ import { Box, ShieldCheck, Zap, ArrowRight, CheckCircle2, Globe, Lock, QrCode, W
 
     {/* Interactive Enterprise OTA Topology Map */}
     <EnterpriseOTATopology client:visible />
+  </Section>
+
+  <!-- Full Platform Overview -->
+  <Section id="cloud-platform" className="pt-8">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-black/90 border border-slate-700/60 dark:border-zinc-800 text-xs font-mono text-slate-300 shadow-md mb-2">
+        <span class="font-semibold text-slate-200">BEYOND PATCHES</span>
+      </div>
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        One Dashboard, The Whole Release Lifecycle
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        OTA patching is one piece. Bloom Cloud is a full delivery platform&mdash;from source to store to your users&rsquo; devices.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-8">
+      <GlassPanel variant="interactive" className="p-8">
+        <Building2 className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Organizations &amp; Projects</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Multi-tenant hierarchy&mdash;organizations own projects, projects own apps. Every team, client, or product line stays cleanly isolated.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <ShieldCheck className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Role-Based Access Control</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Owner, Admin, Developer, and Release Manager roles gate who can approve releases, touch secrets, or manage billing.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <ScrollText className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Audit Log &amp; Compliance</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Every build, approval, secret rotation, and rollback is recorded in a searchable, filterable audit trail.
+        </p>
+      </GlassPanel>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-8">
+      <GlassPanel variant="interactive" className="p-8">
+        <Cpu className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Remote Build Farm</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Compile iOS, Android, and Web artifacts in the cloud&mdash;no local toolchain, no waiting on a laptop. Live stage-by-stage logs.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <GitBranch className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Release Approvals &amp; Rollback</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Staged rollout percentages, gated approvals for Release Managers, changelog diffing, and one-click rollback to any prior version.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <Rocket className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Multi-Target Deployments</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Ship the same release to TestFlight, Google Play, and the Web from one pipeline&mdash;with live platform-specific status tracking.
+        </p>
+      </GlassPanel>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-8">
+      <GlassPanel variant="interactive" className="p-8">
+        <Settings2 className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Environments</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Pin SDK versions, flavors, and feature flags per environment&mdash;production, staging, and preview stay independently configured.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <KeyRound className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Secrets Vault</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Versioned, write-only secrets storage. Plaintext values are never re-rendered after save&mdash;reveal is a fresh, on-demand fetch.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <FileKey className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Signing Identity Management</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Keystores, certificates, provisioning profiles, and API keys in one place, with expiry warnings before they lapse.
+        </p>
+      </GlassPanel>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-8">
+      <GlassPanel variant="interactive" className="p-8">
+        <Route className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Git Connections</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Connect GitHub, GitLab, or Bitbucket. Branch-to-environment deploy policies and full webhook delivery logs with replay.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <Globe className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Web Hosting &amp; Custom Domains</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Host your Flutter Web build directly. Add custom domains with copy-paste DNS records and automatic SSL verification.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <Activity className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Observability</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Release health, crash-free rate, and deployment status in real time&mdash;know a rollout is unhealthy before your users complain.
+        </p>
+      </GlassPanel>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+      <GlassPanel variant="interactive" className="p-8">
+        <Workflow className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Workflow Automation</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Custom pipelines with triggers and approval gates&mdash;chain builds, tests, and deployments into a repeatable release process.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <Store className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Template Marketplace</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Buy production-ready app templates or publish your own with seller payouts&mdash;versioned, reviewed, and ready to fork.
+        </p>
+      </GlassPanel>
+
+      <GlassPanel variant="interactive" className="p-8">
+        <CreditCard className="w-8 h-8 text-slate-500 dark:text-slate-400 mb-4" strokeWidth={1.75} />
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Team &amp; Billing</h3>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Usage-based plans, itemized invoices, and seat management scoped per organization&mdash;no surprise overages.
+        </p>
+      </GlassPanel>
+    </div>
+
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-12">
+      <a
+        href="https://cloud.bloom.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-sm hover:opacity-90 transition shadow-lg"
+      >
+        <span>Open Cloud Dashboard</span>
+        <ExternalLink className="w-4 h-4" />
+      </a>
+      <a
+        href="/docs/cloud/overview"
+        class="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-900 text-slate-900 dark:text-white font-bold text-sm hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
+      >
+        <span>Read the Platform Docs</span>
+        <ArrowRight className="w-4 h-4" />
+      </a>
+    </div>
   </Section>
 </Layout>

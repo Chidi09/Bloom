@@ -71,25 +71,25 @@ export function BootDIVisualizer() {
   };
 
   return (
-    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-slate-950/90 dark:bg-black/95 backdrop-blur text-white border border-slate-800 dark:border-white/10 shadow-2xl max-w-5xl mx-auto space-y-8">
+    <div className="p-5 sm:p-8 lg:p-10 rounded-3xl bg-white dark:bg-black backdrop-blur border border-slate-200 dark:border-zinc-800 shadow-2xl max-w-5xl mx-auto space-y-8">
       {/* Header & Interactive Control */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800 dark:border-white/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Cpu className="w-5 h-5 text-slate-300" />
-            <h3 className="text-xl font-bold text-white tracking-tight">
+            <Cpu className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Interactive Boot &amp; DI Execution Pipeline
             </h3>
           </div>
-          <p className="text-xs text-slate-400">
-            Click run to simulate Bloom’s sub-40ms boot sequence before Flutter mounts <code className="font-mono text-slate-300">runApp()</code>.
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Click run to simulate Bloom’s sub-40ms boot sequence before Flutter mounts <code className="font-mono text-purple-600 dark:text-purple-400 font-bold">runApp()</code>.
           </p>
         </div>
 
         <button
           onClick={handleRunSequence}
           disabled={isRunning}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-slate-950 font-black text-xs shadow-lg hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black text-xs shadow-lg hover:bg-slate-800 dark:hover:bg-slate-200 transition-all active:scale-95 disabled:opacity-50"
         >
           <Play className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
           <span>{isRunning ? 'Executing Boot...' : 'Run Boot Sequence'}</span>
@@ -107,30 +107,30 @@ export function BootDIVisualizer() {
               key={s.step}
               className={`p-5 rounded-2xl border transition-all duration-300 ${
                 isCurrent
-                  ? 'bg-zinc-900 border-white text-white shadow-xl scale-105'
+                  ? 'bg-slate-900 text-white dark:bg-zinc-900 dark:border-white shadow-xl scale-105'
                   : isDone
-                  ? 'bg-black border-zinc-800'
-                  : 'bg-black/60 border-zinc-900 opacity-60'
+                  ? 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white'
+                  : 'bg-slate-50/60 dark:bg-zinc-950/60 border-slate-200 dark:border-zinc-900 opacity-60 text-slate-500'
               }`}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono font-bold text-slate-400">
+                <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
                   {s.duration}
                 </span>
                 {isDone ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 ) : isCurrent ? (
-                  <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
+                  <RefreshCw className="w-4 h-4 text-amber-500 dark:text-amber-400 animate-spin" />
                 ) : (
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-zinc-800" />
                 )}
               </div>
 
-              <div className="text-xs font-bold text-white mb-1">
+              <div className="text-xs font-bold text-slate-900 dark:text-white mb-1">
                 {s.label}
               </div>
 
-              <div className="text-[11px] text-slate-400 leading-snug">
+              <div className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
                 {s.action}
               </div>
             </div>
@@ -139,8 +139,8 @@ export function BootDIVisualizer() {
       </div>
 
       {/* Terminal Log Console Output */}
-      <div className="p-5 rounded-2xl bg-black border border-zinc-800 font-mono text-xs space-y-2">
-        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-zinc-800">
+      <div className="p-5 rounded-2xl bg-slate-950 dark:bg-black border border-slate-800 dark:border-zinc-800 font-mono text-xs space-y-2 text-white shadow-xl">
+        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800 dark:border-zinc-800">
           <span>Execution Log Console</span>
           <span className="text-emerald-400 font-bold">TOTAL: 40ms</span>
         </div>

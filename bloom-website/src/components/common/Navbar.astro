@@ -16,7 +16,7 @@ const isActive = (path: string) => {
 };
 ---
 
-<header class="sticky top-0 z-50 backdrop-blur-2xl bg-white/80 dark:bg-black/90 border-b border-slate-200/80 dark:border-slate-800/80 transition-colors duration-500">
+<header class="sticky top-0 z-50 backdrop-blur-2xl bg-white/80 dark:bg-black/90 border-b border-slate-200/80 dark:border-zinc-800/80 transition-colors duration-500">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
     
     <!-- Brand Logo with ViewTransitions -->
@@ -36,13 +36,13 @@ const isActive = (path: string) => {
     </a>
 
     <!-- Nav Links (Astro routes) -->
-    <nav class="hidden md:flex items-center gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white/50 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm backdrop-blur-md">
+    <nav class="hidden md:flex items-center gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white/50 dark:bg-zinc-950/80 p-1 rounded-2xl border border-slate-200/60 dark:border-zinc-800/80 shadow-sm backdrop-blur-md">
       <a
         href="/"
         class={`px-4 py-1.5 rounded-xl transition-all ${
           isActive('/') && currentPath === '/'
-            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Hub
@@ -51,8 +51,8 @@ const isActive = (path: string) => {
         href="/build"
         class={`px-4 py-1.5 rounded-xl transition-all ${
           isActive('/build')
-            ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Build
@@ -61,8 +61,8 @@ const isActive = (path: string) => {
         href="/ship"
         class={`px-4 py-1.5 rounded-xl transition-all ${
           isActive('/ship')
-            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Ship
@@ -71,8 +71,8 @@ const isActive = (path: string) => {
         href="/docs/introduction"
         class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/docs')
-            ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Docs
@@ -81,8 +81,8 @@ const isActive = (path: string) => {
         href="/ui"
         class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/ui')
-            ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-cyan-600 dark:text-cyan-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Components
@@ -91,8 +91,8 @@ const isActive = (path: string) => {
         href="/blocks"
         class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/blocks')
-            ? 'bg-white dark:bg-slate-800 text-pink-600 dark:text-pink-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-pink-600 dark:text-pink-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Blocks
@@ -101,8 +101,8 @@ const isActive = (path: string) => {
         href="/themes"
         class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/themes')
-            ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
         Themes
@@ -115,14 +115,14 @@ const isActive = (path: string) => {
 
       <button
         onclick="window.dispatchEvent(new CustomEvent('bloom:open-cmd-palette'))"
-        class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/60 dark:bg-slate-900/60 backdrop-blur border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-mono text-slate-500 dark:text-slate-400 hover:border-purple-400 dark:hover:border-purple-500 transition shadow-sm group"
+        class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/60 dark:bg-zinc-900/80 backdrop-blur border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono text-slate-500 dark:text-slate-400 hover:border-purple-400 dark:hover:border-purple-500 transition shadow-sm group"
         aria-label="Open Command Palette"
       >
         <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
         <span>Search</span>
-        <kbd class="px-1.5 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-500 dark:text-slate-400 font-bold ml-2">⌘K</kbd>
+        <kbd class="px-1.5 py-0.5 text-[10px] bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded text-slate-500 dark:text-slate-400 font-bold ml-2">⌘K</kbd>
       </button>
 
       <button
@@ -130,7 +130,7 @@ const isActive = (path: string) => {
         class="relative overflow-hidden rounded-xl p-[1px] group hidden md:block"
       >
         <span class="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#8B5CF6_50%,#E2CBFF_100%)] dark:bg-[conic-gradient(from_90deg_at_50%_50%,#393BB2_0%,#8B5CF6_50%,#393BB2_100%)]"></span>
-        <div class="inline-flex h-9 items-center justify-center rounded-[11px] bg-white dark:bg-slate-950 px-4 py-1 text-xs font-bold text-slate-900 dark:text-white backdrop-blur-3xl transition-transform group-hover:scale-[0.98] gap-1.5">
+        <div class="inline-flex h-9 items-center justify-center rounded-[11px] bg-white dark:bg-black px-4 py-1 text-xs font-bold text-slate-900 dark:text-white backdrop-blur-3xl transition-transform group-hover:scale-[0.98] gap-1.5">
           <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse"></span>
           Get Started
         </div>
@@ -140,7 +140,7 @@ const isActive = (path: string) => {
       <button
         id="mobile-menu-btn"
         onclick="window.toggleBloomMobileMenu()"
-        class="md:hidden p-2.5 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 transition active:scale-95"
+        class="md:hidden p-2.5 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-zinc-800 transition active:scale-95"
         aria-label="Toggle menu"
       >
         <svg id="menu-icon-open" class="w-6 h-6 block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -158,13 +158,13 @@ const isActive = (path: string) => {
   <div
     id="mobile-menu-backdrop"
     onclick="window.closeBloomMobileMenu()"
-    class="hidden md:hidden fixed inset-0 top-[64px] bg-slate-950/60 dark:bg-black/80 backdrop-blur-2xl z-30 transition-opacity duration-300"
+    class="hidden md:hidden fixed inset-0 top-[64px] bg-black/60 dark:bg-black/80 backdrop-blur-2xl z-30 transition-opacity duration-300"
   ></div>
 
   <!-- Mobile Menu Dropdown -->
-  <div id="mobile-menu" class="hidden md:hidden bg-white/95 dark:bg-black/95 backdrop-blur-3xl border-b border-slate-200/80 dark:border-slate-800/80 absolute w-full left-0 top-[64px] shadow-2xl origin-top transition-all duration-300 ease-in-out z-40">
+  <div id="mobile-menu" class="hidden md:hidden bg-white/95 dark:bg-black/95 backdrop-blur-3xl border-b border-slate-200/80 dark:border-zinc-800 absolute w-full left-0 top-[64px] shadow-2xl origin-top transition-all duration-300 ease-in-out z-40">
     <div class="px-4 pt-4 pb-6 space-y-2 flex flex-col font-semibold text-slate-700 dark:text-slate-300">
-      <a href="/" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900">Hub</a>
+      <a href="/" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900">Hub</a>
       <a href="/build" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400">Build</a>
       <a href="/ship" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400">Ship</a>
       <a href="/docs/introduction" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400">Documentation</a>
@@ -172,16 +172,16 @@ const isActive = (path: string) => {
       <a href="/blocks" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-pink-100 dark:hover:bg-pink-900/30 text-pink-600 dark:text-pink-400">Blocks</a>
       <a href="/themes" onclick="window.closeBloomMobileMenu()" class="block px-4 py-3 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400">Theme Studio</a>
       
-      <hr class="border-slate-200 dark:border-slate-800 my-4" />
+      <hr class="border-slate-200 dark:border-zinc-800 my-4" />
       
       <button
         onclick="window.dispatchEvent(new CustomEvent('bloom:open-cmd-palette')); window.closeBloomMobileMenu();"
-        class="flex items-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-900/80 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition text-left"
+        class="flex items-center gap-2 px-4 py-3 bg-slate-100 dark:bg-zinc-900 rounded-xl hover:bg-slate-200 dark:hover:bg-zinc-800 transition text-left"
       >
         <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
-        Search Documentation
+        <span>Search Documentation</span>
       </button>
     </div>
   </div>

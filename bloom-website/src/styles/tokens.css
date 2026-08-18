@@ -50,11 +50,11 @@
 }
 
 .dark {
-  /* Surfaces (Dark Mode - Pure OLED Black) */
+  /* Surfaces (Dark Mode - Pure AMOLED Black) */
   --surface-0: #000000;
   --surface-1: #000000;
-  --surface-2: rgba(0, 0, 0, 0.85);
-  --border-subtle: rgba(255, 255, 255, 0.1);
+  --surface-2: #050505;
+  --border-subtle: rgba(255, 255, 255, 0.08);
 
   /* Typography Colors */
   --text-primary: #F8FAFC;
@@ -62,6 +62,6 @@
   --text-tertiary: #64748B;
 
   /* Shadows */
-  --shadow-2: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-  --shadow-glass-inset: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  --shadow-2: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --shadow-glass-inset: inset 0 1px 1px rgba(255, 255, 255, 0.04);
 }
