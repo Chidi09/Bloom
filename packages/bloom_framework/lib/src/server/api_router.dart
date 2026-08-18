@@ -143,22 +143,25 @@ class BloomApiRouter {
       final path = request.path;
 
       for (final route in _routes) {
-        if (route.method != '*' && route.method != method) continue;
+        final matchesMethod = route.method == '*' || route.method == method || (method == 'HEAD' && route.method == 'GET');
+        if (!matchesMethod) continue;
 
         final match = route.regex.firstMatch(path);
         if (match != null) {
-          // Mutate the same request's params map in place (rather than
-          // building a new BloomRequest via copyWith) so that anything
-          // global middlewares already attached to this request instance
-          // — Expando-backed context, or params they set before route
-          // matching ran — survives into route-specific middlewares and
-          // the handler itself.
           for (var i = 0; i < route.paramNames.length; i++) {
             request.params[route.paramNames[i]] = Uri.decodeComponent(match.group(i + 1)!);
           }
 
           return _executePipeline(route.middlewares, request, () async {
-            return await route.handler(request);
+            final res = await route.handler(request);
+            if (method == 'HEAD') {
+              return BloomResponse(
+                statusCode: res.statusCode,
+                headers: res.headers,
+                body: null,
+              );
+            }
+            return res;
           });
         }
       }
