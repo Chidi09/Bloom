@@ -105,7 +105,11 @@ class BloomApiRouter {
         regexPattern = regexPattern.substring(0, regexPattern.length - 1);
       }
 
-      regex = RegExp('^$regexPattern/?\$');
+      if (regexPattern == '/' || regexPattern.isEmpty) {
+        regex = RegExp(r'^/?$');
+      } else {
+        regex = RegExp('^$regexPattern/?\$');
+      }
 
       if (pattern.contains('*')) {
         specificity = 10 + pattern.length;

@@ -1,0 +1,29 @@
+name: bloom_todo_core
+description: >
+  Pure-Dart domain layer for the bloom_todo application.
+  Contains models, API endpoints, query keys, realtime delta events,
+  and validation logic. No Flutter dependency — safe to share between
+  the Flutter client and a Dart server-side worker.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  # Bloom framework packages (from pub.dev)
+  bloom_db: ^0.1.0
+  bloom_validate: ^0.1.0
+
+  # Value equality
+  equatable: ^2.0.5
+
+  # UUID generation (v4)
+  uuid: ^4.3.3
+
+  # Typed collections helpers
+  collection: ^1.18.0
+
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.24.0

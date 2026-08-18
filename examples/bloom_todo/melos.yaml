@@ -1,0 +1,193 @@
+# melos.yaml — Melos monorepo configuration for bloom_todo
+# https://melos.invertase.dev/getting-started/configuration
+
+name: bloom_todo
+
+# ── Package Discovery ─────────────────────────────────────────────────────────
+packages:
+  - apps/**
+  - packages/**
+
+# ── IDE Integration ───────────────────────────────────────────────────────────
+ide:
+  intellij:
+    enabled: true
+  vscode:
+    enabled: true
+
+# ── Shared Dependency Overrides ───────────────────────────────────────────────
+# Ensures all packages use the local workspace versions of Bloom packages.
+dependency_overrides_path: melos_overrides.yaml
+
+# ── Scripts ───────────────────────────────────────────────────────────────────
+scripts:
+
+  # ── Development ─────────────────────────────────────────────────────────────
+
+  dev:
+    description: >
+      Start the API server and Flutter mobile app concurrently for local
+      full-stack development. Requires the 'concurrently' npm package or
+      the Dart 'concurrently' tool installed globally.
+    run: |
+      dart run concurrently \
+        --names "server,mobile" \
+        --prefix-colors "cyan,magenta" \
+        "melos run dev:server" \
+        "melos run dev:mobile"
+
+  dev:server:
+    description: Run the Bloom server app in watch mode (hot reload via dart_frog).
+    run: dart run dart_frog dev
+    packageFilters:
+      dirExists:
+        - lib/main.dart
+    exec:
+      concurrency: 1
+    select-package:
+      scope: "server"
+
+  dev:mobile:
+    description: Run the Flutter mobile app in debug mode on a connected device.
+    run: flutter run --flavor development --dart-define-from-file=.env.development
+    select-package:
+      scope: "mobile"
+
+  dev:web:
+    description: Run the Flutter web app in debug mode with hot reload.
+    run: >
+      flutter run -d chrome --flavor development
+      --dart-define-from-file=.env.development
+      --web-port=3000
+    select-package:
+      scope: "web"
+
+  # ── Database Migrations ──────────────────────────────────────────────────────
+
+  migrate:
+    description: >
+      Apply all pending database migrations against the DATABASE_URL
+      specified in the environment.
+    run: dart run bin/migrate.dart up
+    select-package:
+      scope: "server"
+
+  migrate:make:
+    description: >
+      Generate a new timestamped migration file. Pass the migration name
+      via the MIGRATION_NAME environment variable, e.g.:
+        MIGRATION_NAME=add_labels melos run migrate:make
+    run: dart run bin/migrate.dart make "$MIGRATION_NAME"
+    select-package:
+      scope: "server"
+
+  # ── Code Generation ───────────────────────────────────────────────────────────
+
+  gen:
+    description: >
+      Run build_runner across all workspace packages that have generated
+      code (freezed, json_serializable, drift, etc.). Deletes conflicting
+      outputs before building.
+    run: >
+      dart run build_runner build
+      --delete-conflicting-outputs
+    exec:
+      concurrency: 3
+    packageFilters:
+      dependsOn:
+        - build_runner
+
+  # ── Testing ───────────────────────────────────────────────────────────────────
+
+  test:
+    description: Run all unit, widget, and integration tests across the workspace.
+    run: >
+      flutter test --coverage
+      || dart test --coverage=coverage
+    exec:
+      concurrency: 4
+      failFast: false
+    packageFilters:
+      dirExists:
+        - test
+
+  # ── Linting & Formatting ──────────────────────────────────────────────────────
+
+  lint:
+    description: Run dart analyze across all packages and fail on any issues.
+    run: dart analyze --fatal-infos --fatal-warnings
+    exec:
+      concurrency: 6
+
+  format:
+    description: >
+      Auto-format all Dart source files in the workspace using dart format.
+      Non-zero exit code if any files were changed (useful for CI).
+    run: dart format . --set-exit-if-changed
+    exec:
+      concurrency: 6
+
+  # ── Deployment ────────────────────────────────────────────────────────────────
+
+  deploy:server:
+    description: >
+      Build a production Docker image for the server app and push it to
+      the container registry. Expects REGISTRY, IMAGE_TAG, and
+      GCP_PROJECT_ID to be set in the environment.
+    run: |
+      set -euo pipefail
+      IMAGE="${REGISTRY:-gcr.io}/${GCP_PROJECT_ID}/bloom-todo-server:${IMAGE_TAG:-latest}"
+      echo "Building Docker image: $IMAGE"
+      docker build \
+        --file apps/server/Dockerfile \
+        --tag "$IMAGE" \
+        --build-arg DART_ENV=production \
+        .
+      docker push "$IMAGE"
+      echo "Server image pushed: $IMAGE"
+
+  deploy:ota:
+    description: >
+      Create a Shorebird OTA patch for the production mobile app and push
+      it to the stable channel. Requires SHOREBIRD_TOKEN in the environment.
+    run: |
+      set -euo pipefail
+      echo "Creating Shorebird production patch..."
+      shorebird patch android \
+        --flavor production \
+        --dart-define-from-file=.env.production \
+        -- \
+        --build-name="${BUILD_NAME:-1.0.0}" \
+        --build-number="${BUILD_NUMBER:-1}"
+      shorebird patch ios \
+        --flavor production \
+        --dart-define-from-file=.env.production \
+        -- \
+        --build-name="${BUILD_NAME:-1.0.0}" \
+        --build-number="${BUILD_NUMBER:-1}"
+      echo "OTA patch deployed to production."
+    select-package:
+      scope: "mobile"
+
+  deploy:ota:staging:
+    description: >
+      Create a Shorebird OTA patch targeting the staging channel. Safe to
+      run frequently from CI on every merge to the develop branch.
+    run: |
+      set -euo pipefail
+      echo "Creating Shorebird staging patch..."
+      shorebird patch android \
+        --flavor staging \
+        --dart-define-from-file=.env.staging \
+        -- \
+        --build-name="${BUILD_NAME:-1.0.0}" \
+        --build-number="${BUILD_NUMBER:-1}"
+      shorebird patch ios \
+        --flavor staging \
+        --dart-define-from-file=.env.staging \
+        -- \
+        --build-name="${BUILD_NAME:-1.0.0}" \
+        --build-number="${BUILD_NUMBER:-1}"
+      echo "OTA patch deployed to staging."
+    select-package:
+      scope: "mobile"

@@ -1,0 +1,151 @@
+# bloom.yaml — Bloom workspace configuration for bloom_todo
+# https://bloomframework.dev/docs/bloom-yaml
+
+workspace:
+  name: bloom_todo
+  description: >
+    A Todoist-grade full-stack todo application built entirely on the
+    Bloom framework, demonstrating server, mobile, and web apps sharing
+    a common Dart codebase.
+  version: 1.0.0
+
+# ── Apps ──────────────────────────────────────────────────────────────────────
+apps:
+  mobile:
+    path: apps/mobile
+    platform: flutter
+    flavor:
+      development:
+        bundle_id: dev.bloom.todo.dev
+        app_name: "Bloom Todo (Dev)"
+      staging:
+        bundle_id: dev.bloom.todo.staging
+        app_name: "Bloom Todo (Staging)"
+      production:
+        bundle_id: dev.bloom.todo
+        app_name: "Bloom Todo"
+    deep_links:
+      scheme: bloomtodo
+      host: app.bloomtodo.dev
+      paths:
+        - /tasks/*
+        - /projects/*
+        - /share/*
+    firebase:
+      android: apps/mobile/android/google-services.json
+      ios: apps/mobile/ios/GoogleService-Info.plist
+
+  web:
+    path: apps/web
+    platform: flutter_web
+    flavor:
+      development:
+        base_href: /
+        env: .env.development
+      staging:
+        base_href: /
+        env: .env.staging
+      production:
+        base_href: /
+        env: .env.production
+    deep_links:
+      scheme: https
+      host: app.bloomtodo.dev
+
+  server:
+    path: apps/server
+    platform: dart_server
+    runtime: dart
+    port: 8080
+    flavor:
+      development:
+        env: .env.development
+      staging:
+        env: .env.staging
+      production:
+        env: .env.production
+    health_check: /health
+
+# ── Packages ──────────────────────────────────────────────────────────────────
+packages:
+  core:
+    path: packages/core
+    description: >
+      Shared domain models, repository interfaces, use-cases, and
+      business logic consumed by all apps.
+    publish: false
+
+  ui:
+    path: packages/ui
+    description: >
+      Shared design-system tokens, components, and theme definitions
+      used by the mobile and web Flutter apps.
+    publish: false
+
+  config:
+    path: packages/config
+    description: >
+      Environment configuration helpers, feature flags, and
+      compile-time constants shared across the workspace.
+    publish: false
+
+# ── OTA Updates (Shorebird) ───────────────────────────────────────────────────
+ota:
+  provider: shorebird
+  # SHOREBIRD_TOKEN is read from the environment / .env
+  app_id:
+    mobile:
+      production: bloom_todo_mobile_prod
+      staging: bloom_todo_mobile_staging
+  auto_patch:
+    on_ci: true         # automatically create a patch on every CI merge to main
+    flavors:
+      - production
+      - staging
+  channels:
+    stable: main
+    beta: develop
+    canary: canary
+
+# ── Deep Links ────────────────────────────────────────────────────────────────
+deep_links:
+  scheme: bloomtodo
+  universal_links:
+    - https://app.bloomtodo.dev
+    - https://bloomtodo.dev
+
+# ── Code Generation ───────────────────────────────────────────────────────────
+codegen:
+  build_runner: true
+  # Packages/apps that should run build_runner on `bloom gen`
+  targets:
+    - packages/core
+    - packages/ui
+    - apps/mobile
+    - apps/web
+    - apps/server
+
+# ── Database Migrations ───────────────────────────────────────────────────────
+migrations:
+  tool: drift          # uses Drift's migration tooling
+  directory: apps/server/lib/db/migrations
+  schema_directory: apps/server/lib/db/schema
+
+# ── Observability ─────────────────────────────────────────────────────────────
+observability:
+  sentry:
+    enabled: true
+    # SENTRY_DSN is read from the environment
+    traces_sample_rate: 0.2
+    profiles_sample_rate: 0.1
+  logging:
+    level: info          # debug | info | warning | error
+    structured: true     # JSON logs in production
+
+# ── CI/CD ─────────────────────────────────────────────────────────────────────
+ci:
+  provider: github_actions
+  workflows_path: .github/workflows
+  protected_branches:
+    - main
+    - develop

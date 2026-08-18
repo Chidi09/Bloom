@@ -1,0 +1,67 @@
+app:
+  name: Bloom Todo
+  bundleId: dev.bloom.todo
+  scheme: bloomtodo
+  version: "1.0.0"
+  buildNumber: 1
+
+deepLinks:
+  - bloomtodo://task/{id}
+  - bloomtodo://project/{id}
+  - https://bloomtodo.app/task/{id}
+  - https://bloomtodo.app/project/{id}
+
+permissions:
+  - notifications
+  - reminders
+
+ota:
+  channel: production
+  rollbackOnCrash: true
+  crashWindowSeconds: 10
+  minRequiredVersion: "1.0.0"
+  updateCheckIntervalSeconds: 3600
+
+flavors:
+  dev:
+    apiUrl: http://localhost:8080
+    wsUrl: ws://localhost:8080/ws
+    logLevel: debug
+    enableDevTools: true
+  staging:
+    apiUrl: https://staging-api.bloomtodo.app
+    wsUrl: wss://staging-api.bloomtodo.app/ws
+    logLevel: info
+    enableDevTools: true
+  production:
+    apiUrl: https://api.bloomtodo.app
+    wsUrl: wss://api.bloomtodo.app/ws
+    logLevel: warning
+    enableDevTools: false
+
+firebase:
+  android:
+    googleServicesJsonPath: android/app/google-services.json
+  ios:
+    googleServiceInfoPlistPath: ios/Runner/GoogleService-Info.plist
+
+notifications:
+  channels:
+    - id: task_reminders
+      name: Task Reminders
+      description: Reminders for upcoming and overdue tasks
+      importance: high
+    - id: project_updates
+      name: Project Updates
+      description: Updates for shared projects and team activity
+      importance: default
+    - id: daily_digest
+      name: Daily Digest
+      description: Your daily task summary
+      importance: low
+
+offline:
+  queueStorage: sqlite
+  maxRetries: 5
+  retryBackoffMs: 1000
+  syncIntervalSeconds: 30
