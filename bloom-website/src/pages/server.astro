@@ -6,6 +6,7 @@ import TechMarquee from '../components/common/TechMarquee.astro';
 import HeroVideoBg from '../components/common/HeroVideoBg.astro';
 import ServerFAQ from '../components/common/ServerFAQ.astro';
 import CodeBlock from '../components/common/CodeBlock.astro';
+import { ServerArchitectureDynamicPlayer } from '../components/interactive/ServerArchitectureDynamicPlayer';
 import { 
   Server, 
   Database, 
@@ -32,134 +33,19 @@ import {
   Minus
 } from 'lucide-preact';
 
-const modelCode = `import 'package:bloom_db/bloom_db.dart';
-
-@Model(table: 'posts')
-class Post {
-  @PrimaryKey(autoIncrement: true)
-  final int? id;
-
-  @Field(type: FieldType.varchar, length: 255)
-  final String title;
-
-  @Field(type: FieldType.text)
-  final String content;
-
-  @Field(type: FieldType.boolean, defaultValue: false)
-  final bool published;
-
-  @Field(type: FieldType.timestamp, autoNowAdd: true)
-  final DateTime createdAt;
-
-  const Post({
-    this.id,
-    required this.title,
-    required this.content,
-    this.published = false,
-    required this.createdAt,
-  });
-}
-
-// Fluent Typed QuerySets:
-// final recentPosts = await PostQuerySet()
-//   .filter((p) => p.published.equals(true))
-//   .orderBy((p) => p.createdAt.desc())
-//   .limit(10)
-//   .toList();`;
-
-const viewSetCode = `import 'package:bloom_rest/bloom_rest.dart';
-import '../models/post.dart';
-import '../serializers/post_serializer.dart';
-
-class PostViewSet extends BloomViewSet<Post> {
-  @override
-  final QuerySet<Post> queryset = PostQuerySet();
-
-  @override
-  final Serializer<Post> serializer = PostSerializer();
-
-  @override
-  final List<Permission> permissions = [
-    IsAuthenticatedOrReadOnly(),
-  ];
-
-  @override
-  final Pagination pagination = PageNumberPagination(pageSize: 20);
-
-  @override
-  final List<Throttle> throttles = [
-    AnonRateThrottle(requestsPerMinute: 60),
-    UserRateThrottle(requestsPerMinute: 1000),
-  ];
-}
-
-// Mount in router:
-// router.mountViewSet<Post>('/api/posts', PostViewSet());`;
-
-const adminCode = `import 'package:bloom_admin/bloom_admin.dart';
-import '../models/post.dart';
-
-class PostAdmin extends ModelAdmin<Post> {
-  @override
-  final List<String> listDisplay = ['id', 'title', 'published', 'createdAt'];
-
-  @override
-  final List<String> searchFields = ['title', 'content'];
-
-  @override
-  final List<String> listFilter = ['published', 'createdAt'];
-
-  @override
-  final bool ordering = true;
-}
-
-// Mount in your server pipeline:
-// adminSite.register<Post>(PostAdmin());
-// app.mount('/admin', adminSite.handler);`;
-
-const realtimeCode = `import 'dart:io';
-import 'package:bloom_realtime/bloom_realtime.dart';
-
-void main() async {
-  // Spawns isolate workers across all available CPU cores
-  final cluster = await BloomRealtimeCluster.spawn(
-    isolateCount: Platform.numberOfProcessors,
-    port: 8080,
-    meshProtocol: InterIsolateMesh(),
-  );
-
-  print('⚡ Cluster active across \${cluster.workers.length} CPU cores');
-
-  cluster.onMessage((channel, message) {
-    // Zero-overhead binary stream broadcast across all isolates
-    cluster.broadcast(channel, message);
-  });
-}`;
-
-const jobsCode = `import 'package:bloom_jobs/bloom_jobs.dart';
-import 'package:bloom_mail/bloom_mail.dart';
-
-class SendWelcomeEmailJob extends BloomJob<UserPayload> {
-  @override
-  int get maxRetries => 5;
-
-  @override
-  Duration get backoff => const Duration(seconds: 10);
-
-  @override
-  Future<void> handle(UserPayload payload) async {
-    final mailer = BloomMailer();
-    await mailer.send(
-      to: payload.email,
-      subject: 'Welcome to the platform!',
-      template: 'welcome_template',
-      context: {'name': payload.name},
-    );
-  }
-}
-
-// Dispatch asynchronously from any endpoint:
-// await SendWelcomeEmailJob().dispatch(UserPayload(email: 'user@bloom.dev', name: 'Alex'));`;
+const monorepoTree = `my_bloom_project/
+├── bloom.yaml                    # Root workspace + CLI configuration
+├── melos.yaml                    # Monorepo task pipeline
+│
+├── apps/                         # Executable Applications
+│   ├── mobile/                   # 📱 iOS & Android Flutter client (Bloom UI + Signals)
+│   ├── web/                      # 🌐 Flutter Web / Admin Dashboard
+│   └── server/                   # 🖥️ Bloom Server (Pure Dart AOT @ 78k msgs/s)
+│
+└── packages/                     # 📦 Shared Internal Packages
+    ├── core/                     # 🧠 Shared Models, Schemas & Query Keys (Pure Dart)
+    ├── ui/                       # 🎨 Design System & 60+ Bloom UI Primitives
+    └── config/                   # ⚙️  Typed Environment Config & Feature Flags`;
 ---
 
 <Layout
@@ -236,96 +122,19 @@ class SendWelcomeEmailJob extends BloomJob<UserPayload> {
               <span>Scaffolding Tutorial</span>
             </a>
             <a
-              href="/docs/server/orm-and-migrations"
+              href="/docs/getting-started/project-anatomy"
               class="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-950 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-bold text-xs border border-slate-200 dark:border-zinc-800 shadow-sm transition flex items-center gap-1.5"
             >
-              <Database className="w-3.5 h-3.5 text-purple-400" />
-              <span>ORM &amp; Migrations</span>
+              <FolderTree className="w-3.5 h-3.5 text-purple-400" />
+              <span>Monorepo Layout</span>
             </a>
           </div>
         </div>
       </div>
 
-      <!-- Tabbed Code Architecture Explorer with Full Shiki Syntax Highlighting -->
-      <div class="w-full max-w-5xl mx-auto rounded-3xl bg-zinc-950 border border-zinc-800 shadow-2xl overflow-hidden text-left mt-10">
-        <!-- Tab Switcher Bar -->
-        <div class="flex flex-wrap items-center justify-between border-b border-zinc-800 p-2 sm:p-3 gap-2 bg-black/60">
-          <div class="flex flex-wrap items-center gap-1 sm:gap-1.5" id="server-tab-buttons">
-            <button
-              data-tab="orm"
-              class="tab-btn active flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-zinc-800 text-white border border-zinc-700"
-            >
-              <Database className="w-3.5 h-3.5 text-purple-400" />
-              <span>ORM &amp; Models</span>
-            </button>
-            <button
-              data-tab="rest"
-              class="tab-btn flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-slate-200 hover:bg-zinc-900"
-            >
-              <Layers className="w-3.5 h-3.5 text-slate-400" />
-              <span>REST ViewSets</span>
-            </button>
-            <button
-              data-tab="admin"
-              class="tab-btn flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-slate-200 hover:bg-zinc-900"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-              <span>HTML Admin</span>
-            </button>
-            <button
-              data-tab="realtime"
-              class="tab-btn flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-slate-200 hover:bg-zinc-900"
-            >
-              <Activity className="w-3.5 h-3.5 text-slate-400" />
-              <span>Realtime Cluster</span>
-            </button>
-            <button
-              data-tab="jobs"
-              class="tab-btn flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-slate-200 hover:bg-zinc-900"
-            >
-              <Cpu className="w-3.5 h-3.5 text-slate-400" />
-              <span>Jobs &amp; Workers</span>
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2 pr-2">
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border border-purple-500/20 text-purple-400 bg-purple-500/10">
-              pure_dart
-            </span>
-          </div>
-        </div>
-
-        <!-- Tab Panels with Full Syntax Highlighting -->
-        <div id="tab-panel-orm" class="tab-panel">
-          <CodeBlock code={modelCode} lang="dart" filename="lib/apps/blog/models.dart" />
-        </div>
-        <div id="tab-panel-rest" class="tab-panel hidden">
-          <CodeBlock code={viewSetCode} lang="dart" filename="lib/apps/blog/views.dart" />
-        </div>
-        <div id="tab-panel-admin" class="tab-panel hidden">
-          <CodeBlock code={adminCode} lang="dart" filename="lib/apps/blog/admin.dart" />
-        </div>
-        <div id="tab-panel-realtime" class="tab-panel hidden">
-          <CodeBlock code={realtimeCode} lang="dart" filename="bin/server.dart" />
-        </div>
-        <div id="tab-panel-jobs" class="tab-panel hidden">
-          <CodeBlock code={jobsCode} lang="dart" filename="lib/jobs/email_worker.dart" />
-        </div>
-
-        <!-- Footer quick action -->
-        <div class="px-5 py-3 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between text-xs font-mono text-slate-400">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Zero external runtime dependencies • Ahead-of-Time Native Binary</span>
-          </div>
-          <a
-            href="/docs/server/overview"
-            class="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-bold transition hover:underline"
-          >
-            <span>Explore all 15 packages</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
+      <!-- Dynamic Auto-Rotating Server Architecture Visualizer Island with Live Efficiency HUD -->
+      <div class="mt-8">
+        <ServerArchitectureDynamicPlayer client:visible />
       </div>
 
     </div>
@@ -333,6 +142,58 @@ class SendWelcomeEmailJob extends BloomJob<UserPayload> {
 
   <!-- Marquee -->
   <TechMarquee />
+
+  <!-- Full-Stack Monorepo Architecture Showcase (Turborepo-Style) -->
+  <Section id="monorepo" className="py-20">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <FolderTree className="w-3.5 h-3.5" />
+        Full-Stack Monorepo Architecture
+      </div>
+      <h2 class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+        One Language. One Workspace.
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Organize Mobile (Flutter), Web (Flutter Web), and Backend (Bloom Server) in a clean, pipeline-first monorepo with 100% shared type safety.
+      </p>
+    </div>
+
+    <div class="max-w-5xl mx-auto space-y-8">
+      <CodeBlock code={monorepoTree} lang="bash" filename="Full-Stack Workspace Layout (Turborepo-Style)" />
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+        <div class="p-6 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 backdrop-blur-xl space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Boxes className="w-5 h-5" />
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Pure Dart packages/core</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Data models, serializers, and query keys live in pure Dart. Zero Flutter engine dependencies allows the backend server to import models directly.
+          </p>
+        </div>
+
+        <div class="p-6 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 backdrop-blur-xl space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Zap className="w-5 h-5" />
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Zero Codegen Drift</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Client <code class="font-mono text-purple-400">BloomQuery</code> and server <code class="font-mono text-purple-400">BloomViewSet</code> communicate directly using identical Dart schemas. No OpenAPI or JSON generators needed.
+          </p>
+        </div>
+
+        <div class="p-6 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 backdrop-blur-xl space-y-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Workflow className="w-5 h-5" />
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Unified Melos Task Pipelines</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Run <code class="font-mono text-purple-400">melos run dev</code> to hot-reload backend servers, mobile emulators, and web clients simultaneously across all CPU cores.
+          </p>
+        </div>
+      </div>
+    </div>
+  </Section>
 
   <!-- Hardware Benchmarks Grid -->
   <Section id="benchmarks" className="py-20">
@@ -686,46 +547,3 @@ class SendWelcomeEmailJob extends BloomJob<UserPayload> {
     </div>
   </Section>
 </Layout>
-
-<!-- Client Tab Switcher Script for Architecture Explorer -->
-<script is:inline>
-  function setupServerTabSwitcher() {
-    const tabButtons = document.querySelectorAll('#server-tab-buttons .tab-btn');
-    const tabPanels = document.querySelectorAll('.tab-panel');
-    if (!tabButtons.length) return;
-
-    tabButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const targetTab = btn.getAttribute('data-tab');
-
-        // Update button states
-        tabButtons.forEach((b) => {
-          if (b === btn) {
-            b.classList.add('bg-zinc-800', 'text-white', 'border', 'border-zinc-700');
-            b.classList.remove('text-slate-400', 'hover:bg-zinc-900');
-          } else {
-            b.classList.remove('bg-zinc-800', 'text-white', 'border', 'border-zinc-700');
-            b.classList.add('text-slate-400', 'hover:bg-zinc-900');
-          }
-        });
-
-        // Show target panel
-        tabPanels.forEach((panel) => {
-          if (panel.id === `tab-panel-${targetTab}`) {
-            panel.classList.remove('hidden');
-          } else {
-            panel.classList.add('hidden');
-          }
-        });
-      });
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupServerTabSwitcher);
-  } else {
-    setupServerTabSwitcher();
-  }
-
-  document.addEventListener('astro:page-load', setupServerTabSwitcher);
-</script>

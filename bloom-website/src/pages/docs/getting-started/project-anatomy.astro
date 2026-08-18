@@ -1,13 +1,149 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
 import CodeBlock from '../../../components/common/CodeBlock.astro';
-import { FolderTree, ArrowRight, Layers, Box, Cpu, FileCode2 } from 'lucide-preact';
+import { FolderTree, ArrowRight, Layers, Box, Cpu, FileCode2, Workflow, CheckCircle2, ShieldCheck, Zap } from 'lucide-preact';
 
-const projectTree = `my_bloom_app/
+const monorepoTree = `my_bloom_project/
+├── bloom.yaml                    # Root workspace + CLI orchestration config
+├── melos.yaml                    # Monorepo task pipeline definitions
+├── .env.example                  # Shared env template (API_URL, DB_PATH, etc.)
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                # Test + lint on every pull request
+│       ├── deploy-backend.yml    # bloom deploy → server cluster
+│       └── ota-mobile.yml        # bloom deploy --ota → Shorebird instant release
+│
+├── apps/                         # Executable Target Applications
+│   │
+│   ├── mobile/                   # 📱 iOS & Android (Flutter Engine + Impeller)
+│   │   ├── bloom.yaml            # Shorebird OTA, bundle ID, native permissions
+│   │   ├── pubspec.yaml          # deps: bloom_framework, core, ui
+│   │   ├── lib/
+│   │   │   ├── routes/           # Next.js-style file-system GoRouter pages
+│   │   │   │   ├── index.dart    # → /
+│   │   │   │   ├── feed/
+│   │   │   │   │   └── index.dart
+│   │   │   │   └── profile/
+│   │   │   │       └── [id].dart # → /profile/:id (strongly-typed)
+│   │   │   ├── controllers/      # BloomController + reactive Signals state
+│   │   │   └── main.dart         # Thin boot sequence (BloomBoot.init)
+│   │   ├── ios/                  # Auto-managed by bloom prebuild
+│   │   └── android/              # Auto-managed by bloom prebuild
+│   │
+│   ├── web/                      # 🌐 Flutter Web / Admin Portal / Desktop
+│   │   ├── pubspec.yaml          # deps: bloom_framework, core, ui
+│   │   ├── lib/
+│   │   │   ├── routes/
+│   │   │   │   ├── index.dart
+│   │   │   │   ├── dashboard/
+│   │   │   │   │   └── index.dart
+│   │   │   │   └── (auth)/       # Route group (no URL segment)
+│   │   │   │       └── login.dart
+│   │   │   ├── layouts/
+│   │   │   │   └── _layout.dart  # Multi-pane responsive sidebar shell
+│   │   │   └── main.dart         # Web target (Wasm / CanvasKit)
+│   │   └── web/                  # index.html, manifest.json
+│   │
+│   └── server/                   # 🖥️ Bloom Server (Pure Dart AOT Backend)
+│       ├── pubspec.yaml          # deps: bloom_rest, bloom_db, bloom_realtime, core
+│       ├── bin/
+│       │   └── server.dart       # Multi-isolate cluster entrypoint (78k msgs/s)
+│       ├── lib/
+│       │   ├── apps/             # Django-style domain modular apps
+│       │   │   ├── auth/         # models.dart, serializers.dart, views.dart, admin.dart
+│       │   │   ├── feed/         # models.dart, serializers.dart, views.dart
+│       │   │   └── billing/      # models.dart, serializers.dart, views.dart
+│       │   ├── config/
+│       │   │   ├── database.dart # bloom_db SQLite/PostgreSQL connection pool
+│       │   │   ├── cache.dart    # bloom_cache stampede locks & Redis backend
+│       │   │   └── mailer.dart   # bloom_mail transactional SMTP config
+│       │   └── router.dart       # Mount all ViewSets + WebSocket channels
+│       └── migrations/           # Linear SQL diffs (bloom_migrate)
+│           ├── 0001_initial.sql
+│           └── 0002_add_billing.sql
+│
+└── packages/                     # 📦 Shared Internal Packages
+    │
+    ├── core/                     # 🧠 Shared Business Logic (Pure Dart • Zero Flutter)
+    │   ├── pubspec.yaml          # Pure Dart only
+    │   └── lib/
+    │       ├── models/           # Shared DTOs & entities (User, Post, Invoice)
+    │       │   ├── user.dart
+    │       │   ├── post.dart
+    │       │   └── models.dart   # Barrel export
+    │       ├── validation/       # Shared field validators (bloom_validate)
+    │       ├── api/              # Typed request/response contracts
+    │       │   ├── endpoints.dart
+    │       │   └── query_keys.dart
+    │       └── core.dart         # Public package barrel export
+    │
+    ├── ui/                       # 🎨 Shared Design System (Flutter package)
+    │   ├── pubspec.yaml          # deps: bloom_ui, flutter
+    │   └── lib/
+    │       ├── components/       # 60+ shadcn primitives (Button, Dialog, Chart)
+    │       ├── tokens/           # Shared colors, typography, border radii
+    │       └── ui.dart
+    │
+    └── config/                   # ⚙️  Shared Constants & Feature Flags (Pure Dart)
+        ├── pubspec.yaml          # Pure Dart
+        └── lib/
+            ├── env.dart          # Typed env parsing (String.fromEnvironment)
+            ├── flags.dart        # Feature flag definitions
+            └── config.dart`;
+
+const melosConfig = `# melos.yaml - Task Pipeline Definitions
+name: my_bloom_project
+
+packages:
+  - apps/**
+  - packages/**
+
+scripts:
+  # Concurrent local development
+  dev:
+    run: melos run dev:backend & melos run dev:mobile
+    description: Start server and mobile app concurrently
+
+  dev:backend:
+    run: cd apps/server && bloom server dev
+    description: Run backend server with hot-reload
+
+  dev:mobile:
+    run: cd apps/mobile && flutter run -d ios
+
+  dev:web:
+    run: cd apps/web && flutter run -d chrome
+
+  # Build pipeline (packages built before apps)
+  build:
+    run: melos exec -- flutter build appbundle
+    packageFilters:
+      dependsOn: core
+
+  # Database migrations
+  migrate:
+    run: cd apps/server && bloom migrate run
+  migrate:make:
+    run: cd apps/server && bloom migrate make $name
+
+  # Quality checks
+  test:
+    run: melos exec -- flutter test
+  lint:
+    run: melos exec -- dart analyze
+
+  # Deployment
+  deploy:server:
+    run: cd apps/server && bloom deploy
+  deploy:ota:
+    run: cd apps/mobile && bloom deploy --ota --channel production`;
+
+const singleAppTree = `my_mobile_app/
 ├── bloom.yaml                  # Unified project configuration & native permissions
 ├── pubspec.yaml                # Standard Flutter dependencies
 ├── lib/
-│   ├── main.dart               # Framework boot entrypoint (Bloom.boot)
+│   ├── main.dart               # Framework boot entrypoint (BloomBoot.init)
 │   ├── app/
 │   │   ├── app.dart            # Root MaterialApp & theme configuration
 │   │   ├── boot.dart           # Dependency injection & service bootstrapper
@@ -16,7 +152,6 @@ const projectTree = `my_bloom_app/
 │   ├── features/               # Domain-driven feature slices
 │   │   ├── auth/
 │   │   │   ├── auth_controller.dart
-│   │   │   ├── auth_service.dart
 │   │   │   └── models/
 │   │   └── feed/
 │   │       ├── feed_controller.dart
@@ -34,107 +169,102 @@ const projectTree = `my_bloom_app/
 ---
 
 <DocsLayout
-  title="Project Anatomy"
-  description="In-depth breakdown of the directory structure and file conventions in a Bloom project."
+  title="Project Anatomy & Monorepo Architecture"
+  description="In-depth breakdown of full-stack monorepo layouts, task pipelines, and directory conventions in Bloom."
   currentSlug="getting-started-project-anatomy"
   category="Getting Started"
   toc={[
-    { id: 'tree', title: 'Standard Directory Tree' },
-    { id: 'lib-app', title: 'The lib/app/ Directory' },
-    { id: 'lib-features', title: 'The lib/features/ Directory' },
-    { id: 'lib-routes', title: 'The lib/routes/ Directory' },
-    { id: 'lib-bloom-ui', title: 'The lib/bloom_ui/ Directory' },
+    { id: 'monorepo-layout', title: 'Full-Stack Monorepo Layout' },
+    { id: 'golden-rules', title: 'The 3 Golden Architecture Rules' },
+    { id: 'melos-pipeline', title: 'Melos Task Pipeline (melos.yaml)' },
+    { id: 'single-app', title: 'Single-App Project Structure' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
     <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
         <FolderTree className="w-3.5 h-3.5" />
-        Conventions
+        Architecture &amp; Conventions
       </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-        Project Anatomy
+        Project Anatomy &amp; Monorepo Layout
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Bloom establishes a clear, domain-driven structure that scales cleanly from solo prototypes to large enterprise applications.
+        Bloom is engineered for both vertical full-stack applications (Mobile + Web + Backend in a unified Turborepo-style workspace) and focused single-target applications.
       </p>
     </div>
 
-    <!-- Tree -->
-    <section id="tree" class="space-y-4">
+    <!-- Section 1: Full-Stack Monorepo Layout -->
+    <section id="monorepo-layout" class="space-y-4">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        Standard Directory Tree
-      </h2>
-      <CodeBlock code={projectTree} lang="bash" filename="Project Structure" />
-    </section>
-
-    <!-- App Section -->
-    <section id="lib-app" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        The lib/app/ Directory
+        Full-Stack Monorepo Layout (Turborepo-Style)
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Contains global application lifecycle configuration:
+        This workspace structure separates executable targets (<code class="font-mono text-purple-400">apps/</code>) from shared, versioned modules (<code class="font-mono text-purple-400">packages/</code>) with pipeline-first dependency graphs:
       </p>
-      <ul class="space-y-2 text-xs text-slate-300 font-mono">
-        <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
-          <span class="text-purple-400 font-bold">boot.dart</span>: Registers singletons, services, and asynchronous database connections in the DI container.
-        </li>
-        <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
-          <span class="text-purple-400 font-bold">guards.dart</span>: Route interceptors that perform authentication and role-based redirects.
-        </li>
-        <li class="p-3 rounded-lg bg-slate-900 border border-slate-800">
-          <span class="text-purple-400 font-bold">routes.g.dart</span>: Generated by the Bloom AST compiler from your <code class="text-slate-400">lib/routes/</code> folder.
-        </li>
-      </ul>
+      <CodeBlock code={monorepoTree} lang="bash" filename="Full-Stack Workspace Layout" />
     </section>
 
-    <!-- Features Section -->
-    <section id="lib-features" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+    <!-- Section 2: The 3 Golden Rules -->
+    <section id="golden-rules" class="space-y-6 pt-8 border-t border-slate-200 dark:border-zinc-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        The lib/features/ Directory
+        The 3 Golden Architecture Rules
+      </h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 space-y-3">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black text-sm">
+            1
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Data Flows Down, Never Sideways</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <code class="font-mono text-purple-400">apps/*</code> depend on <code class="font-mono text-purple-400">packages/*</code>. Packages never import from apps, and apps never import directly from sibling apps.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 space-y-3">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black text-sm">
+            2
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">packages/core is Pure Dart</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Zero Flutter dependencies in core. This allows <code class="font-mono text-purple-400">apps/server</code> to consume exact data models without dragging in the Flutter UI engine.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 space-y-3">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black text-sm">
+            3
+          </div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Contracts Over Codegen</h3>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Shared schemas, DTOs, and query keys live in <code class="font-mono text-purple-400">packages/core</code>. Client <code class="font-mono">BloomQuery</code> and server <code class="font-mono">BloomViewSet</code> share exact types.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Melos Pipeline -->
+    <section id="melos-pipeline" class="space-y-4 pt-8 border-t border-slate-200 dark:border-zinc-800">
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+        Monorepo Task Pipeline (<code class="font-mono text-purple-400">melos.yaml</code>)
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Organizes business logic into vertical domain slices. Each feature encapsulates its own controllers, models, and domain-specific UI widgets.
+        Melos orchestrates multi-package linking, dependency synchronization, concurrent development servers, and automated deployment pipelines:
       </p>
+      <CodeBlock code={melosConfig} lang="yaml" filename="melos.yaml" />
     </section>
 
-    <!-- Routes Section -->
-    <section id="lib-routes" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+    <!-- Section 4: Single-App Structure -->
+    <section id="single-app" class="space-y-4 pt-8 border-t border-slate-200 dark:border-zinc-800">
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        The lib/routes/ Directory
+        Single-App Project Structure
       </h2>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        File-based page definitions. Every Dart file represents an accessible URL route, keeping routing decoupled from business logic.
+        For standalone mobile or web projects created with <code class="font-mono text-purple-400">bloom create my_app</code>, Bloom organizes files into feature slices:
       </p>
+      <CodeBlock code={singleAppTree} lang="bash" filename="Single-App Structure" />
     </section>
-
-    <!-- Bloom UI Section -->
-    <section id="lib-bloom-ui" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        The lib/bloom_ui/ Directory
-      </h2>
-      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Your local copy of the Bloom UI primitives and design tokens. You own this code and can freely modify styles and behaviors.
-      </p>
-    </section>
-
-    <!-- Next Page Footer -->
-    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
-      <a
-        href="/docs/installation"
-        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
-      >
-        <span>Previous: Installation</span>
-      </a>
-      <a
-        href="/docs/getting-started/bloom-yaml-reference"
-        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-500 transition shadow-lg"
-      >
-        <span>Next: bloom.yaml Reference</span>
-        <ArrowRight className="w-4 h-4" />
-      </a>
-    </div>
   </div>
 </DocsLayout>
