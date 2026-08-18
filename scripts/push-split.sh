@@ -19,16 +19,16 @@ PRIVATE_REMOTE="https://github.com/Chidi09/bloom-cloud.git"
 
 echo "== Splitting '$BRANCH' from $ROOT =="
 
-# --- Public: packages/, apps/, LICENSE, README.md ---
+# --- Public: packages/, apps/, benchmarks/, LICENSE, README.md ---
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
 (
   cd "$WORKDIR/public"
-  git filter-repo --path packages/ --path apps/ --path LICENSE --path README.md
+  git filter-repo --path packages/ --path apps/ --path benchmarks/ --path LICENSE --path README.md
   git remote add origin "$PUBLIC_REMOTE"
   git branch -M main
-  git push origin main
+  git push --force origin main
 )
-echo "== Pushed public split to $PUBLIC_REMOTE =="
+echo "== Pushed clean public split to $PUBLIC_REMOTE =="
 
 # --- Private: cloud-backend/, cloud-dashboard/, bloom-website/, docs/, examples/ ---
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
@@ -40,6 +40,7 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
     --path bloom-website/ \
     --path docs/ \
     --path examples/ \
+    --path benchmarks/ \
     --path cloud-dashboard-frontend.md \
     --path bloom-ui-primitives-port-plan.md \
     --path BLOOM_UI_PORT_STATUS.md \
@@ -47,6 +48,6 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
     --path LICENSE
   git remote add origin "$PRIVATE_REMOTE"
   git branch -M main
-  git push origin main
+  git push --force origin main
 )
 echo "== Pushed private split to $PRIVATE_REMOTE =="
