@@ -48,35 +48,22 @@ class BloomChannelHub {
       _channelSubscribers[channel]?.length ?? 0;
 
   /// High-performance WebSocket upgrader with optimal production defaults:
-  /// - Sets `tcpNoDelay: true` to eliminate Nagle packet buffering latency.
-  /// - Disables `permessage-deflate` by default (`CompressionOptions.compressionOff`) to save CPU on small JSON events.
+  /// - Disables `permessage-deflate` by default ([CompressionOptions.compressionOff]) to save CPU on small JSON events.
+  /// - Automatically completes RFC 6455 upgrade handshake.
   ///
   /// - [request]: The incoming [HttpRequest].
   /// - [compression]: Compression strategy (defaults to [CompressionOptions.compressionOff]).
-  /// - [tcpNoDelay]: When `true`, detaches the underlying TCP socket to guarantee `TCP_NODELAY` is enabled.
   /// - [protocol]: Optional subprotocol string.
   static Future<WebSocket> upgrade(
     HttpRequest request, {
     CompressionOptions compression = CompressionOptions.compressionOff,
-    bool tcpNoDelay = true,
     String? protocol,
-  }) async {
-    if (tcpNoDelay) {
-      final socket = await request.response.detachSocket();
-      socket.setOption(SocketOption.tcpNoDelay, true);
-      return WebSocket.fromUpgradedSocket(
-        socket,
-        protocol: protocol,
-        serverSide: true,
-        compression: compression,
-      );
-    } else {
-      return WebSocketTransformer.upgrade(
-        request,
-        protocolSelector: protocol != null ? (_) => protocol : null,
-        compression: compression,
-      );
-    }
+  }) {
+    return WebSocketTransformer.upgrade(
+      request,
+      protocolSelector: protocol != null ? (_) => protocol : null,
+      compression: compression,
+    );
   }
 
   /// Registers and attaches a newly upgraded [WebSocket] connection to the hub.
