@@ -1,0 +1,467 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/common/Section.astro';
+import GlassPanel from '../components/common/GlassPanel.astro';
+import HeroVideoBg from '../components/common/HeroVideoBg.astro';
+import CodeBlock from '../components/common/CodeBlock.astro';
+import { 
+  Server, 
+  Database, 
+  Layers, 
+  ShieldCheck, 
+  Zap, 
+  Cpu, 
+  Terminal, 
+  ArrowRight, 
+  CheckCircle2, 
+  Activity, 
+  Flame, 
+  Boxes, 
+  Workflow, 
+  Mail, 
+  FolderTree, 
+  Globe, 
+  Sparkles,
+  ExternalLink,
+  Code2
+} from 'lucide-preact';
+
+const modelCode = `import 'package:bloom_db/bloom_db.dart';
+
+@Model(table: 'posts')
+class Post {
+  @PrimaryKey(autoIncrement: true)
+  final int? id;
+
+  @Field(type: FieldType.varchar, length: 255)
+  final String title;
+
+  @Field(type: FieldType.text)
+  final String content;
+
+  @Field(type: FieldType.boolean, defaultValue: false)
+  final bool published;
+
+  @Field(type: FieldType.timestamp, autoNowAdd: true)
+  final DateTime createdAt;
+
+  const Post({
+    this.id,
+    required this.title,
+    required this.content,
+    this.published = false,
+    required this.createdAt,
+  });
+}`;
+
+const viewSetCode = `import 'package:bloom_rest/bloom_rest.dart';
+import '../models/post.dart';
+import '../serializers/post_serializer.dart';
+
+class PostViewSet extends BloomViewSet<Post> {
+  @override
+  final QuerySet<Post> queryset = PostQuerySet();
+
+  @override
+  final Serializer<Post> serializer = PostSerializer();
+
+  @override
+  final List<Permission> permissions = [
+    IsAuthenticatedOrReadOnly(),
+  ];
+
+  @override
+  final Pagination pagination = PageNumberPagination(pageSize: 20);
+}`;
+
+const clusterCode = `import 'package:bloom_realtime/bloom_realtime.dart';
+
+void main() async {
+  // Spawns N isolate workers bound to identical port with shared sockets
+  final cluster = await BloomRealtimeCluster.spawn(
+    isolateCount: Platform.numberOfProcessors,
+    port: 8080,
+    meshProtocol: InterIsolateMesh(),
+  );
+
+  print('⚡ Cluster running across \${cluster.workers.length} cores');
+  // Benchmarked: 78,125 msgs/sec @ 3.70 MB RAM
+}`;
+---
+
+<Layout
+  title="Bloom Server — Pure Dart Backend Platform & Ecosystem"
+  description="Full-stack Django-style backend platform for pure Dart. Typed ORM, migrations, REST ViewSets, automatic HTML admin panel, and 78k msgs/s multi-isolate realtime clusters."
+  hue="bloom"
+  petalHighlight="pink"
+  nextChapterTitle="Cloud & CLI — Automated Pipelines"
+  nextChapterLink="/ship"
+  nextChapterSubtitle="Deploy over-the-air binary updates and provision server clusters with bloom deploy."
+  ogPage="bloom"
+>
+  <!-- Hero Section -->
+  <Section reveal={false} className="pt-16 pb-16 lg:pt-24 lg:pb-20 relative">
+    <HeroVideoBg mode="bloom" />
+    <div class="text-center max-w-5xl mx-auto space-y-6 relative z-10">
+
+      <!-- Status Badge -->
+      <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-black/90 border border-pink-500/30 text-xs font-mono text-pink-400 shadow-md">
+        <Server className="w-3.5 h-3.5 text-pink-500 animate-pulse" />
+        <span class="font-semibold text-slate-200">BLOOM SERVER</span>
+        <span class="text-slate-600 dark:text-slate-500">•</span>
+        <span class="text-pink-400 font-mono">15_PACKAGE_ECOSYSTEM</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+        Pure Dart Backend.<br />
+        <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">Django Power. Rust-Grade Concurrency.</span>
+      </h1>
+
+      <p class="text-slate-600 dark:text-slate-400 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed">
+        Stop writing backend APIs in Node or Go with disconnected schemas. Bloom delivers a comprehensive 15-package backend ecosystem for pure Dart: typed ORM, migrations, DRF ViewSets, auto HTML admin, and 78k msgs/s multi-isolate realtime clustering.
+      </p>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">
+        <a
+          href="/docs/server/overview"
+          class="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold shadow-lg shadow-pink-500/25 transition transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+        >
+          <span>Explore Server Documentation</span>
+          <ArrowRight className="w-4 h-4" />
+        </a>
+        <a
+          href="/docs/server/scaffolding"
+          class="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-900 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-semibold border border-slate-200 dark:border-zinc-800 transition text-sm"
+        >
+          <Terminal className="w-4 h-4 text-purple-400" />
+          <span>Scaffold a Server (bloom server create)</span>
+        </a>
+      </div>
+
+      <!-- Quick Command Pill -->
+      <div class="pt-2">
+        <div class="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-xs font-mono text-slate-600 dark:text-slate-300 shadow-inner">
+          <span class="text-pink-500 font-bold">$</span>
+          <span>dart pub global activate bloom_cli &amp;&amp; bloom server create my_backend</span>
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <!-- Hardware Benchmarks Grid -->
+  <Section id="benchmarks">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-mono font-bold">
+        <Zap className="w-3.5 h-3.5" />
+        Hardware Benchmarked
+      </div>
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Why Pure Dart Destroys Node.js at Scale
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Pure Ahead-of-Time (AOT) compilation and isolated memory heaps deliver 29x less RAM and zero garbage collection spikes.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- Card 1: WebSockets -->
+      <GlassPanel className="p-6 space-y-4 border-pink-500/20 hover:border-pink-500/40 transition">
+        <div class="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500">
+          <Activity className="w-5 h-5" />
+        </div>
+        <div>
+          <div class="text-3xl font-black text-slate-900 dark:text-white font-mono">78,125</div>
+          <div class="text-xs font-mono text-pink-500 font-bold">msgs/sec throughput</div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          1,000 active concurrent WebSocket connections @ <strong>3.70 MB RSS</strong> memory (Fastify requires 107 MB).
+        </p>
+        <div class="text-[11px] font-mono text-slate-500 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          bloom_realtime
+        </div>
+      </GlassPanel>
+
+      <!-- Card 2: SQLite ORM -->
+      <GlassPanel className="p-6 space-y-4 border-purple-500/20 hover:border-purple-500/40 transition">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500">
+          <Database className="w-5 h-5" />
+        </div>
+        <div>
+          <div class="text-3xl font-black text-slate-900 dark:text-white font-mono">12,500</div>
+          <div class="text-xs font-mono text-purple-400 font-bold">ORM ops/sec</div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          5,000 rows batched in <strong>400.7ms</strong> with zero object allocation overhead and typed query builders.
+        </p>
+        <div class="text-[11px] font-mono text-slate-500 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          bloom_db
+        </div>
+      </GlassPanel>
+
+      <!-- Card 3: HTTP Concurrency -->
+      <GlassPanel className="p-6 space-y-4 border-cyan-500/20 hover:border-cyan-500/40 transition">
+        <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+          <Zap className="w-5 h-5" />
+        </div>
+        <div>
+          <div class="text-3xl font-black text-slate-900 dark:text-white font-mono">9,091</div>
+          <div class="text-xs font-mono text-cyan-400 font-bold">req/sec @ 29.3ms p99</div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          100 parallel HTTP connections handled with <strong>0 socket drops</strong> and sub-30ms latency ceilings.
+        </p>
+        <div class="text-[11px] font-mono text-slate-500 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          BloomApiRouter
+        </div>
+      </GlassPanel>
+
+      <!-- Card 4: SWR Cache -->
+      <GlassPanel className="p-6 space-y-4 border-amber-500/20 hover:border-amber-500/40 transition">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <Cpu className="w-5 h-5" />
+        </div>
+        <div>
+          <div class="text-3xl font-black text-slate-900 dark:text-white font-mono">119,047</div>
+          <div class="text-xs font-mono text-amber-400 font-bold">cache ops/sec</div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          10,000 operations in <strong>84.0ms</strong> with built-in dogpile stampede locks and swappable Redis backends.
+        </p>
+        <div class="text-[11px] font-mono text-slate-500 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          bloom_cache
+        </div>
+      </GlassPanel>
+    </div>
+  </Section>
+
+  <!-- Architectural Pillars -->
+  <Section id="architecture">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Django Patterns for Pure Dart
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        Model-View-Set architecture with declarative schemas, automatic migrations, composable permissions, and HTML administration.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Pillar 1: ORM & Migrations -->
+      <div class="p-6 rounded-3xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Typed ORM &amp; Migrations</h3>
+            <p class="text-xs text-purple-500 font-mono">bloom_db &amp; bloom_migrate</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Declare models with `@Model()` and generate deterministic SQL schema migrations for SQLite and PostgreSQL with zero manual SQL writing.
+        </p>
+        <CodeBlock code={modelCode} lang="dart" filename="lib/apps/blog/models.dart" />
+        <a href="/docs/server/orm-and-migrations" class="inline-flex items-center gap-1 text-xs font-bold text-purple-500 hover:underline pt-2">
+          <span>Read ORM &amp; Migrations Guide</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+
+      <!-- Pillar 2: REST ViewSets -->
+      <div class="p-6 rounded-3xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">DRF-Style REST ViewSets</h3>
+            <p class="text-xs text-pink-500 font-mono">bloom_rest &amp; bloom_validate</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Bind full CRUD endpoints with pagination, throttling, and composable permission classes in a single class declaration.
+        </p>
+        <CodeBlock code={viewSetCode} lang="dart" filename="lib/apps/blog/views.dart" />
+        <a href="/docs/server/rest-api" class="inline-flex items-center gap-1 text-xs font-bold text-pink-500 hover:underline pt-2">
+          <span>Read REST API Guide</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+
+      <!-- Pillar 3: Multi-Isolate Realtime -->
+      <div class="p-6 rounded-3xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <Cpu className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Multi-Isolate Clustering</h3>
+            <p class="text-xs text-cyan-400 font-mono">bloom_realtime</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          Utilize 100% of CPU cores with shared socket binding and inter-isolate SendPort meshes delivering 78,000+ msgs/s.
+        </p>
+        <CodeBlock code={clusterCode} lang="dart" filename="bin/server.dart" />
+        <a href="/docs/server/realtime" class="inline-flex items-center gap-1 text-xs font-bold text-cyan-400 hover:underline pt-2">
+          <span>Read Realtime Cluster Guide</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </div>
+  </Section>
+
+  <!-- Complete 15-Package Ecosystem Grid -->
+  <Section id="ecosystem">
+    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+        <Boxes className="w-3.5 h-3.5" />
+        Full Suite
+      </div>
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        The 15-Package Server Ecosystem
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">
+        All packages are engineered to work harmoniously together or as independent, standalone Dart modules.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- 1. bloom_framework -->
+      <a href="/docs/framework/quickstart" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_framework</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.2.2</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Core foundational primitives shared seamlessly between client and server.</p>
+      </a>
+
+      <!-- 2. bloom_db -->
+      <a href="/docs/server/orm-and-migrations" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_db</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Declarative typed ORM supporting SQLite and PostgreSQL with compile-time safety.</p>
+      </a>
+
+      <!-- 3. bloom_migrate -->
+      <a href="/docs/server/orm-and-migrations" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_migrate</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Automatic schema diffing and linear migration execution engine.</p>
+      </a>
+
+      <!-- 4. bloom_rest -->
+      <a href="/docs/server/rest-api" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-pink-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-pink-600 dark:text-pink-400 group-hover:underline">bloom_rest</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">DRF-style REST layer with ViewSets, serializers, pagination, and throttle classes.</p>
+      </a>
+
+      <!-- 5. bloom_admin -->
+      <a href="/docs/server/admin-panel" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-pink-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-pink-600 dark:text-pink-400 group-hover:underline">bloom_admin</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Zero-config server-rendered HTML administration interface for your data models.</p>
+      </a>
+
+      <!-- 6. bloom_realtime -->
+      <a href="/docs/server/realtime" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-cyan-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-cyan-600 dark:text-cyan-400 group-hover:underline">bloom_realtime</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.2.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">High-throughput WebSocket pub/sub with multi-isolate clustering (78k msgs/s).</p>
+      </a>
+
+      <!-- 7. bloom_cache -->
+      <a href="/docs/server/caching" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-amber-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-amber-600 dark:text-amber-400 group-hover:underline">bloom_cache</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Memory LRU, Database, and Redis backends with cache stampede locks.</p>
+      </a>
+
+      <!-- 8. bloom_auth_server -->
+      <a href="/docs/server/auth" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_auth_server</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Session and JWT authentication server with password hashing and RBAC.</p>
+      </a>
+
+      <!-- 9. bloom_jobs -->
+      <a href="/docs/server/jobs-mail-and-storage" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_jobs</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Asynchronous background worker queue with retries and concurrency control.</p>
+      </a>
+
+      <!-- 10. bloom_mail -->
+      <a href="/docs/server/jobs-mail-and-storage" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_mail</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Transactional email engine with SMTP, SendGrid, and Postmark delivery backends.</p>
+      </a>
+
+      <!-- 11. bloom_storage -->
+      <a href="/docs/server/jobs-mail-and-storage" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_storage</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Swappable file storage abstraction (Local disk, AWS S3, Cloudflare R2, MinIO).</p>
+      </a>
+
+      <!-- 12. bloom_security -->
+      <a href="/docs/server/i18n-and-security" class="p-5 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 hover:border-purple-500/40 transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono font-bold text-purple-600 dark:text-purple-400 group-hover:underline">bloom_security</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500">v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Security headers, CSRF token validation, and rate-limiting middleware.</p>
+      </a>
+    </div>
+  </Section>
+
+  <!-- Final Call to Action -->
+  <Section className="pb-24">
+    <div class="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-transparent border border-pink-500/20 text-center max-w-4xl mx-auto space-y-6">
+      <h2 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+        Start Building with Pure Dart Today
+      </h2>
+      <p class="text-slate-600 dark:text-slate-400 text-base max-w-xl mx-auto leading-relaxed">
+        Scaffold your first server application in seconds with full database migrations, authentication, and REST ViewSets out of the box.
+      </p>
+      <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+        <a
+          href="/docs/server/overview"
+          class="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold shadow-lg shadow-pink-500/25 transition text-sm flex items-center gap-2"
+        >
+          <span>Read Server Documentation</span>
+          <ArrowRight className="w-4 h-4" />
+        </a>
+        <a
+          href="/docs/server/scaffolding"
+          class="px-6 py-3.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-semibold border border-slate-200 dark:border-zinc-800 transition text-sm"
+        >
+          <span>Quickstart Tutorial</span>
+        </a>
+      </div>
+    </div>
+  </Section>
+</Layout>
