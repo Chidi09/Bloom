@@ -10,22 +10,36 @@ import '../devtools/network_inspector.dart';
 import '../observability/models.dart';
 import '../observability/observability.dart';
 
+/// Interceptor callback that transforms an outgoing [http.BaseRequest] before sending.
 typedef RequestInterceptor = FutureOr<http.BaseRequest> Function(http.BaseRequest request);
+
+/// Interceptor callback that transforms an incoming [http.Response] before returning to callers.
 typedef ResponseInterceptor = FutureOr<http.Response> Function(http.Response response);
 
 /// HTTP client with environment base URL resolution, JSON codecs, Bearer auth token injection, DevTools tracing, and simulation hooks.
 class BloomHttpClient {
+  /// Base URL prefix prepended to relative request paths.
   final String? baseUrl;
   final http.Client _innerClient;
+
+  /// Network timeout duration applied to requests.
   final Duration timeout;
+
+  /// Ordered list of interceptors executed prior to dispatching requests.
   final List<RequestInterceptor> requestInterceptors = [];
+
+  /// Ordered list of interceptors executed upon receiving responses.
   final List<ResponseInterceptor> responseInterceptors = [];
   static final Random _random = Random();
   static int _reqTraceCounter = 0;
 
+  /// Static bearer token attached to outgoing requests.
   String? authToken;
+
+  /// Dynamic provider callback resolving bearer tokens at request time.
   String? Function()? authTokenProvider;
 
+  /// Creates a [BloomHttpClient] configured with an optional [baseUrl], [timeout], and auth tokens.
   BloomHttpClient({
     String? baseUrl,
     http.Client? innerClient,
@@ -210,6 +224,7 @@ class BloomHttpClient {
     }
   }
 
+  /// Sends an HTTP GET request to [path] and decodes JSON response as [T].
   Future<T> get<T>(
     String path, {
     Map<String, String>? headers,
@@ -219,6 +234,7 @@ class BloomHttpClient {
     return res as T;
   }
 
+  /// Sends an HTTP POST request to [path] with optional [body] and decodes JSON response as [T].
   Future<T> post<T>(
     String path, {
     dynamic body,
@@ -229,6 +245,7 @@ class BloomHttpClient {
     return res as T;
   }
 
+  /// Sends an HTTP PUT request to [path] with optional [body] and decodes JSON response as [T].
   Future<T> put<T>(
     String path, {
     dynamic body,
@@ -239,6 +256,7 @@ class BloomHttpClient {
     return res as T;
   }
 
+  /// Sends an HTTP PATCH request to [path] with optional [body] and decodes JSON response as [T].
   Future<T> patch<T>(
     String path, {
     dynamic body,
@@ -249,6 +267,7 @@ class BloomHttpClient {
     return res as T;
   }
 
+  /// Sends an HTTP DELETE request to [path] with optional [body] and decodes JSON response as [T].
   Future<T> delete<T>(
     String path, {
     dynamic body,
@@ -259,5 +278,6 @@ class BloomHttpClient {
     return res as T;
   }
 
+  /// Closes the underlying HTTP client.
   void close() => _innerClient.close();
 }

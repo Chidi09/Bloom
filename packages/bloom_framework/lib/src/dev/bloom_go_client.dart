@@ -5,16 +5,33 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../core/logger.dart';
 
+/// Project manifest delivered by Bloom dev server for Bloom Go mobile apps.
 class BloomProjectManifest {
+  /// Name of the project.
   final String projectName;
+
+  /// Framework / project version string.
   final String version;
+
+  /// Dev server network hostname or IP.
   final String host;
+
+  /// Dev server HTTP port.
   final int port;
+
+  /// Full dev server HTTP URI string.
   final String devServerUri;
+
+  /// List of registered application routes.
   final List<Map<String, dynamic>> routes;
+
+  /// Platform configuration map.
   final Map<String, dynamic> platforms;
+
+  /// Enabled features configuration map.
   final Map<String, dynamic> features;
 
+  /// Creates a [BloomProjectManifest].
   const BloomProjectManifest({
     required this.projectName,
     required this.version,
@@ -26,6 +43,7 @@ class BloomProjectManifest {
     required this.features,
   });
 
+  /// Constructs a [BloomProjectManifest] from a JSON map.
   factory BloomProjectManifest.fromJson(Map<String, dynamic> json) {
     return BloomProjectManifest(
       projectName: json['project']?.toString() ?? json['appName']?.toString() ?? 'bloom_app',
@@ -40,15 +58,30 @@ class BloomProjectManifest {
   }
 }
 
+/// Represents a Bloom dev server discovered on the local area network.
 class BloomDiscoveredServer {
+  /// Server display name.
   final String name;
+
+  /// Hostname or IP address of the server.
   final String host;
+
+  /// Port number the dev server is listening on.
   final int port;
+
+  /// Version string of the running project.
   final String version;
+
+  /// Unique project ID.
   final String projectId;
+
+  /// Application title / name.
   final String appName;
+
+  /// Timestamp when the server was last seen via UDP broadcast.
   final DateTime lastSeen;
 
+  /// Creates a [BloomDiscoveredServer] descriptor.
   BloomDiscoveredServer({
     String? name,
     String? host,
@@ -69,12 +102,22 @@ class BloomDiscoveredServer {
         appName = appName ?? name ?? 'Bloom App',
         lastSeen = lastSeen ?? discoveredAt ?? DateTime.now();
 
+  /// IP address alias for [host].
   String get ip => host;
+
+  /// Project name alias for [projectId].
   String get projectName => projectId;
+
+  /// HTTP URI string for this server.
   String get uri => 'http://$host:$port';
+
+  /// Endpoint alias for [uri].
   String get endpoint => uri;
+
+  /// Timestamp alias for [lastSeen].
   DateTime get discoveredAt => lastSeen;
 
+  /// Serializes server descriptor to JSON map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'host': host,
@@ -85,6 +128,7 @@ class BloomDiscoveredServer {
         'lastSeen': lastSeen.toIso8601String(),
       };
 
+  /// Constructs a [BloomDiscoveredServer] from a JSON map.
   factory BloomDiscoveredServer.fromJson(Map<String, dynamic> json, {String? defaultHost}) {
     return BloomDiscoveredServer(
       name: json['name']?.toString() ?? json['project']?.toString() ?? 'Bloom Dev Server',

@@ -2,15 +2,30 @@
 import 'dart:collection';
 import '../data/cache.dart';
 
+/// Visual descriptor for a cached query record displayed in DevTools.
 class QueryCacheDescriptor {
+  /// Query cache key string.
   final String key;
+
+  /// Last updated timestamp.
   final DateTime updatedAt;
+
+  /// Whether the entry is considered stale.
   final bool isStale;
+
+  /// Whether the entry has expired past its TTL.
   final bool isExpired;
+
+  /// Configured stale time in milliseconds.
   final int staleTimeMs;
+
+  /// Configured cache retention time in milliseconds.
   final int cacheTimeMs;
+
+  /// Whether non-null data is currently stored.
   final bool hasData;
 
+  /// Creates a [QueryCacheDescriptor].
   QueryCacheDescriptor({
     required this.key,
     required this.updatedAt,
@@ -21,6 +36,7 @@ class QueryCacheDescriptor {
     required this.hasData,
   });
 
+  /// Serializes descriptor to JSON map.
   Map<String, dynamic> toJson() => {
         'key': key,
         'updatedAt': updatedAt.toIso8601String(),

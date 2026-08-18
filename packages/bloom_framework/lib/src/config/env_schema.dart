@@ -3,9 +3,13 @@ import '../core/env.dart';
 
 /// Exception thrown when environment schema validation fails.
 class BloomEnvironmentException implements Exception {
+  /// Error summary message.
   final String message;
+
+  /// Specific individual validation failure errors.
   final List<String> errors;
 
+  /// Creates a [BloomEnvironmentException] with a [message] and optional [errors] list.
   BloomEnvironmentException(this.message, {this.errors = const []});
 
   @override

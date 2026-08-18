@@ -7,6 +7,7 @@ import 'bloom_middleware.dart';
 import 'bloom_request.dart';
 import 'bloom_response.dart';
 
+/// Handler function signature for Bloom server route endpoints.
 typedef BloomRouteHandler = FutureOr<BloomResponse> Function(BloomRequest request);
 
 class _PayloadTooLargeException implements Exception {

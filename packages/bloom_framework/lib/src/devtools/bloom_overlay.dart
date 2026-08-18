@@ -8,8 +8,10 @@ import '../widgets/bloom_logo.dart';
 
 /// Universal in-app developer modal and diagnostics overlay for Bloom applications and Bloom Go.
 class BloomDevOverlay extends StatefulWidget {
+  /// Optional base URL of remote Bloom dev server when inspecting paired devices.
   final String? remoteBaseUrl;
 
+  /// Creates a [BloomDevOverlay] widget.
   const BloomDevOverlay({super.key, this.remoteBaseUrl});
 
   /// Show the Bloom developer bottom sheet modal with optional remote dev server inspection.

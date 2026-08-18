@@ -8,6 +8,7 @@ import 'route.dart';
 /// Central Bloom router orchestrating `GoRouter`.
 class BloomRouter {
   static GoRouter? _activeGoRouter;
+  /// Global navigator key attached to the root Flutter [Navigator].
   static final GlobalKey<NavigatorState> rootNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'bloom_root_navigator');
 

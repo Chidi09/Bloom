@@ -8,12 +8,22 @@ import '../core/platform_info.dart';
 /// Ensures Over-The-Air (OTA) patches are only applied to native binaries
 /// with identical Dart SDK, Flutter engine, and native module capabilities.
 class BloomRuntimeFingerprint {
+  /// Bloom framework semantic version.
   final String bloomVersion;
+
+  /// Flutter engine git revision string.
   final String flutterEngineRevision;
+
+  /// Dart SDK version string.
   final String dartSdkVersion;
+
+  /// Deterministic fingerprints of all installed native modules.
   final Map<String, String> nativeModuleFingerprints;
+
+  /// Declared native system permissions.
   final List<String> permissions;
 
+  /// Creates a [BloomRuntimeFingerprint].
   const BloomRuntimeFingerprint({
     required this.bloomVersion,
     required this.flutterEngineRevision,

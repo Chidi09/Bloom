@@ -12,27 +12,60 @@ import 'fingerprint.dart';
 import 'models.dart';
 import 'transport.dart';
 
+/// Callback signature for intercepting, modifying, or dropping telemetry events before transmission.
 typedef BeforeSendCallback = BloomTelemetryEvent? Function(BloomTelemetryEvent event);
 
 /// Configuration options for Bloom Error Observability and Telemetry SDK.
 class BloomObservabilityConfig {
+  /// Whether observability telemetry capturing is enabled.
   final bool enabled;
+
+  /// Sampling rate between 0.0 (0%) and 1.0 (100%).
   final double sampleRate;
+
+  /// Whether to automatically capture Flutter widget framework errors.
   final bool autoCaptureFlutterErrors;
+
+  /// Whether to automatically capture asynchronous zone errors via [PlatformDispatcher].
   final bool autoCaptureZoneErrors;
+
+  /// Whether to capture native iOS/Android crashes via native channel bridge.
   final bool autoCaptureNativeCrashes;
+
+  /// Maximum capacity of in-memory breadcrumbs ring buffer.
   final int maxBreadcrumbs;
+
+  /// Telemetry transport used to transmit event payloads.
   final BloomTelemetryTransport transport;
+
+  /// Optional filter / mutation callback invoked before sending an event.
   final BeforeSendCallback? beforeSend;
+
+  /// Application metadata dictionary.
   final Map<String, dynamic> appInfo;
+
+  /// Global tags attached to all captured events.
   final Map<String, dynamic> tags;
+
+  /// Active runtime binary fingerprint hash override.
   final String? runtimeFingerprint;
+
+  /// Bloom framework version string.
   final String? bloomVersion;
+
+  /// Flutter runtime version string.
   final String? flutterVersion;
+
+  /// Release deployment channel.
   final String? channel;
+
+  /// Active Shorebird OTA patch identifier.
   final String? activePatchId;
+
+  /// Application build number.
   final String? buildNumber;
 
+  /// Creates a [BloomObservabilityConfig] options instance.
   BloomObservabilityConfig({
     this.enabled = true,
     double sampleRate = 1.0,

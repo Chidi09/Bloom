@@ -1,6 +1,7 @@
 // lib/src/di/container.dart
 import 'dart:collection';
 
+/// Factory function callback that instantiates a dependency of type [T].
 typedef FactoryFunc<T> = T Function();
 
 enum _BindingType { transient, singleton, value }
@@ -38,10 +39,12 @@ class _Binding<T> {
 
 /// Lightweight, high-performance Dependency Injection container for Bloom.
 class BloomContainer {
+  /// Optional parent container for hierarchical dependency lookup.
   final BloomContainer? parent;
   final Map<Type, _Binding<dynamic>> _bindings = HashMap<Type, _Binding<dynamic>>();
   final Map<Type, dynamic> _overrides = HashMap<Type, dynamic>();
 
+  /// Creates a [BloomContainer] with an optional [parent] container.
   BloomContainer({this.parent});
 
   /// Register a transient factory. A new instance is created on each `inject<T>()`.

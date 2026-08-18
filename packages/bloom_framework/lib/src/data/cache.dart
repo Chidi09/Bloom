@@ -3,14 +3,27 @@ import 'dart:async';
 import 'dart:collection';
 import '../core/logger.dart';
 
+/// A single cached query record containing fetched data, timestamps, and TTL settings.
 class QueryCacheEntry<T> {
+  /// Normalized key list uniquely identifying this query.
   final List<dynamic> key;
+
+  /// Cached data payload.
   T? data;
+
+  /// Timestamp when this entry was last fetched or updated.
   DateTime updatedAt;
+
+  /// Duration after which data is considered stale and revalidation should occur.
   Duration staleTime;
+
+  /// Maximum duration to keep this entry in memory before garbage collection.
   Duration cacheTime;
+
+  /// Whether this entry has been explicitly invalidated or marked stale.
   bool isStale;
 
+  /// Creates a [QueryCacheEntry].
   QueryCacheEntry({
     required this.key,
     this.data,
@@ -20,9 +33,11 @@ class QueryCacheEntry<T> {
     this.isStale = false,
   });
 
+  /// Whether this cache entry has exceeded its [cacheTime] lifetime.
   bool get isExpired =>
       DateTime.now().difference(updatedAt) > cacheTime;
 
+  /// Whether this cache entry is stale and should be revalidated on access.
   bool get shouldRevalidate =>
       isStale || DateTime.now().difference(updatedAt) > staleTime;
 }

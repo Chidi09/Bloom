@@ -1,19 +1,26 @@
 // lib/src/di/scope.dart
 import 'container.dart';
 
+/// Represents a typed test override instance to be injected into a [BloomTestScope].
 class BloomTestOverride<T> {
+  /// The dependency runtime type to override.
   final Type type;
+
+  /// The mock or stub instance to resolve for [type].
   final T instance;
 
+  /// Creates a test override for type [T] using the provided [instance].
   BloomTestOverride(this.instance) : type = T;
 }
 
 /// A scoped DI harness for running unit and widget tests with isolated overrides.
 /// Activates an isolated child container as the active container during test execution.
 class BloomTestScope {
+  /// The isolated container managed by this test scope.
   final BloomContainer container;
   final BloomContainer _previousContainer;
 
+  /// Creates a [BloomTestScope] with optional [parent] container and initial [overrides].
   BloomTestScope({BloomContainer? parent, List<BloomTestOverride<dynamic>>? overrides})
       : _previousContainer = globalContainer,
         container = BloomContainer(parent: parent ?? globalContainer) {

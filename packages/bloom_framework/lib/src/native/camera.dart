@@ -5,13 +5,24 @@ import 'package:image_picker/image_picker.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
+/// Represents an image file captured from camera or picked from gallery.
 class BloomCapturedPhoto {
+  /// File system path to the saved image.
   final String path;
+
+  /// Raw image byte data.
   final Uint8List? bytes;
+
+  /// Image pixel width if available.
   final int? width;
+
+  /// Image pixel height if available.
   final int? height;
+
+  /// MIME type string (e.g. `'image/jpeg'`).
   final String mimeType;
 
+  /// Creates a [BloomCapturedPhoto] result.
   const BloomCapturedPhoto({
     required this.path,
     this.bytes,
@@ -26,6 +37,7 @@ class BloomCamera {
   final ImagePicker _picker;
   bool _isInitialized = false;
 
+  /// Creates a [BloomCamera] interface with an optional [picker] instance.
   BloomCamera([ImagePicker? picker]) : _picker = picker ?? ImagePicker();
 
   /// Initialize and verify camera hardware access permissions.

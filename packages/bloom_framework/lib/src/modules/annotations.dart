@@ -35,7 +35,10 @@ class BloomModule {
 
 /// Metadata annotation declaring a static constant exported by the native platform.
 class BloomConstant {
+  /// Custom constant key name override.
   final String? name;
+
+  /// Creates a [BloomConstant] annotation with optional name override.
   const BloomConstant([this.name]);
 }
 
@@ -47,6 +50,7 @@ class BloomAsyncFunction {
   /// Custom native method name override.
   final String? name;
 
+  /// Creates a [BloomAsyncFunction] annotation.
   const BloomAsyncFunction({
     this.thread = NativeThread.ui,
     this.name,
@@ -55,19 +59,28 @@ class BloomAsyncFunction {
 
 /// Metadata annotation declaring a fast synchronous native function bridge.
 class BloomSyncFunction {
+  /// Custom native method name override.
   final String? name;
+
+  /// Creates a [BloomSyncFunction] annotation with optional name override.
   const BloomSyncFunction([this.name]);
 }
 
 /// Metadata annotation declaring a native event listener.
 class BloomEvent {
+  /// Custom native event name override.
   final String? name;
+
+  /// Creates a [BloomEvent] annotation with optional name override.
   const BloomEvent([this.name]);
 }
 
 /// Metadata annotation declaring a continuous native hardware stream.
 class BloomStream {
+  /// Custom native stream name override.
   final String? name;
+
+  /// Creates a [BloomStream] annotation with optional name override.
   const BloomStream([this.name]);
 }
 
@@ -76,10 +89,12 @@ class BloomView {
   /// Native platform view identifier registered with the host platform view factory.
   final String name;
 
+  /// Creates a [BloomView] annotation for platform view [name].
   const BloomView({required this.name});
 }
 
 /// Metadata annotation declaring a host application lifecycle listener.
 class BloomLifecycleHook {
+  /// Creates a [BloomLifecycleHook] annotation.
   const BloomLifecycleHook();
 }

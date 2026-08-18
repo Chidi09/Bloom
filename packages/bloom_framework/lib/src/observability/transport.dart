@@ -6,10 +6,16 @@ import 'models.dart';
 
 /// Exception thrown when telemetry transmission over HTTP fails.
 class BloomHttpException implements Exception {
+  /// Description of the HTTP exception.
   final String message;
+
+  /// HTTP status code if returned by server.
   final int? statusCode;
+
+  /// Target endpoint URI.
   final Uri? uri;
 
+  /// Creates a [BloomHttpException].
   BloomHttpException(this.message, {this.statusCode, this.uri});
 
   @override
@@ -29,8 +35,10 @@ abstract class BloomTelemetryTransport {
 
 /// In-memory transport storing telemetry events in a list (ideal for testing and debugging).
 class BloomMemoryTelemetryTransport implements BloomTelemetryTransport {
+  /// In-memory list of transmitted telemetry events.
   final List<BloomTelemetryEvent> events = [];
 
+  /// Creates a [BloomMemoryTelemetryTransport].
   BloomMemoryTelemetryTransport();
 
   @override
@@ -51,12 +59,20 @@ class BloomMemoryTelemetryTransport implements BloomTelemetryTransport {
 
 /// Production HTTP transport that posts JSON telemetry payloads to a collector endpoint.
 class BloomHttpTelemetryTransport implements BloomTelemetryTransport {
+  /// Remote collector endpoint URI.
   final Uri endpoint;
+
+  /// Custom HTTP headers attached to transmission POST requests.
   final Map<String, String> headers;
   final http.Client _client;
+
+  /// Network timeout for sending telemetry packets.
   final Duration timeout;
+
+  /// Optional error callback invoked when transmission fails.
   final void Function(BloomTelemetryEvent event, Object error, StackTrace stackTrace)? onError;
 
+  /// Creates a [BloomHttpTelemetryTransport].
   BloomHttpTelemetryTransport({
     required this.endpoint,
     Map<String, String>? headers,

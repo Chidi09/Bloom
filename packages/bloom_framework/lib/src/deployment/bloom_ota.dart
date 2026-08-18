@@ -5,22 +5,37 @@ import '../core/logger.dart';
 
 /// Status events emitted during OTA code patch life-cycle.
 enum BloomOtaStatus {
+  /// Idle state with no active OTA operation.
   idle,
+  /// Actively checking remote servers for updates.
   checkingForUpdate,
+  /// A newer OTA patch was discovered and is ready to download.
   updateAvailable,
+  /// Current build is up to date with latest patch.
   upToDate,
+  /// Downloading patch binaries from CDN.
   downloading,
+  /// Patch downloaded and staged; will apply on next restart.
   updateReady,
+  /// OTA operation failed due to a network or verification error.
   error,
 }
 
 /// Represents an available OTA patch descriptor.
 class BloomOtaPatch {
+  /// Sequential patch version number.
   final int patchNumber;
+
+  /// Release channel (e.g. `'production'`, `'staging'`).
   final String channel;
+
+  /// Timestamp when this patch was published.
   final DateTime releasedAt;
+
+  /// Optional release notes or changelog summary.
   final String? releaseNotes;
 
+  /// Creates a [BloomOtaPatch] descriptor.
   const BloomOtaPatch({
     required this.patchNumber,
     required this.channel,
@@ -28,6 +43,7 @@ class BloomOtaPatch {
     this.releaseNotes,
   });
 
+  /// Serializes patch descriptor to JSON map.
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{
       'patchNumber': patchNumber,

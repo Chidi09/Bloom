@@ -11,11 +11,19 @@ import 'update_manifest.dart';
 
 /// Real HTTP / CDN network adapter for checking, downloading, and verifying OTA patches.
 class BloomHttpUpdateAdapter implements BloomUpdateClientAdapter {
+  /// Base API / CDN URL for updates.
   final String baseUrl;
+
+  /// Underlying HTTP client instance.
   final http.Client httpClient;
+
+  /// File system directory where downloaded patches are staged.
   final Directory stagingDir;
+
+  /// Default HTTP headers included in update requests.
   final Map<String, String> defaultHeaders;
 
+  /// Creates a [BloomHttpUpdateAdapter].
   BloomHttpUpdateAdapter({
     required this.baseUrl,
     http.Client? httpClient,

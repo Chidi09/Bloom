@@ -3,9 +3,13 @@ import '../core/logger.dart';
 
 /// Exception thrown when a simulated offline network call is executed.
 class BloomOfflineException implements Exception {
+  /// Description of the simulated offline error.
   final String message;
+
+  /// Target request URI that was rejected due to offline simulation.
   final Uri? uri;
 
+  /// Creates a [BloomOfflineException] with an optional [message] and target [uri].
   BloomOfflineException([this.message = 'Device is offline (simulated).', this.uri]);
 
   @override
