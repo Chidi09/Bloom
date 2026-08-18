@@ -4,6 +4,7 @@ import 'package:bloom_framework/bloom_server.dart';
 import 'package:bloom_security/bloom_security.dart';
 
 import 'ssr_landing.dart';
+import 'swagger.dart';
 import 'apps/auth/urls.dart' as auth_urls;
 import 'apps/comments/urls.dart' as comments_urls;
 import 'apps/notifications/urls.dart' as notifications_urls;
@@ -15,11 +16,23 @@ import 'apps/workspaces/urls.dart' as workspaces_urls;
 import 'apps/labels/urls.dart' as labels_urls;
 
 /// Wire up the top-level [BloomApiRouter] with every sub-application's routes,
-/// pure SSR landing page, and web client static assets.
+/// pure SSR landing page, Swagger & Scalar docs, and web client static assets.
 void registerUrls(BloomApiRouter router) {
   // ── Global middleware ─────────────────────────────────────────────────────
   router.use(BloomAdvancedCorsMiddleware.permissive());
-  router.use(const BloomSecurityHeadersMiddleware());
+  router.use(
+    const BloomSecurityHeadersMiddleware(
+      contentSecurityPolicy:
+          "default-src 'self'; "
+          "img-src 'self' data: https:; "
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; "
+          "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+          "font-src 'self' data: https://fonts.gstatic.com; "
+          "object-src 'none'; "
+          "base-uri 'self'; "
+          "connect-src 'self' https: http:;",
+    ),
+  );
   router.use(
     BloomRateLimitMiddleware(
       maxRequests: 300,
@@ -30,6 +43,19 @@ void registerUrls(BloomApiRouter router) {
   // ── Native Pure SSR Landing Page (0ms, 0kB JS baseline) ───────────────────
   router.get('/', (BloomRequest req) async {
     return BloomResponse.html(renderLandingHtml());
+  });
+
+  // ── Swagger & OpenAPI 3.1 Interactive Documentation ───────────────────────
+  router.get('/api/openapi.json', (BloomRequest req) async {
+    return BloomResponse.json(BloomSwagger.generateOpenApiSpec());
+  });
+
+  router.get('/api/docs', (BloomRequest req) async {
+    return BloomResponse.html(BloomSwagger.renderScalarDocsHtml());
+  });
+
+  router.get('/api/swagger', (BloomRequest req) async {
+    return BloomResponse.html(BloomSwagger.renderSwaggerUiHtml());
   });
 
   // ── Health check ──────────────────────────────────────────────────────────
