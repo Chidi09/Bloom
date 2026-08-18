@@ -69,6 +69,18 @@ pub struct ApiToken {
     #[djangors(nullable)]
     pub last_used_at: Option<DateTime<Utc>>,
 
+    /// JSON array of permission scope strings granted to this token.
+    #[djangors(default = "[\"*\"]")]
+    pub scopes: String,
+
+    /// Optional expiration timestamp. Null means the token never expires.
+    #[djangors(nullable)]
+    pub expires_at: Option<DateTime<Utc>>,
+
+    /// Optional organization restriction. Null means token acts across all user's orgs.
+    #[djangors(nullable)]
+    pub organization_id: Option<i64>,
+
     /// Creation timestamp.
     #[djangors(auto_now_add)]
     pub created_at: DateTime<Utc>,

@@ -31,6 +31,29 @@ pub struct FeatureEntitlements {
     pub priority_support: bool,
 }
 
+/// Pay-as-you-go overage pricing for usage past a plan's included quotas.
+///
+/// When `enabled` is `false` (the default, and always the case for the `free` tier),
+/// exceeding a quota is hard-enforced rather than billed — there is no metered path.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OveragePricing {
+    /// Whether this plan permits metered billing past included quotas.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Price in integer cents per build minute consumed past `build_minutes_monthly`.
+    #[serde(default)]
+    pub build_minute_cents: i64,
+
+    /// Price in integer cents per GB of artifact storage past `artifact_storage_gb`.
+    #[serde(default)]
+    pub storage_gb_cents: i64,
+
+    /// Price in integer cents per GB of web bandwidth past `web_bandwidth_gb`.
+    #[serde(default)]
+    pub bandwidth_gb_cents: i64,
+}
+
 /// Typed structure parsed from `Plan.entitlements` JSON blob.
 ///
 /// If unparseable or missing, defaults to zero quotas and disabled features
@@ -64,6 +87,10 @@ pub struct Entitlements {
     /// Granular boolean feature flags.
     #[serde(default)]
     pub features: FeatureEntitlements,
+
+    /// Pay-as-you-go pricing applied past included quotas, if this plan permits it.
+    #[serde(default)]
+    pub overage: OveragePricing,
 }
 
 /// Explicit decision enum returned by entitlement and quota checks.
@@ -190,6 +217,31 @@ pub struct CancelSubscriptionRequest {
     pub immediately: Option<bool>,
 }
 
+/// Category of an individual invoice line item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InvoiceLineItemKind {
+    /// The flat recurring plan subscription charge.
+    BasePlan,
+    /// A metered pay-as-you-go overage charge past included quotas.
+    Overage,
+}
+
+/// A single itemized charge line on an invoice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceLineItem {
+    /// Human-readable description of the charge.
+    pub description: String,
+    /// Whether this is the base subscription charge or a metered overage charge.
+    pub kind: InvoiceLineItemKind,
+    /// Quantity of units billed (e.g. build minutes, GB).
+    pub quantity: i64,
+    /// Unit price in integer cents.
+    pub unit_price_cents: i64,
+    /// Total amount for this line in integer cents (`quantity * unit_price_cents`).
+    pub amount_cents: i64,
+}
+
 /// Response shape for an invoice.
 #[derive(Debug, Clone, Serialize)]
 pub struct InvoiceResponse {
@@ -219,6 +271,9 @@ pub struct InvoiceResponse {
 
     /// Invoice creation timestamp.
     pub created_at: DateTime<Utc>,
+
+    /// Itemized charge breakdown (base plan charge plus any metered overage charges).
+    pub line_items: Vec<InvoiceLineItem>,
 }
 
 /// Summary of enforcement evaluation across key metric dimensions.
@@ -235,6 +290,27 @@ pub struct UsageEnforcementSummary {
 
     /// Bandwidth quota decision.
     pub bandwidth_decision: EnforcementDecision,
+}
+
+/// Computed pay-as-you-go overage cost for the current usage period.
+#[derive(Debug, Clone, Serialize)]
+pub struct UsageOverageSummary {
+    /// Whether the plan permits overage billing at all.
+    pub enabled: bool,
+    /// Build minutes consumed past `build_minutes_limit` (0 if within quota).
+    pub build_minutes_over: i64,
+    /// Storage GB consumed past `artifact_storage_gb_limit` (0 if within quota).
+    pub storage_gb_over: i64,
+    /// Bandwidth GB consumed past `web_bandwidth_gb_limit` (0 if within quota).
+    pub bandwidth_gb_over: i64,
+    /// Build minutes overage cost in integer cents.
+    pub build_minutes_cost_cents: i64,
+    /// Storage overage cost in integer cents.
+    pub storage_cost_cents: i64,
+    /// Bandwidth overage cost in integer cents.
+    pub bandwidth_cost_cents: i64,
+    /// Total overage cost across all metrics in integer cents.
+    pub total_cost_cents: i64,
 }
 
 /// Aggregated usage and quota consumption summary for the dashboard.
@@ -275,6 +351,9 @@ pub struct UsageSummaryResponse {
 
     /// Active quota enforcement decisions.
     pub enforcement: UsageEnforcementSummary,
+
+    /// Computed pay-as-you-go overage cost for the current period.
+    pub overage: UsageOverageSummary,
 }
 
 /// Inbound usage record creation request (e.g. from workers or internal aggregation tasks).

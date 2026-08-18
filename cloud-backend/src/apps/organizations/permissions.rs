@@ -111,9 +111,9 @@ impl OrganizationPermission {
 impl djangors_rest::Permission for OrganizationPermission {
     async fn has_permission(&self, req: &Request) -> bool {
         // 1. Request must be authenticated
-        let user = match djangors_rest::current_user(req).await {
-            Some(u) => u,
-            None => return false,
+        let user = match crate::apps::accounts::permissions::require_authenticated(req).await {
+            Ok(u) => u,
+            Err(_) => return false,
         };
 
         if user.is_superuser {

@@ -21,6 +21,18 @@ pub enum AccountError {
     WeakPassword,
     /// Caller is not authorized for this resource or operation.
     Forbidden,
+    /// Provided API token is invalid, unrecognized, or malformed.
+    InvalidToken,
+    /// API token has expired.
+    TokenExpired,
+    /// Provided token scope is not recognized or allowed.
+    InvalidScope(String),
+    /// Token expiration duration in days is invalid (must be positive).
+    InvalidExpiration,
+    /// Referenced organization does not exist.
+    OrganizationNotFound,
+    /// User is not an active member of the requested organization.
+    NotOrganizationMember,
     /// Requested record not found.
     NotFound(&'static str),
     /// Underlying database or persistence error.
@@ -38,6 +50,16 @@ impl std::fmt::Display for AccountError {
             Self::AuthorizationPending => write!(f, "Authorization is pending."),
             Self::WeakPassword => write!(f, "Password must be at least 8 characters."),
             Self::Forbidden => write!(f, "You do not have permission to perform this action."),
+            Self::InvalidToken => write!(f, "Invalid API token."),
+            Self::TokenExpired => write!(f, "API token has expired."),
+            Self::InvalidScope(scope) => write!(f, "Invalid token scope: {scope}"),
+            Self::InvalidExpiration => {
+                write!(f, "Token expiration in days must be greater than zero.")
+            }
+            Self::OrganizationNotFound => write!(f, "Organization was not found."),
+            Self::NotOrganizationMember => {
+                write!(f, "You do not have membership in this organization.")
+            }
             Self::NotFound(resource) => write!(f, "No {resource} was found."),
             Self::Database(msg) => write!(f, "Database error: {msg}"),
         }
@@ -88,6 +110,36 @@ impl From<AccountError> for DjangorsError {
                 StatusCode::FORBIDDEN,
                 "permission_denied",
                 "You do not have permission to perform this action.",
+            ),
+            AccountError::InvalidToken => DjangorsError::api(
+                StatusCode::UNAUTHORIZED,
+                "invalid_token",
+                "Invalid API token.",
+            ),
+            AccountError::TokenExpired => DjangorsError::api(
+                StatusCode::UNAUTHORIZED,
+                "token_expired",
+                "API token has expired.",
+            ),
+            AccountError::InvalidScope(scope) => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "invalid_scope",
+                format!("Invalid scope '{scope}'."),
+            ),
+            AccountError::InvalidExpiration => DjangorsError::api(
+                StatusCode::BAD_REQUEST,
+                "invalid_expiration",
+                "Expiration days must be greater than zero.",
+            ),
+            AccountError::OrganizationNotFound => DjangorsError::api(
+                StatusCode::NOT_FOUND,
+                "organization_not_found",
+                "Organization was not found.",
+            ),
+            AccountError::NotOrganizationMember => DjangorsError::api(
+                StatusCode::FORBIDDEN,
+                "not_organization_member",
+                "You do not have membership in this organization.",
             ),
             AccountError::NotFound(resource) => DjangorsError::api(
                 StatusCode::NOT_FOUND,

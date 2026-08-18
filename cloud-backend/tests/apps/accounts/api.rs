@@ -1,4 +1,6 @@
-use bloom_cloud_backend::apps::accounts::contracts::{MeResponse, RegisterRequest, TokenResponse};
+use bloom_cloud_backend::apps::accounts::contracts::{
+    ApiTokenCreateRequest, ApiTokenResponse, MeResponse, RegisterRequest, TokenResponse,
+};
 use bloom_cloud_backend::apps::accounts::errors::AccountError;
 use djangors_core::{DjangorsError, StatusCode};
 
@@ -41,6 +43,39 @@ fn test_accounts_contracts_serialization() {
     let me_json = serde_json::to_string(&me_res).unwrap();
     assert!(me_json.contains("\"id\":\"550e8400-e29b-41d4-a716-446655440000\""));
     assert!(!me_json.contains("public_id"));
+
+    // Test ApiTokenCreateRequest deserialization with new fields
+    let token_req: ApiTokenCreateRequest = serde_json::from_str(
+        r#"{"name":"CI Token","scopes":["builds:read","deployments:write"],"expires_in_days":30,"organization_id":"550e8400-e29b-41d4-a716-446655440000"}"#,
+    )
+    .unwrap();
+    assert_eq!(token_req.name, "CI Token");
+    assert_eq!(
+        token_req.scopes,
+        Some(vec!["builds:read".to_string(), "deployments:write".to_string()])
+    );
+    assert_eq!(token_req.expires_in_days, Some(30));
+    assert_eq!(
+        token_req.organization_id,
+        Some("550e8400-e29b-41d4-a716-446655440000".to_string())
+    );
+
+    // Test ApiTokenResponse serialization
+    let api_tok_resp = ApiTokenResponse {
+        id: "tok_123".to_string(),
+        name: "Deploy Key".to_string(),
+        token: Some("bloom_pat_abcdef123456".to_string()),
+        scopes: vec!["builds:write".to_string()],
+        expires_at: Some("2026-09-01T00:00:00Z".to_string()),
+        organization_id: Some("org_123".to_string()),
+        last_used_at: None,
+        created_at: "2026-08-01T00:00:00Z".to_string(),
+    };
+    let tok_json = serde_json::to_string(&api_tok_resp).unwrap();
+    assert!(tok_json.contains("\"token\":\"bloom_pat_abcdef123456\""));
+    assert!(tok_json.contains("\"scopes\":[\"builds:write\"]"));
+    assert!(tok_json.contains("\"expires_at\":\"2026-09-01T00:00:00Z\""));
+    assert!(tok_json.contains("\"organization_id\":\"org_123\""));
 }
 
 #[test]
@@ -69,6 +104,36 @@ fn test_accounts_error_mapping_status_codes() {
     let dj_err: DjangorsError = err.into();
     assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
     assert_eq!(dj_err.code(), "weak_password");
+
+    let err = AccountError::InvalidToken;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::UNAUTHORIZED);
+    assert_eq!(dj_err.code(), "invalid_token");
+
+    let err = AccountError::TokenExpired;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::UNAUTHORIZED);
+    assert_eq!(dj_err.code(), "token_expired");
+
+    let err = AccountError::InvalidScope("invalid:scope".to_string());
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_scope");
+
+    let err = AccountError::InvalidExpiration;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::BAD_REQUEST);
+    assert_eq!(dj_err.code(), "invalid_expiration");
+
+    let err = AccountError::OrganizationNotFound;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(dj_err.code(), "organization_not_found");
+
+    let err = AccountError::NotOrganizationMember;
+    let dj_err: DjangorsError = err.into();
+    assert_eq!(dj_err.status_code(), StatusCode::FORBIDDEN);
+    assert_eq!(dj_err.code(), "not_organization_member");
 }
 
 #[tokio::test]

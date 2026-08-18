@@ -1,15 +1,54 @@
 //! Business rules, authentication, device-code flow, and token operations for `accounts`.
 
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine as _;
 use chrono::Utc;
 use djangors_auth::{AuthBackend, ModelBackend, User};
 use djangors_db::Database;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 
-use super::contracts::{DeviceFlowInitResponse, MeResponse, RegisterRequest, TokenResponse};
+use super::contracts::{
+    ApiTokenCreateRequest, ApiTokenResponse, DeviceFlowInitResponse, MeResponse, RegisterRequest,
+    TokenResponse,
+};
 use super::errors::AccountError;
 use super::models::{ApiToken, DeviceFlowRequest, UserProfile};
 use super::{repositories, serializers};
+
+/// Fixed allow-list of valid permission scopes.
+pub const VALID_SCOPES: &[&str] = &[
+    "*",
+    "builds:read",
+    "builds:write",
+    "deployments:read",
+    "deployments:write",
+    "billing:read",
+    "billing:write",
+    "organizations:read",
+    "organizations:write",
+    "secrets:read",
+    "secrets:write",
+];
+
+/// Checks if granted scopes satisfy the required permission scope.
+/// Returns true if `granted` contains `"*"` or contains `required` exactly.
+pub fn token_scope_allows(granted: &[String], required: &str) -> bool {
+    granted.iter().any(|s| s == "*" || s == required)
+}
+
+/// Resolved identity and permission metadata for a successfully authenticated API token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthenticatedApiToken {
+    /// Associated user ID.
+    pub user_id: i64,
+    /// Granted permission scope strings.
+    pub scopes: Vec<String>,
+    /// Optional organization restriction.
+    pub organization_id: Option<i64>,
+    /// Public UUID identifier of the token.
+    pub token_public_id: String,
+}
 
 /// Minimum password length enforced across the application.
 pub const MIN_PASSWORD_LENGTH: usize = 8;
@@ -242,16 +281,56 @@ pub async fn authorize_device_flow(
     Ok(())
 }
 
-/// Create a new long-lived API token, returning the model instance and the raw secret string.
+/// Create a new long-lived API token, returning the model instance, raw secret string, and optional org public UUID.
 pub async fn create_api_token(
     db: &Database,
     user_id: i64,
-    name: &str,
-) -> Result<(ApiToken, String), AccountError> {
+    req: ApiTokenCreateRequest,
+) -> Result<(ApiToken, String, Option<String>), AccountError> {
+    // 1. Validate scopes
+    let scopes_json = if let Some(ref scopes) = req.scopes {
+        for scope in scopes {
+            if !VALID_SCOPES.contains(&scope.as_str()) {
+                return Err(AccountError::InvalidScope(scope.clone()));
+            }
+        }
+        serde_json::to_string(scopes).map_err(|e| AccountError::Database(e.to_string()))?
+    } else {
+        "[\"*\"]".to_string()
+    };
+
+    // 2. Validate expiration days
+    let expires_at = if let Some(days) = req.expires_in_days {
+        if days <= 0 {
+            return Err(AccountError::InvalidExpiration);
+        }
+        Some(Utc::now() + chrono::Duration::days(days))
+    } else {
+        None
+    };
+
+    // 3. Validate organization restriction (if specified)
+    let (org_internal_id, org_public_id) = if let Some(ref org_pub_id) = req.organization_id {
+        let org = crate::apps::organizations::repositories::organization_by_public_id(db, org_pub_id)
+            .await?
+            .ok_or(AccountError::OrganizationNotFound)?;
+        let _membership = crate::apps::organizations::repositories::membership_for_user_in_org(
+            db, user_id, org.id,
+        )
+        .await?
+        .ok_or(AccountError::NotOrganizationMember)?;
+        (Some(org.id), Some(org.public_id))
+    } else {
+        (None, None)
+    };
+
+    // 4. Generate raw token: bloom_pat_<43 random URL-safe base64 chars>
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut bytes);
-    let raw_token = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let raw_secret = URL_SAFE_NO_PAD.encode(bytes);
+    let raw_token = format!("bloom_pat_{raw_secret}");
 
+    // 5. Hash token: SHA-256 hex
     let mut hasher = Sha256::new();
     hasher.update(raw_token.as_bytes());
     let token_hash = format!("{:x}", hasher.finalize());
@@ -260,14 +339,68 @@ pub async fn create_api_token(
         id: 0,
         public_id: uuid::Uuid::new_v4().to_string(),
         user_id,
-        name: name.to_string(),
+        name: req.name.trim().to_string(),
         token_hash,
+        scopes: scopes_json,
+        expires_at,
+        organization_id: org_internal_id,
         last_used_at: None,
         created_at: Utc::now(),
     };
 
     let saved = repositories::insert_api_token(db, token).await?;
-    Ok((saved, raw_token))
+    Ok((saved, raw_token, org_public_id))
+}
+
+/// Authenticate a raw API token string, enforcing hash validity, expiration, and updating last_used_at.
+pub async fn authenticate_api_token(
+    db: &Database,
+    raw_token: &str,
+) -> Result<AuthenticatedApiToken, AccountError> {
+    let mut hasher = Sha256::new();
+    hasher.update(raw_token.as_bytes());
+    let token_hash = format!("{:x}", hasher.finalize());
+
+    let token = repositories::api_token_by_hash(db, &token_hash)
+        .await?
+        .ok_or(AccountError::InvalidToken)?;
+
+    if let Some(expires_at) = token.expires_at {
+        if expires_at < Utc::now() {
+            return Err(AccountError::TokenExpired);
+        }
+    }
+
+    repositories::update_api_token_last_used(db, token.id, Utc::now()).await?;
+
+    let scopes = serializers::parse_scopes_json(&token.scopes);
+
+    Ok(AuthenticatedApiToken {
+        user_id: token.user_id,
+        scopes,
+        organization_id: token.organization_id,
+        token_public_id: token.public_id,
+    })
+}
+
+/// Retrieve all API tokens for a user serialized with their organization public IDs.
+pub async fn list_api_tokens(
+    db: &Database,
+    user_id: i64,
+) -> Result<Vec<ApiTokenResponse>, AccountError> {
+    let tokens = repositories::api_tokens_for_user(db, user_id).await?;
+    let mut responses = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        let org_pub_id = if let Some(org_id) = token.organization_id {
+            crate::apps::organizations::repositories::organization_by_id(db, org_id)
+                .await?
+                .map(|o| o.public_id)
+        } else {
+            None
+        };
+        responses.push(serializers::serialize_api_token(&token, None, org_pub_id));
+    }
+    Ok(responses)
 }
 
 /// Revoke an API token by public UUID.

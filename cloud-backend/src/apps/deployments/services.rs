@@ -385,6 +385,20 @@ pub async fn update_deployment_status(
 
     repositories::update_deployment(db, &deployment).await?;
 
+    // Meter one billable deploy the moment a deployment first reaches a terminal-success state.
+    // `ready` and `live` are disjoint terminal absorbing states per the transition matrix above,
+    // so exactly one of them fires per deployment — no double counting.
+    if matches!(new_status, "ready" | "live") {
+        let _ = crate::apps::billing::services::record_usage(
+            db,
+            organization_id,
+            "deploy_count",
+            1,
+            Some(serde_json::json!({ "deployment_id": deployment.public_id, "status": new_status })),
+        )
+        .await;
+    }
+
     let env = repositories::environment_summary_by_id(db, deployment.environment_id.id)
         .await?
         .ok_or(DeploymentError::EnvironmentNotFound)?;

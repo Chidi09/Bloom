@@ -17,13 +17,28 @@ pub fn serialize_me(user: &User, profile: &UserProfile) -> MeResponse {
     }
 }
 
+/// Parse scopes JSON string into a list of scope strings.
+///
+/// Falls back to restrictive defaults (empty list, zero permissions) on missing or malformed JSON.
+pub fn parse_scopes_json(raw: &str) -> Vec<String> {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
 /// Serializes an `ApiToken` row into its API response representation.
 /// If `raw_token` is provided (upon creation), it is included once.
-pub fn serialize_api_token(token: &ApiToken, raw_token: Option<String>) -> ApiTokenResponse {
+/// If `org_public_id` is provided (when organization-scoped), it is included.
+pub fn serialize_api_token(
+    token: &ApiToken,
+    raw_token: Option<String>,
+    org_public_id: Option<String>,
+) -> ApiTokenResponse {
     ApiTokenResponse {
         id: token.public_id.clone(),
         name: token.name.clone(),
         token: raw_token,
+        scopes: parse_scopes_json(&token.scopes),
+        expires_at: token.expires_at.map(|t| t.to_rfc3339()),
+        organization_id: org_public_id,
         last_used_at: token.last_used_at.map(|t| t.to_rfc3339()),
         created_at: token.created_at.to_rfc3339(),
     }

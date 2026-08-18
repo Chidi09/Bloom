@@ -1,5 +1,5 @@
 use bloom_cloud_backend::apps::billing::contracts::{
-    EnforcementDecision, Entitlements, FeatureEntitlements,
+    EnforcementDecision, Entitlements, FeatureEntitlements, OveragePricing,
 };
 use bloom_cloud_backend::apps::billing::errors::BillingError;
 use bloom_cloud_backend::apps::billing::models::{Plan, Subscription};
@@ -233,6 +233,7 @@ fn test_specific_entitlement_helpers() {
             workflows: false,
             priority_support: false,
         },
+        overage: OveragePricing::default(),
     };
 
     let ctx = EnforcementContext {

@@ -145,12 +145,33 @@ pub async fn create_api_token(
     let db = get_db(&req)?;
     let Json(body) = Json::<ApiTokenCreateRequest>::from_request(&req).await?;
 
-    let (token, raw_token) = services::create_api_token(db, user.id, &body.name)
+    let (token, raw_token, org_public_id) = services::create_api_token(db, user.id, body)
         .await
         .map_err(DjangorsError::from)?;
 
-    let payload = serializers::serialize_api_token(&token, Some(raw_token));
+    let payload = serializers::serialize_api_token(&token, Some(raw_token), org_public_id);
     Response::json(StatusCode::CREATED, &payload)
+}
+
+/// GET `/api/v1/auth/tokens` — List all API tokens for the authenticated user.
+pub async fn list_api_tokens(
+    req: Request,
+    _params: PathParams,
+) -> Result<Response, DjangorsError> {
+    let user = permissions::require_authenticated(&req).await?;
+    let db = get_db(&req)?;
+
+    let tokens = services::list_api_tokens(db, user.id)
+        .await
+        .map_err(DjangorsError::from)?;
+
+    Response::json(
+        StatusCode::OK,
+        &serde_json::json!({
+            "results": tokens,
+            "count": tokens.len(),
+        }),
+    )
 }
 
 /// DELETE `/api/v1/auth/token/{id}` — Revoke an API token by public UUID.

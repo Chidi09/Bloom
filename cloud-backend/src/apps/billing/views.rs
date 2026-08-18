@@ -12,7 +12,8 @@ use super::contracts::{
 };
 use super::errors::BillingError;
 use super::permissions::{
-    require_authenticated, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
+    require_authenticated, require_token_scope, CurrentOrganizationRole, OrganizationPermission,
+    OrganizationRole,
 };
 use super::services::WebhookDeliveryOutcome;
 use super::{repositories, serializers, services};
@@ -68,6 +69,8 @@ pub async fn current_subscription(
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
 
+    require_token_scope(&req, "billing:read", org_id).await?;
+
     let perm = OrganizationPermission::viewer();
     if !perm.has_permission(&req).await {
         return Err(BillingError::Forbidden.into());
@@ -95,6 +98,8 @@ pub async fn create_subscription(
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+
+    require_token_scope(&req, "billing:write", org_id).await?;
 
     let user_role = get_user_role(&req, &user);
     if user_role < OrganizationRole::Admin {

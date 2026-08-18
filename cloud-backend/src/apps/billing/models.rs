@@ -203,6 +203,10 @@ pub struct Invoice {
     /// Creation timestamp.
     #[djangors(auto_now_add)]
     pub created_at: DateTime<Utc>,
+
+    /// JSON array of itemized charge line items (base plan charge plus any overage charges).
+    #[djangors(default = "[]")]
+    pub line_items: String,
 }
 
 impl Scoped for Invoice {

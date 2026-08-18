@@ -57,6 +57,7 @@ fn test_deployment_response_serialization() {
         external_id: Some("build-999".to_string()),
         external_url: Some("https://appstoreconnect.apple.com/apps/123/testflight".to_string()),
         error_message: None,
+        preview_image_url: None,
         started_at: Some("2026-08-15T12:00:00Z".to_string()),
         finished_at: Some("2026-08-15T12:05:00Z".to_string()),
         created_by_id: "user-42".to_string(),

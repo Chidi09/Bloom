@@ -1,7 +1,7 @@
 use bloom_cloud_backend::apps::billing::contracts::{
     CancelSubscriptionRequest, EnforcementDecision, Entitlements, FeatureEntitlements,
-    InvoiceResponse, PlanResponse, RecordUsageRequest, SubscribeRequest, SubscriptionResponse,
-    UsageEnforcementSummary, UsageSummaryResponse,
+    InvoiceResponse, OveragePricing, PlanResponse, RecordUsageRequest, SubscribeRequest,
+    SubscriptionResponse, UsageEnforcementSummary, UsageOverageSummary, UsageSummaryResponse,
 };
 use bloom_cloud_backend::apps::billing::errors::BillingError;
 use chrono::{NaiveDate, Utc};
@@ -84,6 +84,7 @@ fn test_plan_response_serialization() {
                 workflows: true,
                 priority_support: true,
             },
+            overage: OveragePricing::default(),
         },
         active: true,
         created_at: now,
@@ -141,6 +142,7 @@ fn test_invoice_response_serialization() {
         paid_at: Some(now),
         provider_invoice_id: Some("tx_bachs_789".to_string()),
         created_at: now,
+        line_items: Vec::new(),
     };
 
     let serialized = serde_json::to_string(&res).unwrap();
@@ -171,6 +173,16 @@ fn test_usage_summary_response_serialization() {
             build_minutes_decision: EnforcementDecision::Warn,
             storage_decision: EnforcementDecision::Allow,
             bandwidth_decision: EnforcementDecision::Allow,
+        },
+        overage: UsageOverageSummary {
+            enabled: false,
+            build_minutes_over: 0,
+            storage_gb_over: 0,
+            bandwidth_gb_over: 0,
+            build_minutes_cost_cents: 0,
+            storage_cost_cents: 0,
+            bandwidth_cost_cents: 0,
+            total_cost_cents: 0,
         },
     };
 

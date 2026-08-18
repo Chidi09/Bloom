@@ -1,4 +1,5 @@
 use bloom_cloud_backend::apps::accounts::models::{ApiToken, DeviceFlowRequest, UserProfile};
+use djangors_orm::meta::DefaultValue;
 
 #[test]
 fn test_accounts_models_metadata() {
@@ -37,6 +38,27 @@ fn test_accounts_models_metadata() {
         "token_hash must be unique on ApiToken"
     );
     assert_eq!(token_hash_field.max_length, Some(64));
+
+    let scopes_field = token_meta
+        .fields
+        .iter()
+        .find(|f| f.name == "scopes")
+        .expect("scopes field must exist on ApiToken");
+    assert_eq!(scopes_field.default, DefaultValue::Text("[\"*\"]"));
+
+    let expires_at_field = token_meta
+        .fields
+        .iter()
+        .find(|f| f.name == "expires_at")
+        .expect("expires_at field must exist on ApiToken");
+    assert!(expires_at_field.nullable, "expires_at must be nullable");
+
+    let org_id_field = token_meta
+        .fields
+        .iter()
+        .find(|f| f.name == "organization_id")
+        .expect("organization_id field must exist on ApiToken");
+    assert!(org_id_field.nullable, "organization_id must be nullable");
 
     let device_meta = DeviceFlowRequest::meta();
     assert_eq!(device_meta.app_label, "accounts");

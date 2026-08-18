@@ -11,7 +11,8 @@ use djangors_rest::Permission;
 use super::contracts::DeploymentCreateRequest;
 use super::errors::DeploymentError;
 use super::permissions::{
-    require_authenticated, CurrentOrganizationRole, OrganizationPermission, OrganizationRole,
+    require_authenticated, require_token_scope, CurrentOrganizationRole, OrganizationPermission,
+    OrganizationRole,
 };
 use super::{serializers, services};
 use crate::apps::common::request::{get_db, get_org_id};
@@ -51,6 +52,8 @@ pub async fn list_deployments(
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+
+    require_token_scope(&req, "deployments:read", org_id).await?;
 
     let release_filter = req.query("release_id");
     let env_filter = req.query("environment_id");
@@ -119,6 +122,9 @@ pub async fn create_deployment(
     let user = require_authenticated(&req).await?;
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+
+    require_token_scope(&req, "deployments:write", org_id).await?;
+
     let queue = get_queue(&req);
     let user_role = get_user_role(&req, &user);
 

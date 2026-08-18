@@ -210,6 +210,28 @@ pub async fn register_artifact(
     };
     let saved = repositories::insert_artifact(db, artifact).await?;
 
+    // 6b. Meter artifact storage. `artifact_storage_gb` is read back as a gauge (the most
+    // recently recorded value, not a sum — see billing::repositories::usage_records_for_org),
+    // so each write must carry the organization's new *total* stored bytes across all
+    // artifacts, not the delta contributed by this single upload.
+    if let Ok(all_artifacts) = repositories::artifacts_for_organization(db, org.id).await {
+        let total_bytes: i64 = all_artifacts
+            .iter()
+            .map(|a| a.file_size)
+            .fold(0_i64, i64::saturating_add);
+        // Ceiling division: bytes -> whole GB, so any partial GB still counts as consumed.
+        const BYTES_PER_GB: i64 = 1024 * 1024 * 1024;
+        let total_gb = total_bytes.saturating_add(BYTES_PER_GB - 1) / BYTES_PER_GB;
+        let _ = crate::apps::billing::services::record_usage(
+            db,
+            org.id,
+            "artifact_storage_gb",
+            total_gb,
+            Some(serde_json::json!({ "artifact_id": saved.public_id })),
+        )
+        .await;
+    }
+
     // 7. Emit artifact events (payload keys per docs/events.md).
     crate::apps::events::emit(
         db,

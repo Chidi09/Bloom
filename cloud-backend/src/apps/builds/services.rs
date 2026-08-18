@@ -809,6 +809,23 @@ pub async fn complete_build(
 
     repositories::update_build(db, &updated).await?;
 
+    // Meter the real elapsed build minutes against the monthly quota, regardless of outcome —
+    // a failed or cancelled build still consumed worker time and is billed like any CI provider
+    // would. `ensure_build_allowed` only charges an up-front estimate; this reconciles it against
+    // actual duration so pay-as-you-go overage (billing.md §4) reflects true consumption.
+    let actual_minutes =
+        crate::apps::billing::services::calculate_build_minutes(updated.started_at, updated.finished_at);
+    if actual_minutes > 0 {
+        let _ = crate::apps::billing::services::record_usage(
+            db,
+            updated.organization_id,
+            "build_minutes",
+            actual_minutes,
+            Some(serde_json::json!({ "build_id": updated.public_id, "status": target })),
+        )
+        .await;
+    }
+
     // Terminal build events per docs/events.md. This path is the worker reporting back, so the
     // actor is the system (`actor_id: None`) rather than a user.
     let (event_type, payload) = match target.as_str() {

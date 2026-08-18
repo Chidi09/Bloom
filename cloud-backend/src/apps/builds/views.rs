@@ -8,9 +8,11 @@ use djangors_rest::Permission;
 
 use super::contracts::{BuildCreateRequest, CompleteBuildRequest, StageUpdateRequest};
 use super::errors::BuildError;
-use super::permissions::{require_job_token, OrganizationPermission};
+use super::permissions::{
+    require_authenticated_with_scope, require_job_token, OrganizationPermission,
+};
 use super::{serializers, services};
-use crate::apps::accounts::permissions::require_authenticated;
+use crate::apps::accounts::permissions::{require_authenticated, require_token_scope};
 use crate::apps::common::request::{get_db, get_org_id};
 use crate::infra::queue::JobQueue;
 use crate::infra::storage::ObjectStorage;
@@ -37,6 +39,8 @@ pub async fn list_builds(req: Request, _params: PathParams) -> Result<Response, 
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+
+    require_token_scope(&req, "builds:read", org_id).await?;
 
     let app_filter = req.query("app_id");
     let environment_filter = req.query("environment_id");
@@ -87,6 +91,9 @@ pub async fn create_build(req: Request, _params: PathParams) -> Result<Response,
 
     let db = get_db(&req)?;
     let org_id = get_org_id(&req)?;
+
+    require_token_scope(&req, "builds:write", org_id).await?;
+
     let queue = req.require_state::<JobQueue>()?;
     let Json(body) = Json::<BuildCreateRequest>::from_request(&req).await?;
 
@@ -108,7 +115,7 @@ pub async fn create_build(req: Request, _params: PathParams) -> Result<Response,
 
 /// GET `/api/v1/builds/{id}` — Retrieve a build (with its stages) by its public UUID.
 pub async fn retrieve_build(req: Request, params: PathParams) -> Result<Response, DjangorsError> {
-    let _user = require_authenticated(&req).await?;
+    let _user = require_authenticated_with_scope(&req, "builds:read").await?;
     let perm = OrganizationPermission::viewer();
     if !perm.has_permission(&req).await {
         return Err(DjangorsError::from(BuildError::Forbidden));

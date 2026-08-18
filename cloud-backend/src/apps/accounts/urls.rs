@@ -12,6 +12,7 @@ pub fn urls() -> Router {
         .post("/auth/device", views::device_flow_init)
         .get("/auth/device/token", views::device_flow_poll)
         .post("/auth/device/authorize", views::device_flow_authorize)
+        .get("/auth/tokens", views::list_api_tokens)
         .post("/auth/token", views::create_api_token)
         .delete("/auth/token/{id}", views::revoke_api_token)
         .post("/auth/refresh", views::refresh_token)

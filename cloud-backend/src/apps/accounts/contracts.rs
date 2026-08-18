@@ -88,6 +88,15 @@ pub struct MeResponse {
 pub struct ApiTokenCreateRequest {
     /// Human-friendly label/name for the token.
     pub name: String,
+    /// Optional list of permission scopes. Defaults to `["*"]` (full access).
+    #[serde(default)]
+    pub scopes: Option<Vec<String>>,
+    /// Optional expiration lifespan in days. If omitted, token never expires.
+    #[serde(default)]
+    pub expires_in_days: Option<i64>,
+    /// Optional public UUID of an organization to restrict this token to.
+    #[serde(default)]
+    pub organization_id: Option<String>,
 }
 
 /// API token response representation.
@@ -100,6 +109,14 @@ pub struct ApiTokenResponse {
     /// Raw secret token (only present upon initial creation).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
+    /// Granted permission scopes.
+    pub scopes: Vec<String>,
+    /// Optional ISO 8601 expiration timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    /// Optional public UUID of the organization this token is restricted to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
     /// ISO 8601 timestamp of last usage.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,

@@ -1,8 +1,8 @@
 //! Serializers and representation adapters for `billing` API responses.
 
 use super::contracts::{
-    Entitlements, InvoiceResponse, PlanResponse, SubscriptionResponse, UsageEnforcementSummary,
-    UsageSummaryResponse,
+    Entitlements, InvoiceLineItem, InvoiceResponse, PlanResponse, SubscriptionResponse,
+    UsageEnforcementSummary, UsageOverageSummary, UsageSummaryResponse,
 };
 use super::models::{Invoice, Plan, Subscription};
 use super::services::UsageSummary;
@@ -11,6 +11,13 @@ use super::services::UsageSummary;
 ///
 /// Falls back to restrictive defaults on missing or malformed JSON (zero quotas, no paid features).
 pub fn parse_entitlements_json(raw: &str) -> Entitlements {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+/// Parse an invoice's `line_items` JSON array column into typed line items.
+///
+/// Falls back to an empty list on missing or malformed JSON (never panics).
+pub fn parse_line_items_json(raw: &str) -> Vec<InvoiceLineItem> {
     serde_json::from_str(raw).unwrap_or_default()
 }
 
@@ -67,6 +74,7 @@ pub fn serialize_invoice(
         paid_at: invoice.paid_at,
         provider_invoice_id: invoice.stripe_invoice_id.clone(),
         created_at: invoice.created_at,
+        line_items: parse_line_items_json(&invoice.line_items),
     }
 }
 
@@ -92,6 +100,16 @@ pub fn serialize_usage_summary(
             build_minutes_decision: summary.build_minutes_decision,
             storage_decision: summary.storage_decision,
             bandwidth_decision: summary.bandwidth_decision,
+        },
+        overage: UsageOverageSummary {
+            enabled: summary.overage.enabled,
+            build_minutes_over: summary.overage.build_minutes_over,
+            storage_gb_over: summary.overage.storage_gb_over,
+            bandwidth_gb_over: summary.overage.bandwidth_gb_over,
+            build_minutes_cost_cents: summary.overage.build_minutes_cost_cents,
+            storage_cost_cents: summary.overage.storage_cost_cents,
+            bandwidth_cost_cents: summary.overage.bandwidth_cost_cents,
+            total_cost_cents: summary.overage.total_cost_cents,
         },
     }
 }

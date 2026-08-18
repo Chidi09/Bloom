@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::contracts::{
     CancelSubscriptionRequest, EnforcementDecision, Entitlements, FeatureEntitlements,
-    SubscribeRequest,
+    OveragePricing, SubscribeRequest,
 };
 use super::errors::BillingError;
 use super::models::{Invoice, Plan, Subscription, UsageRecord};
@@ -138,19 +138,47 @@ pub fn evaluate_feature_enforcement(
     }
 }
 
+/// Downgrades a `HardLock`/`SoftBlock` decision to `Allow` when the plan permits metered
+/// pay-as-you-go overage billing past the quota.
+///
+/// Locked or cancelled subscriptions are never downgraded — overage billing only applies
+/// to organizations in otherwise good standing (billing.md §4 extension).
+fn apply_overage_allowance(
+    decision: EnforcementDecision,
+    overage: &OveragePricing,
+    context: &EnforcementContext,
+) -> EnforcementDecision {
+    if !overage.enabled {
+        return decision;
+    }
+    if context.subscription_status == "locked" || context.subscription_status == "cancelled" {
+        return decision;
+    }
+    match decision {
+        EnforcementDecision::HardLock | EnforcementDecision::SoftBlock => {
+            EnforcementDecision::Allow
+        }
+        other => other,
+    }
+}
+
 /// Evaluate build minutes entitlement for a new build.
+///
+/// When the plan has pay-as-you-go overage enabled, exceeding the included quota is
+/// permitted (and metered) rather than blocked.
 pub fn check_build_minutes_entitlement(
     entitlements: &Entitlements,
     current_minutes: i64,
     estimated_build_minutes: i64,
     context: &EnforcementContext,
 ) -> EnforcementDecision {
-    evaluate_numeric_enforcement(
+    let decision = evaluate_numeric_enforcement(
         current_minutes,
         estimated_build_minutes,
         entitlements.build_minutes_monthly,
         context,
-    )
+    );
+    apply_overage_allowance(decision, &entitlements.overage, context)
 }
 
 /// Evaluate web hosting entitlement.
@@ -168,12 +196,13 @@ pub fn check_storage_entitlement(
     additional_gb: i64,
     context: &EnforcementContext,
 ) -> EnforcementDecision {
-    evaluate_numeric_enforcement(
+    let decision = evaluate_numeric_enforcement(
         current_storage_gb,
         additional_gb,
         entitlements.artifact_storage_gb,
         context,
-    )
+    );
+    apply_overage_allowance(decision, &entitlements.overage, context)
 }
 
 /// Evaluate bandwidth quota entitlement.
@@ -183,12 +212,13 @@ pub fn check_bandwidth_entitlement(
     additional_gb: i64,
     context: &EnforcementContext,
 ) -> EnforcementDecision {
-    evaluate_numeric_enforcement(
+    let decision = evaluate_numeric_enforcement(
         current_bandwidth_gb,
         additional_gb,
         entitlements.web_bandwidth_gb,
         context,
-    )
+    );
+    apply_overage_allowance(decision, &entitlements.overage, context)
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +412,119 @@ pub fn apply_payment_success(
 // Domain result structures
 // ---------------------------------------------------------------------------
 
+/// Computed pay-as-you-go overage cost for a single usage period.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OverageCosts {
+    /// Whether the plan permits overage billing at all.
+    pub enabled: bool,
+    /// Build minutes consumed past the plan's included quota.
+    pub build_minutes_over: i64,
+    /// Storage GB consumed past the plan's included quota.
+    pub storage_gb_over: i64,
+    /// Bandwidth GB consumed past the plan's included quota.
+    pub bandwidth_gb_over: i64,
+    /// Build minutes overage cost in integer cents.
+    pub build_minutes_cost_cents: i64,
+    /// Storage overage cost in integer cents.
+    pub storage_cost_cents: i64,
+    /// Bandwidth overage cost in integer cents.
+    pub bandwidth_cost_cents: i64,
+    /// Total overage cost in integer cents.
+    pub total_cost_cents: i64,
+}
+
+/// Pure computation of pay-as-you-go overage cost from usage totals and plan entitlements.
+///
+/// Returns all-zero, disabled costs when the plan does not permit overage billing — quota
+/// enforcement (hard lock/soft block) governs that case instead. Integer arithmetic only.
+pub fn compute_overage_costs(
+    entitlements: &Entitlements,
+    build_minutes_used: i64,
+    artifact_storage_gb_used: i64,
+    web_bandwidth_gb_used: i64,
+) -> OverageCosts {
+    let overage = &entitlements.overage;
+
+    let build_minutes_over = (build_minutes_used - entitlements.build_minutes_monthly).max(0);
+    let storage_gb_over = (artifact_storage_gb_used - entitlements.artifact_storage_gb).max(0);
+    let bandwidth_gb_over = (web_bandwidth_gb_used - entitlements.web_bandwidth_gb).max(0);
+
+    if !overage.enabled {
+        return OverageCosts {
+            enabled: false,
+            build_minutes_over,
+            storage_gb_over,
+            bandwidth_gb_over,
+            ..Default::default()
+        };
+    }
+
+    let build_minutes_cost_cents = build_minutes_over.saturating_mul(overage.build_minute_cents);
+    let storage_cost_cents = storage_gb_over.saturating_mul(overage.storage_gb_cents);
+    let bandwidth_cost_cents = bandwidth_gb_over.saturating_mul(overage.bandwidth_gb_cents);
+
+    OverageCosts {
+        enabled: build_minutes_over > 0 || storage_gb_over > 0 || bandwidth_gb_over > 0,
+        build_minutes_over,
+        storage_gb_over,
+        bandwidth_gb_over,
+        build_minutes_cost_cents,
+        storage_cost_cents,
+        bandwidth_cost_cents,
+        total_cost_cents: build_minutes_cost_cents
+            .saturating_add(storage_cost_cents)
+            .saturating_add(bandwidth_cost_cents),
+    }
+}
+
+/// Build the itemized invoice line items for a billing period: the flat base plan charge
+/// plus any metered overage charges. Intended for use by a period-close billing worker.
+pub fn build_invoice_line_items(
+    plan_name: &str,
+    base_amount_cents: i64,
+    overage: &OverageCosts,
+) -> Vec<super::contracts::InvoiceLineItem> {
+    use super::contracts::{InvoiceLineItem, InvoiceLineItemKind};
+
+    let mut items = vec![InvoiceLineItem {
+        description: format!("{plan_name} plan — monthly subscription"),
+        kind: InvoiceLineItemKind::BasePlan,
+        quantity: 1,
+        unit_price_cents: base_amount_cents,
+        amount_cents: base_amount_cents,
+    }];
+
+    if overage.build_minutes_over > 0 {
+        items.push(InvoiceLineItem {
+            description: format!("Build minutes overage ({} min)", overage.build_minutes_over),
+            kind: InvoiceLineItemKind::Overage,
+            quantity: overage.build_minutes_over,
+            unit_price_cents: overage.build_minutes_cost_cents / overage.build_minutes_over.max(1),
+            amount_cents: overage.build_minutes_cost_cents,
+        });
+    }
+    if overage.storage_gb_over > 0 {
+        items.push(InvoiceLineItem {
+            description: format!("Artifact storage overage ({} GB)", overage.storage_gb_over),
+            kind: InvoiceLineItemKind::Overage,
+            quantity: overage.storage_gb_over,
+            unit_price_cents: overage.storage_cost_cents / overage.storage_gb_over.max(1),
+            amount_cents: overage.storage_cost_cents,
+        });
+    }
+    if overage.bandwidth_gb_over > 0 {
+        items.push(InvoiceLineItem {
+            description: format!("Web bandwidth overage ({} GB)", overage.bandwidth_gb_over),
+            kind: InvoiceLineItemKind::Overage,
+            quantity: overage.bandwidth_gb_over,
+            unit_price_cents: overage.bandwidth_cost_cents / overage.bandwidth_gb_over.max(1),
+            amount_cents: overage.bandwidth_cost_cents,
+        });
+    }
+
+    items
+}
+
 /// Aggregated usage state for an organization.
 #[derive(Debug, Clone)]
 pub struct UsageSummary {
@@ -413,6 +556,8 @@ pub struct UsageSummary {
     pub storage_decision: EnforcementDecision,
     /// Decision for bandwidth quota.
     pub bandwidth_decision: EnforcementDecision,
+    /// Computed pay-as-you-go overage cost for the current period.
+    pub overage: OverageCosts,
 }
 
 /// Result of a subscription creation or change.
@@ -498,6 +643,7 @@ pub async fn get_or_create_subscription(
                     workflows: false,
                     priority_support: false,
                 },
+                overage: OveragePricing::default(),
             };
             let new_plan = Plan {
                 id: 0,
@@ -862,6 +1008,13 @@ pub async fn get_usage_summary(
         _ => EnforcementDecision::Allow,
     };
 
+    let overage = compute_overage_costs(
+        &entitlements,
+        build_minutes_used,
+        artifact_storage_gb_used,
+        bandwidth_used,
+    );
+
     Ok(UsageSummary {
         plan_name: plan.name,
         current_period_start: period_start,
@@ -877,6 +1030,7 @@ pub async fn get_usage_summary(
         build_minutes_decision,
         storage_decision,
         bandwidth_decision,
+        overage,
     })
 }
 
