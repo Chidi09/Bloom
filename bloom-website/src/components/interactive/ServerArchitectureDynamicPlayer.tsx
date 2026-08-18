@@ -266,12 +266,17 @@ export function ServerArchitectureDynamicPlayer() {
   const [typedChars, setTypedChars] = useState(0);
   const [isTyping, setIsTyping] = useState(true);
 
+  const codeContainerRef = useRef<HTMLDivElement>(null);
   const activeFeature = FEATURES[activeIndex];
 
   // Reset and trigger typing stream whenever active feature changes
   useEffect(() => {
     setTypedChars(0);
     setIsTyping(true);
+
+    if (codeContainerRef.current) {
+      codeContainerRef.current.scrollTop = 0;
+    }
 
     const fullLength = activeFeature.code.length;
     // Type fast enough to finish within ~1.2s
@@ -292,6 +297,13 @@ export function ServerArchitectureDynamicPlayer() {
 
     return () => clearInterval(typeTimer);
   }, [activeIndex]);
+
+  // Auto-scroll code container to the bottom as new lines are typed
+  useEffect(() => {
+    if (codeContainerRef.current && isTyping) {
+      codeContainerRef.current.scrollTop = codeContainerRef.current.scrollHeight;
+    }
+  }, [typedChars, isTyping]);
 
   // Rotation timer loop
   useEffect(() => {
@@ -434,8 +446,11 @@ export function ServerArchitectureDynamicPlayer() {
         </div>
       </div>
 
-      {/* Code Body with Live Typewriter Character Streaming & Token Syntax Highlighting */}
-      <div className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed min-h-[380px] max-h-[440px] overflow-x-auto bg-[#0d1117]/95 scrollbar-thin relative">
+      {/* Code Body with Auto-Scrolling Typewriter Stream */}
+      <div 
+        ref={codeContainerRef}
+        className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed max-h-[440px] overflow-y-auto overflow-x-auto bg-[#0d1117]/95 scrollbar-thin relative scroll-smooth"
+      >
         <pre className="text-slate-300 font-mono">
           <code dangerouslySetInnerHTML={{ __html: highlightDart(displayedCode) }} />
           {/* Animated Blinking Insertion Cursor */}
