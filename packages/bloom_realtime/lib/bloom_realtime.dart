@@ -30,4 +30,5 @@ library bloom_realtime;
 export 'src/protocol.dart';
 export 'src/server/channel_hub.dart';
 export 'src/server/presence.dart';
+export 'src/server/cluster.dart';
 export 'src/client/realtime_client.dart';
