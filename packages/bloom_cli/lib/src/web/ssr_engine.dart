@@ -31,6 +31,7 @@ class DiscoveredPageRoute {
   final String? declaredDescription;
   final bool hasLoader;
   final String? loaderFunctionName;
+  final Duration? revalidate;
   final bool hasAction;
   final String? actionFunctionName;
 
@@ -41,6 +42,7 @@ class DiscoveredPageRoute {
     this.declaredDescription,
     this.hasLoader = false,
     this.loaderFunctionName,
+    this.revalidate,
     this.hasAction = false,
     this.actionFunctionName,
   });
@@ -139,9 +141,37 @@ class BloomSsrEngine {
       final descMatch = RegExp(r'''description\s*[:=]\s*['"](.*?)['"]''').firstMatch(content);
 
       // Detect @BloomLoader or loader function
-      final loaderMatch = RegExp(r'''(@BloomLoader\s*\(\s*\)\s+)?(Future<.*?>|FutureOr<.*?>)\s+([a-zA-Z0-9_]+)\s*\(\s*BloomRouteContext''').firstMatch(content);
+      final loaderMatch = RegExp(r'''(@BloomLoader(?:\s*\([\s\S]*?\))?\s+)?(Future<.*?>|FutureOr<.*?>)\s+([a-zA-Z0-9_]+)\s*\(\s*BloomRouteContext''').firstMatch(content);
       final hasLoader = loaderMatch != null;
       final loaderFunctionName = loaderMatch?.group(3);
+
+      Duration? revalidate;
+      if (hasLoader) {
+        final revalidateMatch = RegExp(
+          r'''@BloomLoader\s*\(\s*revalidate\s*:\s*(?:const\s+)?Duration\s*\(\s*(seconds|minutes|hours|days)\s*:\s*(\d+)\s*,?\s*\)\s*,?\s*\)''',
+          multiLine: true,
+        ).firstMatch(content);
+        if (revalidateMatch != null) {
+          final unit = revalidateMatch.group(1);
+          final value = int.tryParse(revalidateMatch.group(2) ?? '');
+          if (value != null && value >= 0) {
+            switch (unit) {
+              case 'seconds':
+                revalidate = Duration(seconds: value);
+                break;
+              case 'minutes':
+                revalidate = Duration(minutes: value);
+                break;
+              case 'hours':
+                revalidate = Duration(hours: value);
+                break;
+              case 'days':
+                revalidate = Duration(days: value);
+                break;
+            }
+          }
+        }
+      }
 
       // Detect @BloomAction or action handler
       final actionMatch = RegExp(r'''(@BloomAction\s*\(\s*\)\s+)?(Future<.*?>|FutureOr<.*?>)\s+([a-zA-Z0-9_]+)\s*\(\s*BloomRouteContext.*?,.*?Map''').firstMatch(content);
@@ -155,6 +185,7 @@ class BloomSsrEngine {
         declaredDescription: descMatch?.group(1),
         hasLoader: hasLoader,
         loaderFunctionName: loaderFunctionName,
+        revalidate: revalidate,
         hasAction: hasAction,
         actionFunctionName: actionFunctionName,
       ));
@@ -220,6 +251,17 @@ class BloomSsrEngine {
     }
     buffer.writeln();
 
+    buffer.writeln('class _IsrCacheEntry {');
+    buffer.writeln('  final String html;');
+    buffer.writeln('  final DateTime generatedAt;');
+    buffer.writeln('  bool _isRevalidating = false;');
+    buffer.writeln();
+    buffer.writeln('  _IsrCacheEntry(this.html, this.generatedAt);');
+    buffer.writeln('}');
+    buffer.writeln();
+    buffer.writeln('final Map<String, _IsrCacheEntry> _isrCache = {};');
+    buffer.writeln();
+
     buffer.writeln('Future<void> main(List<String> args) async {');
     buffer.writeln("  final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;");
     buffer.writeln('  final router = BloomApiRouter();');
@@ -257,22 +299,76 @@ class BloomSsrEngine {
 
       buffer.writeln("  router.get('${page.path}', (req) async {");
       if (page.hasLoader && page.loaderFunctionName != null) {
-        buffer.writeln("    final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
-        buffer.writeln("    dynamic loaderData;");
-        buffer.writeln("    try {");
-        buffer.writeln("      loaderData = await page_route_$i.${page.loaderFunctionName}(ctx);");
-        buffer.writeln("    } catch (e) {");
-        buffer.writeln("      loaderData = {'error': e.toString()};");
-        buffer.writeln("    }");
-        buffer.writeln("    return BloomResponse.html(_renderDynamicSsrHtml(");
-        buffer.writeln("      appTitle: '$appName',");
-        buffer.writeln("      pageTitle: '$defaultTitle',");
-        buffer.writeln("      description: '$defaultDesc',");
-        buffer.writeln("      routePath: req.path,");
-        buffer.writeln("      params: req.params,");
-        buffer.writeln("      themeColor: '$themeColor',");
-        buffer.writeln("      loaderData: loaderData,");
-        buffer.writeln("    ));");
+        if (page.revalidate != null) {
+          final revalidateSeconds = page.revalidate!.inSeconds;
+          buffer.writeln("    final cacheKey = req.path;");
+          buffer.writeln("    final cached = _isrCache[cacheKey];");
+          buffer.writeln("    if (cached != null) {");
+          buffer.writeln("      if (DateTime.now().difference(cached.generatedAt) < Duration(seconds: $revalidateSeconds)) {");
+          buffer.writeln("        return BloomResponse.html(cached.html);");
+          buffer.writeln("      }");
+          buffer.writeln("      if (!cached._isRevalidating) {");
+          buffer.writeln("        cached._isRevalidating = true;");
+          buffer.writeln("        () async {");
+          buffer.writeln("          try {");
+          buffer.writeln("            final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
+          buffer.writeln("            final dynamic loaderData = await page_route_$i.${page.loaderFunctionName}(ctx);");
+          buffer.writeln("            final html = _renderDynamicSsrHtml(");
+          buffer.writeln("              appTitle: '$appName',");
+          buffer.writeln("              pageTitle: '$defaultTitle',");
+          buffer.writeln("              description: '$defaultDesc',");
+          buffer.writeln("              routePath: req.path,");
+          buffer.writeln("              params: req.params,");
+          buffer.writeln("              themeColor: '$themeColor',");
+          buffer.writeln("              loaderData: loaderData,");
+          buffer.writeln("            );");
+          buffer.writeln("            _isrCache[cacheKey] = _IsrCacheEntry(html, DateTime.now());");
+          buffer.writeln("          } catch (e) {");
+          buffer.writeln("            print('ISR background regeneration error for \$cacheKey: \$e');");
+          buffer.writeln("          } finally {");
+          buffer.writeln("            cached._isRevalidating = false;");
+          buffer.writeln("          }");
+          buffer.writeln("        }();");
+          buffer.writeln("      }");
+          buffer.writeln("      return BloomResponse.html(cached.html);");
+          buffer.writeln("    }");
+          buffer.writeln();
+          buffer.writeln("    final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
+          buffer.writeln("    dynamic loaderData;");
+          buffer.writeln("    try {");
+          buffer.writeln("      loaderData = await page_route_$i.${page.loaderFunctionName}(ctx);");
+          buffer.writeln("    } catch (e) {");
+          buffer.writeln("      loaderData = {'error': e.toString()};");
+          buffer.writeln("    }");
+          buffer.writeln("    final html = _renderDynamicSsrHtml(");
+          buffer.writeln("      appTitle: '$appName',");
+          buffer.writeln("      pageTitle: '$defaultTitle',");
+          buffer.writeln("      description: '$defaultDesc',");
+          buffer.writeln("      routePath: req.path,");
+          buffer.writeln("      params: req.params,");
+          buffer.writeln("      themeColor: '$themeColor',");
+          buffer.writeln("      loaderData: loaderData,");
+          buffer.writeln("    );");
+          buffer.writeln("    _isrCache[cacheKey] = _IsrCacheEntry(html, DateTime.now());");
+          buffer.writeln("    return BloomResponse.html(html);");
+        } else {
+          buffer.writeln("    final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
+          buffer.writeln("    dynamic loaderData;");
+          buffer.writeln("    try {");
+          buffer.writeln("      loaderData = await page_route_$i.${page.loaderFunctionName}(ctx);");
+          buffer.writeln("    } catch (e) {");
+          buffer.writeln("      loaderData = {'error': e.toString()};");
+          buffer.writeln("    }");
+          buffer.writeln("    return BloomResponse.html(_renderDynamicSsrHtml(");
+          buffer.writeln("      appTitle: '$appName',");
+          buffer.writeln("      pageTitle: '$defaultTitle',");
+          buffer.writeln("      description: '$defaultDesc',");
+          buffer.writeln("      routePath: req.path,");
+          buffer.writeln("      params: req.params,");
+          buffer.writeln("      themeColor: '$themeColor',");
+          buffer.writeln("      loaderData: loaderData,");
+          buffer.writeln("    ));");
+        }
       } else {
         buffer.writeln("    return BloomResponse.html(_renderDynamicSsrHtml(");
         buffer.writeln("      appTitle: '$appName',");
