@@ -39,7 +39,7 @@ const isActive = (path: string) => {
     <nav class="hidden md:flex items-center gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white/50 dark:bg-zinc-950/80 p-1 rounded-2xl border border-slate-200/60 dark:border-zinc-800/80 shadow-sm backdrop-blur-md">
       <a
         href="/"
-        class={`px-4 py-1.5 rounded-xl transition-all ${
+        class={`px-3 py-1.5 rounded-xl transition-all ${
           isActive('/') && currentPath === '/'
             ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-sm font-bold'
             : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
@@ -49,53 +49,43 @@ const isActive = (path: string) => {
       </a>
       <a
         href="/build"
-        class={`px-4 py-1.5 rounded-xl transition-all ${
-          isActive('/build')
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/build') || currentPath.startsWith('/docs/framework') || currentPath.startsWith('/docs/runtime') || currentPath.startsWith('/docs/data') || currentPath.startsWith('/docs/native')
             ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
             : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
-        Build
+        App (Client)
       </a>
       <a
-        href="/ship"
-        class={`px-4 py-1.5 rounded-xl transition-all ${
-          isActive('/ship')
-            ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
-        Ship
-      </a>
-      <a
-        href="/docs/introduction"
+        href="/docs/server/overview"
         class={`px-3 py-1.5 rounded-xl transition-all ${
-          isActive('/docs')
-            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
-        Docs
-      </a>
-      <a
-        href="/ui"
-        class={`px-3 py-1.5 rounded-xl transition-all ${
-          isActive('/ui')
-            ? 'bg-white dark:bg-zinc-900 text-cyan-600 dark:text-cyan-400 shadow-sm font-bold'
-            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
-        }`}
-      >
-        Components
-      </a>
-      <a
-        href="/blocks"
-        class={`px-3 py-1.5 rounded-xl transition-all ${
-          isActive('/blocks')
+          currentPath.startsWith('/docs/server') || currentPath.startsWith('/docs/adapters')
             ? 'bg-white dark:bg-zinc-900 text-pink-600 dark:text-pink-400 shadow-sm font-bold'
             : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
         }`}
       >
-        Blocks
+        Server (Backend)
+      </a>
+      <a
+        href="/ship"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/ship') || currentPath.startsWith('/docs/cloud') || currentPath.startsWith('/docs/cli')
+            ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        Cloud &amp; CLI
+      </a>
+      <a
+        href="/ui"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/ui') || isActive('/blocks') || isActive('/themes')
+            ? 'bg-white dark:bg-zinc-900 text-cyan-600 dark:text-cyan-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        UI &amp; Blocks
       </a>
       <a
         href="/themes"
@@ -106,6 +96,16 @@ const isActive = (path: string) => {
         }`}
       >
         Themes
+      </a>
+      <a
+        href="/docs/introduction"
+        class={`px-3 py-1.5 rounded-xl transition-all ${
+          isActive('/docs') && !currentPath.startsWith('/docs/server')
+            ? 'bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-sm font-bold'
+            : 'hover:bg-white/60 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        Docs
       </a>
     </nav>
 
