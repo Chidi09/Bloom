@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import '../protocol.dart';
 import 'channel_hub.dart';
 
 /// Inter-isolate broadcast event envelope passed across worker SendPorts.
