@@ -1,0 +1,9 @@
+name: bloom_orm_bench
+description: Bloom ORM Benchmark
+version: 1.0.0
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_db:
+    path: ../../../packages/bloom_db

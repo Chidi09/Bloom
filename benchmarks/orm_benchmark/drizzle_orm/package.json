@@ -1,0 +1,8 @@
+{
+  "name": "drizzle-orm-bench",
+  "version": "1.0.0",
+  "main": "main.ts",
+  "dependencies": {
+    "drizzle-orm": "^0.33.0"
+  }
+}

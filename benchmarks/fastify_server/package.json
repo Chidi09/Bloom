@@ -1,0 +1,8 @@
+{
+  "name": "fastify-benchmark-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "fastify": "^4.28.1"
+  }
+}

@@ -1,30 +1,150 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
 import CodeBlock from '../../../components/common/CodeBlock.astro';
-import { ShieldCheck, Zap, ArrowRight, CheckCircle2, Layers } from 'lucide-preact';
+import { ShieldCheck, Zap, ArrowRight, CheckCircle2, Layers, Server, FolderTree, Database, Cpu, Lock } from 'lucide-preact';
 
-const conventions = [
-  { rule: 'Feature-Driven Folder Structure', desc: 'Group domain models, controllers, and specific widgets inside lib/features/<name>/, keeping lib/routes/ lightweight for page composition.' },
-  { rule: 'Never Call setState in Reactive Widgets', desc: 'Use fine-grained Watch((context) => ...) wrappers around leaf nodes rather than making entire routes StatefulWidget.' },
-  { rule: 'Query Key Immutability', desc: 'Construct query keys with deterministic lists like [\'entity\', id, filter] so cache hits and invalidations match reliably.' },
-  { rule: 'Controller Lifecycle Discipline', desc: 'Instantiate signals with createSignal and avoid storing raw mutable variables outside of signals in controllers.' },
-  { rule: 'Idempotent Prebuild Runs', desc: 'Never manually edit generated native manifests; declare permissions in bloom.yaml and run bloom prebuild in CI.' },
+const serverConventions = [
+  { 
+    rule: 'Django-Style App Modularization', 
+    desc: 'Organize backend domain features into self-contained modular directories containing models/, views.dart, serializers.dart, urls.dart, and permissions.dart.' 
+  },
+  { 
+    rule: 'Atomic Multi-Write Transactions', 
+    desc: 'Never execute related database mutations sequentially on the base connection. Wrap multi-model operations inside db.transaction((tx) async { ... }) to guarantee atomic rollbacks.' 
+  },
+  { 
+    rule: 'Declarative Permission Composition', 
+    desc: 'Compose endpoint authorization using reusable boolean algebra combinators like IsAuthenticated().and(IsOwnerOrAdmin()) rather than manual imperative if-checks in view handlers.' 
+  },
+  { 
+    rule: 'Deterministic QuerySet Building', 
+    desc: 'Use type-safe QuerySet chains (filter, exclude, orderBy, limit) with generated ModelMeta rather than raw string SQL queries to ensure automatic SQL injection prevention and dialect portability.' 
+  },
+  { 
+    rule: 'Stateless Worker Payload Serialization', 
+    desc: 'Pass lightweight scalar identifiers (e.g., {"user_id": 42}) in background job queues; allow worker isolates to fetch fresh database state inside their own isolated execution contexts.' 
+  },
+  { 
+    rule: 'Zero-Allocation Response Streaming', 
+    desc: 'Stream large file uploads and binary assets directly through BloomStorageAdapter to S3/disk rather than buffering entire request bodies into RAM.' 
+  },
 ];
+
+const clientConventions = [
+  { 
+    rule: 'Feature-Driven Folder Structure', 
+    desc: 'Group domain models, controllers, and specific widgets inside lib/features/<name>/, keeping lib/routes/ lightweight for page composition.' 
+  },
+  { 
+    rule: 'Never Call setState in Reactive Widgets', 
+    desc: 'Use fine-grained Watch((context) => ...) wrappers around leaf nodes rather than making entire routes StatefulWidget.' 
+  },
+  { 
+    rule: 'Query Key Immutability', 
+    desc: 'Construct query keys with deterministic lists like [\'entity\', id, filter] so cache hits and invalidations match reliably.' 
+  },
+  { 
+    rule: 'Controller Lifecycle Discipline', 
+    desc: 'Instantiate signals with createSignal and avoid storing raw mutable variables outside of signals in controllers.' 
+  },
+  { 
+    rule: 'Idempotent Prebuild Runs', 
+    desc: 'Never manually edit generated native manifests; declare permissions in bloom.yaml and run bloom prebuild in CI.' 
+  },
+];
+
+const projectStructureCode = `my_fullstack_bloom_app/
+├── bin/
+│   ├── server.dart               # Production backend server entrypoint
+│   └── worker.dart               # Background isolate task runner
+├── lib/
+│   ├── apps/                     # Modular server domain apps (Django-style)
+│   │   ├── auth/
+│   │   │   ├── models/           # Generated typed ORM models (User.dart)
+│   │   │   ├── permissions.dart  # IsAuthenticated, IsStaff guards
+│   │   │   ├── serializers.dart  # Model serializers & field sanitizers
+│   │   │   ├── urls.dart         # Sub-router route definitions
+│   │   │   └── views.dart        # Route handlers & DRF ViewSets
+│   │   └── todos/
+│   │       ├── models/           # TodoList, TodoTask models
+│   │       ├── serializers.dart
+│   │       ├── urls.dart
+│   │       └── views.dart
+│   ├── features/                 # Frontend client UI features (Flutter)
+│   │   ├── auth/
+│   │   │   ├── controllers/      # Signals-based AuthController
+│   │   │   └── views/            # LoginScreen, RegisterScreen
+│   │   └── todos/
+│   │       ├── controllers/      # TodoQueryController, SWR cache
+│   │       └── widgets/          # TaskListView, TodoItemCard
+│   ├── routes/                   # Client filesystem navigation routes
+│   └── main.dart                 # Flutter client application bootstrap
+├── migrations/                   # SQL / Dart schema migration files
+│   ├── auth/0001_initial.sql
+│   └── todos/0001_initial.sql
+└── bloom.yaml                    # Full-stack declarative configuration`;
+
+const transactionPatternCode = `// lib/apps/todos/services.dart - Atomic Transaction Best Practice
+import 'package:bloom_db/bloom_db.dart';
+import 'models/todo_task.dart';
+import 'models/todo_list.dart';
+
+class TodoService {
+  final DbExecutor db;
+  TodoService(this.db);
+
+  Future<TodoTask> createTaskWithAudit({
+    required int listId,
+    required String title,
+    required int userId,
+  }) async {
+    // Wrap related database writes in a transaction
+    return await db.transaction((tx) async {
+      // 1. Verify list exists and belongs to user using tx executor
+      final list = await TodoListOrmExtension.objects()
+          .filter({'id': listId, 'user_id': userId})
+          .first(tx);
+      
+      if (list == null) {
+        throw BloomOrmNotFoundError(model: 'TodoList');
+      }
+
+      // 2. Insert new task on tx
+      final task = await TodoTask(
+        listId: listId,
+        title: title,
+        isCompleted: false,
+        createdAt: DateTime.now().toUtc(),
+      ).save(tx);
+
+      // 3. Atomically increment total tasks count on list
+      await tx.execute(
+        'UPDATE "todo_lists" SET "task_count" = "task_count" + 1 WHERE "id" = ?',
+        [listId],
+      );
+
+      return task;
+    });
+  }
+}`;
 ---
 
 <DocsLayout
   title="Architectural Best Practices"
-  description="Proven conventions and architectural rules for enterprise Flutter apps using Bloom."
+  description="Proven conventions, directory layouts, and architectural rules for high-scale Flutter & Bloom Server applications."
   currentSlug="guides-best-practices"
   category="Engineering Guides"
   toc={[
-    { id: 'rules', title: 'Core Architectural Conventions' },
+    { id: 'structure', title: 'Full-Stack Project Structure' },
+    { id: 'server-rules', title: 'Backend Architectural Rules' },
+    { id: 'transaction-discipline', title: 'Transaction & Database Discipline' },
+    { id: 'client-rules', title: 'Client & UI Conventions' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-mono font-bold">
         <ShieldCheck className="w-3.5 h-3.5" />
         Production Standards
       </div>
@@ -32,18 +152,73 @@ const conventions = [
         Architectural Best Practices
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Conventions followed by high-scale teams building performant, maintainable Flutter apps with Bloom.
+        Conventions followed by enterprise engineering teams building maintainable, high-throughput Dart backends and responsive Flutter frontends.
       </p>
     </div>
 
-    <!-- Section 1 -->
-    <section id="rules" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        Core Architectural Conventions
-      </h2>
-      <div class="grid grid-cols-1 gap-4 pt-2">
-        {conventions.map((item, i) => (
-          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+    <!-- Section 1: Structure -->
+    <section id="structure" class="space-y-4">
+      <div class="flex items-center gap-2">
+        <FolderTree className="w-5 h-5 text-purple-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Full-Stack Project Structure
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Bloom encourages a unified monorepo or full-stack layout where both the Dart backend and Flutter client share models, validation schemas, and protocol types without code duplication.
+      </p>
+      <CodeBlock code={projectStructureCode} lang="bash" filename="Directory Architecture (full-stack)" />
+    </section>
+
+    <!-- Section 2: Server Rules -->
+    <section id="server-rules" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Server className="w-5 h-5 text-emerald-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Backend Architectural Rules
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Key engineering principles for the Bloom Server ecosystem (<code class="text-purple-400 font-mono">bloom_db</code>, <code class="text-purple-400 font-mono">bloom_rest</code>, <code class="text-purple-400 font-mono">bloom_realtime</code>, <code class="text-purple-400 font-mono">bloom_jobs</code>):
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        {serverConventions.map((item) => (
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5 hover:border-slate-700 transition">
+            <div class="flex items-center gap-2 text-purple-400 font-bold font-mono text-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{item.rule}</span>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed pl-6">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Section 3: Transaction Discipline -->
+    <section id="transaction-discipline" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Database className="w-5 h-5 text-blue-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Transaction &amp; Database Discipline
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Always pass the transactional <code class="text-purple-400 font-mono">DbExecutor</code> down to model queries and nested service calls to guarantee atomicity:
+      </p>
+      <CodeBlock code={transactionPatternCode} lang="dart" filename="lib/apps/todos/services.dart" />
+    </section>
+
+    <!-- Section 4: Client Rules -->
+    <section id="client-rules" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Layers className="w-5 h-5 text-indigo-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Client &amp; UI Conventions
+        </h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        {clientConventions.map((item) => (
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5 hover:border-slate-700 transition">
             <div class="flex items-center gap-2 text-purple-400 font-bold font-mono text-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>{item.rule}</span>
@@ -55,12 +230,12 @@ const conventions = [
     </section>
 
     <!-- Next Page Footer -->
-    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
       <a
         href="/docs/guides/cookbook"
-        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
       >
-        <span>Previous: Cookbook & Recipes</span>
+        <span>Previous: Cookbook &amp; Recipes</span>
       </a>
       <a
         href="/docs/guides/migration"
