@@ -3,7 +3,7 @@
 # slices (preserving history via git-filter-repo) and pushes each to its
 # own GitHub repo. Never push this repo's own `origin` directly — it has
 # no remote configured on purpose, since a plain push would mix public
-# framework/website code with private cloud backend/dashboard code.
+# framework/website code with private cloud backend/dashboard and architectural docs.
 #
 # Usage: scripts/push-split.sh [branch]   (defaults to current branch)
 
@@ -19,7 +19,8 @@ PRIVATE_REMOTE="https://github.com/Chidi09/bloom-cloud.git"
 
 echo "== Splitting '$BRANCH' from $ROOT =="
 
-# --- Public: packages/, apps/, benchmarks/, bloom-website/, docs/, examples/, LICENSE, README.md ---
+# --- Public: packages/, apps/, benchmarks/, bloom-website/, examples/, LICENSE, README.md ---
+# (Architectural docs and cloud services are kept strictly private)
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
 (
   cd "$WORKDIR/public"
@@ -28,7 +29,6 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
     --path apps/ \
     --path benchmarks/ \
     --path bloom-website/ \
-    --path docs/ \
     --path examples/ \
     --path LICENSE \
     --path README.md
@@ -36,9 +36,9 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
   git branch -M main
   git push --force origin main
 )
-echo "== Pushed clean public split (including bloom-website) to $PUBLIC_REMOTE =="
+echo "== Pushed clean public split (framework + website) to $PUBLIC_REMOTE =="
 
-# --- Private: cloud-backend/, cloud-dashboard/, bloom-website/, docs/, examples/ ---
+# --- Private: cloud-backend/, cloud-dashboard/, docs/ (architectural specs), bloom-website/, examples/ ---
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
 (
   cd "$WORKDIR/private"
@@ -58,4 +58,4 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
   git branch -M main
   git push --force origin main
 )
-echo "== Pushed private split to $PRIVATE_REMOTE =="
+echo "== Pushed private split (cloud backend, dashboard + architectural docs) to $PRIVATE_REMOTE =="
