@@ -229,10 +229,8 @@ class BloomSymbolPackager {
 
     final zipEncoder = ZipEncoder();
     final encodedZip = zipEncoder.encode(archive);
-    if (encodedZip != null) {
-      final zipFile = File(p.join(outputDir.path, '${version}_${buildNumber}_symbols.zip'));
-      zipFile.writeAsBytesSync(encodedZip);
-    }
+    final zipFile = File(p.join(outputDir.path, '${version}_${buildNumber}_symbols.zip'));
+    zipFile.writeAsBytesSync(encodedZip);
 
     print('› Discovered ${artifacts.length} symbol artifact(s).');
     for (final a in artifacts) {
