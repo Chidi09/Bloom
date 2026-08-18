@@ -10,6 +10,7 @@
 ### Added
 
 * **Incremental Static Regeneration (ISR) for SSR**: Wires up the `revalidate: Duration(...)` parameter in `@BloomLoader` annotations to enable stale-while-revalidate full-page HTML caching in `bloom build web --server`. Routes with `revalidate` serve cached HTML within the duration, serve stale HTML immediately while regenerating in the background once stale, and populate cache on demand on first hit.
+* **Real headless-browser prerendering for SSG/SSR**: `bloom build web --static`/`--server` now compile the real Flutter web app (`flutter build web --release`) and drive a real headless Chromium instance (via `puppeteer`) to capture the genuine rendered DOM for each route, replacing the previous static placeholder-shell HTML. Falls back gracefully to the old shell template whenever Chromium is unavailable or a route fails to render, so a build never fails or hangs because of prerendering. `bloom_framework`'s `BloomApp` now signals readiness (and force-enables the Flutter semantics/accessibility tree, which is what produces real descriptive DOM content) after its first frame, on web only.
 
 ### Fixed
 

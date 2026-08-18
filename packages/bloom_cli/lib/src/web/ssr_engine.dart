@@ -232,6 +232,7 @@ class BloomSsrEngine {
     buffer.writeln("import 'package:path/path.dart' as p;");
     buffer.writeln("import 'package:bloom_framework/bloom.dart';");
     buffer.writeln("import 'package:bloom_framework/bloom_server.dart';");
+    buffer.writeln("import 'package:bloom_cli/src/web/prerender_engine.dart';");
     buffer.writeln();
 
     // Import API route files
@@ -266,6 +267,32 @@ class BloomSsrEngine {
     buffer.writeln("  final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;");
     buffer.writeln('  final router = BloomApiRouter();');
     buffer.writeln('  router.use(BloomCorsMiddleware());');
+    buffer.writeln();
+    buffer.writeln('  // Reuse a single headless Chromium instance across all SSR requests.');
+    buffer.writeln('  // Launched once at startup to avoid per-request process spawn overhead.');
+    buffer.writeln('  final _prerenderEngine = BloomPrerenderEngine();');
+    buffer.writeln("  await _prerenderEngine.startWithExistingServer('http://localhost:\$port');");
+    buffer.writeln();
+
+    // Register neutral internal shell endpoint FIRST
+    buffer.writeln('  // Neutral internal shell endpoint for headless-browser prerendering');
+    buffer.writeln("  router.get('/__bloom_shell', (req) async {");
+    buffer.writeln("    final indexFile = File('build/web/index.html');");
+    buffer.writeln("    if (!indexFile.existsSync()) {");
+    buffer.writeln("      return BloomResponse.html('<!DOCTYPE html><html><head></head><body><div id=\"bloom-app-root\"></div></body></html>');");
+    buffer.writeln("    }");
+    buffer.writeln("    var html = indexFile.readAsStringSync();");
+    buffer.writeln("    final bloomRoute = req.queryParams['__bloom_route'];");
+    buffer.writeln("    if (bloomRoute != null && bloomRoute.isNotEmpty) {");
+    buffer.writeln("      final scriptTag = '<script>window.__BLOOM_INITIAL_ROUTE__ = ' + jsonEncode(bloomRoute) + ';</script>';");
+    buffer.writeln("      if (html.contains('</head>')) {");
+    buffer.writeln("        html = html.replaceFirst('</head>', scriptTag + '</head>');");
+    buffer.writeln("      } else {");
+    buffer.writeln("        html = scriptTag + html;");
+    buffer.writeln("      }");
+    buffer.writeln("    }");
+    buffer.writeln("    return BloomResponse.html(html);");
+    buffer.writeln("  });");
     buffer.writeln();
 
     // Register API endpoints
@@ -313,6 +340,10 @@ class BloomSsrEngine {
           buffer.writeln("          try {");
           buffer.writeln("            final ctx = BloomRouteContext(params: req.params, queryParams: req.queryParams, url: req.uri);");
           buffer.writeln("            final dynamic loaderData = await page_route_$i.${page.loaderFunctionName}(ctx);");
+          buffer.writeln("            String? prerendered;");
+          buffer.writeln("            try {");
+          buffer.writeln("              prerendered = await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path));");
+          buffer.writeln("            } catch (_) {}");
           buffer.writeln("            final html = _renderDynamicSsrHtml(");
           buffer.writeln("              appTitle: '$appName',");
           buffer.writeln("              pageTitle: '$defaultTitle',");
@@ -321,6 +352,7 @@ class BloomSsrEngine {
           buffer.writeln("              params: req.params,");
           buffer.writeln("              themeColor: '$themeColor',");
           buffer.writeln("              loaderData: loaderData,");
+          buffer.writeln("              prerenderedBodyHtml: prerendered,");
           buffer.writeln("            );");
           buffer.writeln("            _isrCache[cacheKey] = _IsrCacheEntry(html, DateTime.now());");
           buffer.writeln("          } catch (e) {");
@@ -340,6 +372,10 @@ class BloomSsrEngine {
           buffer.writeln("    } catch (e) {");
           buffer.writeln("      loaderData = {'error': e.toString()};");
           buffer.writeln("    }");
+          buffer.writeln("    String? prerendered;");
+          buffer.writeln("    try {");
+          buffer.writeln("      prerendered = await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path));");
+          buffer.writeln("    } catch (_) {}");
           buffer.writeln("    final html = _renderDynamicSsrHtml(");
           buffer.writeln("      appTitle: '$appName',");
           buffer.writeln("      pageTitle: '$defaultTitle',");
@@ -348,6 +384,7 @@ class BloomSsrEngine {
           buffer.writeln("      params: req.params,");
           buffer.writeln("      themeColor: '$themeColor',");
           buffer.writeln("      loaderData: loaderData,");
+          buffer.writeln("      prerenderedBodyHtml: prerendered,");
           buffer.writeln("    );");
           buffer.writeln("    _isrCache[cacheKey] = _IsrCacheEntry(html, DateTime.now());");
           buffer.writeln("    return BloomResponse.html(html);");
@@ -359,6 +396,10 @@ class BloomSsrEngine {
           buffer.writeln("    } catch (e) {");
           buffer.writeln("      loaderData = {'error': e.toString()};");
           buffer.writeln("    }");
+          buffer.writeln("    String? prerendered;");
+          buffer.writeln("    try {");
+          buffer.writeln("      prerendered = await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path));");
+          buffer.writeln("    } catch (_) {}");
           buffer.writeln("    return BloomResponse.html(_renderDynamicSsrHtml(");
           buffer.writeln("      appTitle: '$appName',");
           buffer.writeln("      pageTitle: '$defaultTitle',");
@@ -367,9 +408,14 @@ class BloomSsrEngine {
           buffer.writeln("      params: req.params,");
           buffer.writeln("      themeColor: '$themeColor',");
           buffer.writeln("      loaderData: loaderData,");
+          buffer.writeln("      prerenderedBodyHtml: prerendered,");
           buffer.writeln("    ));");
         }
       } else {
+        buffer.writeln("    String? prerendered;");
+        buffer.writeln("    try {");
+        buffer.writeln("      prerendered = await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path));");
+        buffer.writeln("    } catch (_) {}");
         buffer.writeln("    return BloomResponse.html(_renderDynamicSsrHtml(");
         buffer.writeln("      appTitle: '$appName',");
         buffer.writeln("      pageTitle: '$defaultTitle',");
@@ -377,6 +423,7 @@ class BloomSsrEngine {
         buffer.writeln("      routePath: req.path,");
         buffer.writeln("      params: req.params,");
         buffer.writeln("      themeColor: '$themeColor',");
+        buffer.writeln("      prerenderedBodyHtml: prerendered,");
         buffer.writeln("    ));");
       }
       buffer.writeln("  });");
@@ -429,6 +476,10 @@ class BloomSsrEngine {
       }
     }
 
+    String? prerendered;
+    try {
+      prerendered = await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path));
+    } catch (_) {}
     return BloomResponse.html(_renderDynamicSsrHtml(
       appTitle: '$appName',
       pageTitle: '$appName',
@@ -436,6 +487,7 @@ class BloomSsrEngine {
       routePath: req.path,
       params: req.params,
       themeColor: '$themeColor',
+      prerenderedBodyHtml: prerendered,
     ));
   });
 
@@ -460,6 +512,7 @@ String _renderDynamicSsrHtml({
   required Map<String, String> params,
   required String themeColor,
   dynamic loaderData,
+  String? prerenderedBodyHtml,
 }) {
   final segments = routePath.split('/').where((s) => s.isNotEmpty).toList();
   final headerDisplay = segments.isEmpty ? 'Home' : segments.map((s) => s[0].toUpperCase() + s.substring(1)).join(' / ');
@@ -468,6 +521,21 @@ String _renderDynamicSsrHtml({
   final safeAppTitle = _escapeHtml(appTitle);
   final safeHeader = _escapeHtml(headerDisplay);
   final safeTheme = _escapeHtml(themeColor);
+
+  final bodyContent = prerenderedBodyHtml != null
+      ? '<div id="bloom-app-root">\\n    \$prerenderedBodyHtml\\n  </div>'
+      : """
+  <div id="bloom-app-root">
+    <header class="bloom-ssr-header">
+      <div class="bloom-brand">\$safeAppTitle</div>
+    </header>
+    <main class="bloom-ssr-main">
+      <h1 class="bloom-page-title">\$safeHeader</h1>
+      <p class="bloom-page-desc">\$safeDesc</p>
+      \${loaderData != null ? '<div class="bloom-ssr-loader-data"><pre>' + _escapeHtml(const JsonEncoder.withIndent('  ').convert(loaderData)) + '</pre></div>' : ''}
+      <div class="bloom-badge">🖥️ Dynamic SSR Hydration Active</div>
+    </main>
+  </div>""";
 
   return """
 <!DOCTYPE html>
@@ -498,17 +566,7 @@ String _renderDynamicSsrHtml({
   </style>
 </head>
 <body>
-  <div id="bloom-app-root">
-    <header class="bloom-ssr-header">
-      <div class="bloom-brand">\$safeAppTitle</div>
-    </header>
-    <main class="bloom-ssr-main">
-      <h1 class="bloom-page-title">\$safeHeader</h1>
-      <p class="bloom-page-desc">\$safeDesc</p>
-      \${loaderData != null ? '<div class="bloom-ssr-loader-data"><pre>' + _escapeHtml(const JsonEncoder.withIndent('  ').convert(loaderData)) + '</pre></div>' : ''}
-      <div class="bloom-badge">🖥️ Dynamic SSR Hydration Active</div>
-    </main>
-  </div>
+\$bodyContent
   <script>
     window.__BLOOM_SSR_ROUTE__ = \${jsonEncode(routePath)};
     window.__BLOOM_SSR_PARAMS__ = \${jsonEncode(params)};
