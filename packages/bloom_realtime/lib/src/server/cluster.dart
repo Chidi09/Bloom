@@ -205,7 +205,6 @@ void _clusterWorkerEntrypoint(_ClusterWorkerInit init) async {
           final socket = await BloomChannelHub.upgrade(
             request,
             compression: init.compression,
-            tcpNoDelay: init.tcpNoDelay,
           );
           hub.registerConnection(socket);
         } catch (_) {
