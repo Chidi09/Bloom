@@ -25,7 +25,7 @@
 ///   );
 /// }
 /// ```
-library bloom_realtime;
+library;
 
 export 'src/protocol.dart';
 export 'src/server/channel_hub.dart';
