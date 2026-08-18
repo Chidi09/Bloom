@@ -21,7 +21,10 @@ import {
   FileText,
   Bot,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Radio,
+  Activity,
+  Cloud
 } from 'lucide-preact';
 
 interface Props {
@@ -44,14 +47,41 @@ const currentPath = Astro.url.pathname;
 const normalizedPath = currentPath.replace(/\/$/, '') || '';
 const pageMarkdownPath = normalizedPath === '' ? '/index.md' : `${normalizedPath}.md`;
 
-// Detect active scope
-const isUIMode =
+// Determine active scope: 'client' | 'server' | 'cloud' | 'ui'
+let activeScope: 'client' | 'server' | 'cloud' | 'ui' = 'client';
+
+if (
   currentPath.startsWith('/ui') ||
   currentPath.startsWith('/blocks') ||
   currentPath.startsWith('/themes') ||
-  ['introduction', 'installation', 'theming', 'typography', 'changelog'].includes(currentSlug);
+  ['introduction', 'installation', 'theming', 'typography', 'changelog'].includes(currentSlug)
+) {
+  activeScope = 'ui';
+} else if (
+  currentPath.startsWith('/docs/server') ||
+  currentPath.startsWith('/docs/adapters') ||
+  currentSlug.startsWith('server-') ||
+  currentSlug.startsWith('adapters-')
+) {
+  activeScope = 'server';
+} else if (
+  currentPath.startsWith('/docs/cloud') ||
+  currentPath.startsWith('/docs/cli') ||
+  currentPath.startsWith('/docs/dev-experience') ||
+  currentSlug.startsWith('cloud-') ||
+  currentSlug.startsWith('cli') ||
+  currentSlug.startsWith('dev-')
+) {
+  activeScope = 'cloud';
+} else {
+  activeScope = 'client';
+}
 
-// UI Scope Navigation
+const isUIMode = activeScope === 'ui';
+
+// ==========================================
+// 1. UI Scope Navigation
+// ==========================================
 const uiGettingStarted = [
   { title: 'Introduction', href: '/docs/introduction', slug: 'introduction' },
   { title: 'Installation', href: '/docs/installation', slug: 'installation' },
@@ -66,8 +96,10 @@ const uiBlocksAndThemes = [
   { title: 'Components Gallery', href: '/ui', slug: 'ui', icon: Layers },
 ];
 
-// Framework Scope Navigation
-const frameworkNavSections = [
+// ==========================================
+// 2. Client / App Scope Navigation (Flutter & Web)
+// ==========================================
+const clientNavSections = [
   {
     title: 'Getting Started',
     items: [
@@ -88,7 +120,7 @@ const frameworkNavSections = [
     ],
   },
   {
-    title: 'Data Layer & Caching',
+    title: 'Client Data Layer & SWR',
     items: [
       { title: 'Data Architecture', href: '/docs/framework/data', slug: 'framework-data' },
       { title: 'Queries & SWR Cache', href: '/docs/data/queries', slug: 'data-queries' },
@@ -97,7 +129,7 @@ const frameworkNavSections = [
       { title: 'HTTP Client', href: '/docs/data/http-client', slug: 'data-http-client' },
       { title: 'Offline Queue', href: '/docs/data/offline-queue', slug: 'data-offline-queue' },
       { title: 'Storage Adapters', href: '/docs/data/storage-adapters', slug: 'data-storage-adapters' },
-      { title: 'Authentication', href: '/docs/data/authentication', slug: 'data-authentication' },
+      { title: 'Client Auth Primitives', href: '/docs/data/authentication', slug: 'data-authentication' },
       { title: 'Typed Repositories', href: '/docs/data/repositories', slug: 'data-repositories' },
     ],
   },
@@ -111,6 +143,62 @@ const frameworkNavSections = [
       { title: 'Native Plugins', href: '/docs/native/plugins', slug: 'native-plugins' },
     ],
   },
+];
+
+// ==========================================
+// 3. Bloom Server Scope Navigation (Backend & ORM)
+// ==========================================
+const serverNavSections = [
+  {
+    title: 'Server Architecture',
+    items: [
+      { title: 'Bloom Server Overview', href: '/docs/server/overview', slug: 'server-overview' },
+      { title: 'Scaffolding a Server', href: '/docs/server/scaffolding', slug: 'server-scaffolding' },
+    ],
+  },
+  {
+    title: 'Database & ORM Layer',
+    items: [
+      { title: 'ORM & Migrations', href: '/docs/server/orm-and-migrations', slug: 'server-orm-and-migrations' },
+    ],
+  },
+  {
+    title: 'Auth, Validation & Security',
+    items: [
+      { title: 'Server Authentication', href: '/docs/server/auth', slug: 'server-auth' },
+      { title: 'Validation & Errors', href: '/docs/server/validation-and-errors', slug: 'server-validation-and-errors' },
+      { title: 'i18n & Security Headers', href: '/docs/server/i18n-and-security', slug: 'server-i18n-and-security' },
+    ],
+  },
+  {
+    title: 'REST APIs & Realtime',
+    items: [
+      { title: 'REST ViewSets (DRF-style)', href: '/docs/server/rest-api', slug: 'server-rest-api' },
+      { title: 'HTML Admin Panel', href: '/docs/server/admin-panel', slug: 'server-admin-panel' },
+      { title: 'Realtime Cluster & WS', href: '/docs/server/realtime', slug: 'server-realtime' },
+    ],
+  },
+  {
+    title: 'Operations & Infrastructure',
+    items: [
+      { title: 'Response & DB Caching', href: '/docs/server/caching', slug: 'server-caching' },
+      { title: 'Jobs, Mail & Storage', href: '/docs/server/jobs-mail-and-storage', slug: 'server-jobs-mail-and-storage' },
+    ],
+  },
+  {
+    title: 'Backend Adapters',
+    items: [
+      { title: 'Adapters Overview', href: '/docs/framework/adapters', slug: 'framework-adapters' },
+      { title: 'Supabase Adapter', href: '/docs/adapters/supabase', slug: 'adapters-supabase' },
+      { title: 'Serverpod Adapter', href: '/docs/adapters/serverpod', slug: 'adapters-serverpod' },
+    ],
+  },
+];
+
+// ==========================================
+// 4. Cloud & CLI Scope Navigation
+// ==========================================
+const cloudNavSections = [
   {
     title: 'CLI Tooling',
     items: [
@@ -140,31 +228,7 @@ const frameworkNavSections = [
       { title: 'Platform Overview', href: '/docs/cloud/overview', slug: 'cloud-overview' },
       { title: 'Build & Release Pipeline', href: '/docs/cloud/build-and-release', slug: 'cloud-build-and-release' },
       { title: 'Secrets, Signing & Git', href: '/docs/cloud/secrets-and-signing', slug: 'cloud-secrets-and-signing' },
-      { title: 'Hosting, Observability & Automation', href: '/docs/cloud/hosting-and-automation', slug: 'cloud-hosting-and-automation' },
-    ],
-  },
-  {
-    title: 'Bloom Server',
-    items: [
-      { title: 'Bloom Server Overview', href: '/docs/server/overview', slug: 'server-overview' },
-      { title: 'Scaffolding a Server', href: '/docs/server/scaffolding', slug: 'server-scaffolding' },
-      { title: 'ORM & Migrations', href: '/docs/server/orm-and-migrations', slug: 'server-orm-and-migrations' },
-      { title: 'Authentication', href: '/docs/server/auth', slug: 'server-auth' },
-      { title: 'Validation & Errors', href: '/docs/server/validation-and-errors', slug: 'server-validation-and-errors' },
-      { title: 'REST API Layer', href: '/docs/server/rest-api', slug: 'server-rest-api' },
-      { title: 'Admin Panel', href: '/docs/server/admin-panel', slug: 'server-admin-panel' },
-      { title: 'Realtime & WebSockets', href: '/docs/server/realtime', slug: 'server-realtime' },
-      { title: 'Caching', href: '/docs/server/caching', slug: 'server-caching' },
-      { title: 'Jobs, Mail & Storage', href: '/docs/server/jobs-mail-and-storage', slug: 'server-jobs-mail-and-storage' },
-      { title: 'i18n & Security', href: '/docs/server/i18n-and-security', slug: 'server-i18n-and-security' },
-    ],
-  },
-  {
-    title: 'Backend Adapters',
-    items: [
-      { title: 'Adapters Overview', href: '/docs/framework/adapters', slug: 'framework-adapters' },
-      { title: 'Supabase Adapter', href: '/docs/adapters/supabase', slug: 'adapters-supabase' },
-      { title: 'Serverpod Adapter', href: '/docs/adapters/serverpod', slug: 'adapters-serverpod' },
+      { title: 'Hosting & Observability', href: '/docs/cloud/hosting-and-automation', slug: 'cloud-hosting-and-automation' },
     ],
   },
   {
@@ -173,37 +237,29 @@ const frameworkNavSections = [
       { title: 'Testing Overview', href: '/docs/guides/testing', slug: 'guides-testing' },
       { title: 'Bloom Testing Harness', href: '/docs/testing/harness', slug: 'testing-harness' },
       { title: 'Testing Recipes', href: '/docs/testing/recipes', slug: 'testing-recipes' },
-    ],
-  },
-  {
-    title: 'Engineering Guides',
-    items: [
-      { title: 'Cookbook & Recipes', href: '/docs/guides/cookbook', slug: 'guides-cookbook' },
-      { title: 'Architectural Best Practices', href: '/docs/guides/best-practices', slug: 'guides-best-practices' },
-      { title: 'Migration Guide', href: '/docs/guides/migration', slug: 'guides-migration' },
-      { title: 'Contributing Guide', href: '/docs/guides/contributing', slug: 'guides-contributing' },
+      { title: 'Best Practices', href: '/docs/guides/best-practices', slug: 'guides-best-practices' },
       { title: 'Troubleshooting & FAQ', href: '/docs/guides/troubleshooting', slug: 'guides-troubleshooting' },
-      { title: 'API Reference', href: '/docs/guides/api-reference', slug: 'guides-api-reference' },
-    ],
-  },
-  {
-    title: 'Transparency',
-    items: [
       { title: 'Platform Capabilities', href: '/docs/transparency/platform-capabilities', slug: 'transparency-platform-capabilities' },
     ],
   },
 ];
 
 // Active section helpers
-const isFrameworkSectionActive = (section: (typeof frameworkNavSections)[number]) =>
+const isSectionActive = (section: { items: { href: string; slug: string }[] }) =>
   section.items.some((item) => currentPath === item.href || currentSlug === item.slug);
-
-const hasAnyActiveFrameworkSection = frameworkNavSections.some(isFrameworkSectionActive);
 
 const isUICategoryActive = (cat: string) => {
   const items = UI_REGISTRY.filter((c) => c.category === cat);
   return items.some((item) => currentPath === `/ui/${item.slug}` || currentSlug === item.slug);
 };
+
+// Select active nav list
+let activeNavSections = clientNavSections;
+if (activeScope === 'server') {
+  activeNavSections = serverNavSections;
+} else if (activeScope === 'cloud') {
+  activeNavSections = cloudNavSections;
+}
 ---
 
 <Layout
@@ -241,29 +297,40 @@ const isUICategoryActive = (cat: string) => {
         id="bloom-docs-nav-panel"
         class="hidden mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800 max-h-[70vh] overflow-y-auto scrollbar-thin space-y-6"
       >
-        <!-- Scope Switcher -->
-        <div class="flex p-1 rounded-2xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-xs font-semibold shadow-inner">
-          <a
-            href="/ui"
-            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
-              isUIMode
-                ? 'bg-purple-600 text-white shadow-md font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>UI Primitives</span>
-          </a>
+        <!-- 3-Scope Switcher Mobile -->
+        <div class="grid grid-cols-3 p-1 rounded-2xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-[11px] font-semibold shadow-inner gap-1">
           <a
             href="/docs/framework/quickstart"
-            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
-              !isUIMode
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'client'
                 ? 'bg-purple-600 text-white shadow-md font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Framework</span>
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>App / Web</span>
+          </a>
+          <a
+            href="/docs/server/overview"
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'server'
+                ? 'bg-pink-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>Server</span>
+          </a>
+          <a
+            href="/docs/cli"
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'cloud'
+                ? 'bg-blue-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Cloud &amp; CLI</span>
           </a>
         </div>
 
@@ -318,46 +385,11 @@ const isUICategoryActive = (cat: string) => {
                 })}
               </ul>
             </div>
-
-            <hr class="border-slate-200 dark:border-zinc-800" />
-
-            <!-- Primitives by Category -->
-            {UI_CATEGORIES.map((cat) => {
-              const items = UI_REGISTRY.filter((c) => c.category === cat);
-              const isOpen = isUICategoryActive(cat);
-              return (
-                <details open={isOpen} class="group space-y-2">
-                  <summary class="flex items-center justify-between text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden py-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
-                    <span class="flex items-center gap-1.5">
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 group-open:rotate-90" />
-                      <span>{cat}</span>
-                    </span>
-                    <span class="text-[10px] text-slate-400 font-mono font-normal">{items.length}</span>
-                  </summary>
-                  <ul class="space-y-1">
-                    {items.map((item) => (
-                      <li>
-                        <a
-                          href={`/ui/${item.slug}`}
-                          class={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            currentPath === `/ui/${item.slug}` || currentSlug === item.slug
-                              ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-900/50'
-                          }`}
-                        >
-                          {item.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              );
-            })}
           </div>
         ) : (
           <div class="space-y-6">
-            {frameworkNavSections.map((section, idx) => {
-              const isOpen = isFrameworkSectionActive(section) || (!hasAnyActiveFrameworkSection && idx === 0);
+            {activeNavSections.map((section, idx) => {
+              const isOpen = isSectionActive(section) || idx === 0;
               return (
                 <details open={isOpen} class="group space-y-2">
                   <summary class="flex items-center justify-between text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden py-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
@@ -396,8 +428,19 @@ const isUICategoryActive = (cat: string) => {
       <nav class="flex flex-wrap items-center gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400 max-w-full">
         <a href="/" class="hover:text-purple-400 transition">Hub</a>
         <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-        <a href={isUIMode ? '/ui' : '/docs/framework/quickstart'} class="hover:text-purple-400 transition">
-          {isUIMode ? 'Bloom UI' : 'Framework'}
+        <a
+          href={
+            activeScope === 'server'
+              ? '/docs/server/overview'
+              : activeScope === 'cloud'
+              ? '/docs/cli'
+              : activeScope === 'ui'
+              ? '/ui'
+              : '/docs/framework/quickstart'
+          }
+          class="hover:text-purple-400 transition font-bold"
+        >
+          {activeScope === 'server' ? 'Server (Backend)' : activeScope === 'cloud' ? 'Cloud & CLI' : activeScope === 'ui' ? 'Bloom UI' : 'App (Client)'}
         </a>
         <ChevronRight className="w-3.5 h-3.5 shrink-0" />
         <span class="text-slate-400">{category}</span>
@@ -436,29 +479,40 @@ const isUICategoryActive = (cat: string) => {
         class="hidden lg:block lg:col-span-3 space-y-6 sticky top-20 self-start h-[calc(100vh-5.5rem)] overflow-y-auto pr-4 scrollbar-thin"
       >
         
-        <!-- Context Scope Switcher -->
-        <div class="flex p-1 rounded-2xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-xs font-semibold shadow-inner">
-          <a
-            href="/ui"
-            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
-              isUIMode
-                ? 'bg-purple-600 text-white shadow-md font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>UI Primitives</span>
-          </a>
+        <!-- Dedicated 3-Scope Switcher Desktop -->
+        <div class="grid grid-cols-3 p-1 rounded-2xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 text-[11px] font-semibold shadow-inner gap-1">
           <a
             href="/docs/framework/quickstart"
-            class={`flex-1 py-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
-              !isUIMode
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'client'
                 ? 'bg-purple-600 text-white shadow-md font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Framework</span>
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>App / Web</span>
+          </a>
+          <a
+            href="/docs/server/overview"
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'server'
+                ? 'bg-pink-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>Server</span>
+          </a>
+          <a
+            href="/docs/cli"
+            class={`py-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              activeScope === 'cloud'
+                ? 'bg-blue-600 text-white shadow-md font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Cloud &amp; CLI</span>
           </a>
         </div>
 
@@ -551,8 +605,8 @@ const isUICategoryActive = (cat: string) => {
           </div>
         ) : (
           <div class="space-y-6">
-            {frameworkNavSections.map((section, idx) => {
-              const isOpen = isFrameworkSectionActive(section) || (!hasAnyActiveFrameworkSection && idx === 0);
+            {activeNavSections.map((section, idx) => {
+              const isOpen = isSectionActive(section) || idx === 0;
               return (
                 <details open={isOpen} class="group space-y-2">
                   <summary class="flex items-center justify-between text-xs font-mono font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden py-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
@@ -673,7 +727,7 @@ const isUICategoryActive = (cat: string) => {
 
         <div class="space-y-3 pt-2">
           <a
-            href="https://github.com/bloom-framework/bloom"
+            href="https://github.com/Chidi09/Bloom"
             target="_blank"
             rel="noopener noreferrer"
             class="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition"
@@ -682,7 +736,7 @@ const isUICategoryActive = (cat: string) => {
             <span>Edit this page on GitHub</span>
           </a>
           <a
-            href="https://github.com/bloom-framework/bloom/issues/new"
+            href="https://github.com/Chidi09/Bloom/issues/new"
             target="_blank"
             rel="noopener noreferrer"
             class="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition"
