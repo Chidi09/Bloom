@@ -14,7 +14,19 @@ class BuildCommand extends Command<int> {
   @override
   final String description = 'Compiles production artifacts with Bloom environment injection and flavor profiles.';
 
-  BuildCommand() {
+  final Future<ProcessResult> Function(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    bool includeParentEnvironment,
+    bool runInShell,
+    ProcessStartMode mode,
+  }) processRunner;
+
+  BuildCommand({
+    this.processRunner = _defaultProcessRunner,
+  }) {
     argParser
       ..addFlag(
         'release',
@@ -95,6 +107,17 @@ class BuildCommand extends Command<int> {
     }
 
     if (target == 'web' && (isStatic || isServer)) {
+      print(Ansi.step('Compiling Flutter web application...'));
+      final flutterBuildResult = await processRunner(
+        'flutter',
+        ['build', 'web', '--release'],
+        workingDirectory: project.rootDir.path,
+      );
+      if (flutterBuildResult.exitCode != 0) {
+        print(Ansi.error('flutter build web failed:\n${flutterBuildResult.stdout}\n${flutterBuildResult.stderr}'));
+        return 1;
+      }
+
       final ssg = BloomSsgEngine(project: project);
       await ssg.generate();
 
@@ -154,4 +177,23 @@ class BuildCommand extends Command<int> {
     }
     return exitCode;
   }
+}
+
+Future<ProcessResult> _defaultProcessRunner(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
+  bool includeParentEnvironment = true,
+  bool runInShell = false,
+  ProcessStartMode mode = ProcessStartMode.normal,
+}) {
+  return Process.run(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+    environment: environment,
+    includeParentEnvironment: includeParentEnvironment,
+    runInShell: runInShell,
+  );
 }
