@@ -1,0 +1,9 @@
+name: bloom_data_bench
+description: Benchmark for Bloom Data
+version: 1.0.0
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../../../packages/bloom_framework
