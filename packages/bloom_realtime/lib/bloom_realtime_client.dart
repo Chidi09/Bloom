@@ -5,7 +5,6 @@
 // via `signals_flutter`). Import this from Flutter client apps only —
 // never from a pure-Dart server entrypoint. Servers should import
 // `bloom_realtime.dart` instead, which is Flutter-free.
-library bloom_realtime_client;
 
 export 'bloom_realtime.dart';
 export 'src/client/query_bridge.dart';
