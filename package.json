@@ -1,0 +1,7 @@
+{
+  "name": "bloom-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "cd bloom-website && bun install && bun run build"
+  }
+}
