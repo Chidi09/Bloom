@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:bloom_framework/bloom_server.dart';
 import 'package:bloom_security/bloom_security.dart';
+import 'package:bloom_errors/bloom_errors.dart';
 
 import 'ssr_landing.dart';
 import 'apps/auth/urls.dart' as auth_urls;
@@ -18,6 +19,8 @@ import 'apps/labels/urls.dart' as labels_urls;
 /// pure SSR landing page, auto-generated Swagger & Scalar docs, and web client assets.
 void registerUrls(BloomApiRouter router) {
   // ── Global middleware ─────────────────────────────────────────────────────
+  // BloomErrorMiddleware MUST be the FIRST middleware to intercept all downstream errors.
+  router.use(const BloomErrorMiddleware());
   router.use(BloomAdvancedCorsMiddleware.permissive());
   router.use(
     const BloomSecurityHeadersMiddleware(
