@@ -527,13 +527,19 @@ String _renderDynamicSsrHtml({
       : """
   <div id="bloom-app-root">
     <header class="bloom-ssr-header">
-      <div class="bloom-brand">\$safeAppTitle</div>
+      <div class="bloom-brand">
+        <span class="bloom-logo-dot"></span>
+        <span>\$safeAppTitle</span>
+      </div>
+      <div class="bloom-ssr-nav">
+        <span class="bloom-badge">Bloom SSR Engine Active</span>
+      </div>
     </header>
     <main class="bloom-ssr-main">
+      <div class="bloom-pill">Full-Stack SSR • 0kB JS Baseline</div>
       <h1 class="bloom-page-title">\$safeHeader</h1>
       <p class="bloom-page-desc">\$safeDesc</p>
       \${loaderData != null ? '<div class="bloom-ssr-loader-data"><pre>' + _escapeHtml(const JsonEncoder.withIndent('  ').convert(loaderData)) + '</pre></div>' : ''}
-      <div class="bloom-badge">🖥️ Dynamic SSR Hydration Active</div>
     </main>
   </div>""";
 
@@ -554,15 +560,17 @@ String _renderDynamicSsrHtml({
   <link rel="apple-touch-icon" href="/icons/Icon-192.png" />
   <meta name="theme-color" content="\$safeTheme" />
   <style>
-    body { margin: 0; padding: 0; background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1F2937; }
-    #bloom-app-root { min-height: 100vh; display: flex; flex-direction: column; }
-    .bloom-ssr-header { padding: 1.5rem 2rem; background: #FFFFFF; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }
-    .bloom-brand { font-size: 1.25rem; font-weight: 700; color: #111827; }
-    .bloom-ssr-main { flex: 1; max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; width: 100%; box-sizing: border-box; }
-    .bloom-page-title { font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; }
-    .bloom-page-desc { font-size: 1.125rem; color: #4B5563; line-height: 1.6; }
-    .bloom-badge { margin-top: 1.5rem; display: inline-block; padding: 0.5rem 1rem; background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 9999px; color: #065F46; font-weight: 600; font-size: 0.875rem; }
-    .bloom-ssr-loader-data { margin-top: 1.5rem; padding: 1rem; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; font-family: monospace; }
+    body { margin: 0; padding: 0; background-color: #09090B; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; color: #F4F4F5; -webkit-font-smoothing: antialiased; }
+    #bloom-app-root { min-height: 100vh; display: flex; flex-direction: column; background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 60%); }
+    .bloom-ssr-header { padding: 1.25rem 2.5rem; background: rgba(14, 14, 18, 0.7); backdrop-filter: blur(16px); border-bottom: 1px solid #1E1E24; display: flex; align-items: center; justify-content: space-between; }
+    .bloom-brand { font-size: 1.05rem; font-weight: 700; color: #FFFFFF; display: flex; align-items: center; gap: 0.6rem; letter-spacing: -0.02em; }
+    .bloom-logo-dot { width: 10px; height: 10px; border-radius: 50%; background: #6366F1; box-shadow: 0 0 12px #6366F1; }
+    .bloom-ssr-main { flex: 1; max-width: 900px; margin: 4rem auto; padding: 0 1.5rem; width: 100%; box-sizing: border-box; text-align: center; }
+    .bloom-pill { display: inline-flex; align-items: center; padding: 0.35rem 0.85rem; background: rgba(39, 39, 42, 0.6); border: 1px solid #27272A; border-radius: 9999px; color: #A1A1AA; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; }
+    .bloom-page-title { font-size: 3.25rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 1rem 0; color: #FFFFFF; line-height: 1.15; }
+    .bloom-page-desc { font-size: 1.15rem; color: #A1A1AA; line-height: 1.6; max-width: 620px; margin: 0 auto; }
+    .bloom-badge { display: inline-block; padding: 0.35rem 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 9999px; color: #10B981; font-weight: 600; font-size: 0.75rem; }
+    .bloom-ssr-loader-data { margin-top: 2rem; padding: 1.25rem; background: #111116; border: 1px solid #22222A; border-radius: 12px; font-family: monospace; font-size: 0.85rem; color: #E2E8F0; text-align: left; }
   </style>
 </head>
 <body>
