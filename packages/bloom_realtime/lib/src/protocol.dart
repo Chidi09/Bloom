@@ -145,11 +145,18 @@ class RealtimeMessage {
     );
   }
 
-  /// Parses a [RealtimeMessage] from a raw JSON string.
+  /// Parses a [RealtimeMessage] from a raw JSON string or binary byte buffer.
   static RealtimeMessage? tryParse(dynamic raw) {
     try {
       if (raw is String) {
         final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          return RealtimeMessage.fromJson(decoded);
+        } else if (decoded is Map) {
+          return RealtimeMessage.fromJson(Map<String, dynamic>.from(decoded));
+        }
+      } else if (raw is List<int>) {
+        final decoded = jsonDecode(utf8.decode(raw));
         if (decoded is Map<String, dynamic>) {
           return RealtimeMessage.fromJson(decoded);
         } else if (decoded is Map) {
@@ -177,6 +184,9 @@ class RealtimeMessage {
 
   /// Encodes this message to a JSON string.
   String encode() => jsonEncode(toJson());
+
+  /// Encodes this message to a UTF-8 byte buffer for zero-copy binary frame transmission.
+  List<int> encodeBytes() => utf8.encode(encode());
 
   @override
   String toString() => 'RealtimeMessage(type: $type, channel: $channel, payload: $payload)';
