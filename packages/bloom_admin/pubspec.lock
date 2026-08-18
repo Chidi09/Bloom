@@ -68,17 +68,19 @@ packages:
   bloom_db:
     dependency: "direct main"
     description:
-      path: "../bloom_db"
-      relative: true
-    source: path
+      name: bloom_db
+      sha256: "9a1b0cc664e81ea9e3159e2d022e953b9be331826c3bf55057661cb3bae3453f"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   bloom_framework:
     dependency: "direct main"
     description:
-      path: "../bloom_framework"
-      relative: true
-    source: path
-    version: "0.2.1"
+      name: bloom_framework
+      sha256: "0906e2ebfabb38230a0d66ae065ab1b74c1f3ffb755cfe9bdf179a2ccd6e2e30"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.3"
   boolean_selector:
     dependency: transitive
     description:
