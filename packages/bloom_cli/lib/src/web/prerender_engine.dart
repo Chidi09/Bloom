@@ -1,6 +1,7 @@
 // lib/src/web/prerender_engine.dart
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 import '../utils/ansi.dart';
@@ -14,6 +15,14 @@ class BloomPrerenderEngine {
   Browser? _browser;
   HttpServer? _staticServer;
   late final String _baseUrl;
+
+  /// Returns whether the headless Chromium browser is currently active.
+  bool get isBrowserRunning => _browser != null;
+
+  /// Starts headless Chromium without a local static server or base URL.
+  Future<void> startBrowserOnly() async {
+    await _launchBrowser();
+  }
 
   /// Starts an engine that serves [buildWebDir] itself via a local static file server.
   Future<void> startWithStaticDir(Directory buildWebDir) async {
@@ -86,6 +95,53 @@ class BloomPrerenderEngine {
     } catch (e) {
       print(Ansi.warn('  ⚠ Notice: Headless Chromium prerendering unavailable ($e). Falling back to shell-template output.'));
       _browser = null;
+    }
+  }
+
+  /// Renders standalone [svgContent] into PNG bytes of [width] x [height].
+  ///
+  /// Returns null on any failure (browser uninitialized, Chromium error, etc.),
+  /// allowing callers to fall back gracefully without failing builds.
+  Future<Uint8List?> renderSvgToPng(
+    String svgContent, {
+    required int width,
+    required int height,
+    bool omitBackground = true,
+  }) async {
+    if (_browser == null) return null;
+
+    Page? page;
+    try {
+      page = await _browser!.newPage();
+      await page.setViewport(DeviceViewport(width: width, height: height));
+
+      final html = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    svg { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>$svgContent</body>
+</html>
+''';
+
+      await page.setContent(html, wait: Until.load);
+      final bytes = await page.screenshot(
+        omitBackground: omitBackground,
+      );
+      return bytes;
+    } catch (e) {
+      return null;
+    } finally {
+      if (page != null) {
+        try {
+          await page.close();
+        } catch (_) {}
+      }
     }
   }
 
