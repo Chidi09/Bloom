@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.2.3
+## 0.3.0
+
+### Added
+
+* **Automatic OpenAPI 3.1 & Swagger / Scalar Documentation**: `BloomApiRouter` now includes `enableOpenApi()` and `toOpenApiSpec()` for zero-config, single-line API documentation generation. The router automatically discovers registered routes, parameters, HTTP methods, and tags, rendering interactive **Scalar** (`/api/docs`) and **Swagger UI** (`/api/swagger`) consoles with official Bloom vector branding and dark mode styling.
+* **HTTP HEAD Method Support for GET Routes**: `BloomApiRouter` now transparently supports `HEAD` requests on all `GET` endpoints, returning accurate headers and status codes without body serialization.
+
+### Changed
+
+* **Bloom API Router Specificity & Regex Matching**: Fixed root `/` path matching and wildcard resolution.
 
 ### Added
 
