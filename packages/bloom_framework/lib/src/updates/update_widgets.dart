@@ -6,10 +6,16 @@ import 'bloom_updates.dart';
 /// Pre-built reactive in-app update banner.
 /// Automatically listens to [BloomUpdates] signals and prompts the user when updates are downloaded.
 class BloomUpdateBanner extends StatelessWidget {
+  /// Optional leading icon widget.
   final Widget? icon;
+
+  /// Message displayed when an update is staged and ready to apply.
   final String readyMessage;
+
+  /// Button label for triggering app reload.
   final String restartButtonText;
 
+  /// Creates a [BloomUpdateBanner].
   const BloomUpdateBanner({
     super.key,
     this.icon,
@@ -67,10 +73,16 @@ class BloomUpdateBanner extends StatelessWidget {
 
 /// Modal dialog for mandatory or recommended OTA updates.
 class BloomUpdateDialog extends StatelessWidget {
+  /// Dialog title text.
   final String title;
+
+  /// Optional release notes markdown or summary string.
   final String? releaseNotes;
+
+  /// Optional dismiss callback for optional updates.
   final VoidCallback? onDismiss;
 
+  /// Creates a [BloomUpdateDialog].
   const BloomUpdateDialog({
     super.key,
     this.title = 'New Update Available',

@@ -4,16 +4,23 @@ import 'native_module.dart';
 
 /// Application lifecycle events forwarded to registered Bloom Native Modules.
 enum BloomLifecycleEvent {
+  /// App resumed into foreground.
   resumed,
+  /// App became inactive.
   inactive,
+  /// App entered background paused state.
   paused,
+  /// App detached from host view hierarchy.
   detached,
+  /// App views hidden.
   hidden,
 }
 
 /// Central registry managing the lifecycle, registration, and discovery of Bloom Native Modules.
 class BloomModuleRegistry {
   static final BloomModuleRegistry _instance = BloomModuleRegistry._internal();
+
+  /// Returns the singleton [BloomModuleRegistry] instance.
   factory BloomModuleRegistry() => _instance;
   BloomModuleRegistry._internal();
 

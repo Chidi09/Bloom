@@ -2,23 +2,39 @@
 import 'package:permission_handler/permission_handler.dart' as ph;
 import '../core/logger.dart';
 
+/// Native hardware and system permission types supported by Bloom.
 enum BloomPermission {
+  /// Camera capture permission.
   camera,
+  /// Push / local notifications permission.
   notifications,
+  /// Device filesystem / photos storage permission.
   storage,
+  /// Audio microphone recording permission.
   microphone,
+  /// Device GPS / location access permission.
   location,
 }
 
+/// Permission authorization status.
 enum BloomPermissionStatus {
+  /// Permission has been granted by user.
   granted,
+  /// Permission was denied by user.
   denied,
+  /// Permission was permanently denied (must enable via OS settings).
   permanentlyDenied,
+  /// Permission restricted by OS policies (parental controls, MDM).
   restricted,
+  /// Limited access granted (e.g. iOS limited photo library).
   limited,
+  /// Permission status is unknown or uninitialized.
   unknown;
 
+  /// Whether permission allows access (either granted or limited).
   bool get isGranted => this == BloomPermissionStatus.granted || this == BloomPermissionStatus.limited;
+
+  /// Whether permission is denied or permanently denied.
   bool get isDenied => this == BloomPermissionStatus.denied || this == BloomPermissionStatus.permanentlyDenied;
 }
 

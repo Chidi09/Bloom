@@ -9,6 +9,7 @@ import '../data/storage.dart';
 class BloomSecureStorage implements BloomStorageAdapter {
   final FlutterSecureStorage _storage;
 
+  /// Creates a [BloomSecureStorage] adapter with platform encryption options.
   BloomSecureStorage({
     FlutterSecureStorage? storage,
     AndroidOptions? androidOptions,

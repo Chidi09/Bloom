@@ -4,14 +4,22 @@ import '../core/logger.dart';
 
 /// Delegate interface for persisting watchdog crash counts and active patch states.
 abstract class WatchdogStorage {
+  /// Returns the consecutive crash count for the given [patchId].
   int getConsecutiveCrashes(String patchId);
+
+  /// Stores consecutive crash [count] for [patchId].
   void setConsecutiveCrashes(String patchId, int count);
+
+  /// Clears stored crash records for [patchId].
   void clearPatch(String patchId);
 }
 
 /// In-memory default implementation of WatchdogStorage.
 class InMemoryWatchdogStorage implements WatchdogStorage {
   final Map<String, int> _crashes = {};
+
+  /// Creates an [InMemoryWatchdogStorage].
+  InMemoryWatchdogStorage();
 
   @override
   int getConsecutiveCrashes(String patchId) => _crashes[patchId] ?? 0;
@@ -30,16 +38,23 @@ class InMemoryWatchdogStorage implements WatchdogStorage {
 /// Self-healing startup watchdog that detects crash loops on downloaded OTA patches
 /// and automatically falls back to the embedded base binary.
 class StartupCrashWatchdog {
+  /// Persistence storage delegate for crash metrics.
   final WatchdogStorage storage;
+
+  /// Maximum permitted startup crashes before initiating automatic rollback.
   final int maxCrashThreshold;
+
+  /// Duration after launch after which startup is considered healthy.
   final Duration healthyThresholdDuration;
 
   Timer? _healthTimer;
   String? _activePatchId;
   bool _isHealthy = false;
 
+  /// Callback triggered when self-healing rollback occurs.
   void Function(String faultyPatchId, String reason)? onRollbackTriggered;
 
+  /// Creates a [StartupCrashWatchdog].
   StartupCrashWatchdog({
     WatchdogStorage? storage,
     this.maxCrashThreshold = 2,
@@ -47,6 +62,7 @@ class StartupCrashWatchdog {
     this.onRollbackTriggered,
   }) : storage = storage ?? InMemoryWatchdogStorage();
 
+  /// Whether current startup has stabilized and reached healthy state.
   bool get isHealthy => _isHealthy;
 
   /// Starts monitoring application startup for the given [patchId].

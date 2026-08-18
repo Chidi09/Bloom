@@ -4,30 +4,67 @@ import '../core/logger.dart';
 import '../state/signals.dart';
 import 'cache.dart';
 
-enum MutationStatus { idle, pending, success, error }
+/// Lifecycle execution status of a [BloomMutation].
+enum MutationStatus {
+  /// Mutation has not been executed yet or has been reset.
+  idle,
+  /// Mutation execution is currently in progress.
+  pending,
+  /// Mutation executed successfully.
+  success,
+  /// Mutation execution encountered an error.
+  error,
+}
 
+/// The asynchronous execution function that performs the mutation operation.
 typedef MutationFn<T, P> = Future<T> Function(P params);
+
+/// Hook called immediately prior to executing the mutation, returning an optional context object.
 typedef OnMutateCallback<P> = FutureOr<dynamic> Function(P params);
+
+/// Hook called upon successful mutation completion.
 typedef OnSuccessCallback<T, P> = FutureOr<void> Function(T data, P params, dynamic context);
+
+/// Hook called when a mutation throws an error.
 typedef OnErrorCallback<P> = FutureOr<void> Function(Object error, P params, dynamic context);
+
+/// Hook called after mutation settled (either succeeded or failed).
 typedef OnSettledCallback<T, P> = FutureOr<void> Function(T? data, Object? error, P params, dynamic context);
+
+/// Optimistic update transformation function updating cached data prior to network response.
 typedef OptimisticUpdater<T, P> = T? Function(P params, T? oldData);
 
 /// Asynchronous mutation manager with automated optimistic updates, automatic rollback, and cache invalidation.
 class BloomMutation<T, P> {
+  /// The underlying mutation execution function.
   final MutationFn<T, P> mutateFn;
+
+  /// Optional query cache key targeted for optimistic updates.
   final List<dynamic>? optimisticKey;
+
+  /// Optimistic data transformation callback applied before network resolution.
   final OptimisticUpdater<T, P>? optimisticData;
+
+  /// List of query cache keys to invalidate upon successful completion.
   final List<List<dynamic>> invalidateKeys;
+
+  /// Optional hook invoked before mutation execution.
   final OnMutateCallback<P>? onMutate;
+
+  /// Optional hook invoked on successful mutation.
   final OnSuccessCallback<T, P>? onSuccess;
+
+  /// Optional hook invoked on mutation error.
   final OnErrorCallback<P>? onError;
+
+  /// Optional hook invoked when mutation settles.
   final OnSettledCallback<T, P>? onSettled;
 
   late final Signal<T?> _data;
   late final Signal<MutationStatus> _status;
   late final Signal<Object?> _error;
 
+  /// Creates a [BloomMutation] instance.
   BloomMutation({
     required this.mutateFn,
     this.optimisticKey,
@@ -43,13 +80,25 @@ class BloomMutation<T, P> {
     _error = signal<Object?>(null, debugLabel: 'mutation.error');
   }
 
+  /// Reactive signal holding the latest successful result data.
   ReadonlySignal<T?> get data => _data.readonly();
+
+  /// Reactive signal indicating the current mutation lifecycle status.
   ReadonlySignal<MutationStatus> get status => _status.readonly();
+
+  /// Reactive signal holding any error thrown during execution.
   ReadonlySignal<Object?> get error => _error.readonly();
 
+  /// Whether the mutation is in [MutationStatus.idle] status.
   bool get isIdle => _status.value == MutationStatus.idle;
+
+  /// Whether the mutation is actively executing.
   bool get isPending => _status.value == MutationStatus.pending;
+
+  /// Whether the mutation succeeded.
   bool get isSuccess => _status.value == MutationStatus.success;
+
+  /// Whether the mutation failed with an error.
   bool get isError => _status.value == MutationStatus.error;
 
   /// Safely execute mutation with parameters [params].

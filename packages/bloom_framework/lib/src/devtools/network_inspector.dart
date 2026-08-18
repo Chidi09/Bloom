@@ -5,19 +5,43 @@ import '../data/http_client.dart';
 
 /// Recorded network request / response trace event.
 class BloomNetworkTrace {
+  /// Unique request trace ID.
   final String id;
+
+  /// HTTP method string.
   final String method;
+
+  /// Target request URL.
   final String url;
+
+  /// Request headers map.
   final Map<String, String> headers;
+
+  /// Request body payload.
   final dynamic body;
+
+  /// Timestamp when the request was dispatched.
   final DateTime timestamp;
+
+  /// HTTP status code returned.
   final int? statusCode;
+
+  /// Response body data.
   final dynamic responseBody;
+
+  /// Network round-trip duration.
   final Duration? latency;
+
+  /// Error message if the request failed.
   final String? error;
+
+  /// Whether this request was executed as a replay.
   final bool isReplay;
+
+  /// Original trace ID if this trace is a replay.
   final String? originalTraceId;
 
+  /// Creates a [BloomNetworkTrace] record.
   BloomNetworkTrace({
     required this.id,
     required this.method,
@@ -33,8 +57,10 @@ class BloomNetworkTrace {
     this.originalTraceId,
   });
 
+  /// Whether the response status code indicates success (2xx).
   bool get isSuccess => statusCode != null && statusCode! >= 200 && statusCode! < 300;
 
+  /// Serializes trace event to JSON map.
   Map<String, dynamic> toJson() => {
         'id': id,
         'method': method,

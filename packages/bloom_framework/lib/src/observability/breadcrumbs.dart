@@ -4,9 +4,11 @@ import 'models.dart';
 
 /// Fixed-capacity ring buffer for storing recent chronological breadcrumbs.
 class BloomBreadcrumbRingBuffer {
+  /// Maximum number of breadcrumbs retained in memory.
   final int maxCapacity;
   final Queue<BloomBreadcrumb> _queue = Queue<BloomBreadcrumb>();
 
+  /// Creates a [BloomBreadcrumbRingBuffer] with given [maxCapacity].
   BloomBreadcrumbRingBuffer({this.maxCapacity = 100}) {
     if (maxCapacity <= 0) {
       throw ArgumentError.value(maxCapacity, 'maxCapacity', 'Must be greater than 0');

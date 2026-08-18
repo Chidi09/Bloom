@@ -2,12 +2,21 @@
 import 'dart:collection';
 import '../state/signals.dart';
 
+/// Visual descriptor for a tracked reactive signal displayed in DevTools.
 class SignalDescriptor {
+  /// Debug label or signal name.
   final String name;
+
+  /// Current evaluated signal value.
   final dynamic currentValue;
+
+  /// Total count of value update notifications observed.
   final int updateCount;
+
+  /// Runtime type of the signal value.
   final Type valueType;
 
+  /// Creates a [SignalDescriptor].
   SignalDescriptor({
     required this.name,
     required this.currentValue,
@@ -15,6 +24,7 @@ class SignalDescriptor {
     required this.valueType,
   });
 
+  /// Serializes descriptor to JSON map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'currentValue': currentValue,

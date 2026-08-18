@@ -4,23 +4,41 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
+/// Importance levels for notification priority and alerts.
 enum NotificationImportance {
+  /// Low importance notification with no sound or vibration.
   low(Importance.low, Priority.low),
+  /// Default notification importance.
   medium(Importance.defaultImportance, Priority.defaultPriority),
+  /// High importance notification with sound and banner.
   high(Importance.high, Priority.high),
+  /// Maximum importance notification with heads-up display.
   max(Importance.max, Priority.max);
 
+  /// Underlying [Importance] level.
   final Importance importance;
+
+  /// Underlying [Priority] level.
   final Priority priority;
+
   const NotificationImportance(this.importance, this.priority);
 }
 
+/// Represents an Android notification channel configuration.
 class BloomNotificationChannel {
+  /// Unique channel ID.
   final String id;
+
+  /// User-visible channel name.
   final String name;
+
+  /// User-visible channel description.
   final String? description;
+
+  /// Importance level of notifications posted to this channel.
   final NotificationImportance importance;
 
+  /// Creates a [BloomNotificationChannel] definition.
   const BloomNotificationChannel({
     required this.id,
     required this.name,
@@ -28,6 +46,7 @@ class BloomNotificationChannel {
     this.importance = NotificationImportance.high,
   });
 
+  /// Converts this definition to a Flutter [AndroidNotificationChannel].
   AndroidNotificationChannel toAndroidChannel() {
     return AndroidNotificationChannel(
       id,
@@ -44,6 +63,7 @@ class BloomNotifications {
   int _idCounter = 1;
   bool _isInitialized = false;
 
+  /// Creates a [BloomNotifications] manager with an optional [plugin] instance.
   BloomNotifications([FlutterLocalNotificationsPlugin? plugin])
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 

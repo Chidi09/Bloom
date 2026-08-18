@@ -5,8 +5,10 @@ import 'observability.dart';
 
 /// NavigatorObserver that automatically records route transition breadcrumbs.
 class BloomObservabilityNavigatorObserver extends NavigatorObserver {
+  /// Category label applied to recorded navigation breadcrumbs (default: `'navigation'`).
   final String category;
 
+  /// Creates a [BloomObservabilityNavigatorObserver].
   BloomObservabilityNavigatorObserver({this.category = 'navigation'});
 
   @override
