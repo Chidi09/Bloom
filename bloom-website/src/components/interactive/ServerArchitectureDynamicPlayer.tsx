@@ -267,6 +267,7 @@ export function ServerArchitectureDynamicPlayer() {
   const [isTyping, setIsTyping] = useState(true);
 
   const codeContainerRef = useRef<HTMLDivElement>(null);
+  const cursorAnchorRef = useRef<HTMLSpanElement>(null);
   const activeFeature = FEATURES[activeIndex];
 
   // Reset and trigger typing stream whenever active feature changes
@@ -279,9 +280,9 @@ export function ServerArchitectureDynamicPlayer() {
     }
 
     const fullLength = activeFeature.code.length;
-    // Type fast enough to finish within ~1.2s
-    const chunkSize = Math.max(6, Math.ceil(fullLength / 60));
-    const typeIntervalMs = 18;
+    // Chunk size calculated so entire snippet completes typing in ~1.2s
+    const chunkSize = Math.max(6, Math.ceil(fullLength / 55));
+    const typeIntervalMs = 20;
 
     const typeTimer = setInterval(() => {
       setTypedChars((prev) => {
@@ -298,12 +299,13 @@ export function ServerArchitectureDynamicPlayer() {
     return () => clearInterval(typeTimer);
   }, [activeIndex]);
 
-  // Auto-scroll code container to the bottom as new lines are typed
+  // Auto-scroll code container precisely to the typing cursor
   useEffect(() => {
-    if (codeContainerRef.current && isTyping) {
+    if (codeContainerRef.current) {
+      // Direct scroll to bottom ensures cursor is always in view
       codeContainerRef.current.scrollTop = codeContainerRef.current.scrollHeight;
     }
-  }, [typedChars, isTyping]);
+  }, [typedChars]);
 
   // Rotation timer loop
   useEffect(() => {
@@ -446,15 +448,16 @@ export function ServerArchitectureDynamicPlayer() {
         </div>
       </div>
 
-      {/* Code Body with Auto-Scrolling Typewriter Stream */}
+      {/* Single Scroll Container with Continuous Auto-Scroll to Cursor */}
       <div 
         ref={codeContainerRef}
-        className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed max-h-[440px] overflow-y-auto overflow-x-auto bg-[#0d1117]/95 scrollbar-thin relative scroll-smooth"
+        className="p-4 sm:p-6 font-mono text-xs sm:text-[13px] leading-relaxed h-[360px] overflow-y-auto overflow-x-auto bg-[#0d1117]/95 scrollbar-thin relative select-text"
       >
-        <pre className="text-slate-300 font-mono">
-          <code dangerouslySetInnerHTML={{ __html: highlightDart(displayedCode) }} />
-          {/* Animated Blinking Insertion Cursor */}
+        <pre className="text-slate-300 font-mono m-0 p-0 whitespace-pre overflow-visible">
+          <code className="overflow-visible" dangerouslySetInnerHTML={{ __html: highlightDart(displayedCode) }} />
+          {/* Animated Blinking Insertion Cursor & Auto-Scroll Anchor */}
           <span 
+            ref={cursorAnchorRef}
             className={`inline-block w-2 h-4 bg-purple-400 align-middle ml-0.5 shadow-[0_0_8px_rgba(168,85,247,0.8)] ${
               isTyping ? 'animate-pulse' : 'animate-ping'
             }`}
