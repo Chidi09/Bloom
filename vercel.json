@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd bloom-website && bun install && bun run build",
+  "outputDirectory": "bloom-website/dist",
+  "framework": null
+}
