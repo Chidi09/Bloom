@@ -7,8 +7,8 @@ environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
-  # Bloom framework packages (from pub.dev)
   bloom_framework: ^0.2.3
+  bloom_security: ^0.1.0
   bloom_db: ^0.1.0
   bloom_rest: ^0.1.0
   bloom_auth_server: ^0.1.0
@@ -17,7 +17,6 @@ dependencies:
   bloom_jobs: ^0.1.0
   bloom_mail: ^0.1.0
   bloom_storage: ^0.1.0
-  bloom_security: ^0.1.0
   bloom_migrate: ^0.1.0
 
   # Internal workspace packages
@@ -25,6 +24,12 @@ dependencies:
     path: ../../packages/core
   bloom_todo_config:
     path: ../../packages/config
+
+dependency_overrides:
+  bloom_framework:
+    path: ../../../../packages/bloom_framework
+  bloom_security:
+    path: ../../../../packages/bloom_security
 
 dev_dependencies:
   lints: ^3.0.0

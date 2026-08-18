@@ -4,7 +4,6 @@ import 'package:bloom_framework/bloom_server.dart';
 import 'package:bloom_security/bloom_security.dart';
 
 import 'ssr_landing.dart';
-import 'swagger.dart';
 import 'apps/auth/urls.dart' as auth_urls;
 import 'apps/comments/urls.dart' as comments_urls;
 import 'apps/notifications/urls.dart' as notifications_urls;
@@ -16,7 +15,7 @@ import 'apps/workspaces/urls.dart' as workspaces_urls;
 import 'apps/labels/urls.dart' as labels_urls;
 
 /// Wire up the top-level [BloomApiRouter] with every sub-application's routes,
-/// pure SSR landing page, Swagger & Scalar docs, and web client static assets.
+/// pure SSR landing page, auto-generated Swagger & Scalar docs, and web client assets.
 void registerUrls(BloomApiRouter router) {
   // ── Global middleware ─────────────────────────────────────────────────────
   router.use(BloomAdvancedCorsMiddleware.permissive());
@@ -45,18 +44,12 @@ void registerUrls(BloomApiRouter router) {
     return BloomResponse.html(renderLandingHtml());
   });
 
-  // ── Swagger & OpenAPI 3.1 Interactive Documentation ───────────────────────
-  router.get('/api/openapi.json', (BloomRequest req) async {
-    return BloomResponse.json(BloomSwagger.generateOpenApiSpec());
-  });
-
-  router.get('/api/docs', (BloomRequest req) async {
-    return BloomResponse.html(BloomSwagger.renderScalarDocsHtml());
-  });
-
-  router.get('/api/swagger', (BloomRequest req) async {
-    return BloomResponse.html(BloomSwagger.renderSwaggerUiHtml());
-  });
+  // ── Auto-Generated Swagger UI & OpenAPI 3.1 Documentation ─────────────────
+  router.enableOpenApi(
+    title: 'Bloom Todo API',
+    version: '1.0.0',
+    description: 'Production REST API for Bloom Todoist-grade full-stack task manager.',
+  );
 
   // ── Health check ──────────────────────────────────────────────────────────
   router.get('/api/health', (BloomRequest req) async {
