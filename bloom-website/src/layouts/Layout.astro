@@ -4,7 +4,6 @@ import '../styles/global.css';
 import Navbar from '../components/common/Navbar.astro';
 import Footer from '../components/common/Footer.astro';
 import AmbientMesh from '../components/common/AmbientMesh.astro';
-import { ScrollProgressRail } from '../components/common/ScrollProgressRail';
 import { ToastSystem } from '../components/common/ToastSystem';
 import { CommandPalette } from '../components/common/CommandPalette';
 import BackToTop from '../components/common/BackToTop.astro';
@@ -145,9 +144,6 @@ const jsonLd = {
     
     <!-- Background System -->
     <AmbientMesh hue={hue} />
-
-    <!-- Desktop Story Rail -->
-    <ScrollProgressRail client:idle />
 
     <!-- Main Navigation Header -->
     <Navbar petalHighlight={petalHighlight} />
