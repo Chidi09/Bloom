@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'guards.dart';
 import '../routes/index.dart';
+import '../routes/error.dart';
 import '../routes/(auth)/login.dart';
 import '../routes/(auth)/signup.dart';
 import '../routes/(app)/_layout.dart';
@@ -14,6 +15,7 @@ import '../routes/(app)/task/[id].dart';
 class AppRouter {
   static final router = GoRouter(
     initialLocation: '/',
+    errorBuilder: (context, state) => ErrorPage(state: state),
     redirect: (context, state) => AuthGuard.redirect(state.uri.toString()),
     routes: [
       GoRoute(
