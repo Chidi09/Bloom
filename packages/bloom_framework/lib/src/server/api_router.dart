@@ -337,4 +337,218 @@ class BloomApiRouter {
     }
     return builder.takeBytes();
   }
+
+  /// Automatically generates an OpenAPI 3.1 specification and mounts interactive
+  /// Scalar and Swagger UI documentation endpoints.
+  void enableOpenApi({
+    String title = 'Bloom API',
+    String version = '1.0.0',
+    String description = 'Full-stack Bloom Server API',
+    String schemaPath = '/api/openapi.json',
+    String docsPath = '/api/docs',
+    String swaggerPath = '/api/swagger',
+  }) {
+    get(schemaPath, (req) async => BloomResponse.json(toOpenApiSpec(
+      title: title,
+      version: version,
+      description: description,
+    )));
+
+    get(docsPath, (req) async => BloomResponse.html(_renderScalarHtml(title, schemaPath)));
+    get(swaggerPath, (req) async => BloomResponse.html(_renderSwaggerHtml(title, schemaPath)));
+  }
+
+  /// Generates an OpenAPI 3.1 specification map from all registered routes.
+  Map<String, dynamic> toOpenApiSpec({
+    String title = 'Bloom API',
+    String version = '1.0.0',
+    String description = 'Full-stack Bloom Server API',
+  }) {
+    final paths = <String, Map<String, dynamic>>{};
+
+    for (final route in _routes) {
+      if (route.method == '*' || route.pathPattern.isEmpty) continue;
+      if (route.pathPattern.startsWith('/api/openapi') ||
+          route.pathPattern.startsWith('/api/docs') ||
+          route.pathPattern.startsWith('/api/swagger') ||
+          route.pathPattern == '/' ||
+          route.pathPattern.endsWith('.js') ||
+          route.pathPattern.endsWith('.json')) {
+        continue;
+      }
+
+      // Convert /api/tasks/:id to /api/tasks/{id}
+      var openApiPath = route.pathPattern;
+      for (final param in route.paramNames) {
+        openApiPath = openApiPath.replaceAll(':$param', '{$param}');
+      }
+
+      final methodLower = route.method.toLowerCase();
+      paths.putIfAbsent(openApiPath, () => <String, dynamic>{});
+
+      // Derive tag from path segment (e.g. /api/tasks -> Tasks)
+      final segments = openApiPath.split('/').where((s) => s.isNotEmpty && s != 'api').toList();
+      final tag = segments.isNotEmpty
+          ? segments.first.substring(0, 1).toUpperCase() + segments.first.substring(1)
+          : 'General';
+
+      final operation = <String, dynamic>{
+        'tags': [tag],
+        'summary': '${route.method} $openApiPath',
+        'responses': {
+          '200': {'description': 'Successful response'},
+        },
+      };
+
+      if (route.paramNames.isNotEmpty) {
+        operation['parameters'] = route.paramNames.map((p) => {
+          'name': p,
+          'in': 'path',
+          'required': true,
+          'schema': {'type': 'string'},
+        }).toList();
+      }
+
+      if (methodLower == 'post' || methodLower == 'put' || methodLower == 'patch') {
+        operation['requestBody'] = {
+          'required': true,
+          'content': {
+            'application/json': {
+              'schema': {'type': 'object'},
+            },
+          },
+        };
+      }
+
+      paths[openApiPath]![methodLower] = operation;
+    }
+
+    return {
+      'openapi': '3.1.0',
+      'info': {
+        'title': title,
+        'version': version,
+        'description': description,
+      },
+      'paths': paths,
+    };
+  }
+
+  static String _renderScalarHtml(String title, String schemaUrl) {
+    return '''
+<!doctype html>
+<html>
+  <head>
+    <title>$title • API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 6C16 11.5 11.5 16 6 16C11.5 16 16 20.5 16 26C16 20.5 20.5 16 26 16C20.5 16 16 11.5 16 6Z' fill='%236366F1'/%3E%3C/svg%3E" />
+    <style>
+      body { margin: 0; background-color: #09090B; }
+      .scalar-custom-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 24px;
+        background: #0E0E12;
+        border-bottom: 1px solid #1E1E24;
+      }
+      .scalar-custom-header span {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        color: #FFF;
+        letter-spacing: -0.3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="scalar-custom-header">
+      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 6C16 11.5228 11.5228 16 6 16C11.5228 16 16 20.4772 16 26C16 20.4772 20.4772 16 26 16C20.4772 16 16 11.5228 16 6Z" fill="url(#bGrad)"/>
+        <defs>
+          <linearGradient id="bGrad" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#818CF8"/>
+            <stop offset="0.5" stop-color="#6366F1"/>
+            <stop offset="1" stop-color="#EC4899"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span>Bloom API Explorer</span>
+    </div>
+    <script
+      id="api-reference"
+      data-url="$schemaUrl"
+      data-configuration='{"theme":"purple","darkMode":true,"layout":"modern","showSidebar":true}'
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>''';
+  }
+
+  static String _renderSwaggerHtml(String title, String schemaUrl) {
+    return '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>$title • Swagger UI</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 6C16 11.5 11.5 16 6 16C11.5 16 16 20.5 16 26C16 20.5 20.5 16 26 16C20.5 16 16 11.5 16 6Z' fill='%236366F1'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #09090B; color: #FFF; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .bloom-swagger-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      background: #0E0E12;
+      border-bottom: 1px solid #1E1E24;
+    }
+    .bloom-swagger-bar .title { font-weight: 700; font-size: 15px; color: #FFF; }
+    .bloom-swagger-bar .badge {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818CF8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div class="bloom-swagger-bar">
+    <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 6C16 11.5228 11.5228 16 6 16C11.5228 16 16 20.4772 16 26C16 20.4772 20.4772 16 26 16C20.4772 16 16 11.5228 16 6Z" fill="url(#bGrad)"/>
+      <defs>
+        <linearGradient id="bGrad" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#818CF8"/>
+          <stop offset="0.5" stop-color="#6366F1"/>
+          <stop offset="1" stop-color="#EC4899"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <span class="title">Bloom Interactive Console</span>
+    <span class="badge">OpenAPI 3.1</span>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      SwaggerUIBundle({
+        url: "$schemaUrl",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ],
+      });
+    };
+  </script>
+</body>
+</html>''';
+  }
 }
