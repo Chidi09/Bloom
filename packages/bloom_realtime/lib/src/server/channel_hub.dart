@@ -47,6 +47,38 @@ class BloomChannelHub {
   int channelSubscriberCount(String channel) =>
       _channelSubscribers[channel]?.length ?? 0;
 
+  /// High-performance WebSocket upgrader with optimal production defaults:
+  /// - Sets `tcpNoDelay: true` to eliminate Nagle packet buffering latency.
+  /// - Disables `permessage-deflate` by default (`CompressionOptions.compressionOff`) to save CPU on small JSON events.
+  ///
+  /// - [request]: The incoming [HttpRequest].
+  /// - [compression]: Compression strategy (defaults to [CompressionOptions.compressionOff]).
+  /// - [tcpNoDelay]: When `true`, detaches the underlying TCP socket to guarantee `TCP_NODELAY` is enabled.
+  /// - [protocol]: Optional subprotocol string.
+  static Future<WebSocket> upgrade(
+    HttpRequest request, {
+    CompressionOptions compression = CompressionOptions.compressionOff,
+    bool tcpNoDelay = true,
+    String? protocol,
+  }) async {
+    if (tcpNoDelay) {
+      final socket = await request.response.detachSocket();
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      return WebSocket.fromUpgradedSocket(
+        socket,
+        protocol: protocol,
+        serverSide: true,
+        compression: compression,
+      );
+    } else {
+      return WebSocketTransformer.upgrade(
+        request,
+        protocolSelector: protocol != null ? (_) => protocol : null,
+        compression: compression,
+      );
+    }
+  }
+
   /// Registers and attaches a newly upgraded [WebSocket] connection to the hub.
   ///
   /// Automatically listens to socket messages (handling standard [RealtimeMessage] protocol),
@@ -140,16 +172,20 @@ class BloomChannelHub {
   /// Broadcasts [payload] to all active subscribers of [channelName].
   ///
   /// Dead or closing sockets are actively detected, dropped from the subscriber set,
+  /// Broadcasts [payload] to all active subscribers of [channelName].
+  ///
+  /// Dead or closing sockets are actively detected, dropped from the subscriber set,
   /// and cleaned up from the hub without throwing or leaking memory.
   ///
   /// - [channelName]: Target channel name.
   /// - [payload]: Map payload data to broadcast.
-  int broadcast(String channelName, Map<String, dynamic> payload) {
+  /// - [asBinary]: When `true`, serializes directly to pre-encoded UTF-8 byte array for binary framing.
+  int broadcast(String channelName, Map<String, dynamic> payload, {bool asBinary = false}) {
     final subs = _channelSubscribers[channelName];
     if (subs == null || subs.isEmpty) return 0;
 
     final msg = RealtimeMessage.broadcast(channelName, payload);
-    final encoded = msg.encode();
+    final dynamic wire = asBinary ? msg.encodeBytes() : msg.encode();
 
     List<_HubConnection>? deadConns;
     int sentCount = 0;
@@ -161,7 +197,7 @@ class BloomChannelHub {
       }
 
       try {
-        conn.socket.add(encoded);
+        conn.socket.add(wire);
         sentCount++;
       } catch (_) {
         (deadConns ??= []).add(conn);
@@ -183,7 +219,8 @@ class BloomChannelHub {
   ///
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string.
   /// - [message]: Message envelope to send.
-  bool sendTo(dynamic socketOrId, RealtimeMessage message) {
+  /// - [asBinary]: When `true`, sends binary frame.
+  bool sendTo(dynamic socketOrId, RealtimeMessage message, {bool asBinary = false}) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null || conn.isDisposed) return false;
 
@@ -193,7 +230,7 @@ class BloomChannelHub {
     }
 
     try {
-      conn.socket.add(message.encode());
+      conn.socket.add(asBinary ? message.encodeBytes() : message.encode());
       return true;
     } catch (_) {
       removeConnection(conn.id);
