@@ -1,0 +1,75 @@
+---
+import { HelpCircle, ChevronDown, Sparkles } from 'lucide-preact';
+
+const faqs = [
+  {
+    question: "Why write backend servers in Pure Dart instead of Node.js, Go, or Python?",
+    answer: "Pure Dart compiles Ahead-of-Time (AOT) to native machine code with separate isolate memory heaps, completely eliminating Node.js single-thread event loop blocking and JavaScript's massive memory overhead. Bloom Server processes 78,125 WebSocket messages/sec at just 3.70 MB RAM (compared to 107 MB for Fastify) while allowing you to share exact data models, validation schemas, and types directly with your Flutter client without code generators.",
+  },
+  {
+    question: "How is Bloom Server modeled on Django and djangors-*?",
+    answer: "Bloom Server adopts Django's battle-tested architectural modularity: domain apps in `lib/apps/<name>/` containing `models.dart`, `serializers.dart`, `views.dart`, and `admin.dart`. It includes declarative `@Model()` declarations, automated deterministic SQL migrations (`bloom_migrate`), Django REST Framework style `BloomViewSet` routing with composable permissions, and an instant server-rendered HTML admin panel (`bloom_admin`).",
+  },
+  {
+    question: "What databases does Bloom Server's ORM (bloom_db) support?",
+    answer: "bloom_db provides native compile-time typed query builders and drivers for both SQLite (embedded native/WAL mode) and PostgreSQL. It delivers zero-overhead query execution, transactions, connection pooling, and linear schema diffing through bloom_migrate.",
+  },
+  {
+    question: "How does multi-isolate clustering work in bloom_realtime?",
+    answer: "BloomRealtimeCluster binds all available CPU cores to the same network port using `HttpServer.bind(shared: true)` combined with high-speed inter-isolate SendPort meshes. Incoming WebSocket traffic and HTTP requests are automatically load-balanced across isolate cores by the OS kernel with zero thread contention.",
+  },
+  {
+    question: "Can I use Bloom Server standalone without Flutter?",
+    answer: "Yes! While Bloom Server integrates seamlessly with Flutter clients via shared BloomQuery/BloomMutation primitives, all 15 server packages (bloom_db, bloom_rest, bloom_admin, bloom_realtime, bloom_jobs, bloom_mail, bloom_cache, etc.) are pure Dart packages that can be used to build any REST, GraphQL, WebSocket, or microservice backend.",
+  },
+  {
+    question: "How does background job processing and caching work in Bloom Server?",
+    answer: "bloom_jobs delivers asynchronous background worker queues with configurable concurrency, exponential backoff retries, and cron scheduling. bloom_cache provides a unified caching API with In-Memory LRU, Database, and Redis backends, featuring built-in stampede protection (`getOrSet` dogpile locks) and HTTP response caching middleware.",
+  },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map((faq) => ({
+    "@type": "Question",
+    "name": faq.question,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": faq.answer,
+    },
+  })),
+};
+---
+
+<!-- JSON-LD Structured Data for Google Rich Search Snippets -->
+<script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+<div class="max-w-4xl mx-auto space-y-8">
+  <div class="text-center space-y-4">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-500 text-xs font-mono font-bold">
+      <HelpCircle className="w-3.5 h-3.5" />
+      <span>Bloom Server FAQ</span>
+    </div>
+    <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+      Frequently Asked Questions About Pure Dart Server
+    </h2>
+    <p class="text-slate-600 dark:text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
+      Key architectural insights into the pure Dart backend ecosystem, benchmarks, and Django patterns.
+    </p>
+  </div>
+
+  <div class="space-y-4">
+    {faqs.map((faq, index) => (
+      <details class="group p-5 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 backdrop-blur-xl transition-all duration-200 hover:border-pink-500/40">
+        <summary class="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden select-none font-bold text-slate-900 dark:text-white text-base">
+          <span class="pr-4">{faq.question}</span>
+          <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform duration-200 shrink-0" />
+        </summary>
+        <p class="mt-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-zinc-800/80 pt-4">
+          {faq.answer}
+        </p>
+      </details>
+    ))}
+  </div>
+</div>
