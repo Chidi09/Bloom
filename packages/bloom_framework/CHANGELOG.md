@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+### Added
+
+* **Prerender readiness signal for headless-browser SSG/SSR**: `BloomApp` now enables Flutter's semantics/accessibility tree and signals `window.__BLOOM_PRERENDER_READY__` after its first frame, on web only (no-op elsewhere). This is consumed by `bloom_cli`'s new real headless-Chromium prerendering pipeline (`bloom build web --static`/`--server`) to know when a page has actually finished rendering before capturing its DOM.
+
 ## 0.2.2
 
 ### Fixed
