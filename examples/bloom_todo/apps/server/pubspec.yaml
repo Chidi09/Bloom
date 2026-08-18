@@ -7,8 +7,9 @@ environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
-  bloom_framework: ^0.2.3
+  bloom_framework: ^0.3.0
   bloom_security: ^0.1.0
+  bloom_errors: ^0.1.0
   bloom_db: ^0.1.0
   bloom_rest: ^0.1.0
   bloom_auth_server: ^0.1.0
@@ -30,6 +31,8 @@ dependency_overrides:
     path: ../../../../packages/bloom_framework
   bloom_security:
     path: ../../../../packages/bloom_security
+  bloom_errors:
+    path: ../../../../packages/bloom_errors
 
 dev_dependencies:
   lints: ^3.0.0

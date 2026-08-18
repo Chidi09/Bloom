@@ -1,4 +1,5 @@
 import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_errors/bloom_errors.dart';
 import 'package:bloom_todo_core/core.dart';
 import '../../db.dart';
 import 'serializers.dart';
@@ -19,7 +20,7 @@ class TaskViews {
   static Future<BloomResponse> getById(BloomRequest req, String id) async {
     final task = ServerDb.instance.getTask(id);
     if (task == null) {
-      return BloomResponse.json({'error': 'Task not found'}, statusCode: 404);
+      throw BloomNotFoundException('Task with ID "$id" was not found', {'task_id': id});
     }
     return BloomResponse.json(task.toJson());
   }
@@ -30,7 +31,7 @@ class TaskViews {
 
     final validation = TaskValidator.validateTitle(dto.title);
     if (!validation.isValid) {
-      return BloomResponse.json({'error': validation.error}, statusCode: 400);
+      throw BloomBadRequestException(validation.error ?? 'Invalid task title', {'field': 'title'});
     }
 
     final task = ServerDb.instance.createTask(
@@ -52,7 +53,7 @@ class TaskViews {
 
     final existing = ServerDb.instance.getTask(id);
     if (existing == null) {
-      return BloomResponse.json({'error': 'Task not found'}, statusCode: 404);
+      throw BloomNotFoundException('Task with ID "$id" was not found', {'task_id': id});
     }
 
     final index = ServerDb.instance.tasks.indexOf(existing);
@@ -77,7 +78,7 @@ class TaskViews {
   static Future<BloomResponse> complete(BloomRequest req, String id) async {
     final updated = ServerDb.instance.toggleTaskComplete(id);
     if (updated == null) {
-      return BloomResponse.json({'error': 'Task not found'}, statusCode: 404);
+      throw BloomNotFoundException('Task with ID "$id" was not found', {'task_id': id});
     }
     return BloomResponse.json(updated.toJson());
   }
@@ -108,7 +109,7 @@ class TaskViews {
 
     final existing = ServerDb.instance.getTask(id);
     if (existing == null) {
-      return BloomResponse.json({'error': 'Task not found'}, statusCode: 404);
+      throw BloomNotFoundException('Task with ID "$id" was not found', {'task_id': id});
     }
 
     final idx = ServerDb.instance.tasks.indexOf(existing);
