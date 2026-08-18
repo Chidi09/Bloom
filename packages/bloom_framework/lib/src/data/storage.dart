@@ -7,16 +7,28 @@ import '../core/logger.dart';
 
 /// Abstract storage adapter contract for key-value persistence.
 abstract class BloomStorageAdapter {
+  /// Reads raw string value associated with [key], or null if absent.
   FutureOr<String?> read(String key);
+
+  /// Writes [value] string associated with [key].
   FutureOr<void> write(String key, String value);
+
+  /// Deletes stored value associated with [key].
   FutureOr<void> delete(String key);
+
+  /// Checks whether [key] exists in storage.
   FutureOr<bool> containsKey(String key);
+
+  /// Clears all entries in this storage adapter.
   FutureOr<void> clear();
 }
 
 /// In-memory storage adapter for testing and rapid prototyping.
 class InMemoryStorageAdapter implements BloomStorageAdapter {
   final Map<String, String> _store = HashMap<String, String>();
+
+  /// Creates an [InMemoryStorageAdapter].
+  InMemoryStorageAdapter();
 
   @override
   String? read(String key) => _store[key];
@@ -36,10 +48,12 @@ class InMemoryStorageAdapter implements BloomStorageAdapter {
 
 /// File-based storage adapter providing real persistence on disk across application restarts.
 class FileStorageAdapter implements BloomStorageAdapter {
+  /// Base directory path where JSON storage files are persisted.
   final Directory baseDirectory;
   final Map<String, String> _memoryCache = HashMap<String, String>();
   bool _isLoaded = false;
 
+  /// Creates a [FileStorageAdapter] with an optional [baseDirectory].
   FileStorageAdapter([Directory? baseDirectory])
       : baseDirectory = baseDirectory ??
             Directory('${Directory.systemTemp.path}/bloom_storage');
@@ -111,8 +125,10 @@ class FileStorageAdapter implements BloomStorageAdapter {
 
 /// JSON object storage with optional TTL expiration.
 class BloomJsonStorage {
+  /// The underlying key-value storage adapter.
   final BloomStorageAdapter adapter;
 
+  /// Creates a [BloomJsonStorage] instance with an optional [adapter].
   BloomJsonStorage([BloomStorageAdapter? adapter])
       : adapter = adapter ?? FileStorageAdapter();
 

@@ -4,18 +4,42 @@ import '../core/logger.dart';
 import '../state/signals.dart';
 import 'cache.dart';
 
-enum QueryStatus { idle, loading, success, error }
+/// Execution status of a [BloomQuery].
+enum QueryStatus {
+  /// Query has not started fetching yet.
+  idle,
+  /// Initial fetch is currently in progress.
+  loading,
+  /// Query fetched data successfully.
+  success,
+  /// Query encountered an error during fetch.
+  error,
+}
 
+/// Asynchronous data fetcher function for a query.
 typedef QueryFetcher<T> = Future<T> Function();
 
 /// A reactive asynchronous query with automatic caching, stale-while-revalidate, and deduplication.
 class BloomQuery<T> {
+  /// Unique cache key identifying this query.
   final List<dynamic> key;
+
+  /// Asynchronous function that fetches fresh data.
   final QueryFetcher<T> fetch;
+
+  /// Duration after which cached data is considered stale.
   final Duration staleTime;
+
+  /// Maximum duration to keep cached data in memory before garbage collection.
   final Duration cacheTime;
+
+  /// Whether this query automatically fetches on initialization.
   final bool enabled;
+
+  /// Number of retry attempts on network/fetch failure.
   final int retry;
+
+  /// Base delay duration between retry attempts.
   final Duration retryDelay;
 
   late final Signal<T?> _data;
@@ -27,6 +51,7 @@ class BloomQuery<T> {
   StreamSubscription<void>? _invalidationSub;
   bool _isDisposed = false;
 
+  /// Creates a [BloomQuery] with cache key, fetcher, and configuration.
   BloomQuery({
     required this.key,
     required this.fetch,
@@ -65,16 +90,31 @@ class BloomQuery<T> {
     }
   }
 
-  // Public reactive accessors
+  /// Reactive signal containing the current data value, or null.
   ReadonlySignal<T?> get data => _data.readonly();
+
+  /// Reactive signal containing the current query status.
   ReadonlySignal<QueryStatus> get status => _status.readonly();
+
+  /// Reactive signal containing the error object if the query failed.
   ReadonlySignal<Object?> get error => _error.readonly();
+
+  /// Reactive signal indicating whether a network fetch is actively occurring in background.
   ReadonlySignal<bool> get isFetching => _isFetching.readonly();
+
+  /// Reactive signal indicating whether the current data is considered stale.
   ReadonlySignal<bool> get isStale => _isStale.readonly();
 
+  /// Whether the query is currently performing its initial loading fetch.
   bool get isLoading => _status.value == QueryStatus.loading;
+
+  /// Whether the query has resolved successfully.
   bool get isSuccess => _status.value == QueryStatus.success;
+
+  /// Whether the query has failed with an error.
   bool get isError => _status.value == QueryStatus.error;
+
+  /// Whether valid data is currently available in this query.
   bool get hasData => _data.value != null;
 
   /// Manually trigger a fresh background revalidation.
@@ -145,6 +185,7 @@ class BloomQuery<T> {
     return null;
   }
 
+  /// Disposes this query instance and releases cache invalidation listener subscriptions.
   void dispose() {
     _isDisposed = true;
     _invalidationSub?.cancel();

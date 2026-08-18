@@ -2,18 +2,40 @@
 
 /// Manifest describing a downloadable Over-The-Air (OTA) patch.
 class UpdateManifest {
+  /// Unique patch identifier (e.g. `'patch_12'`).
   final String id;
+
+  /// Semantic version string of the patch release.
   final String version;
+
+  /// SHA-256 runtime fingerprint compatibility hash.
   final String runtimeFingerprint;
+
+  /// Staged rollout deployment percentage [1..100].
   final int rolloutPercentage;
+
+  /// Deployment channel (e.g. `'production'`, `'staging'`).
   final String channel;
+
+  /// Deployment git branch.
   final String branch;
+
+  /// Optional release notes markdown text.
   final String? releaseNotes;
+
+  /// Download URL for patch binary assets.
   final String? downloadUrl;
+
+  /// SHA-256 integrity hash of downloadable patch binary.
   final String? assetHash;
+
+  /// Whether this update is mandatory for continued application use.
   final bool isMandatory;
+
+  /// Additional custom patch metadata dictionary.
   final Map<String, dynamic> metadata;
 
+  /// Creates an [UpdateManifest] descriptor.
   const UpdateManifest({
     required this.id,
     required this.version,
@@ -28,6 +50,7 @@ class UpdateManifest {
     this.metadata = const {},
   });
 
+  /// Constructs an [UpdateManifest] from a JSON map.
   factory UpdateManifest.fromJson(Map<String, dynamic> json) {
     return UpdateManifest(
       id: json['id']?.toString() ?? 'unknown_patch',
@@ -44,6 +67,7 @@ class UpdateManifest {
     );
   }
 
+  /// Serializes manifest to JSON map.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -63,11 +87,19 @@ class UpdateManifest {
 
 /// Result returned from BloomUpdates.checkForUpdate().
 class UpdateCheckResult {
+  /// Whether an update was discovered.
   final bool isAvailable;
+
+  /// Whether the discovered update is compatible with the local runtime binary.
   final bool isCompatible;
+
+  /// Downloadable patch manifest if available.
   final UpdateManifest? manifest;
+
+  /// Reason why update was rejected or unavailable.
   final String? rejectionReason;
 
+  /// Creates an [UpdateCheckResult].
   const UpdateCheckResult({
     required this.isAvailable,
     this.isCompatible = true,
@@ -75,12 +107,14 @@ class UpdateCheckResult {
     this.rejectionReason,
   });
 
+  /// Result representing an up-to-date client.
   const UpdateCheckResult.upToDate()
       : isAvailable = false,
         isCompatible = true,
         manifest = null,
         rejectionReason = null;
 
+  /// Result representing a rejected update check.
   const UpdateCheckResult.rejected({
     required String reason,
     UpdateManifest? manifest,
@@ -89,6 +123,7 @@ class UpdateCheckResult {
         manifest = manifest,
         rejectionReason = reason;
 
+  /// Result representing an available and compatible update.
   const UpdateCheckResult.available(UpdateManifest updateManifest)
       : isAvailable = true,
         isCompatible = true,

@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/services.dart';
 import '../core/logger.dart';
 
+/// Callback signature for asynchronous background task execution.
 typedef BackgroundTaskCallback = FutureOr<bool> Function(Map<String, dynamic> data);
 
 /// Top-level background callback dispatcher for native background execution.

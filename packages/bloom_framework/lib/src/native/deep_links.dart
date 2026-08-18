@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/logger.dart';
 import '../router/router.dart';
 
+/// Handler callback signature invoked when a deep link URI is received.
 typedef DeepLinkHandler = FutureOr<void> Function(Uri uri);
 
 /// Cross-platform deep linking and Universal / App Links controller.

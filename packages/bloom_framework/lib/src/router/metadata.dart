@@ -3,13 +3,25 @@ import 'dart:convert';
 
 /// OpenGraph metadata for social media previews.
 class OpenGraph {
+  /// The title of the object as it should appear in the graph.
   final String? title;
+
+  /// A short description of the content.
   final String? description;
+
+  /// An image URL which should represent your object within the graph.
   final String? image;
+
+  /// The type of the object (e.g., 'website', 'article'). Defaults to 'website'.
   final String? type;
+
+  /// The canonical URL of the object.
   final String? url;
+
+  /// If your object is part of a larger web site, the name of the entire site.
   final String? siteName;
 
+  /// Creates an [OpenGraph] metadata configuration.
   const OpenGraph({
     this.title,
     this.description,
@@ -20,15 +32,27 @@ class OpenGraph {
   });
 }
 
-/// Twitter Card metadata.
+/// Twitter Card metadata for Twitter social previews.
 class TwitterCard {
+  /// The card type: `summary`, `summary_large_image`, `app`, or `player`.
   final String card; // summary, summary_large_image, app, player
+
+  /// The @username of website.
   final String? site;
+
+  /// The @username of content creator.
   final String? creator;
+
+  /// Title of the card.
   final String? title;
+
+  /// Description of the card.
   final String? description;
+
+  /// URL of the image to use in the card.
   final String? image;
 
+  /// Creates a [TwitterCard] metadata configuration.
   const TwitterCard({
     this.card = 'summary_large_image',
     this.site,
@@ -41,14 +65,28 @@ class TwitterCard {
 
 /// Declarative SEO and OpenGraph metadata configuration for Bloom routes.
 class BloomRouteMetadata {
+  /// Document title displayed in browser tab and search snippets.
   final String? title;
+
+  /// Meta description summary for SEO.
   final String? description;
+
+  /// Canonical URL for duplicate content indexing prevention.
   final String? canonical;
+
+  /// OpenGraph metadata for social platforms.
   final OpenGraph? openGraph;
+
+  /// Twitter Card metadata configuration.
   final TwitterCard? twitterCard;
+
+  /// Additional custom meta tag name-to-content mappings.
   final Map<String, String> metaTags;
+
+  /// JSON-LD structured data payload.
   final Map<String, dynamic>? jsonLd;
 
+  /// Creates a [BloomRouteMetadata] configuration.
   const BloomRouteMetadata({
     this.title,
     this.description,

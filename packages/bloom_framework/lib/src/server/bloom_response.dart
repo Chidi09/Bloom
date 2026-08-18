@@ -4,10 +4,16 @@ import 'dart:typed_data';
 
 /// Represents an HTTP response returned from a Bloom API route or middleware.
 class BloomResponse {
+  /// HTTP status code (e.g. 200, 404, 500).
   final int statusCode;
+
+  /// Response headers map.
   final Map<String, String> headers;
+
+  /// Response body binary payload.
   final Uint8List body;
 
+  /// Creates a [BloomResponse] with an optional [statusCode], [headers], and [body].
   BloomResponse({
     this.statusCode = 200,
     Map<String, String>? headers,

@@ -9,8 +9,10 @@ abstract class BloomController {
   final List<void Function()> _disposers = [];
   bool _isDisposed = false;
 
+  /// Whether this controller has been disposed.
   bool get isDisposed => _isDisposed;
 
+  /// Creates a [BloomController] and immediately invokes [onInit].
   BloomController() {
     onInit();
   }

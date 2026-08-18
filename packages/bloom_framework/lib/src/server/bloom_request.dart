@@ -4,13 +4,25 @@ import 'dart:typed_data';
 
 /// Represents an incoming HTTP request in Bloom API routes and full-stack SSR server.
 class BloomRequest {
+  /// HTTP method string in uppercase (e.g. `'GET'`, `'POST'`).
   final String method;
+
+  /// Full request URI.
   final Uri uri;
+
+  /// Request header key-value map.
   final Map<String, String> headers;
+
+  /// URL path parameters extracted by the router.
   final Map<String, String> params;
+
+  /// Raw binary body bytes.
   final Uint8List rawBody;
+
+  /// Whether the request was received over a secure HTTPS connection.
   final bool isSecure;
 
+  /// Creates a [BloomRequest] instance.
   BloomRequest({
     required this.method,
     required this.uri,
@@ -32,7 +44,10 @@ class BloomRequest {
     return Uint8List(0);
   }
 
+  /// Request URI path component.
   String get path => uri.path;
+
+  /// Map of query parameters extracted from the URI.
   Map<String, String> get queryParams => uri.queryParameters;
 
   /// Parses request body as UTF-8 string.

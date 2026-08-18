@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 /// Renders via [CustomPainter] on a 200x200 design grid so it stays crisp at
 /// any [size] without shipping an image asset or a new SVG dependency.
 class BloomLogo extends StatelessWidget {
+  /// Creates a [BloomLogo] icon widget.
   const BloomLogo({super.key, this.size = 40});
 
+  /// Render size (width and height) in logical pixels.
   final double size;
 
   @override

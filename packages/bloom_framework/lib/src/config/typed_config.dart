@@ -2,12 +2,17 @@
 import 'config.dart';
 
 /// Native execution mode for Bloom projects.
+/// Native execution mode for Bloom projects.
 enum NativeMode {
+  /// Managed execution mode where Bloom handles native build files.
   managed,
+  /// Bare execution mode where native iOS/Android projects are fully exposed and customized.
   bare;
 
+  /// Serializes native mode name to JSON string.
   String toJson() => name;
 
+  /// Parses a [NativeMode] from string [value], defaulting to [NativeMode.managed].
   static NativeMode fromString(String value) {
     return NativeMode.values.firstWhere(
       (e) => e.name.toLowerCase() == value.toLowerCase(),
@@ -18,22 +23,30 @@ enum NativeMode {
 
 /// Android platform build configuration.
 class AndroidPlatform {
+  /// Minimum supported Android SDK version.
   final int minSdk;
+
+  /// Target Android SDK version.
   final int targetSdk;
+
+  /// Android package name.
   final String? package;
 
+  /// Creates an [AndroidPlatform] configuration.
   const AndroidPlatform({
     this.minSdk = 24,
     this.targetSdk = 34,
     this.package,
   });
 
+  /// Serializes this configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'minSdk': minSdk,
         'targetSdk': targetSdk,
         if (package != null) 'package': package,
       };
 
+  /// Constructs an [AndroidPlatform] from a JSON map.
   factory AndroidPlatform.fromJson(Map<String, dynamic> json) {
     return AndroidPlatform(
       minSdk: json['minSdk'] as int? ?? json['min_sdk'] as int? ?? 24,
@@ -45,19 +58,25 @@ class AndroidPlatform {
 
 /// iOS platform build configuration.
 class IosPlatform {
+  /// Minimum supported iOS version string.
   final String minVersion;
+
+  /// iOS bundle identifier.
   final String? bundleIdentifier;
 
+  /// Creates an [IosPlatform] configuration.
   const IosPlatform({
     this.minVersion = '15.0',
     this.bundleIdentifier,
   });
 
+  /// Serializes this configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'minVersion': minVersion,
         if (bundleIdentifier != null) 'bundleIdentifier': bundleIdentifier,
       };
 
+  /// Constructs an [IosPlatform] from a JSON map.
   factory IosPlatform.fromJson(Map<String, dynamic> json) {
     return IosPlatform(
       minVersion: json['minVersion']?.toString() ?? json['minimum_version']?.toString() ?? '15.0',
@@ -69,16 +88,20 @@ class IosPlatform {
 
 /// Web platform build configuration.
 class WebPlatform {
+  /// Default title for the web application document.
   final String title;
 
+  /// Creates a [WebPlatform] configuration.
   const WebPlatform({
     this.title = 'Bloom App',
   });
 
+  /// Serializes this configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'title': title,
       };
 
+  /// Constructs a [WebPlatform] from a JSON map.
   factory WebPlatform.fromJson(Map<String, dynamic> json) {
     return WebPlatform(
       title: json['title']?.toString() ?? 'Bloom App',
@@ -88,22 +111,30 @@ class WebPlatform {
 
 /// Combined platforms configuration block.
 class PlatformsConfig {
+  /// Android platform settings.
   final AndroidPlatform android;
+
+  /// iOS platform settings.
   final IosPlatform ios;
+
+  /// Web platform settings.
   final WebPlatform web;
 
+  /// Creates a [PlatformsConfig].
   const PlatformsConfig({
     this.android = const AndroidPlatform(),
     this.ios = const IosPlatform(),
     this.web = const WebPlatform(),
   });
 
+  /// Serializes this configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'android': android.toJson(),
         'ios': ios.toJson(),
         'web': web.toJson(),
       };
 
+  /// Constructs a [PlatformsConfig] from a JSON map.
   factory PlatformsConfig.fromJson(Map<String, dynamic> json) {
     return PlatformsConfig(
       android: json['android'] is Map
@@ -121,14 +152,19 @@ class PlatformsConfig {
 
 /// A strongly typed plugin reference in `bloom.config.dart`.
 class BloomPlugin {
+  /// Unique plugin name identifier.
   final String name;
+
+  /// Plugin-specific configuration settings map.
   final Map<String, dynamic> config;
 
+  /// Creates a [BloomPlugin] reference with an optional [config] map.
   const BloomPlugin(
     this.name, {
     this.config = const {},
   });
 
+  /// Serializes this plugin configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'config': config,
@@ -137,18 +173,40 @@ class BloomPlugin {
 
 /// Strongly typed application configuration model for `bloom.config.dart`.
 class BloomAppConfig {
+  /// Schema version number.
   final int schema;
+
+  /// Application name identifier.
   final String name;
+
+  /// Application version string.
   final String version;
+
+  /// Build number string.
   final String buildNumber;
+
+  /// Application description.
   final String description;
+
+  /// Native build execution mode.
   final NativeMode mode;
+
+  /// Platform build targets settings.
   final PlatformsConfig platforms;
+
+  /// List of registered plugins.
   final List<BloomPlugin> plugins;
+
+  /// Environment `.env` files loaded on boot.
   final List<String> envFiles;
+
+  /// Initial feature flag values.
   final Map<String, dynamic> featureFlags;
+
+  /// Additional custom configuration properties.
   final Map<String, dynamic> custom;
 
+  /// Creates a [BloomAppConfig] instance.
   const BloomAppConfig({
     this.schema = 1,
     required this.name,
@@ -163,6 +221,7 @@ class BloomAppConfig {
     this.custom = const {},
   });
 
+  /// Serializes this configuration to a JSON map.
   Map<String, dynamic> toJson() => {
         'schema': schema,
         'name': name,

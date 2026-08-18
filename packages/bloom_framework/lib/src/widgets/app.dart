@@ -8,19 +8,43 @@ import '../router/router.dart';
 /// Root application widget for Bloom applications.
 /// Wraps [MaterialApp.router] and attaches the framework lifecycle system.
 class BloomApp extends StatefulWidget {
+  /// Application title string.
   final String? title;
+
+  /// Custom [RouterConfig] instance. If omitted, constructed from [routes].
   final RouterConfig<Object>? routerConfig;
+
+  /// List of GoRouter route declarations.
   final List<RouteBase>? routes;
+
+  /// Initial route location (default: `'/'`).
   final String initialLocation;
+
+  /// Light theme definition.
   final ThemeData? theme;
+
+  /// Dark theme definition.
   final ThemeData? darkTheme;
+
+  /// Active theme mode (system, light, or dark).
   final ThemeMode themeMode;
+
+  /// Active application locale.
   final Locale? locale;
+
+  /// Localization delegates.
   final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
+
+  /// Supported locales list.
   final Iterable<Locale>? supportedLocales;
+
+  /// Whether to show the debug mode banner.
   final bool debugShowCheckedModeBanner;
+
+  /// Fallback home widget when routes are not specified.
   final Widget? home;
 
+  /// Creates a [BloomApp] root widget.
   const BloomApp({
     super.key,
     this.title,

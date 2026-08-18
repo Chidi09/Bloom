@@ -2,17 +2,21 @@
 import 'bloom_request.dart';
 import 'bloom_response.dart';
 
+/// Next-handler callback invoked by middleware to pass control to the subsequent middleware or route handler.
 typedef BloomNextFunction = Future<BloomResponse> Function();
 
 /// Composable middleware interface for Bloom API routes and full-stack SSR servers.
 abstract class BloomMiddleware {
+  /// Processes [request] and optionally invokes [next] to continue the pipeline.
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next);
 }
 
 /// Function-based middleware implementation.
 class FunctionalBloomMiddleware implements BloomMiddleware {
+  /// The underlying middleware execution function.
   final Future<BloomResponse?> Function(BloomRequest request, BloomNextFunction next) handler;
 
+  /// Creates a [FunctionalBloomMiddleware] wrapping [handler].
   FunctionalBloomMiddleware(this.handler);
 
   @override
@@ -23,11 +27,19 @@ class FunctionalBloomMiddleware implements BloomMiddleware {
 
 /// Built-in CORS middleware for Bloom API endpoints.
 class BloomCorsMiddleware implements BloomMiddleware {
+  /// The allowed origins header value (e.g. `'*'`).
   final String allowOrigin;
+
+  /// The allowed HTTP methods header value.
   final String allowMethods;
+
+  /// The allowed request headers value.
   final String allowHeaders;
+
+  /// Whether credentials (cookies, auth headers) are permitted in CORS requests.
   final bool allowCredentials;
 
+  /// Creates a [BloomCorsMiddleware] configuration.
   const BloomCorsMiddleware({
     this.allowOrigin = '*',
     this.allowMethods = 'GET, POST, PUT, DELETE, PATCH, OPTIONS',

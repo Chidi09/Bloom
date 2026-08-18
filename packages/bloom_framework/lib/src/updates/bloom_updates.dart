@@ -10,6 +10,7 @@ import 'update_manifest.dart';
 
 /// Network and platform adapter for fetching and applying OTA updates.
 abstract class BloomUpdateClientAdapter {
+  /// Queries update server for an available update manifest matching the channel, branch, and runtime fingerprint.
   Future<UpdateManifest?> checkServerForUpdate({
     required String channel,
     required String branch,
@@ -17,22 +18,34 @@ abstract class BloomUpdateClientAdapter {
     required String deviceId,
   });
 
+  /// Downloads patch binary assets with progress reporting.
   Future<bool> downloadPatchAssets({
     required UpdateManifest manifest,
     required void Function(double progress) onProgress,
   });
 
+  /// Triggers runtime reload or hot restart to apply staged patch.
   Future<void> triggerAppReload();
+
+  /// Purges active staged patch from local storage.
   Future<void> purgeActivePatch();
 }
 
 /// In-memory mock client adapter used in development and tests.
 class MockBloomUpdateClientAdapter implements BloomUpdateClientAdapter {
+  /// Mock manifest to return on check.
   UpdateManifest? mockAvailableManifest;
+
+  /// Whether patch download simulation should succeed.
   bool downloadShouldSucceed = true;
+
+  /// Whether [triggerAppReload] was called.
   bool reloadTriggered = false;
+
+  /// Whether [purgeActivePatch] was called.
   bool purgeTriggered = false;
 
+  /// Creates a [MockBloomUpdateClientAdapter].
   MockBloomUpdateClientAdapter({this.mockAvailableManifest});
 
   @override

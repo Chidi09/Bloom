@@ -6,26 +6,46 @@ import '../core/logger.dart';
 import 'cache.dart';
 import 'storage.dart';
 
+/// Conflict resolution strategy when replaying offline mutations against the server.
 enum ConflictPolicy {
+  /// Keep the client mutation and override conflicting server state.
   clientWins,
+  /// Discard the client mutation and keep existing server state.
   serverWins,
+  /// Invoke a custom [CustomConflictResolver] to merge or handle conflicts.
   custom,
 }
 
+/// Execution function that sends an offline mutation payload to the server.
 typedef MutationExecutor = Future<dynamic> Function(Map<String, dynamic> payload);
+
+/// Custom conflict resolution handler resolving differences between client payload and server error.
 typedef CustomConflictResolver = FutureOr<Map<String, dynamic>?> Function(
   Map<String, dynamic> clientPayload,
   Object serverError,
 );
 
+/// A persisted mutation entry stored in the offline queue waiting to be synced.
 class QueuedMutation {
+  /// Unique mutation ID.
   final String id;
+
+  /// Identifier representing the type/action of mutation (e.g. `'create_post'`).
   final String mutationType;
+
+  /// Serialized payload data for this mutation.
   Map<String, dynamic> payload;
+
+  /// Timestamp when this mutation was enqueued.
   final DateTime createdAt;
+
+  /// Conflict resolution policy applied if replaying fails.
   final ConflictPolicy conflictPolicy;
+
+  /// Number of replay attempts already made.
   int retryCount;
 
+  /// Creates a [QueuedMutation] entry.
   QueuedMutation({
     required this.id,
     required this.mutationType,
@@ -35,6 +55,7 @@ class QueuedMutation {
     this.retryCount = 0,
   });
 
+  /// Serializes this mutation entry to a JSON-compatible map.
   Map<String, dynamic> toMap() => {
         'id': id,
         'mutationType': mutationType,
@@ -44,6 +65,7 @@ class QueuedMutation {
         'retryCount': retryCount,
       };
 
+  /// Deserializes a [QueuedMutation] from a map.
   factory QueuedMutation.fromMap(Map<String, dynamic> map) {
     return QueuedMutation(
       id: map['id']?.toString() ?? '',
@@ -61,6 +83,7 @@ class QueuedMutation {
 
 /// Persistent offline mutation buffer and replay engine.
 class OfflineMutationQueue {
+  /// Storage adapter used to persist queued mutations across restarts.
   final BloomStorageAdapter? storage;
   static const String _storageKey = 'bloom_offline_mutation_queue';
 
@@ -71,14 +94,26 @@ class OfflineMutationQueue {
 
   /// Default singleton instance for global application use.
   static final OfflineMutationQueue instance = OfflineMutationQueue();
+
+  /// Total count of pending mutations in the default queue instance.
   static int get pendingCount => instance.queueDepth;
 
+  /// Creates an [OfflineMutationQueue] with an optional [storage] adapter.
   OfflineMutationQueue({this.storage});
 
+  /// Total number of pending mutations currently waiting in queue.
   int get queueDepth => _queue.length;
+
+  /// Number of mutations currently in queue (alias for [queueDepth]).
   int get length => _queue.length;
+
+  /// Whether the queue is currently empty.
   bool get isEmpty => _queue.isEmpty;
+
+  /// Whether the queue is currently in the middle of replaying mutations.
   bool get isProcessing => _isProcessing;
+
+  /// Unmodifiable list of pending mutations waiting in queue.
   List<QueuedMutation> get pendingMutations => List.unmodifiable(_queue);
 
   /// Register a mutation executor for a given type name.

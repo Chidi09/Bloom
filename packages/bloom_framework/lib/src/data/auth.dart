@@ -10,22 +10,37 @@ import 'storage.dart';
 
 /// Base non-generic interface for Bloom authentication session management.
 abstract class BloomAuthBase {
+  /// Reactive boolean signal indicating whether an active authenticated session exists.
   ReadonlySignal<bool> get isAuthenticated;
+
+  /// Reactive signal containing the current authentication bearer token, or null if unauthenticated.
   ReadonlySignal<String?> get token;
+
+  /// Clears the active session and logs the current user out.
   Future<void> logout();
 }
 
 /// Reactive user session manager and persistence layer.
 class BloomAuth<U> implements BloomAuthBase {
+  /// Optional persistent storage adapter for caching session state across restarts.
   final BloomStorageAdapter? storage;
+
+  /// Deserializer function converting JSON maps to typed user model instances.
   final U Function(Map<String, dynamic> json)? fromJson;
+
+  /// Serializer function converting typed user model instances to JSON maps.
   final Map<String, dynamic> Function(U user)? toJson;
+
+  /// Key identifier used when writing session data into [storage].
   final String sessionKey;
 
   late final Signal<U?> _currentUser;
   late final Signal<String?> _token;
   late final Computed<bool> _isAuthenticated;
 
+  /// Creates a [BloomAuth] session manager.
+  ///
+  /// If [autoProvide] is true, registers this instance into the global DI container.
   BloomAuth({
     this.storage,
     U Function(Map<String, dynamic> json)? fromJson,
@@ -48,6 +63,7 @@ class BloomAuth<U> implements BloomAuthBase {
     }
   }
 
+  /// Reactive signal containing the currently authenticated user model, or null.
   ReadonlySignal<U?> get currentUser => _currentUser.readonly();
   @override
   ReadonlySignal<String?> get token => _token.readonly();
@@ -112,9 +128,13 @@ class BloomAuth<U> implements BloomAuthBase {
 
 /// Standard authentication route guard protecting authenticated screens.
 class BloomAuthGuard implements BloomGuard {
+  /// Path to redirect unauthenticated users to (defaults to `'/login'`).
   final String loginPath;
+
+  /// Explicit [BloomAuthBase] session manager override. If null, resolved via DI.
   final BloomAuthBase? auth;
 
+  /// Creates a [BloomAuthGuard] with an optional [loginPath] and [auth] manager.
   const BloomAuthGuard({
     this.loginPath = '/login',
     this.auth,

@@ -12,14 +12,18 @@ export 'bloom.dart';
 abstract class BloomMock {
   final Map<String, int> _callCounts = {};
 
+  /// Records a call invocation for the specified [methodName].
   void recordCall(String methodName) {
     _callCounts[methodName] = (_callCounts[methodName] ?? 0) + 1;
   }
 
+  /// Returns the number of times [methodName] was invoked.
   int getCallCount(String methodName) => _callCounts[methodName] ?? 0;
 
+  /// Returns whether [methodName] was called at least once.
   bool wasCalled(String methodName) => (_callCounts[methodName] ?? 0) > 0;
 
+  /// Clears all recorded method call counts.
   void resetMockCalls() => _callCounts.clear();
 }
 

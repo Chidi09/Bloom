@@ -27,8 +27,10 @@ class BloomNativeException implements Exception {
 
 /// Thrown when a required native OS permission was denied or restricted.
 class BloomNativePermissionDeniedException extends BloomNativeException {
+  /// The permission name that was denied.
   final String permission;
 
+  /// Creates a [BloomNativePermissionDeniedException].
   BloomNativePermissionDeniedException({
     required this.permission,
     required String message,
@@ -42,8 +44,10 @@ class BloomNativePermissionDeniedException extends BloomNativeException {
 
 /// Thrown when hardware sensor, camera, or peripheral is busy, absent, or disabled.
 class BloomNativeHardwareUnavailableException extends BloomNativeException {
+  /// The hardware device or sensor identifier that was unavailable.
   final String hardware;
 
+  /// Creates a [BloomNativeHardwareUnavailableException].
   BloomNativeHardwareUnavailableException({
     required this.hardware,
     required String message,
@@ -57,6 +61,7 @@ class BloomNativeHardwareUnavailableException extends BloomNativeException {
 
 /// Thrown when a native module encounters invalid configuration or missing keys in bloom.yaml.
 class BloomNativeConfigurationException extends BloomNativeException {
+  /// Creates a [BloomNativeConfigurationException].
   BloomNativeConfigurationException({
     required String message,
     dynamic details,
@@ -69,6 +74,7 @@ class BloomNativeConfigurationException extends BloomNativeException {
 
 /// Thrown when an internal native SDK operation or bridge promise rejected.
 class BloomNativeOperationFailedException extends BloomNativeException {
+  /// Creates a [BloomNativeOperationFailedException].
   BloomNativeOperationFailedException({
     required String message,
     dynamic details,

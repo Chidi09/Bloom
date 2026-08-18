@@ -8,12 +8,22 @@ import '../data/repository.dart';
 
 /// Represents an authenticated Supabase user profile.
 class BloomSupabaseUser {
+  /// Unique user UUID string.
   final String id;
+
+  /// User email address.
   final String email;
+
+  /// JWT access token.
   final String? accessToken;
+
+  /// Supabase refresh token.
   final String? refreshToken;
+
+  /// Custom user metadata key-value map.
   final Map<String, dynamic> userMetadata;
 
+  /// Creates a [BloomSupabaseUser].
   const BloomSupabaseUser({
     required this.id,
     required this.email,
@@ -22,6 +32,7 @@ class BloomSupabaseUser {
     this.userMetadata = const {},
   });
 
+  /// Constructs a [BloomSupabaseUser] from a JSON map.
   factory BloomSupabaseUser.fromJson(Map<String, dynamic> json) {
     return BloomSupabaseUser(
       id: json['id']?.toString() ?? '',
@@ -34,6 +45,7 @@ class BloomSupabaseUser {
     );
   }
 
+  /// Serializes user profile to JSON map.
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
@@ -45,12 +57,18 @@ class BloomSupabaseUser {
 
 /// Official Bloom authentication adapter for Supabase with real token refresh support.
 class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
+  /// Base Supabase backend URL.
   final String supabaseUrl;
+
+  /// Supabase anonymous API key.
   final String supabaseAnonKey;
   final BloomHttpClient _http;
+
+  /// Optional live [sb.SupabaseClient] instance to observe real-time auth changes.
   final sb.SupabaseClient? supabaseClient;
   StreamSubscription<sb.AuthState>? _authStateSubscription;
 
+  /// Creates a [BloomSupabaseAuthAdapter].
   BloomSupabaseAuthAdapter({
     required this.supabaseUrl,
     required this.supabaseAnonKey,
@@ -257,13 +275,23 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
 
 /// Strongly-typed CRUD repository adapter for Supabase REST tables.
 class BloomSupabaseTableRepository<T> implements BloomCrudRepository<T, String> {
+  /// Target Supabase table name.
   final String tableName;
+
+  /// Supabase project URL.
   final String supabaseUrl;
+
+  /// Supabase anonymous API key.
   final String supabaseAnonKey;
+
+  /// Deserializer function converting Supabase row JSON maps to [T].
   final T Function(Map<String, dynamic> json) fromJson;
+
+  /// Serializer function converting [T] entity instances to JSON maps.
   final Map<String, dynamic> Function(T item) toJson;
   final BloomHttpClient _http;
 
+  /// Creates a [BloomSupabaseTableRepository] targeting [tableName].
   BloomSupabaseTableRepository({
     required this.tableName,
     required this.supabaseUrl,
