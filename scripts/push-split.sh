@@ -19,7 +19,7 @@ PRIVATE_REMOTE="https://github.com/Chidi09/bloom-cloud.git"
 
 echo "== Splitting '$BRANCH' from $ROOT =="
 
-# --- Public: packages/, apps/, benchmarks/, bloom-website/, examples/, LICENSE, README.md ---
+# --- Public: packages/, apps/, benchmarks/, bloom-website/, examples/, LICENSE, README.md, package.json, vercel.json ---
 # (Architectural docs and cloud services are kept strictly private)
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
 (
@@ -30,6 +30,8 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
     --path benchmarks/ \
     --path bloom-website/ \
     --path examples/ \
+    --path package.json \
+    --path vercel.json \
     --path LICENSE \
     --path README.md
   git remote add origin "$PUBLIC_REMOTE"
@@ -49,6 +51,8 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
     --path docs/ \
     --path examples/ \
     --path benchmarks/ \
+    --path package.json \
+    --path vercel.json \
     --path cloud-dashboard-frontend.md \
     --path bloom-ui-primitives-port-plan.md \
     --path BLOOM_UI_PORT_STATUS.md \
