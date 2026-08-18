@@ -1,0 +1,14 @@
+{
+  "name": "typeorm-bench",
+  "version": "1.0.0",
+  "main": "main.ts",
+  "dependencies": {
+    "reflect-metadata": "^0.2.2",
+    "sql.js": "^1.11.0",
+    "typeorm": "^0.3.20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@types/sql.js": "^1.4.9"
+  }
+}

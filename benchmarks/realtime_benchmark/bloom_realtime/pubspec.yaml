@@ -1,0 +1,17 @@
+name: bloom_realtime_bench
+description: Bloom Realtime Benchmark
+version: 1.0.0
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../../../packages/bloom_framework
+  bloom_realtime:
+    path: ../../../packages/bloom_realtime
+
+dependency_overrides:
+  bloom_framework:
+    path: ../../../packages/bloom_framework
+  bloom_security:
+    path: ../../../packages/bloom_security

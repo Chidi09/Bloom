@@ -1,26 +1,176 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
 import CodeBlock from '../../../components/common/CodeBlock.astro';
-import { BookOpen, Zap, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-preact';
+import { BookOpen, Zap, ArrowRight, CheckCircle2, ShieldCheck, Server, Radio, Database, Cpu } from 'lucide-preact';
 
-const recipe1Code = `// Recipe: Offline-First Synchronized Cache
-class CartController extends BloomController {
-  late final cartQuery = createQuery<Cart>(
-    queryKey: ['cart', 'current'],
-    queryFn: () => inject<CartApi>().getCart(),
-    staleTime: const Duration(minutes: 10),
-    // Persists query cache automatically into SQLite
-    persister: inject<BloomStorageAdapter>(),
+const recipe1ServerCode = `// bin/server.dart - DRF-Style CRUD ViewSet with Pagination & Rate Throttling
+import 'package:bloom_cache/bloom_cache.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_rest/bloom_rest.dart';
+import 'models/todo_task.dart';
+
+void mountTodoApi(BloomApiRouter router, DbExecutor db, BloomCache cache) {
+  // 1. Declare field whitelist & read-only constraints
+  final serializer = BloomModelSerializer<TodoTask>(
+    meta: TodoTask.meta,
+    fields: BloomFieldSet.all().withReadOnly(['id', 'createdAt']),
   );
 
-  late final checkoutMutation = createMutation<Order, Cart>(
-    mutationFn: (cart) => inject<OrderApi>().placeOrder(cart),
-    // Queues mutations for background sync if offline
-    offlineQueue: true,
+  // 2. Configure ViewSet with permission algebra, throttling, and pagination
+  final options = BloomViewSetOptions<TodoTask>(
+    serializer: serializer,
+    pagination: const PageNumberPagination(defaultPageSize: 25, maxPageSize: 100),
+    permission: const IsAuthenticated().and(const IsOwnerOrStaff()),
+    filterBackends: const [
+      BloomExactFilterBackend(['status', 'priority']),
+      BloomSearchFilterBackend(['title', 'description']),
+    ],
+    throttle: BloomThrottle.fromRate(
+      scope: 'todos_api',
+      rate: '100/minute',
+      cache: cache,
+    ),
+  );
+
+  // 3. Mount CRUD routes: GET /todos, POST /todos, GET /todos/:id, PUT /todos/:id, DELETE /todos/:id
+  mountViewSet<TodoTask>(
+    router: router,
+    basePath: '/api/todos',
+    meta: TodoTask.meta,
+    fromRow: TodoTask.fromRow,
+    getDb: (req) => db,
+    options: options,
   );
 }`;
 
-const recipe2Code = `// Recipe: Dynamic Multi-Theme Switcher
+const recipe2AuthCode = `// lib/apps/auth/permissions.dart - Declarative JWT Auth & RBAC
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_rest/bloom_rest.dart';
+import 'package:bloom_security/bloom_security.dart';
+
+class IsOwnerOrStaff extends BloomPermission {
+  const IsOwnerOrStaff();
+
+  @override
+  Future<bool> hasPermission(BloomRequest request) async {
+    final user = request.context.get<AuthUser>('auth_user');
+    if (user == null) return false;
+    return user.isActive;
+  }
+
+  @override
+  Future<bool> hasObjectPermission(BloomRequest request, dynamic object) async {
+    final user = request.context.get<AuthUser>('auth_user');
+    if (user == null) return false;
+    if (user.isStaff || user.isSuperuser) return true;
+
+    // Check if the current object belongs to the authenticated user
+    if (object is OwnableModel) {
+      return object.userId == user.id;
+    }
+    return false;
+  }
+}`;
+
+const recipe3RealtimeCode = `// lib/realtime/hub.dart - Realtime WebSocket Hub & Query Invalidation
+import 'dart:io';
+import 'package:bloom_realtime/bloom_realtime.dart';
+
+void setupRealtimeServer(HttpServer server) {
+  final hub = BloomChannelHub();
+
+  server.listen((HttpRequest request) async {
+    if (request.uri.path == '/ws/realtime') {
+      if (WebSocketTransformer.isUpgradeRequest(request)) {
+        final socket = await WebSocketTransformer.upgrade(request);
+        // Automatically manages channel subscriptions & dead-socket pruning
+        hub.registerConnection(socket);
+      }
+    }
+  });
+}
+
+// Emits an event that prompts client SWR caches to refetch stale queries
+void notifyTaskUpdated(BloomChannelHub hub, int listId, int taskId) {
+  hub.broadcast('lists:\$listId', {
+    'action': 'invalidated',
+    'entity': 'todo_task',
+    'taskId': taskId,
+  });
+}`;
+
+const recipe4JobCode = `// lib/jobs/email_worker.dart - Background Worker with Exponential Backoff
+import 'package:bloom_jobs/bloom_jobs.dart';
+import 'package:bloom_mail/bloom_mail.dart';
+
+class SendWelcomeEmailJob extends BloomJob<Map<String, dynamic>> {
+  @override
+  String get name => 'send_welcome_email';
+
+  @override
+  int get maxRetries => 5;
+
+  @override
+  Duration get backoff => const Duration(seconds: 10);
+
+  @override
+  Future<void> perform(Map<String, dynamic> payload) async {
+    final email = payload['email'] as String;
+    final name = payload['name'] as String;
+
+    final mailer = inject<BloomMailer>();
+    await mailer.send(
+      to: email,
+      subject: 'Welcome to Bloom!',
+      body: 'Hi \$name, welcome aboard!',
+    );
+  }
+}`;
+
+const recipe5ClientCode = `// lib/features/todos/controllers/todo_controller.dart - Offline-First Synchronized Cache
+import 'package:bloom_framework/bloom_data.dart';
+import 'package:bloom_realtime/bloom_realtime.dart';
+
+class TodoController extends BloomController {
+  // SWR Query with local SQLite persistence
+  late final tasksQuery = createQuery<List<TodoTask>>(
+    queryKey: ['todos', 'list', listId],
+    queryFn: () => inject<TodoApi>().fetchTasks(listId),
+    staleTime: const Duration(minutes: 5),
+    persister: inject<BloomStorageAdapter>(),
+  );
+
+  // Optimistic Mutation with automatic offline retry queue
+  late final toggleTaskMutation = createMutation<TodoTask, int>(
+    mutationFn: (taskId) => inject<TodoApi>().toggleComplete(taskId),
+    offlineQueue: true,
+    onMutate: (taskId) async {
+      // Optimistically flip completion state in UI immediately
+      final previous = tasksQuery.data.value;
+      // ... update local signal cache
+      return previous;
+    },
+    onError: (err, taskId, rollbackData) {
+      // Rollback on network failure
+      if (rollbackData != null) tasksQuery.data.value = rollbackData;
+    },
+  );
+
+  @override
+  void onInit() {
+    // Automatically invalidate query cache when server pushes real-time events
+    inject<BloomRealtimeClient>().invalidateQueriesOnBroadcast(
+      channel: 'lists:\$listId',
+      key: ['todos', 'list', listId],
+    );
+  }
+}`;
+
+const recipe6ThemeCode = `// lib/features/settings/theme_controller.dart - Dynamic Theme Switcher
+import 'package:bloom_framework/bloom_core.dart';
+import 'package:bloom_ui/bloom_ui.dart';
+
 class ThemeController extends BloomController {
   late final activePreset = createSignal<BloomStylePreset>(BloomStylePreset.nova);
   late final isDarkMode = createSignal<bool>(true);
@@ -37,58 +187,124 @@ class ThemeController extends BloomController {
 
 <DocsLayout
   title="Cookbook & Recipes"
-  description="Practical, end-to-end recipes for building production apps with Bloom."
+  description="Practical, end-to-end full-stack recipes for building production applications with Bloom Server and Flutter."
   currentSlug="guides-cookbook"
   category="Engineering Guides"
   toc={[
-    { id: 'offline-cart', title: '1. Offline-First Cart & Mutations' },
-    { id: 'theme-switcher', title: '2. Dynamic Multi-Theme Switcher' },
+    { id: 'crud-viewset', title: '1. DRF-Style CRUD ViewSet with Throttling' },
+    { id: 'jwt-rbac', title: '2. JWT Auth & Declarative Permission Algebra' },
+    { id: 'realtime-hub', title: '3. Realtime WebSockets & Query Bridge' },
+    { id: 'background-jobs', title: '4. Resilient Background Worker Queues' },
+    { id: 'offline-query', title: '5. Offline-First SWR Cache & Optimistic UI' },
+    { id: 'theme-switcher', title: '6. Dynamic Multi-Theme Switcher' },
   ]}
 >
   <div class="space-y-12">
     <!-- Header -->
-    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-slate-800 pb-8">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono font-bold">
+    <div id="overview" class="space-y-4 border-b border-slate-200 dark:border-zinc-800 pb-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-mono font-bold">
         <BookOpen className="w-3.5 h-3.5" />
         Production Patterns
       </div>
       <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-        Cookbook & Recipes
+        Cookbook &amp; Recipes
       </h1>
       <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-        Copy-pasteable architecture recipes for real-world application workflows.
+        Copy-pasteable architecture recipes for real-world full-stack Dart and Flutter applications.
       </p>
     </div>
 
-    <!-- Recipe 1 -->
-    <section id="offline-cart" class="space-y-4">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        1. Offline-First Cart &amp; Mutations
-      </h2>
+    <!-- Recipe 1: ViewSet -->
+    <section id="crud-viewset" class="space-y-4">
+      <div class="flex items-center gap-2">
+        <Server className="w-5 h-5 text-purple-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          1. DRF-Style CRUD ViewSet with Throttling &amp; Pagination
+        </h2>
+      </div>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Persist queries to local storage and queue mutations automatically when offline:
+        Mount a full RESTful CRUD interface over any <code class="text-purple-400 font-mono">bloom_db</code> model with automatic request serialization, rate limits, and pagination:
       </p>
-      <CodeBlock code={recipe1Code} lang="dart" filename="Cart Controller Recipe" />
+      <CodeBlock code={recipe1ServerCode} lang="dart" filename="bin/server.dart" />
     </section>
 
-    <!-- Recipe 2 -->
-    <section id="theme-switcher" class="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
-      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
-        2. Dynamic Multi-Theme Switcher
-      </h2>
+    <!-- Recipe 2: Auth -->
+    <section id="jwt-rbac" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <ShieldCheck className="w-5 h-5 text-emerald-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          2. JWT Auth &amp; Declarative Permission Algebra
+        </h2>
+      </div>
       <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-        Switch between Nova, Vega, Maia, and Dark/Light modes at runtime:
+        Implement object-level role-based access control combining <code class="text-purple-400 font-mono">.and()</code> and <code class="text-purple-400 font-mono">.or()</code> operators:
       </p>
-      <CodeBlock code={recipe2Code} lang="dart" filename="Theme Switcher Recipe" />
+      <CodeBlock code={recipe2AuthCode} lang="dart" filename="lib/apps/auth/permissions.dart" />
+    </section>
+
+    <!-- Recipe 3: Realtime -->
+    <section id="realtime-hub" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Radio className="w-5 h-5 text-blue-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          3. Realtime WebSockets &amp; Live Query Invalidation
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Set up a real-time pub/sub hub on the server and broadcast cache invalidation events to connected Flutter clients:
+      </p>
+      <CodeBlock code={recipe3RealtimeCode} lang="dart" filename="lib/realtime/hub.dart" />
+    </section>
+
+    <!-- Recipe 4: Jobs -->
+    <section id="background-jobs" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Cpu className="w-5 h-5 text-amber-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          4. Resilient Background Worker Queues
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Dispatch asynchronous background tasks (emails, reports, webhooks) with configurable exponential retries:
+      </p>
+      <CodeBlock code={recipe4JobCode} lang="dart" filename="lib/jobs/email_worker.dart" />
+    </section>
+
+    <!-- Recipe 5: Client Cache -->
+    <section id="offline-query" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <Zap className="w-5 h-5 text-yellow-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          5. Offline-First SWR Cache &amp; Optimistic UI
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Persist queries to local device storage, bridge real-time updates, and optimistically apply mutations offline:
+      </p>
+      <CodeBlock code={recipe5ClientCode} lang="dart" filename="lib/features/todos/controllers/todo_controller.dart" />
+    </section>
+
+    <!-- Recipe 6: Theme -->
+    <section id="theme-switcher" class="space-y-4 pt-6 border-t border-slate-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <BookOpen className="w-5 h-5 text-indigo-500" />
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">
+          6. Dynamic Multi-Theme &amp; Design Token Switcher
+        </h2>
+      </div>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        Switch design presets (Nova, Vega, Maia) and dark/light modes at runtime:
+      </p>
+      <CodeBlock code={recipe6ThemeCode} lang="dart" filename="lib/features/settings/theme_controller.dart" />
     </section>
 
     <!-- Next Page Footer -->
-    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-between">
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex justify-between">
       <a
-        href="/docs/framework/adapters"
-        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+        href="/docs/server/i18n-and-security"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 dark:bg-zinc-950 text-slate-900 dark:text-white font-bold text-xs hover:bg-slate-200 dark:hover:bg-zinc-800 transition"
       >
-        <span>Previous: Backend Adapters</span>
+        <span>Previous: i18n &amp; Security</span>
       </a>
       <a
         href="/docs/guides/best-practices"

@@ -21,7 +21,7 @@ class _HubConnection {
 /// to the current process unless bridged via an external broker (e.g., Redis pub/sub).
 class BloomChannelHub {
   final Map<String, _HubConnection> _connections = {};
-  final Map<String, Set<String>> _channelSubscribers = {};
+  final Map<String, Set<_HubConnection>> _channelSubscribers = {};
   final Map<WebSocket, String> _socketToId = {};
   int _idCounter = 0;
 
@@ -112,7 +112,7 @@ class BloomChannelHub {
     }
 
     conn.subscribedChannels.add(channelName);
-    _channelSubscribers.putIfAbsent(channelName, () => <String>{}).add(conn.id);
+    _channelSubscribers.putIfAbsent(channelName, () => <_HubConnection>{}).add(conn);
     onSubscribed?.call(conn.id, channelName);
     return true;
   }
@@ -128,7 +128,7 @@ class BloomChannelHub {
     conn.subscribedChannels.remove(channelName);
     final subs = _channelSubscribers[channelName];
     if (subs != null) {
-      subs.remove(conn.id);
+      subs.remove(conn);
       if (subs.isEmpty) {
         _channelSubscribers.remove(channelName);
       }
@@ -151,20 +151,12 @@ class BloomChannelHub {
     final msg = RealtimeMessage.broadcast(channelName, payload);
     final encoded = msg.encode();
 
-    final deadConnectionIds = <String>[];
+    List<_HubConnection>? deadConns;
     int sentCount = 0;
 
-    // Copy to avoid ConcurrentModificationException during iteration
-    final subIds = List<String>.from(subs);
-    for (final connId in subIds) {
-      final conn = _connections[connId];
-      if (conn == null || conn.isDisposed) {
-        deadConnectionIds.add(connId);
-        continue;
-      }
-
-      if (conn.socket.readyState != WebSocket.open) {
-        deadConnectionIds.add(connId);
+    for (final conn in subs) {
+      if (conn.isDisposed || conn.socket.readyState != WebSocket.open) {
+        (deadConns ??= []).add(conn);
         continue;
       }
 
@@ -172,13 +164,15 @@ class BloomChannelHub {
         conn.socket.add(encoded);
         sentCount++;
       } catch (_) {
-        deadConnectionIds.add(connId);
+        (deadConns ??= []).add(conn);
       }
     }
 
     // Actively remove any dead sockets identified during broadcast
-    for (final deadId in deadConnectionIds) {
-      removeConnection(deadId);
+    if (deadConns != null) {
+      for (final dead in deadConns) {
+        removeConnection(dead.id);
+      }
     }
 
     onBroadcast?.call(channelName, payload);
@@ -231,7 +225,7 @@ class BloomChannelHub {
     for (final channel in List<String>.from(conn.subscribedChannels)) {
       final subs = _channelSubscribers[channel];
       if (subs != null) {
-        subs.remove(conn.id);
+        subs.remove(conn);
         if (subs.isEmpty) {
           _channelSubscribers.remove(channel);
         }

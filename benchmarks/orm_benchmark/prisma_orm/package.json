@@ -1,0 +1,11 @@
+{
+  "name": "prisma-bench",
+  "version": "1.0.0",
+  "main": "main.ts",
+  "dependencies": {
+    "@prisma/client": "^5.16.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.16.2"
+  }
+}
