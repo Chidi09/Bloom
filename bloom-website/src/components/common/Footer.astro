@@ -14,11 +14,11 @@ const {
 } = Astro.props;
 ---
 
-<footer class="bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/80 pt-16 pb-8 relative z-10">
+<footer class="bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-slate-200 dark:border-zinc-800 pt-16 pb-8 relative z-10">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     
     <!-- Narrative Cross-Linking CTA Banner (Monochromatic Vercel-Style) -->
-    <div class="mb-16 p-8 sm:p-10 rounded-3xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden group">
+    <div class="mb-16 p-8 sm:p-10 rounded-3xl bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden group">
       <div class="space-y-2 max-w-xl">
         <span class="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           Next Chapter
@@ -55,31 +55,48 @@ const {
         </p>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-8 text-sm w-full md:w-auto">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8 text-sm w-full md:w-auto">
         <div class="space-y-3">
-          <h4 class="font-bold text-slate-900 dark:text-white">Landings</h4>
+          <h4 class="font-bold text-slate-900 dark:text-white">Platform</h4>
           <a href="/build" class="block text-slate-500 hover:text-purple-500 transition">Framework (BUILD)</a>
           <a href="/ship" class="block text-slate-500 hover:text-blue-500 transition">Cloud OTA (SHIP)</a>
           <a href="/bloom" class="block text-slate-500 hover:text-pink-500 transition">UI Studio (BLOOM)</a>
+          <a href="/blocks" class="block text-slate-500 hover:text-purple-500 transition">App Blocks</a>
         </div>
         <div class="space-y-3">
-          <h4 class="font-bold text-slate-900 dark:text-white">Resources</h4>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Documentation</a>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">GitHub</a>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Discord</a>
+          <h4 class="font-bold text-slate-900 dark:text-white">Documentation</h4>
+          <a href="/docs/introduction" class="block text-slate-500 hover:text-purple-500 transition">Introduction</a>
+          <a href="/docs/framework/quickstart" class="block text-slate-500 hover:text-purple-500 transition">Quickstart</a>
+          <a href="/docs/cli" class="block text-slate-500 hover:text-purple-500 transition">CLI Reference</a>
+          <a href="/ui" class="block text-slate-500 hover:text-purple-500 transition">UI Primitives</a>
         </div>
         <div class="space-y-3">
-          <h4 class="font-bold text-slate-900 dark:text-white">Community</h4>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Changelog</a>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Showcase</a>
-          <a href="#" class="block text-slate-500 hover:text-purple-500 transition">Releases</a>
+          <h4 class="font-bold text-slate-900 dark:text-white">AI & LLMs</h4>
+          <a href="/llms.txt" target="_blank" class="block text-purple-600 dark:text-purple-400 hover:underline font-mono text-xs font-semibold">/llms.txt (Index)</a>
+          <a href="/llms-full.txt" target="_blank" class="block text-purple-600 dark:text-purple-400 hover:underline font-mono text-xs font-semibold">/llms-full.txt (Full)</a>
+          <a href="/docs/guides/api-reference.md" target="_blank" class="block text-slate-500 hover:text-purple-500 font-mono text-xs">API Reference (.md)</a>
+          <a href="/ui/button.md" target="_blank" class="block text-slate-500 hover:text-purple-500 font-mono text-xs">Components (.md)</a>
+        </div>
+        <div class="space-y-3">
+          <h4 class="font-bold text-slate-900 dark:text-white">Community & Legal</h4>
+          <a href="/docs/changelog" class="block text-slate-500 hover:text-purple-500 transition">Changelog</a>
+          <a href="https://github.com/bloom-framework/bloom" target="_blank" rel="noopener noreferrer" class="block text-slate-500 hover:text-purple-500 transition">GitHub</a>
+          <a href="https://pub.dev/packages/bloom_ui" target="_blank" rel="noopener noreferrer" class="block text-slate-500 hover:text-purple-500 transition">Pub.dev</a>
+          <a href="/privacy" class="block text-slate-500 hover:text-purple-500 transition">Privacy Policy</a>
+          <a href="/terms" class="block text-slate-500 hover:text-purple-500 transition">Terms & Conditions</a>
         </div>
       </div>
     </div>
 
     <!-- Bottom Legal Bar -->
-    <div class="pt-8 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-      <p>© 2026 Bloom Platform Inc. All rights reserved.</p>
+    <div class="pt-8 border-t border-slate-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-4">
+        <p>© 2026 Bloom Platform Inc. Open source MIT License.</p>
+        <span class="text-slate-600">•</span>
+        <a href="/privacy" class="hover:text-purple-400 transition">Privacy</a>
+        <span class="text-slate-600">•</span>
+        <a href="/terms" class="hover:text-purple-400 transition">Terms</a>
+      </div>
       <div class="flex items-center gap-2 text-emerald-500 font-mono font-semibold">
         <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
         All systems operational (142 Edge Nodes)

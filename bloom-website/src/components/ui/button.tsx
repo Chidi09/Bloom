@@ -10,9 +10,9 @@ const buttonVariants = cva(
         default: 'bg-slate-900 text-white shadow-md hover:bg-slate-800 hover:shadow-lg dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 border border-slate-950/20 dark:border-white/20',
         primary: 'bg-purple-600 text-white shadow-md hover:bg-purple-500 hover:shadow-purple-500/25 dark:bg-purple-500 dark:text-white dark:hover:bg-purple-400 border border-purple-400/30',
         destructive: 'bg-rose-600 text-white shadow-md hover:bg-rose-500 dark:bg-rose-600 dark:hover:bg-rose-500 border border-rose-500/30',
-        outline: 'border-2 border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm',
-        secondary: 'bg-slate-200/80 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 hover:bg-slate-300/80 dark:hover:bg-slate-700/90 border border-slate-300/50 dark:border-slate-700/50 shadow-sm',
-        ghost: 'hover:bg-slate-200/60 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
+        outline: 'border-2 border-slate-300 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950 text-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-900 shadow-sm',
+        secondary: 'bg-slate-200/80 dark:bg-zinc-900 text-slate-900 dark:text-slate-100 hover:bg-slate-300/80 dark:hover:bg-zinc-800 border border-slate-300/50 dark:border-zinc-800 shadow-sm',
+        ghost: 'hover:bg-slate-200/60 dark:hover:bg-zinc-900 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
         link: 'text-slate-900 dark:text-slate-100 underline-offset-4 hover:underline font-bold',
       },
       size: {

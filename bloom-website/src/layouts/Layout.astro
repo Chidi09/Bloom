@@ -37,6 +37,12 @@ const siteUrl = vercelProductionUrl
   ? `https://${vercelProductionUrl}` 
   : (vercelUrl ? `https://${vercelUrl}` : 'https://bloom-platform-ten.vercel.app');
 
+const pathname = Astro.url.pathname.replace(/\/$/, '') || '';
+const markdownPath = pathname === '' ? '/index.md' : `${pathname}.md`;
+const markdownUrl = `${siteUrl}${markdownPath}`;
+const llmsTxtUrl = `${siteUrl}/llms.txt`;
+const llmsFullTxtUrl = `${siteUrl}/llms-full.txt`;
+
 const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString();
 const ogImageUrl = `${siteUrl}/og/${ogPage}.png`;
 
@@ -67,11 +73,16 @@ const jsonLd = {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#030509" />
+    <meta name="theme-color" content="#000000" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <!-- Canonical -->
     <link rel="canonical" href={canonicalUrl} />
+
+    <!-- LLM Discoverability & Alternates -->
+    <link rel="alternate" type="text/markdown" title="LLM Markdown" href={markdownUrl} />
+    <link rel="alternate" type="text/plain" title="LLMs.txt" href={llmsTxtUrl} />
+    <link rel="alternate" type="text/plain" title="Full LLM Context (llms-full.txt)" href={llmsFullTxtUrl} />
 
     <!-- Primary Meta -->
     <title>{title}</title>
@@ -130,7 +141,7 @@ const jsonLd = {
       })();
     </script>
   </head>
-  <body class="min-h-screen relative overflow-x-hidden antialiased selection:bg-purple-500/30">
+  <body class="min-h-screen relative overflow-x-clip antialiased selection:bg-purple-500/30 bg-slate-50 dark:bg-black text-slate-900 dark:text-white">
     
     <!-- Background System -->
     <AmbientMesh hue={hue} />

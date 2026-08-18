@@ -8,7 +8,7 @@ const steps = [
     subtitle: 'Conventions & Config',
     desc: 'Opinionated project structure, bloom.yaml schema, and /routes directory conventions.',
     color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
-    accent: 'bg-slate-600 dark:bg-slate-400',
+    accent: 'bg-purple-600 text-white',
     icon: Layers,
   },
   {
@@ -17,7 +17,7 @@ const steps = [
     subtitle: 'Proven Ecosystem',
     desc: 'Thin abstractions over go_router for navigation and signals for fine-grained reactivity.',
     color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
-    accent: 'bg-slate-600 dark:bg-slate-400',
+    accent: 'bg-purple-600 text-white',
     icon: Box,
   },
   {
@@ -26,7 +26,7 @@ const steps = [
     subtitle: 'Deterministic AST',
     desc: 'Automatic route table generation, typed parameters, and model serializers on file save.',
     color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
-    accent: 'bg-slate-600 dark:bg-slate-400',
+    accent: 'bg-purple-600 text-white',
     icon: Cpu,
   },
   {
@@ -35,7 +35,7 @@ const steps = [
     subtitle: 'Unified Workflow',
     desc: 'Single CLI for bloom create, bloom dev, doctor, testing, prebuild, and deploy.',
     color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
-    accent: 'bg-slate-600 dark:bg-slate-400',
+    accent: 'bg-purple-600 text-white',
     icon: Zap,
   },
   {
@@ -44,7 +44,7 @@ const steps = [
     subtitle: 'Differentiated Core',
     desc: 'Custom Bloom Data query caching and Bloom Go Dev Client where genuine ecosystem gaps exist.',
     color: 'border-slate-300 dark:border-zinc-800 bg-white/60 dark:bg-black text-slate-700 dark:text-slate-300',
-    accent: 'bg-slate-600 dark:bg-slate-400',
+    accent: 'bg-purple-600 text-white',
     icon: ShieldCheck,
   },
 ];
@@ -55,8 +55,8 @@ const steps = [
   <div class="hidden lg:grid grid-cols-5 gap-4 relative">
     
     <!-- Animated Connecting Background Beam -->
-    <div class="absolute top-[42px] left-[10%] right-[10%] h-1 bg-slate-200 dark:bg-slate-800 -z-10 rounded-full overflow-hidden">
-      <div class="w-full h-full bg-gradient-to-r from-slate-400 via-slate-500 to-slate-700 dark:from-slate-600 dark:via-slate-500 dark:to-slate-400 animate-pulse"></div>
+    <div class="absolute top-[42px] left-[10%] right-[10%] h-1 bg-slate-200 dark:bg-zinc-800 -z-10 rounded-full overflow-hidden">
+      <div class="w-full h-full bg-gradient-to-r from-slate-400 via-slate-500 to-slate-700 dark:from-zinc-600 dark:via-zinc-500 dark:to-zinc-400 animate-pulse"></div>
     </div>
 
     {steps.map((item, idx) => {
@@ -92,7 +92,7 @@ const steps = [
   </div>
 
   <!-- Mobile Vertical Pipeline Flow -->
-  <div class="grid grid-cols-1 gap-6 lg:hidden relative pl-6 border-l-2 border-slate-300 dark:border-slate-700 ml-4">
+  <div class="grid grid-cols-1 gap-6 lg:hidden relative pl-6 border-l-2 border-slate-300 dark:border-zinc-800 ml-4">
     {steps.map((item, idx) => {
       const IconComp = item.icon;
       return (
