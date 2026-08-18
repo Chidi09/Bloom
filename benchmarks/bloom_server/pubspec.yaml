@@ -1,0 +1,9 @@
+name: bloom_benchmark_server
+description: Benchmark server for Bloom
+version: 1.0.0
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_framework:
+    path: ../../packages/bloom_framework
