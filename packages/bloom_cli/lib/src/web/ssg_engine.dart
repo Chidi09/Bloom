@@ -221,7 +221,7 @@ class BloomSsgEngine {
     _generateRobots(baseUrl);
 
     // 4. Generate PWA Assets
-    PwaGenerator(project: project, outputDir: outputDir).generate();
+    await PwaGenerator(project: project, outputDir: outputDir).generate();
 
     print(Ansi.success('✔ Static site generation complete! Output written to ${outputDir.path}\n'));
   }
