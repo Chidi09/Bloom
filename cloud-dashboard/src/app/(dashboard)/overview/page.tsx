@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api/client";
 import { useOrganizationStore } from "@/stores/organization-store";
-import { UpgradeModal } from "@/components/billing/upgrade-modal";
+import { useUiStore } from "@/stores/ui-store";
 
 interface AppItem {
   id: string;
@@ -68,6 +68,9 @@ interface UsageSummary {
 
 export default function OverviewPage() {
   const router = useRouter();
+  const setPlanUpgradeDialogOpen = useUiStore(
+    (s) => s.setPlanUpgradeDialogOpen,
+  );
   const { currentOrganizationId } = useOrganizationStore();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -78,7 +81,6 @@ export default function OverviewPage() {
     "all" | "bloom" | "flutter"
   >("all");
   const [checklistDismissed, setChecklistDismissed] = React.useState(false);
-  const [upgradeModalOpen, setUpgradeModalOpen] = React.useState(false);
   const [isTriggeringBuild, setIsTriggeringBuild] = React.useState(false);
 
   const [apps, setApps] = React.useState<AppItem[]>([]);
@@ -341,7 +343,9 @@ export default function OverviewPage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-zinc-800" />
               <DropdownMenuItem
-                onClick={() => setUpgradeModalOpen(true)}
+                onClick={() =>
+                  router.push(`/organizations/${currentOrganizationId}?tab=billing`)
+                }
                 className="cursor-pointer text-xs text-zinc-400"
               >
                 Connect Custom Domain
@@ -416,7 +420,7 @@ export default function OverviewPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setUpgradeModalOpen(true)}
+                  onClick={() => setPlanUpgradeDialogOpen(true)}
                   className="h-6 cursor-pointer border-zinc-700 bg-zinc-800/80 px-2.5 text-[11px] font-medium text-zinc-100 hover:bg-zinc-800"
                 >
                   Upgrade
@@ -540,7 +544,7 @@ export default function OverviewPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => setUpgradeModalOpen(true)}
+                onClick={() => setPlanUpgradeDialogOpen(true)}
                 className="h-7 cursor-pointer bg-zinc-100 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
               >
                 Upgrade to Pro
@@ -830,14 +834,6 @@ export default function OverviewPage() {
           )}
         </div>
       </div>
-
-      {/* Global Pro Upgrade Modal */}
-      <UpgradeModal
-        open={upgradeModalOpen}
-        onOpenChange={setUpgradeModalOpen}
-        featureTitle="Unlock Bloom Cloud Pro"
-        featureDescription="Scale your mobile and fullstack Flutter builds with Store deployment automation and higher concurrency."
-      />
     </div>
   );
 }

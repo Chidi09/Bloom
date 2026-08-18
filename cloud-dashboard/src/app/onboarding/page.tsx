@@ -43,6 +43,7 @@ import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { FlutterIcon } from "@/components/ui/flutter-icon";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { PLANNED_FRAMEWORKS } from "@/lib/frameworks";
 import { useOrganizationStore } from "@/stores/organization-store";
 
 // Step 1: Organization validation
@@ -568,6 +569,22 @@ export default function OnboardingPage() {
                         </span>
                       </div>
                     </button>
+                  </div>
+
+                  {/* Coming Soon Frameworks */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {PLANNED_FRAMEWORKS.map((fw) => (
+                      <span
+                        key={fw.id}
+                        title={`${fw.label} support is planned — not yet available`}
+                        className="border-border/60 bg-muted/20 text-muted-foreground inline-flex cursor-not-allowed items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] opacity-60"
+                      >
+                        {fw.label}
+                        <span className="text-[9px] tracking-wide uppercase">
+                          Soon
+                        </span>
+                      </span>
+                    ))}
                   </div>
                 </div>
 

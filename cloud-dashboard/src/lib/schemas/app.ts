@@ -8,6 +8,7 @@ export const appResponseSchema = z.object({
   slug: z.string(),
   repository_url: z.string().nullable().optional(),
   default_branch: z.string(),
+  icon_url: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

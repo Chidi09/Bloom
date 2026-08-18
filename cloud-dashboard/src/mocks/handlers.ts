@@ -323,9 +323,7 @@ export const handlers = [
   http.get(`${API}/builds`, ({ request }) => {
     const url = new URL(request.url);
     const appId = url.searchParams.get("app_id");
-    const results = appId
-      ? mockStore.builds.filter((b) => b.app_id === appId)
-      : mockStore.builds;
+    const results = mockStore.listBuilds(appId ?? undefined);
     return HttpResponse.json({
       count: results.length,
       page: 1,
@@ -823,23 +821,6 @@ export const handlers = [
     return HttpResponse.json(rolled);
   }),
 
-  // Billing
-  http.get(`${API}/billing/usage`, () => {
-    return HttpResponse.json({
-      organization_id: mockStore.usage.organization_id,
-      plan_name: mockStore.usage.plan_name,
-      current_period_start: mockStore.usage.current_period_start,
-      current_period_end: mockStore.usage.current_period_end,
-      build_minutes_used: mockStore.usage.build_minutes_used,
-      build_minutes_limit: mockStore.usage.build_minutes_limit,
-      artifact_storage_gb_used: mockStore.usage.artifact_storage_gb_used,
-      artifact_storage_gb_limit: mockStore.usage.artifact_storage_gb_limit,
-      web_bandwidth_gb_used: mockStore.usage.web_bandwidth_gb_used,
-      web_bandwidth_gb_limit: mockStore.usage.web_bandwidth_gb_limit,
-      deploy_count: mockStore.usage.deploy_count,
-    });
-  }),
-
   // Account & API Tokens
   http.patch(`${API}/auth/me`, async ({ request }) => {
     const body = (await request.json()) as {
@@ -862,15 +843,26 @@ export const handlers = [
   }),
 
   http.post(`${API}/auth/token`, async ({ request }) => {
-    const body = (await request.json()) as { name?: string };
+    const body = (await request.json()) as {
+      name?: string;
+      scopes?: string[];
+      expires_in_days?: number | null;
+      organization_id?: string | null;
+    };
     const { tokenRecord, rawToken } = mockStore.createApiToken(
       body.name || "API Token",
+      body.scopes,
+      body.expires_in_days,
+      body.organization_id,
     );
     return HttpResponse.json(
       {
         id: tokenRecord.id,
         name: tokenRecord.name,
         token: rawToken,
+        scopes: tokenRecord.scopes || ["*"],
+        expires_at: tokenRecord.expires_at || null,
+        organization_id: tokenRecord.organization_id || null,
         created_at: tokenRecord.created_at,
         last_used_at: null,
       },

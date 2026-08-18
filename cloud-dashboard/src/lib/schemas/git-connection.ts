@@ -27,6 +27,8 @@ export const repositoryResponseSchema = z.object({
   full_name: z.string(),
   default_branch: z.string().default("main"),
   url: z.string().url(),
+  is_private: z.boolean().optional(),
+  visibility: z.enum(["private", "public", "internal"]).optional(),
 });
 export type RepositoryResponse = z.infer<typeof repositoryResponseSchema>;
 

@@ -152,6 +152,33 @@ export default function AppBuildsPage() {
     void run();
   }, [fetchBuildsAndEnvs]);
 
+  // Quiet background refresh (no loading spinner) so builds still in
+  // progress visibly advance through their stages in the table.
+  const refreshBuildsQuietly = React.useCallback(async () => {
+    if (!appId) return;
+    try {
+      const buildsRes = await api.get<{ results: BuildResponse[] }>(
+        "/builds",
+        { params: { app_id: appId } },
+      );
+      setBuilds(buildsRes?.results ?? []);
+    } catch {
+      // ignore polling errors
+    }
+  }, [appId]);
+
+  const hasActiveBuild = builds.some((b) =>
+    ["queued", "pending", "running"].includes(b.status),
+  );
+
+  React.useEffect(() => {
+    if (!hasActiveBuild) return;
+    const intervalId = setInterval(() => {
+      void refreshBuildsQuietly();
+    }, 2000);
+    return () => clearInterval(intervalId);
+  }, [hasActiveBuild, refreshBuildsQuietly]);
+
   const handleTriggerBuild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appId) return;

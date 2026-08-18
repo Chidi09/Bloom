@@ -30,26 +30,86 @@ export type ProviderName =
   | "apple"
   | string;
 
-const DOMAIN_MAP: Record<string, string> = {
+// Only exceptions live here: brands whose domain isn't `<name>.com`
+// (different TLD, subdomain, or a name that doesn't match the brand at
+// all). Everything else is computed on the fly in `resolveDomain()`.
+const DOMAIN_OVERRIDES: Record<string, string> = {
   bitbucket: "bitbucket.org",
-  cloudflare: "cloudflare.com",
-  namecheap: "namecheap.com",
-  godaddy: "godaddy.com",
   aws: "aws.amazon.com",
   route53: "aws.amazon.com",
   google: "domains.google",
   google_domains: "domains.google",
-  porkbun: "porkbun.com",
-  vercel: "vercel.com",
-  digitalocean: "digitalocean.com",
-  fastly: "fastly.com",
   shorebird: "shorebird.dev",
-  squarespace: "squarespace.com",
-  stripe: "stripe.com",
-  supabase: "supabase.com",
-  resend: "resend.com",
   flutter: "flutter.dev",
+  firebase: "firebase.google.com",
+  sentry: "sentry.io",
+  postmark: "postmarkapp.com",
 };
+
+/** `stripe` -> `stripe.com`, `google_domains` -> override lookup, etc. */
+function resolveDomain(id: string): string {
+  if (DOMAIN_OVERRIDES[id]) return DOMAIN_OVERRIDES[id];
+  return `${id.replace(/_/g, "")}.com`;
+}
+
+// Segments that show up in env/secret var names but are never the
+// provider itself — stripped out before guessing a provider id.
+const NON_PROVIDER_TOKENS = new Set([
+  "api",
+  "key",
+  "secret",
+  "token",
+  "url",
+  "id",
+  "public",
+  "private",
+  "client",
+  "webhook",
+  "signing",
+  "endpoint",
+  "base",
+  "access",
+  "auth",
+  "app",
+  "env",
+  "database",
+  "db",
+  "test",
+  "live",
+  "prod",
+  "production",
+  "dev",
+  "staging",
+  "sandbox",
+  "region",
+  "bucket",
+  "name",
+  "password",
+  "user",
+  "username",
+  "host",
+  "port",
+]);
+
+/**
+ * Best-effort detection of a third-party provider from an env/secret var
+ * key, e.g. `STRIPE_SECRET_KEY` -> "stripe", `NEXT_PUBLIC_PAYSTACK_KEY`
+ * -> "paystack". No hardcoded provider list — any leftover token is
+ * treated as a candidate brand id and its favicon is resolved via
+ * `resolveDomain()`. Returns null only when nothing meaningful remains.
+ */
+export function detectEnvVarProvider(key: string): string | null {
+  if (!key) return null;
+  const tokens = key
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .filter((t) => !NON_PROVIDER_TOKENS.has(t) && !/^\d+$/.test(t));
+
+  const candidate = tokens.find((t) => t.length >= 3);
+  return candidate ?? null;
+}
 
 interface ProviderIconProps extends React.HTMLAttributes<HTMLSpanElement> {
   provider: ProviderName;
@@ -172,43 +232,76 @@ export function ProviderIcon({
     );
   }
 
-  // Check mapped domain or domain prop
-  const targetDomain = domain || DOMAIN_MAP[norm];
+  // Explicit domain prop wins; otherwise compute one from the provider id.
+  const targetDomain = domain || resolveDomain(norm);
+  const faviconUrl = `https://www.google.com/s2/favicons?domain=${targetDomain}&sz=64`;
 
-  if (targetDomain) {
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${targetDomain}&sz=64`;
+  return (
+    <ProviderFavicon
+      src={faviconUrl}
+      alt={alt || provider}
+      pixelSize={pixelSize}
+      sizeClass={sizeClass}
+      className={className}
+      {...props}
+    />
+  );
+}
+
+interface ProviderFaviconProps extends React.HTMLAttributes<HTMLSpanElement> {
+  src: string;
+  alt: string;
+  pixelSize: number;
+  sizeClass: string;
+}
+
+/**
+ * Renders a computed favicon lookup, falling back to a generic globe
+ * glyph if the guessed domain doesn't actually resolve to an icon.
+ */
+function ProviderFavicon({
+  src,
+  alt,
+  pixelSize,
+  sizeClass,
+  className,
+  ...props
+}: ProviderFaviconProps) {
+  const [errored, setErrored] = React.useState(false);
+
+  if (errored) {
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[2px]",
+          "text-muted-foreground inline-flex shrink-0 items-center justify-center",
           sizeClass,
           className,
         )}
         {...props}
       >
-        <Image
-          src={faviconUrl}
-          alt={alt || provider}
-          width={pixelSize}
-          height={pixelSize}
-          className="object-contain"
-          unoptimized
-        />
+        <Globe className="h-full w-full" weight="bold" />
       </span>
     );
   }
 
-  // Fallbacks
   return (
     <span
       className={cn(
-        "text-muted-foreground inline-flex shrink-0 items-center justify-center",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[2px]",
         sizeClass,
         className,
       )}
       {...props}
     >
-      <Globe className="h-full w-full" weight="bold" />
+      <Image
+        src={src}
+        alt={alt}
+        width={pixelSize}
+        height={pixelSize}
+        className="object-contain"
+        unoptimized
+        onError={() => setErrored(true)}
+      />
     </span>
   );
 }

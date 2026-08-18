@@ -643,6 +643,7 @@ export default function OrganizationDetailPage() {
           <OrganizationBillingTab
             organizationId={org.id}
             canManageBilling={hasRole(currentUserRole, "Admin")}
+            openPlanDialog={searchParams.get("upgrade") === "1"}
           />
         </TabsContent>
 

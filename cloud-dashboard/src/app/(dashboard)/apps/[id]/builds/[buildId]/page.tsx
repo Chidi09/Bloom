@@ -204,6 +204,30 @@ export default function AppBuildDetailPage() {
     void run();
   }, [fetchData]);
 
+  // Quiet background refresh (no loading spinner) so an in-progress build
+  // visibly advances through its stages while this page stays open.
+  const refreshBuildQuietly = React.useCallback(async () => {
+    if (!buildId) return;
+    try {
+      const buildRes = await api.get<BuildResponse>(`/builds/${buildId}`);
+      setBuild(buildRes);
+      void fetchLogs(buildRes.id, buildRes.stages || []);
+    } catch {
+      // ignore polling errors
+    }
+  }, [buildId, fetchLogs]);
+
+  const buildIsActive =
+    !!build && ["queued", "pending", "running"].includes(build.status);
+
+  React.useEffect(() => {
+    if (!buildIsActive) return;
+    const intervalId = setInterval(() => {
+      void refreshBuildQuietly();
+    }, 2000);
+    return () => clearInterval(intervalId);
+  }, [buildIsActive, refreshBuildQuietly]);
+
   // Derived build number
   const buildIndex = build ? allBuilds.findIndex((b) => b.id === build.id) : -1;
   const buildNumber =

@@ -52,13 +52,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  ProviderIcon,
+  detectEnvVarProvider,
+} from "@/components/status/provider-icon";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -564,24 +560,21 @@ export default function AppEnvironmentsPage() {
           </div>
         )}
 
-        {/* Sheet Configuration Editor */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent
-            side="right"
-            className="w-full overflow-y-auto sm:max-w-xl"
-          >
+        {/* Configuration Editor */}
+        <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+          <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-y-auto sm:max-w-2xl">
             {editingEnv && (
               <form onSubmit={handleSaveSheet} className="space-y-6">
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2 text-base">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-base">
                     <TreeStructure className="text-primary size-4" />
                     <span>Configure {editingEnv.name}</span>
-                  </SheetTitle>
-                  <SheetDescription>
+                  </DialogTitle>
+                  <DialogDescription>
                     Modify build profiles, pinned toolchain versions, runtime
                     variables, and feature flags.
-                  </SheetDescription>
-                </SheetHeader>
+                  </DialogDescription>
+                </DialogHeader>
 
                 {/* General Settings */}
                 <div className="space-y-4">
@@ -727,19 +720,39 @@ export default function AppEnvironmentsPage() {
                                 className="animate-in fade-in-0 slide-in-from-top-1 transition-all duration-150"
                               >
                                 <TableCell className="p-2">
-                                  <Input
-                                    placeholder="API_ENDPOINT"
-                                    value={row.key}
-                                    onChange={(e) => {
-                                      const keyVal = e.target.value;
-                                      setEditEnvVars((prev) =>
-                                        prev.map((r, i) =>
-                                          i === idx ? { ...r, key: keyVal } : r,
-                                        ),
+                                  <div className="relative">
+                                    {(() => {
+                                      const detected = detectEnvVarProvider(
+                                        row.key,
                                       );
-                                    }}
-                                    className="h-8 font-mono text-xs"
-                                  />
+                                      return detected ? (
+                                        <ProviderIcon
+                                          provider={detected}
+                                          size="sm"
+                                          className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2"
+                                        />
+                                      ) : null;
+                                    })()}
+                                    <Input
+                                      placeholder="API_ENDPOINT"
+                                      value={row.key}
+                                      onChange={(e) => {
+                                        const keyVal = e.target.value;
+                                        setEditEnvVars((prev) =>
+                                          prev.map((r, i) =>
+                                            i === idx
+                                              ? { ...r, key: keyVal }
+                                              : r,
+                                          ),
+                                        );
+                                      }}
+                                      className={cn(
+                                        "h-8 font-mono text-xs",
+                                        detectEnvVarProvider(row.key) &&
+                                          "pl-7",
+                                      )}
+                                    />
+                                  </div>
                                 </TableCell>
                                 <TableCell className="p-2">
                                   <Input
@@ -898,7 +911,7 @@ export default function AppEnvironmentsPage() {
                   )}
                 </div>
 
-                <SheetFooter className="border-border/60 border-t pt-4">
+                <DialogFooter className="border-border/60 border-t pt-4">
                   <Button
                     type="button"
                     variant="outline"
@@ -914,11 +927,11 @@ export default function AppEnvironmentsPage() {
                     ) : null}
                     Save Configuration
                   </Button>
-                </SheetFooter>
+                </DialogFooter>
               </form>
             )}
-          </SheetContent>
-        </Sheet>
+          </DialogContent>
+        </Dialog>
 
         {/* Create Environment Dialog */}
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

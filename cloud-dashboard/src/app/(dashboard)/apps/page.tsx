@@ -46,7 +46,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { PlatformIcon } from "@/components/status/platform-icon";
+import { AppIcon } from "@/components/status/app-icon";
 import { StatusBadge } from "@/components/status/status-badge";
 import { api } from "@/lib/api/client";
 import { AppResponse } from "@/lib/schemas/app";
@@ -383,9 +383,12 @@ export default function AppsPage() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="border-border/80 bg-muted/50 text-foreground group-hover:border-primary/40 flex size-8 shrink-0 items-center justify-center rounded-md border shadow-xs transition-colors">
-                          <PlatformIcon platform="all" size="md" />
-                        </div>
+                        <AppIcon
+                          iconUrl={app.icon_url}
+                          name={app.name}
+                          size="md"
+                          className="group-hover:border-primary/40 transition-colors"
+                        />
                         <div className="space-y-0.5">
                           <span className="text-foreground group-hover:text-primary block text-xs font-semibold transition-colors">
                             {app.name}

@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,66 @@ import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { MeResponse, ApiTokenResponse } from "@/lib/schemas/account";
 
+const AVAILABLE_SCOPES = [
+  {
+    id: "builds:read",
+    name: "Builds: Read",
+    description: "Read build logs, artifacts, and execution statuses",
+  },
+  {
+    id: "builds:write",
+    name: "Builds: Write",
+    description: "Trigger builds, pipeline stages, and cancel runs",
+  },
+  {
+    id: "deployments:read",
+    name: "Deployments: Read",
+    description: "View deployment history, targets, and release statuses",
+  },
+  {
+    id: "deployments:write",
+    name: "Deployments: Write",
+    description: "Trigger deployments, release promotions, and rollbacks",
+  },
+  {
+    id: "billing:read",
+    name: "Billing: Read",
+    description: "View subscription tier, invoices, and quota usage",
+  },
+  {
+    id: "billing:write",
+    name: "Billing: Write",
+    description: "Manage subscription plans and payment methods",
+  },
+  {
+    id: "organizations:read",
+    name: "Organizations: Read",
+    description: "List organizations, teams, and member roles",
+  },
+  {
+    id: "organizations:write",
+    name: "Organizations: Write",
+    description: "Manage organization settings, teams, and members",
+  },
+  {
+    id: "secrets:read",
+    name: "Secrets: Read",
+    description: "View secret names and environment variable metadata",
+  },
+  {
+    id: "secrets:write",
+    name: "Secrets: Write",
+    description: "Create, update, and rotate environment secrets",
+  },
+];
+
+const EXPIRATION_OPTIONS = [
+  { value: "0", label: "Never expires" },
+  { value: "30", label: "30 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+];
+
 const TIMEZONES = [
   { value: "UTC", label: "UTC (Coordinated Universal Time)" },
   {
@@ -109,6 +170,7 @@ export default function AccountSettingsPage() {
 
   const [profile, setProfile] = React.useState<MeResponse | null>(null);
   const [tokens, setTokens] = React.useState<ApiTokenResponse[]>([]);
+  const [nowMs] = React.useState(() => Date.now());
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -149,6 +211,13 @@ export default function AccountSettingsPage() {
   // API Token Create Dialog State
   const [tokenDialogOpen, setTokenDialogOpen] = React.useState(false);
   const [newTokenName, setNewTokenName] = React.useState("");
+  const [tokenScopeMode, setTokenScopeMode] = React.useState<"full" | "custom">("full");
+  const [selectedScopes, setSelectedScopes] = React.useState<string[]>([]);
+  const [tokenExpiration, setTokenExpiration] = React.useState<string>("0");
+  const [tokenOrganizationId, setTokenOrganizationId] = React.useState<string>("all");
+  const [organizations, setOrganizations] = React.useState<
+    Array<{ id: string; name: string; slug?: string }>
+  >([]);
   const [isCreatingToken, setIsCreatingToken] = React.useState(false);
   const [createdRawToken, setCreatedRawToken] = React.useState<string | null>(
     null,
@@ -171,10 +240,13 @@ export default function AccountSettingsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [meRes, tokensRes] = await Promise.all([
+      const [meRes, tokensRes, orgsRes] = await Promise.all([
         api.get<MeResponse>("/auth/me"),
         api
           .get<{ results: ApiTokenResponse[] }>("/auth/tokens")
+          .catch(() => ({ results: [] })),
+        api
+          .get<{ results: Array<{ id: string; name: string; slug?: string }> }>("/organizations")
           .catch(() => ({ results: [] })),
       ]);
 
@@ -183,6 +255,7 @@ export default function AccountSettingsPage() {
       setAvatarUrl(meRes.avatar_url || "");
       setTimezone(meRes.timezone || "UTC");
       setTokens(tokensRes.results ?? []);
+      setOrganizations(orgsRes.results ?? []);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Failed to load account settings",
@@ -223,28 +296,28 @@ export default function AccountSettingsPage() {
     e.preventDefault();
     if (!newTokenName.trim()) return;
 
+    const scopes =
+      tokenScopeMode === "full"
+        ? ["*"]
+        : selectedScopes.length > 0
+          ? selectedScopes
+          : ["*"];
+    const expiresInDays =
+      tokenExpiration !== "0" ? parseInt(tokenExpiration, 10) : null;
+    const organizationId =
+      tokenOrganizationId !== "all" ? tokenOrganizationId : null;
+
     setIsCreatingToken(true);
     try {
-      const res = await api.post<{
-        id: string;
-        name: string;
-        token: string;
-        created_at: string;
-        last_used_at: string | null;
-      }>("/auth/token", {
+      const res = await api.post<ApiTokenResponse>("/auth/token", {
         name: newTokenName.trim(),
+        scopes,
+        expires_in_days: expiresInDays,
+        organization_id: organizationId,
       });
 
-      setTokens((prev) => [
-        {
-          id: res.id,
-          name: res.name,
-          created_at: res.created_at,
-          last_used_at: res.last_used_at,
-        },
-        ...prev,
-      ]);
-      setCreatedRawToken(res.token);
+      setTokens((prev) => [res, ...prev]);
+      setCreatedRawToken(res.token || null);
       toast.success("API token created. Make sure to copy it now!");
     } catch (err: unknown) {
       toast.error(
@@ -258,7 +331,12 @@ export default function AccountSettingsPage() {
   const handleCloseTokenDialog = () => {
     setTokenDialogOpen(false);
     setNewTokenName("");
+    setTokenScopeMode("full");
+    setSelectedScopes([]);
+    setTokenExpiration("0");
+    setTokenOrganizationId("all");
     setCreatedRawToken(null);
+    setShowTokenMask(false);
     setCopiedToken(false);
   };
 
@@ -634,52 +712,124 @@ export default function AccountSettingsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[300px]">
+                      <TableHead className="w-[240px]">
                         Token Label / Name
                       </TableHead>
-                      <TableHead>Created Date</TableHead>
+                      <TableHead>Scopes</TableHead>
+                      <TableHead>Organization</TableHead>
+                      <TableHead>Expiration</TableHead>
                       <TableHead>Last Used</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tokens.map((token) => (
-                      <TableRow
-                        key={token.id}
-                        className="hover:bg-muted/40 transition-colors"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <Key className="size-4 text-zinc-400" />
-                            <span className="font-mono text-xs font-semibold text-zinc-100">
-                              {token.name}
-                            </span>
-                          </div>
-                        </TableCell>
+                    {tokens.map((token) => {
+                      const isExpired =
+                        token.expires_at &&
+                        new Date(token.expires_at).getTime() < nowMs;
+                      const orgName =
+                        organizations.find((o) => o.id === token.organization_id)
+                          ?.name || token.organization_id;
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {new Date(token.created_at).toLocaleDateString()}
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={token.id}
+                          className="hover:bg-muted/40 transition-colors"
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2.5">
+                              <Key className="size-4 text-zinc-400 shrink-0" />
+                              <div className="min-w-0">
+                                <span className="font-mono text-xs font-semibold text-zinc-100 block truncate">
+                                  {token.name}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 font-mono">
+                                  Created {new Date(token.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-zinc-400">
-                          {token.last_used_at
-                            ? new Date(token.last_used_at).toLocaleDateString()
-                            : "Never"}
-                        </TableCell>
+                          <TableCell>
+                            {token.scopes?.includes("*") ? (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-500/30 bg-emerald-500/10 font-mono text-[10px] text-emerald-400"
+                              >
+                                Full Access (*)
+                              </Badge>
+                            ) : token.scopes && token.scopes.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                {token.scopes.map((s) => (
+                                  <Badge
+                                    key={s}
+                                    variant="secondary"
+                                    className="font-mono text-[10px] bg-zinc-800/80 text-zinc-300"
+                                  >
+                                    {s}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="border-zinc-700 font-mono text-[10px] text-zinc-400"
+                              >
+                                None
+                              </Badge>
+                            )}
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setTokenToRevoke(token)}
-                            className="h-7 gap-1 text-xs text-red-400 hover:bg-red-950/40 hover:text-red-300"
-                          >
-                            <Trash className="size-3.5" />
-                            <span>Revoke</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {orgName ? (
+                              <Badge
+                                variant="outline"
+                                className="border-blue-500/30 bg-blue-500/10 font-mono text-[10px] text-blue-400"
+                              >
+                                {orgName}
+                              </Badge>
+                            ) : (
+                              <span className="text-zinc-500 text-xs">All Orgs</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs">
+                            {isExpired ? (
+                              <Badge
+                                variant="outline"
+                                className="border-red-500/40 bg-red-500/10 font-mono text-[10px] text-red-400"
+                              >
+                                Expired ({new Date(token.expires_at!).toLocaleDateString()})
+                              </Badge>
+                            ) : token.expires_at ? (
+                              <span className="text-zinc-300 text-xs">
+                                {new Date(token.expires_at).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-500 text-xs">Never</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs text-zinc-400">
+                            {token.last_used_at
+                              ? new Date(token.last_used_at).toLocaleDateString()
+                              : "Never"}
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setTokenToRevoke(token)}
+                              className="h-7 gap-1 text-xs text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                            >
+                              <Trash className="size-3.5" />
+                              <span>Revoke</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -834,7 +984,7 @@ export default function AccountSettingsPage() {
         open={tokenDialogOpen}
         onOpenChange={(open) => !open && handleCloseTokenDialog()}
       >
-        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-md">
+        <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-lg max-h-[88vh] overflow-y-auto">
           {!createdRawToken ? (
             <form onSubmit={handleCreateToken} className="space-y-4">
               <DialogHeader>
@@ -843,26 +993,203 @@ export default function AccountSettingsPage() {
                   <span>Create API Token</span>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-zinc-400">
-                  Generate a personal machine token to authenticate CLI builds
-                  and scripts.
+                  Generate a personal machine token with fine-grained scopes to authenticate CLI builds, automation pipelines, and scripts.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2 py-2">
-                <Label
-                  htmlFor="token-name"
-                  className="text-xs font-medium text-zinc-300"
-                >
-                  Token Description / Label
-                </Label>
-                <Input
-                  id="token-name"
-                  value={newTokenName}
-                  onChange={(e) => setNewTokenName(e.target.value)}
-                  placeholder="e.g. CI/CD Runner - GitHub Actions"
-                  className="border-zinc-700 bg-zinc-950 font-mono text-xs"
-                  required
-                />
+              <div className="space-y-4 py-1">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="token-name"
+                    className="text-xs font-medium text-zinc-300"
+                  >
+                    Token Description / Label
+                  </Label>
+                  <Input
+                    id="token-name"
+                    value={newTokenName}
+                    onChange={(e) => setNewTokenName(e.target.value)}
+                    placeholder="e.g. CI/CD Runner - GitHub Actions"
+                    className="border-zinc-700 bg-zinc-950 font-mono text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="token-expiration"
+                      className="text-xs font-medium text-zinc-300"
+                    >
+                      Expiration
+                    </Label>
+                    <Select
+                      value={tokenExpiration}
+                      onValueChange={(v) => v && setTokenExpiration(v)}
+                    >
+                      <SelectTrigger
+                        id="token-expiration"
+                        className="w-full border-zinc-700 bg-zinc-950 text-xs"
+                      >
+                        <SelectValue placeholder="Select expiration" />
+                      </SelectTrigger>
+                      <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                        {EXPIRATION_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="token-org"
+                      className="text-xs font-medium text-zinc-300"
+                    >
+                      Organization Scope
+                    </Label>
+                    <Select
+                      value={tokenOrganizationId}
+                      onValueChange={(v) => v && setTokenOrganizationId(v)}
+                    >
+                      <SelectTrigger
+                        id="token-org"
+                        className="w-full border-zinc-700 bg-zinc-950 text-xs"
+                      >
+                        <SelectValue placeholder="All Organizations" />
+                      </SelectTrigger>
+                      <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-100">
+                        <SelectItem value="all" className="text-xs">
+                          All Organizations (Full Account)
+                        </SelectItem>
+                        {organizations.map((org) => (
+                          <SelectItem key={org.id} value={org.id} className="text-xs">
+                            {org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Scope Selection Section */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-zinc-300">
+                      Permission Scopes
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenScopeMode("full");
+                          setSelectedScopes([]);
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                          tokenScopeMode === "full"
+                            ? "bg-zinc-100 text-zinc-950"
+                            : "bg-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+                        )}
+                      >
+                        Full Access (*)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenScopeMode("custom");
+                          if (selectedScopes.length === 0) {
+                            setSelectedScopes(["builds:read", "deployments:read"]);
+                          }
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                          tokenScopeMode === "custom"
+                            ? "bg-zinc-100 text-zinc-950"
+                            : "bg-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+                        )}
+                      >
+                        Custom Scopes
+                      </button>
+                    </div>
+                  </div>
+
+                  {tokenScopeMode === "full" ? (
+                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-zinc-300">
+                      <div className="flex items-center gap-2 font-medium text-emerald-400">
+                        <ShieldCheck className="size-4" weight="bold" />
+                        <span>Full Account Access</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-zinc-400">
+                        Grants read and write access across all services (builds, deployments, secrets, billing, and organizations).
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1 text-[11px] text-zinc-400">
+                        <span>Select allowed operations:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedScopes(AVAILABLE_SCOPES.map((s) => s.id))}
+                            className="text-zinc-300 hover:underline"
+                          >
+                            Select All
+                          </button>
+                          <span>•</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedScopes([])}
+                            className="text-zinc-400 hover:text-zinc-200 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-900/50 p-2 space-y-1.5 divide-y divide-zinc-800/50">
+                        {AVAILABLE_SCOPES.map((scope) => {
+                          const isChecked = selectedScopes.includes(scope.id);
+                          return (
+                            <label
+                              key={scope.id}
+                              className="flex items-start gap-2.5 pt-1.5 first:pt-0 cursor-pointer select-none hover:bg-zinc-800/30 p-1.5 rounded transition-colors"
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedScopes((prev) => [...prev, scope.id]);
+                                  } else {
+                                    setSelectedScopes((prev) =>
+                                      prev.filter((id) => id !== scope.id)
+                                    );
+                                  }
+                                }}
+                                className="mt-0.5 border-zinc-600 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-950"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-xs font-semibold text-zinc-200">
+                                    {scope.id}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-400">
+                                    ({scope.name})
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-zinc-400 leading-tight">
+                                  {scope.description}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <DialogFooter className="border-t border-zinc-800 pt-3">
@@ -879,7 +1206,11 @@ export default function AccountSettingsPage() {
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={isCreatingToken || !newTokenName.trim()}
+                  disabled={
+                    isCreatingToken ||
+                    !newTokenName.trim() ||
+                    (tokenScopeMode === "custom" && selectedScopes.length === 0)
+                  }
                   className="bg-zinc-100 text-xs font-semibold text-zinc-950 hover:bg-zinc-200"
                 >
                   {isCreatingToken ? (

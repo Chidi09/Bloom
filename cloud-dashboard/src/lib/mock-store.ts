@@ -1,5 +1,6 @@
 import { BuildStageResponse } from "./schemas/build";
 import { ReleaseArtifact } from "./schemas/release";
+import type { FrameworkId } from "./frameworks";
 
 export interface MockUser {
   id: string;
@@ -46,10 +47,12 @@ export interface MockApp {
   organization_id: string;
   name: string;
   slug: string;
-  framework: "bloom" | "flutter";
+  framework: FrameworkId;
   platforms: string[];
   repository_url: string | null;
   default_branch: string;
+  /** Extracted from the app's build artifact (iOS/Android launcher icon or web favicon). Null until a build has produced one. */
+  icon_url?: string | null;
   latest_release?: string;
   crash_free_rate?: number;
   created_at: string;
@@ -267,6 +270,9 @@ export interface MockApiToken {
   id: string;
   name: string;
   token?: string | null;
+  scopes?: string[];
+  expires_at?: string | null;
+  organization_id?: string | null;
   last_used_at?: string | null;
   created_at: string;
 }
@@ -390,6 +396,12 @@ export interface MockPlan {
       workflows: boolean;
       priority_support: boolean;
     };
+    overage: {
+      enabled: boolean;
+      build_minute_cents: number;
+      storage_gb_cents: number;
+      bandwidth_gb_cents: number;
+    };
   };
   active: boolean;
   created_at: string;
@@ -424,6 +436,14 @@ export interface MockSellerAccount {
   updated_at: string;
 }
 
+export interface MockInvoiceLineItem {
+  description: string;
+  kind: "base_plan" | "overage";
+  quantity: number;
+  unit_price_cents: number;
+  amount_cents: number;
+}
+
 export interface MockInvoice {
   id: string;
   subscription_id: string;
@@ -434,6 +454,7 @@ export interface MockInvoice {
   paid_at?: string | null;
   provider_invoice_id?: string | null;
   created_at: string;
+  line_items: MockInvoiceLineItem[];
 }
 
 export interface MockTemplate {
@@ -675,6 +696,12 @@ class MockDataStore {
         env_vars: [
           { key: "API_URL", value: "https://api.bloom.dev" },
           { key: "REGION", value: "us-east-1" },
+          { key: "STRIPE_PUBLISHABLE_KEY", value: "pk_live_••••••••" },
+          { key: "SUPABASE_URL", value: "https://xzqrt.supabase.co" },
+          { key: "SUPABASE_ANON_KEY", value: "ey••••••••" },
+          { key: "SENTRY_DSN", value: "https://••••@o1.ingest.sentry.io/1" },
+          { key: "POSTHOG_HOST", value: "https://app.posthog.com" },
+          { key: "FIREBASE_PROJECT_ID", value: "bloom-prod-4f2a1" },
         ],
         feature_flags: [
           { key: "enable_biometrics", enabled: true },
@@ -699,6 +726,10 @@ class MockDataStore {
         env_vars: [
           { key: "API_URL", value: "https://staging-api.bloom.dev" },
           { key: "DEBUG_LOGGING", value: "true" },
+          { key: "STRIPE_TEST_SECRET_KEY", value: "sk_test_••••••••" },
+          { key: "PAYSTACK_PUBLIC_KEY", value: "pk_test_••••••••" },
+          { key: "TWILIO_ACCOUNT_SID", value: "AC••••••••" },
+          { key: "MIXPANEL_TOKEN", value: "••••••••" },
         ],
         feature_flags: [
           { key: "enable_biometrics", enabled: false },
@@ -720,6 +751,10 @@ class MockDataStore {
       api_config: {
         env_vars: [
           { key: "METRICS_ENDPOINT", value: "https://telemetry.bloom.dev" },
+          { key: "SEGMENT_WRITE_KEY", value: "••••••••" },
+          { key: "ALGOLIA_APP_ID", value: "BL00M9F2" },
+          { key: "ALGOLIA_SEARCH_KEY", value: "••••••••" },
+          { key: "SENDGRID_API_KEY", value: "SG.••••••••" },
         ],
         feature_flags: [{ key: "live_dashboards", enabled: true }],
       },
@@ -737,6 +772,9 @@ class MockDataStore {
         env_vars: [
           { key: "PORTAL_API_BASE", value: "https://api.bloom.dev/portal" },
           { key: "CDN_HOST", value: "cdn.bloom.dev" },
+          { key: "RESEND_API_KEY", value: "re_••••••••" },
+          { key: "CLOUDINARY_CLOUD_NAME", value: "bloom-cloud" },
+          { key: "OPENAI_API_KEY", value: "sk-••••••••" },
         ],
         feature_flags: [{ key: "new_pricing_page", enabled: true }],
       },
@@ -756,6 +794,8 @@ class MockDataStore {
             key: "PORTAL_API_BASE",
             value: "https://staging-api.bloom.dev/portal",
           },
+          { key: "PLAID_CLIENT_ID", value: "••••••••" },
+          { key: "AUTH0_DOMAIN", value: "bloom-preview.auth0.com" },
         ],
         feature_flags: [{ key: "new_pricing_page", enabled: true }],
       },
@@ -851,6 +891,51 @@ class MockDataStore {
         },
       ],
       updated_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000065",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "PAYSTACK_SECRET_KEY",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000066",
+      environment_id: "00000000-0000-0000-0000-000000000040",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "TWILIO_AUTH_TOKEN",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 9).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 9).toISOString(),
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000067",
+      environment_id: "00000000-0000-0000-0000-000000000041",
+      organization_id: "00000000-0000-0000-0000-000000000010",
+      key: "RESEND_API_KEY",
+      is_json: false,
+      version: 1,
+      history: [
+        {
+          version: 1,
+          updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        },
+      ],
+      updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     },
   ];
 
@@ -1650,7 +1735,7 @@ class MockDataStore {
     name: string,
     repositoryUrl?: string,
     defaultBranch: string = "main",
-    framework: "bloom" | "flutter" = "bloom",
+    framework: FrameworkId = "bloom",
     platforms: string[] = ["ios", "android", "web"],
   ): MockApp {
     const slug = name
@@ -2183,11 +2268,25 @@ class MockDataStore {
           log_snippet: "Resolved environment dependencies",
         },
         {
-          stage: "compile",
+          stage: "install_deps",
           status: "running",
           started_at: new Date().toISOString(),
           finished_at: null,
-          log_snippet: `Building for platform: ${platform}...`,
+          log_snippet: "Running \"flutter pub get\" / \"bloom pub get\"...",
+        },
+        {
+          stage: "compile",
+          status: "pending",
+          started_at: null,
+          finished_at: null,
+          log_snippet: null,
+        },
+        {
+          stage: "artifact_upload",
+          status: "pending",
+          started_at: null,
+          finished_at: null,
+          log_snippet: null,
         },
       ],
       created_at: new Date().toISOString(),
@@ -2204,8 +2303,117 @@ class MockDataStore {
     return build;
   }
 
+  // Seconds a single build stage / workflow step takes to "complete" in the
+  // simulation. Progression is derived lazily from elapsed wall-clock time
+  // on every read, so it works without background timers and stays correct
+  // across reloads, polling, or multiple tabs.
+  private static readonly BUILD_STAGE_MS = 4000;
+  private static readonly WORKFLOW_STEP_MS = 5000;
+
+  private progressBuildInPlace(build: MockBuild): void {
+    if (["success", "failed", "cancelled"].includes(build.status)) return;
+    const stages = build.stages;
+    for (let i = 0; i < stages.length; i++) {
+      const stage = stages[i];
+      if (["completed", "failed", "skipped"].includes(stage.status)) continue;
+      if (stage.status === "pending") break;
+      if (stage.status !== "running") break;
+
+      const startedMs = stage.started_at
+        ? new Date(stage.started_at).getTime()
+        : Date.now();
+      if (Date.now() - startedMs < MockDataStore.BUILD_STAGE_MS) break;
+
+      const finishTime = new Date(startedMs + MockDataStore.BUILD_STAGE_MS);
+      stage.status = "completed";
+      stage.finished_at = finishTime.toISOString();
+      if (!stage.log_snippet) {
+        stage.log_snippet = `${stage.stage} completed successfully.`;
+      }
+
+      const next = stages[i + 1];
+      if (next) {
+        next.status = "running";
+        next.started_at = finishTime.toISOString();
+        next.log_snippet =
+          next.log_snippet || `Running stage: ${next.stage}...`;
+      } else {
+        build.status = "success";
+        build.finished_at = finishTime.toISOString();
+        build.duration_seconds = build.started_at
+          ? Math.round(
+              (finishTime.getTime() - new Date(build.started_at).getTime()) /
+                1000,
+            )
+          : build.duration_seconds;
+      }
+      build.updated_at = new Date().toISOString();
+    }
+  }
+
+  private progressWorkflowRunInPlace(run: MockWorkflowRun): void {
+    if (["success", "failed", "cancelled"].includes(run.status)) return;
+    const steps = run.steps;
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (["completed", "failed", "skipped"].includes(step.status)) continue;
+      if (step.status === "pending" || step.status === "blocked") break;
+      if (step.status !== "running") break;
+
+      if (step.step_kind === "approval_gate") {
+        step.status = "blocked";
+        step.log_snippet =
+          "[APPROVAL REQUIRED] Execution paused at this gate. Awaiting a manual decision from an authorized Release Manager or Admin.";
+        run.status = "blocked";
+        run.updated_at = new Date().toISOString();
+        break;
+      }
+
+      const startedMs = step.started_at
+        ? new Date(step.started_at).getTime()
+        : Date.now();
+      if (Date.now() - startedMs < MockDataStore.WORKFLOW_STEP_MS) break;
+
+      const finishTime = new Date(startedMs + MockDataStore.WORKFLOW_STEP_MS);
+      step.status = "completed";
+      step.finished_at = finishTime.toISOString();
+      if (!step.log_snippet) {
+        step.log_snippet = `${step.name} completed successfully.`;
+      }
+
+      const next = steps[i + 1];
+      if (next) {
+        next.started_at = finishTime.toISOString();
+        if (next.step_kind === "approval_gate") {
+          next.status = "blocked";
+          next.log_snippet =
+            "[APPROVAL REQUIRED] Execution paused at this gate. Awaiting a manual decision from an authorized Release Manager or Admin.";
+          run.status = "blocked";
+          run.updated_at = new Date().toISOString();
+          break;
+        }
+        next.status = "running";
+        next.log_snippet = next.log_snippet || `Running: ${next.name}...`;
+      } else {
+        run.status = "success";
+        run.finished_at = finishTime.toISOString();
+      }
+      run.updated_at = new Date().toISOString();
+    }
+  }
+
   public getBuild(id: string): MockBuild | undefined {
-    return this.builds.find((b) => b.id === id);
+    const build = this.builds.find((b) => b.id === id);
+    if (build) this.progressBuildInPlace(build);
+    return build;
+  }
+
+  public listBuilds(appId?: string): MockBuild[] {
+    const results = appId
+      ? this.builds.filter((b) => b.app_id === appId)
+      : this.builds;
+    for (const b of results) this.progressBuildInPlace(b);
+    return results;
   }
 
   public cancelBuild(id: string): MockBuild | null {
@@ -2533,14 +2741,29 @@ class MockDataStore {
     {
       id: "tok_001",
       name: "CLI Token - MacBook Pro M3",
+      scopes: ["*"],
+      expires_at: null,
+      organization_id: null,
       last_used_at: new Date(Date.now() - 3600000 * 2).toISOString(),
       created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
     },
     {
       id: "tok_002",
       name: "GitHub Actions Deploy Key",
+      scopes: ["builds:write", "deployments:write"],
+      expires_at: new Date(Date.now() + 86400000 * 60).toISOString(),
+      organization_id: "org-acme-corp",
       last_used_at: new Date(Date.now() - 86400000 * 1).toISOString(),
       created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+    },
+    {
+      id: "tok_003",
+      name: "Legacy CI Key (Expired)",
+      scopes: ["builds:read"],
+      expires_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+      organization_id: null,
+      last_used_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 95).toISOString(),
     },
   ];
 
@@ -2548,16 +2771,33 @@ class MockDataStore {
     return this.apiTokens;
   }
 
-  public createApiToken(name: string): {
+  public createApiToken(
+    name: string,
+    scopes?: string[],
+    expires_in_days?: number | null,
+    organization_id?: string | null,
+  ): {
     tokenRecord: MockApiToken;
     rawToken: string;
   } {
     const id = `tok_${Math.random().toString(16).slice(2, 10)}`;
-    const rawToken = `blm_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
+    const randomChars = Array.from({ length: 43 }, () =>
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".charAt(
+        Math.floor(Math.random() * 64)
+      )
+    ).join("");
+    const rawToken = `bloom_pat_${randomChars}`;
+    const expires_at =
+      expires_in_days && expires_in_days > 0
+        ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
+        : null;
     const tokenRecord: MockApiToken = {
       id,
       name,
       token: rawToken,
+      scopes: scopes && scopes.length > 0 ? scopes : ["*"],
+      expires_at,
+      organization_id: organization_id || null,
       last_used_at: null,
       created_at: new Date().toISOString(),
     };
@@ -3209,11 +3449,17 @@ Expected: found 1 matching candidate widget
   }
 
   public getWorkflowRuns(workflowId: string): MockWorkflowRun[] {
-    return this.workflowRuns.filter((r) => r.workflow_id === workflowId);
+    const results = this.workflowRuns.filter(
+      (r) => r.workflow_id === workflowId,
+    );
+    for (const r of results) this.progressWorkflowRunInPlace(r);
+    return results;
   }
 
   public getWorkflowRun(id: string): MockWorkflowRun | undefined {
-    return this.workflowRuns.find((r) => r.id === id);
+    const run = this.workflowRuns.find((r) => r.id === id);
+    if (run) this.progressWorkflowRunInPlace(run);
+    return run;
   }
 
   public createWorkflowRun(
@@ -3495,6 +3741,12 @@ Expected: found 1 matching candidate widget
           workflows: true,
           priority_support: false,
         },
+        overage: {
+          enabled: false,
+          build_minute_cents: 0,
+          storage_gb_cents: 0,
+          bandwidth_gb_cents: 0,
+        },
       },
       active: true,
       created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
@@ -3521,6 +3773,12 @@ Expected: found 1 matching candidate widget
           workflows: true,
           priority_support: true,
         },
+        overage: {
+          enabled: true,
+          build_minute_cents: 2,
+          storage_gb_cents: 15,
+          bandwidth_gb_cents: 10,
+        },
       },
       active: true,
       created_at: new Date(Date.now() - 86400000 * 180).toISOString(),
@@ -3546,6 +3804,12 @@ Expected: found 1 matching candidate widget
           shorebird: true,
           workflows: true,
           priority_support: true,
+        },
+        overage: {
+          enabled: true,
+          build_minute_cents: 1,
+          storage_gb_cents: 8,
+          bandwidth_gb_cents: 5,
         },
       },
       active: true,
@@ -3578,12 +3842,42 @@ Expected: found 1 matching candidate widget
       id: "inv_001",
       subscription_id: "sub_001",
       organization_id: "00000000-0000-0000-0000-000000000010",
-      amount_cents: 2900,
+      amount_cents: 4384,
       status: "paid",
       due_date: "2026-08-01",
       paid_at: "2026-08-01T10:00:00Z",
       provider_invoice_id: "in_1Pm9K02eZvKYlo2CL",
       created_at: "2026-08-01T08:00:00Z",
+      line_items: [
+        {
+          description: "Pro plan — monthly subscription",
+          kind: "base_plan",
+          quantity: 1,
+          unit_price_cents: 2900,
+          amount_cents: 2900,
+        },
+        {
+          description: "Build minutes overage (840 min over 5,000)",
+          kind: "overage",
+          quantity: 840,
+          unit_price_cents: 2,
+          amount_cents: 1680,
+        },
+        {
+          description: "Artifact storage overage (0 GB over 50 GB)",
+          kind: "overage",
+          quantity: 0,
+          unit_price_cents: 15,
+          amount_cents: 0,
+        },
+        {
+          description: "Web bandwidth overage (0 GB over 100 GB)",
+          kind: "overage",
+          quantity: 0,
+          unit_price_cents: 10,
+          amount_cents: 0,
+        },
+      ],
     },
     {
       id: "inv_002",
@@ -3595,6 +3889,15 @@ Expected: found 1 matching candidate widget
       paid_at: "2026-07-01T10:00:00Z",
       provider_invoice_id: "in_1Pj7Y82eZvKYlo2CK",
       created_at: "2026-07-01T08:00:00Z",
+      line_items: [
+        {
+          description: "Pro plan — monthly subscription",
+          kind: "base_plan",
+          quantity: 1,
+          unit_price_cents: 2900,
+          amount_cents: 2900,
+        },
+      ],
     },
     {
       id: "inv_003",
@@ -3606,6 +3909,15 @@ Expected: found 1 matching candidate widget
       paid_at: "2026-06-01T10:00:00Z",
       provider_invoice_id: "in_1Ph5X62eZvKYlo2CJ",
       created_at: "2026-06-01T08:00:00Z",
+      line_items: [
+        {
+          description: "Pro plan — monthly subscription",
+          kind: "base_plan",
+          quantity: 1,
+          unit_price_cents: 2900,
+          amount_cents: 2900,
+        },
+      ],
     },
   ];
 
@@ -3722,23 +4034,77 @@ Expected: found 1 matching candidate widget
   }
 
   public getUsageSummary(orgId: string) {
+    const subscription = this.getSubscription(orgId);
+    const plan =
+      this.plans.find((p) => p.id === subscription.plan_id) ?? this.plans[0];
+
+    const build_minutes_used = 5840;
+    const build_minutes_limit = plan.entitlements.build_minutes_monthly;
+    const artifact_storage_gb_used = 14;
+    const artifact_storage_gb_limit = plan.entitlements.artifact_storage_gb;
+    const web_bandwidth_gb_used = 28;
+    const web_bandwidth_gb_limit = plan.entitlements.web_bandwidth_gb;
+
+    const overageRates = plan.entitlements.overage;
+    const build_minutes_over = Math.max(
+      0,
+      build_minutes_used - build_minutes_limit,
+    );
+    const storage_gb_over = Math.max(
+      0,
+      artifact_storage_gb_used - artifact_storage_gb_limit,
+    );
+    const bandwidth_gb_over = Math.max(
+      0,
+      web_bandwidth_gb_used - web_bandwidth_gb_limit,
+    );
+    const anyOver =
+      build_minutes_over > 0 || storage_gb_over > 0 || bandwidth_gb_over > 0;
+
+    const build_minutes_cost_cents =
+      build_minutes_over * overageRates.build_minute_cents;
+    const storage_cost_cents = storage_gb_over * overageRates.storage_gb_cents;
+    const bandwidth_cost_cents =
+      bandwidth_gb_over * overageRates.bandwidth_gb_cents;
+
+    const decisionFor = (
+      over: number,
+    ): "allow" | "warn" | "soft_block" | "hard_lock" => {
+      if (over <= 0) return "allow";
+      return overageRates.enabled ? "allow" : "hard_lock";
+    };
+
     return {
       organization_id: orgId,
-      plan_name: this.getSubscription(orgId).plan_name,
+      plan_name: subscription.plan_name,
       current_period_start: new Date(Date.now() - 86400000 * 15).toISOString(),
       current_period_end: new Date(Date.now() + 86400000 * 15).toISOString(),
-      build_minutes_used: 1240,
-      build_minutes_limit: 5000,
-      artifact_storage_gb_used: 14,
-      artifact_storage_gb_limit: 50,
-      web_bandwidth_gb_used: 28,
-      web_bandwidth_gb_limit: 100,
+      build_minutes_used,
+      build_minutes_limit,
+      artifact_storage_gb_used,
+      artifact_storage_gb_limit,
+      web_bandwidth_gb_used,
+      web_bandwidth_gb_limit,
       deploy_count: 36,
       enforcement: {
-        overall_decision: "allow" as const,
-        build_minutes_decision: "allow" as const,
-        storage_decision: "allow" as const,
-        bandwidth_decision: "allow" as const,
+        overall_decision: decisionFor(
+          Math.max(build_minutes_over, storage_gb_over, bandwidth_gb_over),
+        ),
+        build_minutes_decision: decisionFor(build_minutes_over),
+        storage_decision: decisionFor(storage_gb_over),
+        bandwidth_decision: decisionFor(bandwidth_gb_over),
+      },
+      overage: {
+        enabled: overageRates.enabled && anyOver,
+        build_minutes_over,
+        storage_gb_over,
+        bandwidth_gb_over,
+        build_minutes_cost_cents,
+        storage_cost_cents,
+        bandwidth_cost_cents,
+        total_cost_cents: overageRates.enabled
+          ? build_minutes_cost_cents + storage_cost_cents + bandwidth_cost_cents
+          : 0,
       },
     };
   }

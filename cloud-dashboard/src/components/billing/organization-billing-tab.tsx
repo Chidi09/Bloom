@@ -3,13 +3,13 @@
 import * as React from "react";
 import {
   CreditCard,
-  Check,
-  ArrowSquareOut,
   DownloadSimple,
   Sparkle,
   HardDrives,
   Globe,
   Hammer,
+  CaretDown,
+  CaretRight,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -30,14 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,17 +59,19 @@ import {
   InvoiceResponse,
   UsageSummaryResponse,
   EnforcementDecision,
-  SubscribeResponse,
 } from "@/lib/schemas/billing";
+import { useUiStore } from "@/stores/ui-store";
 
 interface OrganizationBillingTabProps {
   organizationId: string;
   canManageBilling?: boolean;
+  openPlanDialog?: boolean;
 }
 
 export function OrganizationBillingTab({
   organizationId,
   canManageBilling = true,
+  openPlanDialog = false,
 }: OrganizationBillingTabProps) {
   const [plans, setPlans] = React.useState<PlanResponse[]>([]);
   const [subscription, setSubscription] =
@@ -87,17 +81,19 @@ export function OrganizationBillingTab({
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Plan comparison modal
-  const [planDialogOpen, setPlanDialogOpen] = React.useState(false);
-  const [isSubscribingPlanId, setIsSubscribingPlanId] = React.useState<
-    string | null
-  >(null);
-  const [pendingRedirectUrl, setPendingRedirectUrl] = React.useState<
-    string | null
-  >(null);
+  const setPlanUpgradeDialogOpen = useUiStore(
+    (s) => s.setPlanUpgradeDialogOpen,
+  );
+
+  React.useEffect(() => {
+    if (openPlanDialog) setPlanUpgradeDialogOpen(true);
+  }, [openPlanDialog, setPlanUpgradeDialogOpen]);
 
   // Cancel subscription modal
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
+  const [expandedInvoiceId, setExpandedInvoiceId] = React.useState<
+    string | null
+  >(null);
   const [cancelReason, setCancelReason] = React.useState("");
   const [cancelImmediately, setCancelImmediately] = React.useState(false);
   const [isCancelling, setIsCancelling] = React.useState(false);
@@ -132,34 +128,6 @@ export function OrganizationBillingTab({
     };
     void run();
   }, [fetchBillingData]);
-
-  const handleSubscribe = async (planId: string) => {
-    setIsSubscribingPlanId(planId);
-    try {
-      const res = await api.post<SubscribeResponse>("/billing/subscribe", {
-        plan_id: planId,
-        callback_url: window.location.href,
-      });
-
-      if (res?.authorization_url) {
-        setPendingRedirectUrl(res.authorization_url);
-        toast.info("Payment authorization required. Redirecting...");
-      } else {
-        toast.success(
-          `Subscription upgraded to ${(res?.subscription?.plan_name || planId).toUpperCase()}`,
-        );
-        setSubscription(res.subscription);
-        setPlanDialogOpen(false);
-        void fetchBillingData();
-      }
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update subscription",
-      );
-    } finally {
-      setIsSubscribingPlanId(null);
-    }
-  };
 
   const handleCancelSubscription = async () => {
     setIsCancelling(true);
@@ -260,45 +228,6 @@ export function OrganizationBillingTab({
 
   return (
     <div className="space-y-6">
-      {/* Webhook-driven payment redirect banner if active */}
-      {pendingRedirectUrl && (
-        <Card className="border-[#FF4B8B]/40 bg-[#FF4B8B]/10 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <BloomSpinner size={16} speed="fast" />
-                <h4 className="text-sm font-semibold text-zinc-100">
-                  Redirecting to complete payment authorization…
-                </h4>
-              </div>
-              <p className="text-xs text-zinc-300">
-                Payment confirmation is webhook-driven. Once checkout is
-                completed on the hosted gateway, subscription quotas update
-                automatically.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => window.open(pendingRedirectUrl, "_blank")}
-                className="gap-1.5 bg-[#FF4B8B] text-white hover:bg-[#FF4B8B]/90"
-              >
-                <span>Complete on Gateway</span>
-                <ArrowSquareOut className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPendingRedirectUrl(null)}
-                className="h-8 text-xs text-zinc-400"
-              >
-                Dismiss
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {/* SECTION 1: Current Plan Overview Card */}
       <Card className="border-zinc-800 bg-[#09090b]">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -323,7 +252,7 @@ export function OrganizationBillingTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPlanDialogOpen(true)}
+                onClick={() => setPlanUpgradeDialogOpen(true)}
                 className="h-8 gap-1.5 text-xs text-zinc-200"
               >
                 <Sparkle className="size-3.5 text-[#FF4B8B]" />
@@ -452,6 +381,21 @@ export function OrganizationBillingTab({
                     mins left
                   </span>
                 </div>
+
+                {usage.overage.build_minutes_over > 0 && (
+                  <div className="flex items-center justify-between rounded-md bg-[#FF4B8B]/10 px-2 py-1.5 font-mono text-[11px] text-[#FF4B8B]">
+                    <span>
+                      {usage.overage.build_minutes_over.toLocaleString()} min
+                      overage
+                    </span>
+                    <span className="font-semibold">
+                      +$
+                      {(usage.overage.build_minutes_cost_cents / 100).toFixed(
+                        2,
+                      )}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -505,6 +449,16 @@ export function OrganizationBillingTab({
                     GB free
                   </span>
                 </div>
+
+                {usage.overage.storage_gb_over > 0 && (
+                  <div className="flex items-center justify-between rounded-md bg-[#FF4B8B]/10 px-2 py-1.5 font-mono text-[11px] text-[#FF4B8B]">
+                    <span>{usage.overage.storage_gb_over} GB overage</span>
+                    <span className="font-semibold">
+                      +$
+                      {(usage.overage.storage_cost_cents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -551,10 +505,35 @@ export function OrganizationBillingTab({
                   </span>
                   <span>{usage.deploy_count} total deployments</span>
                 </div>
+
+                {usage.overage.bandwidth_gb_over > 0 && (
+                  <div className="flex items-center justify-between rounded-md bg-[#FF4B8B]/10 px-2 py-1.5 font-mono text-[11px] text-[#FF4B8B]">
+                    <span>{usage.overage.bandwidth_gb_over} GB overage</span>
+                    <span className="font-semibold">
+                      +$
+                      {(usage.overage.bandwidth_cost_cents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
+
+        {usage?.overage.enabled && usage.overage.total_cost_cents > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-[#FF4B8B]/40 bg-[#FF4B8B]/5 px-4 py-2.5">
+            <div className="flex items-center gap-2 text-xs text-zinc-300">
+              <Sparkle className="size-3.5 text-[#FF4B8B]" />
+              <span>
+                Pay-as-you-go overage this cycle — billed automatically at
+                period close.
+              </span>
+            </div>
+            <span className="font-mono text-sm font-bold text-[#FF4B8B]">
+              +${(usage.overage.total_cost_cents / 100).toFixed(2)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* SECTION 3: Invoices History Table */}
@@ -576,6 +555,7 @@ export function OrganizationBillingTab({
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-6" />
                     <TableHead className="w-[180px]">Invoice ID</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
@@ -588,7 +568,7 @@ export function OrganizationBillingTab({
                   {invoices.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-6 text-center text-xs text-zinc-500"
                       >
                         No invoices issued yet.
@@ -597,45 +577,100 @@ export function OrganizationBillingTab({
                   ) : (
                     invoices.map((inv) => {
                       const formattedAmount = `$${(inv.amount_cents / 100).toFixed(2)} USD`;
+                      const isExpanded = expandedInvoiceId === inv.id;
+                      const hasOverage = inv.line_items.some(
+                        (li) => li.kind === "overage" && li.amount_cents > 0,
+                      );
 
                       return (
-                        <TableRow
-                          key={inv.id}
-                          className="transition-colors hover:bg-zinc-900/40"
-                        >
-                          <TableCell className="font-mono text-xs text-zinc-200">
-                            {inv.provider_invoice_id || inv.id}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs font-semibold text-zinc-100">
-                            {formattedAmount}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={inv.status} size="sm" />
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-zinc-400">
-                            {inv.due_date}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-zinc-400">
-                            {inv.paid_at
-                              ? new Date(inv.paid_at).toLocaleDateString()
-                              : "--"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Tooltip>
-                              <TooltipTrigger
-                                className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-md p-0 text-zinc-400 opacity-50"
-                                disabled
-                              >
-                                <DownloadSimple className="size-3.5" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs">
-                                  PDF download not yet available
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={inv.id}>
+                          <TableRow
+                            className="cursor-pointer transition-colors hover:bg-zinc-900/40"
+                            onClick={() =>
+                              setExpandedInvoiceId(isExpanded ? null : inv.id)
+                            }
+                          >
+                            <TableCell className="text-zinc-500">
+                              {isExpanded ? (
+                                <CaretDown className="size-3.5" />
+                              ) : (
+                                <CaretRight className="size-3.5" />
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-zinc-200">
+                              {inv.provider_invoice_id || inv.id}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-semibold text-zinc-100">
+                              <div className="flex items-center gap-1.5">
+                                {formattedAmount}
+                                {hasOverage && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-[#FF4B8B]/40 px-1 py-0 text-[9px] text-[#FF4B8B]"
+                                  >
+                                    overage
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={inv.status} size="sm" />
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-zinc-400">
+                              {inv.due_date}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-zinc-400">
+                              {inv.paid_at
+                                ? new Date(inv.paid_at).toLocaleDateString()
+                                : "--"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Tooltip>
+                                <TooltipTrigger
+                                  className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-md p-0 text-zinc-400 opacity-50"
+                                  disabled
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <DownloadSimple className="size-3.5" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">
+                                    PDF download not yet available
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={7} className="bg-zinc-950/60 p-0">
+                                <div className="space-y-1.5 px-6 py-3">
+                                  {inv.line_items.length === 0 ? (
+                                    <p className="text-[11px] text-zinc-500">
+                                      No line item breakdown available.
+                                    </p>
+                                  ) : (
+                                    inv.line_items.map((li, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center justify-between text-[11px]"
+                                      >
+                                        <span className="text-zinc-400">
+                                          {li.description}
+                                        </span>
+                                        <span
+                                          className={`font-mono ${li.kind === "overage" ? "text-[#FF4B8B]" : "text-zinc-300"}`}
+                                        >
+                                          ${(li.amount_cents / 100).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   )}
@@ -645,152 +680,6 @@ export function OrganizationBillingTab({
           </div>
         </div>
       </div>
-
-      {/* Plan Selection / Comparison Modal */}
-      <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto border-zinc-800 bg-[#09090b] text-zinc-100 sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-semibold text-zinc-100">
-              Upgrade or Change Plan
-            </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
-              Scale your build minutes, automated store tracks, team seats, and
-              Shorebird patch pipelines.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 gap-4 py-4 md:grid-cols-3">
-            {plans.map((plan) => {
-              const isCurrent =
-                subscription?.plan_id === plan.id ||
-                subscription?.plan_name?.toLowerCase() ===
-                  plan.name.toLowerCase();
-              const priceDollars = (plan.price_minor / 100).toFixed(0);
-
-              return (
-                <div
-                  key={plan.id}
-                  className={`flex flex-col justify-between rounded-lg border p-4 transition-all ${
-                    plan.name === "pro"
-                      ? "border-[#FF4B8B]/60 bg-gradient-to-b from-[#FF4B8B]/10 to-transparent ring-1 ring-[#FF4B8B]/30"
-                      : "border-zinc-800 bg-zinc-950"
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-zinc-100 capitalize">
-                        {plan.name}
-                      </h4>
-                      {isCurrent && (
-                        <Badge
-                          variant="outline"
-                          className="border-emerald-500/40 font-mono text-[10px] text-emerald-400"
-                        >
-                          Current
-                        </Badge>
-                      )}
-                      {!isCurrent && plan.name === "pro" && (
-                        <Badge className="bg-[#FF4B8B] font-mono text-[10px] text-white">
-                          Popular
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="font-mono">
-                      <span className="text-2xl font-black text-zinc-100">
-                        ${priceDollars}
-                      </span>
-                      <span className="text-xs text-zinc-400"> / month</span>
-                    </div>
-
-                    <p className="text-[11px] leading-snug text-zinc-400">
-                      {plan.description}
-                    </p>
-
-                    <div className="space-y-2 border-t border-zinc-800/80 pt-3 text-xs">
-                      <div className="flex items-center gap-2 text-zinc-300">
-                        <Check className="size-3.5 shrink-0 text-emerald-400" />
-                        <span>
-                          {plan.entitlements.build_minutes_monthly.toLocaleString()}{" "}
-                          build mins/mo
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-zinc-300">
-                        <Check className="size-3.5 shrink-0 text-emerald-400" />
-                        <span>
-                          {plan.entitlements.max_seats} team member seats
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-zinc-300">
-                        <Check className="size-3.5 shrink-0 text-emerald-400" />
-                        <span>
-                          {plan.entitlements.artifact_storage_gb} GB artifact
-                          storage
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-zinc-300">
-                        <Check className="size-3.5 shrink-0 text-emerald-400" />
-                        <span>
-                          {plan.entitlements.web_bandwidth_gb} GB web bandwidth
-                        </span>
-                      </div>
-                      {plan.entitlements.features?.testflight_deployments && (
-                        <div className="flex items-center gap-2 text-zinc-300">
-                          <Check className="size-3.5 shrink-0 text-emerald-400" />
-                          <span>TestFlight & Play Store automation</span>
-                        </div>
-                      )}
-                      {plan.entitlements.features?.shorebird && (
-                        <div className="flex items-center gap-2 text-zinc-300">
-                          <Check className="size-3.5 shrink-0 text-emerald-400" />
-                          <span>Shorebird Code Push support</span>
-                        </div>
-                      )}
-                      {plan.entitlements.features?.priority_support && (
-                        <div className="flex items-center gap-2 text-zinc-300">
-                          <Check className="size-3.5 shrink-0 text-emerald-400" />
-                          <span>Priority SLA support</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4">
-                    <Button
-                      size="sm"
-                      disabled={isCurrent || isSubscribingPlanId === plan.id}
-                      onClick={() => void handleSubscribe(plan.id)}
-                      className={`w-full text-xs font-semibold ${
-                        plan.name === "pro"
-                          ? "bg-[#FF4B8B] text-white hover:bg-[#FF4B8B]/90"
-                          : "border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
-                      }`}
-                    >
-                      {isSubscribingPlanId === plan.id ? (
-                        <BloomSpinner size={14} speed="fast" />
-                      ) : isCurrent ? (
-                        "Current Tier"
-                      ) : (
-                        `Switch to ${plan.name.toUpperCase()}`
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPlanDialogOpen(false)}
-              className="text-xs"
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Cancel Subscription AlertDialog */}
       <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>

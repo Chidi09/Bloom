@@ -32,6 +32,9 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   ReferenceLine,
+  LabelList,
+  RadialBarChart,
+  RadialBar,
 } from "recharts";
 
 import {
@@ -231,8 +234,25 @@ function MiniSparkline({
   type?: "line" | "area" | "bar";
 }) {
   const chartData = data.map((val, i) => ({ i, val }));
+
+  const tooltip = (
+    <RechartsTooltip
+      cursor={type === "bar" ? { fill: "rgba(255,255,255,0.06)" } : false}
+      allowEscapeViewBox={{ x: true, y: true }}
+      wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+      content={({ active, payload }) => {
+        if (!active || !payload?.length) return null;
+        return (
+          <div className="rounded-md border border-zinc-700/80 bg-zinc-950 px-2 py-1 font-mono text-[10px] text-zinc-200 shadow-2xl">
+            {Number(payload[0].value).toLocaleString()}
+          </div>
+        );
+      }}
+    />
+  );
+
   return (
-    <div className="h-7 w-20 shrink-0">
+    <div className="h-7 w-20 shrink-0 overflow-visible">
       <ResponsiveContainer width="100%" height="100%">
         {type === "bar" ? (
           <BarChart
@@ -245,6 +265,7 @@ function MiniSparkline({
               radius={[1, 1, 0, 0]}
               opacity={0.85}
             />
+            {tooltip}
           </BarChart>
         ) : type === "area" ? (
           <AreaChart
@@ -271,6 +292,7 @@ function MiniSparkline({
               fill={`url(#mini_${color.replace("#", "")})`}
               isAnimationActive={false}
             />
+            {tooltip}
           </AreaChart>
         ) : (
           <LineChart
@@ -285,6 +307,7 @@ function MiniSparkline({
               dot={false}
               isAnimationActive={false}
             />
+            {tooltip}
           </LineChart>
         )}
       </ResponsiveContainer>
@@ -479,7 +502,7 @@ export default function AppObservabilityPage() {
       {/* KPI Cards Row with embedded mini sparklines */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Crash-Free Rate */}
-        <Card className="border-border/80 bg-zinc-950/60 p-4">
+        <Card className="border-border/80 bg-zinc-950/60 overflow-visible p-4">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-xs font-medium">Crash-Free Rate</span>
             <ShieldCheck className="size-4 text-emerald-400" />
@@ -506,7 +529,7 @@ export default function AppObservabilityPage() {
         </Card>
 
         {/* Total Sessions */}
-        <Card className="border-border/80 bg-zinc-950/60 p-4">
+        <Card className="border-border/80 bg-zinc-950/60 overflow-visible p-4">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-xs font-medium">Recorded Sessions</span>
             <Pulse className="size-4 text-blue-400" />
@@ -533,7 +556,7 @@ export default function AppObservabilityPage() {
         </Card>
 
         {/* Total Crashes */}
-        <Card className="border-border/80 bg-zinc-950/60 p-4">
+        <Card className="border-border/80 bg-zinc-950/60 overflow-visible p-4">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-xs font-medium">Total Crashes</span>
             <Bug className="size-4 text-amber-400" />
@@ -560,7 +583,7 @@ export default function AppObservabilityPage() {
         </Card>
 
         {/* Active Users */}
-        <Card className="border-border/80 bg-zinc-950/60 p-4">
+        <Card className="border-border/80 bg-zinc-950/60 overflow-visible p-4">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-xs font-medium">Daily Active Users</span>
             <Users className="size-4 text-purple-400" />
@@ -590,7 +613,7 @@ export default function AppObservabilityPage() {
       {/* Primary Telemetry Visualizers Grid (Dual Charts: Crash-Free Trend & Sessions/Crash Volume) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Chart 1: Crash-Free Rate Trend (%) */}
-        <Card className="border-border/80 bg-zinc-950/40">
+        <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -643,11 +666,13 @@ export default function AppObservabilityPage() {
                     unit="%"
                   />
                   <RechartsTooltip
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const data = payload[0].payload as TimeSeriesPoint;
                       return (
-                        <div className="border-border/80 rounded-lg border bg-zinc-900 p-2.5 font-mono text-xs shadow-xl">
+                        <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2.5 font-mono text-xs shadow-2xl">
                           <p className="font-semibold text-zinc-200">
                             {data.date}
                           </p>
@@ -709,7 +734,7 @@ export default function AppObservabilityPage() {
         </Card>
 
         {/* Chart 2: Sessions Volume & Crash Impact (Area / Bar) */}
-        <Card className="border-border/80 bg-zinc-950/40">
+        <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -790,11 +815,13 @@ export default function AppObservabilityPage() {
                     axisLine={false}
                   />
                   <RechartsTooltip
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const data = payload[0].payload as TimeSeriesPoint;
                       return (
-                        <div className="border-border/80 rounded-lg border bg-zinc-900 p-2.5 font-mono text-xs shadow-xl">
+                        <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2.5 font-mono text-xs shadow-2xl">
                           <p className="font-semibold text-zinc-200">
                             {data.date}
                           </p>
@@ -837,7 +864,7 @@ export default function AppObservabilityPage() {
       {/* Platform Traffic Distribution & Release Health Breakdown Grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Platform Share Donut Chart */}
-        <Card className="border-border/80 bg-zinc-950/40">
+        <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-xs font-semibold text-zinc-100">
               <ChartPie className="size-4 text-cyan-400" />
@@ -871,11 +898,14 @@ export default function AppObservabilityPage() {
                       ))}
                     </Pie>
                     <RechartsTooltip
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+                      position={{ x: 4, y: -4 }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const data = payload[0].payload;
                         return (
-                          <div className="border-border/80 rounded-lg border bg-zinc-900 p-2 font-mono text-xs shadow-xl">
+                          <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2 font-mono text-xs shadow-2xl">
                             <p className="font-semibold text-zinc-200">
                               {data.name}
                             </p>
@@ -1072,7 +1102,7 @@ export default function AppObservabilityPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Page Views Bar Chart */}
-            <Card className="border-border/80 bg-zinc-950/40">
+            <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-semibold text-zinc-200">
                   Daily Page Views & Unique Visitors
@@ -1104,11 +1134,13 @@ export default function AppObservabilityPage() {
                         axisLine={false}
                       />
                       <RechartsTooltip
+                        allowEscapeViewBox={{ x: true, y: true }}
+                        wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null;
                           const data = payload[0].payload as WebAnalyticsPoint;
                           return (
-                            <div className="border-border/80 rounded-lg border bg-zinc-900 p-2 font-mono text-xs shadow-xl">
+                            <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2 font-mono text-xs shadow-2xl">
                               <p className="font-semibold text-zinc-200">
                                 {data.date}
                               </p>
@@ -1136,56 +1168,153 @@ export default function AppObservabilityPage() {
 
             {/* Top Routes & Referrers Split */}
             <div className="space-y-4">
-              <Card className="border-border/80 bg-zinc-950/40">
+              <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
                 <CardHeader className="py-2.5">
                   <CardTitle className="text-xs font-semibold text-zinc-200">
                     Top Visited Routes
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {TOP_ROUTES.slice(0, 4).map((r) => (
-                      <div
-                        key={r.path}
-                        className="flex items-center justify-between text-xs"
+                  <div className="h-[148px] w-full overflow-visible">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={TOP_ROUTES.slice(0, 4)}
+                        layout="vertical"
+                        margin={{ top: 4, right: 34, left: 0, bottom: 4 }}
                       >
-                        <span className="font-mono text-zinc-300">
-                          {r.path}
-                        </span>
-                        <div className="flex items-center gap-2 font-mono text-zinc-400">
-                          <span>{r.views.toLocaleString()}</span>
-                          <span className="text-[10px] text-zinc-500">
-                            ({r.percentage}%)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                        <XAxis type="number" hide />
+                        <YAxis
+                          type="category"
+                          dataKey="path"
+                          width={104}
+                          tick={{ fontSize: 10, fill: "#a1a1aa" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <RechartsTooltip
+                          cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                          allowEscapeViewBox={{ x: true, y: true }}
+                          wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const d = payload[0].payload as (typeof TOP_ROUTES)[number];
+                            return (
+                              <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2 font-mono text-xs shadow-2xl">
+                                <p className="font-semibold text-zinc-200">
+                                  {d.path}
+                                </p>
+                                <p className="text-cyan-400">
+                                  {d.views.toLocaleString()} views (
+                                  {d.percentage}%)
+                                </p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar
+                          dataKey="views"
+                          fill="#22d3ee"
+                          radius={[0, 4, 4, 0]}
+                          barSize={14}
+                        >
+                          <LabelList
+                            dataKey="percentage"
+                            position="right"
+                            formatter={(v) => `${v}%`}
+                            className="fill-zinc-400"
+                            fontSize={9}
+                            fontFamily="monospace"
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-border/80 bg-zinc-950/40">
+              <Card className="border-border/80 bg-zinc-950/40 overflow-visible">
                 <CardHeader className="py-2.5">
                   <CardTitle className="text-xs font-semibold text-zinc-200">
                     Top Inbound Referrers
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {TOP_REFERRERS.slice(0, 3).map((ref) => (
-                      <div
-                        key={ref.source}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <span className="text-zinc-300">{ref.source}</span>
-                        <div className="flex items-center gap-2 font-mono text-zinc-400">
-                          <span>{ref.count.toLocaleString()}</span>
-                          <span className="text-[10px] text-zinc-500">
-                            ({ref.share})
+                  <div className="flex items-center gap-3">
+                    <div className="h-[132px] w-[132px] shrink-0 overflow-visible">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadialBarChart
+                          data={TOP_REFERRERS.slice(0, 3)}
+                          innerRadius="32%"
+                          outerRadius="100%"
+                          barSize={10}
+                          startAngle={90}
+                          endAngle={-270}
+                        >
+                          <RadialBar
+                            dataKey="count"
+                            background={{ fill: "#27272a" }}
+                            cornerRadius={5}
+                          >
+                            {TOP_REFERRERS.slice(0, 3).map((ref, index) => (
+                              <Cell
+                                key={ref.source}
+                                fill={
+                                  ["#a78bfa", "#38bdf8", "#fb923c"][index]
+                                }
+                              />
+                            ))}
+                          </RadialBar>
+                          <RechartsTooltip
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            wrapperStyle={{
+                              zIndex: 50,
+                              pointerEvents: "none",
+                            }}
+                            position={{ x: 4, y: -4 }}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const d = payload[0]
+                                .payload as (typeof TOP_REFERRERS)[number];
+                              return (
+                                <div className="border-zinc-700/80 rounded-lg border bg-zinc-950 p-2 font-mono text-xs shadow-2xl">
+                                  <p className="font-semibold text-zinc-200">
+                                    {d.source}
+                                  </p>
+                                  <p className="text-zinc-300">
+                                    {d.count.toLocaleString()} ({d.share})
+                                  </p>
+                                </div>
+                              );
+                            }}
+                          />
+                        </RadialBarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      {TOP_REFERRERS.slice(0, 3).map((ref, index) => (
+                        <div
+                          key={ref.source}
+                          className="flex items-center gap-1.5 text-xs"
+                        >
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: [
+                                "#a78bfa",
+                                "#38bdf8",
+                                "#fb923c",
+                              ][index],
+                            }}
+                          />
+                          <span className="truncate text-zinc-300">
+                            {ref.source}
+                          </span>
+                          <span className="ml-auto shrink-0 font-mono text-[10px] text-zinc-500">
+                            {ref.share}
                           </span>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

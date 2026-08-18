@@ -39,13 +39,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -142,6 +135,37 @@ export default function WorkflowDetailPage() {
     };
     void run();
   }, [fetchWorkflowDetails]);
+
+  // Quiet background refresh (no loading spinner) used to poll runs that
+  // are still executing, so triggered runs progress live in the UI.
+  const refreshRunsQuietly = React.useCallback(async () => {
+    if (!workflowId) return;
+    try {
+      const runsRes = await api.get<{ results: WorkflowRunResponse[] }>(
+        `/workflows/${workflowId}/runs`,
+      );
+      const results = runsRes?.results ?? [];
+      setRuns(results);
+      setSelectedRun((prev) => {
+        if (!prev) return prev;
+        return results.find((r) => r.id === prev.id) ?? prev;
+      });
+    } catch {
+      // ignore polling errors
+    }
+  }, [workflowId]);
+
+  const hasActiveRun = runs.some((r) =>
+    ["pending", "running", "blocked"].includes(r.status),
+  );
+
+  React.useEffect(() => {
+    if (!hasActiveRun) return;
+    const intervalId = setInterval(() => {
+      void refreshRunsQuietly();
+    }, 2000);
+    return () => clearInterval(intervalId);
+  }, [hasActiveRun, refreshRunsQuietly]);
 
   const handleSaveYaml = async () => {
     if (!workflow) return;
@@ -549,22 +573,19 @@ export default function WorkflowDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Slide-over Sheet for Workflow Run Details & Connected Steps Timeline */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent
-          side="right"
-          className="w-full overflow-y-auto border-zinc-800 bg-[#09090b] text-zinc-100 sm:max-w-xl"
-        >
+      {/* Dialog for Workflow Run Details & Connected Steps Timeline */}
+      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+        <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-y-auto border-zinc-800 bg-[#09090b] text-zinc-100 sm:max-w-2xl">
           {selectedRun && (
             <div className="space-y-6 py-2">
-              <SheetHeader>
+              <DialogHeader>
                 <div className="flex items-center justify-between gap-2">
-                  <SheetTitle className="text-base font-semibold text-zinc-100">
+                  <DialogTitle className="text-base font-semibold text-zinc-100">
                     Execution Run
-                  </SheetTitle>
+                  </DialogTitle>
                   <StatusBadge status={selectedRun.status} size="sm" />
                 </div>
-                <SheetDescription className="font-mono text-xs text-zinc-400">
+                <DialogDescription className="font-mono text-xs text-zinc-400">
                   Commit{" "}
                   <strong className="text-zinc-200">
                     {selectedRun.git_commit}
@@ -573,8 +594,8 @@ export default function WorkflowDetailPage() {
                   <strong className="text-zinc-200">
                     {selectedRun.git_branch}
                   </strong>
-                </SheetDescription>
-              </SheetHeader>
+                </DialogDescription>
+              </DialogHeader>
 
               {/* Execution Summary Metadata Card */}
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs">
@@ -815,8 +836,8 @@ export default function WorkflowDetailPage() {
               </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Trigger Run Dialog */}
       <Dialog open={triggerModalOpen} onOpenChange={setTriggerModalOpen}>

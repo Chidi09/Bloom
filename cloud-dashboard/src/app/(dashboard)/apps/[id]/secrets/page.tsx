@@ -78,6 +78,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  ProviderIcon,
+  detectEnvVarProvider,
+} from "@/components/status/provider-icon";
 import { BloomSpinner } from "@/components/ui/bloom-spinner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { api } from "@/lib/api/client";
@@ -508,7 +512,18 @@ export default function AppSecretsPage() {
                       className="hover:bg-muted/40 group transition-colors duration-150"
                     >
                       <TableCell className="text-muted-foreground p-3 text-center">
-                        <LockSimple className="size-3.5" />
+                        {(() => {
+                          const detected = detectEnvVarProvider(sec.key);
+                          return detected ? (
+                            <ProviderIcon
+                              provider={detected}
+                              size="sm"
+                              className="mx-auto"
+                            />
+                          ) : (
+                            <LockSimple className="mx-auto size-3.5" />
+                          );
+                        })()}
                       </TableCell>
 
                       <TableCell className="text-foreground font-mono text-xs font-semibold">

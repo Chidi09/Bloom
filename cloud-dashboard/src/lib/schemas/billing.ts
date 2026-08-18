@@ -10,6 +10,14 @@ export const featureEntitlementsSchema = z.object({
 });
 export type FeatureEntitlements = z.infer<typeof featureEntitlementsSchema>;
 
+export const overagePricingSchema = z.object({
+  enabled: z.boolean().default(false),
+  build_minute_cents: z.number().default(0),
+  storage_gb_cents: z.number().default(0),
+  bandwidth_gb_cents: z.number().default(0),
+});
+export type OveragePricing = z.infer<typeof overagePricingSchema>;
+
 export const entitlementsSchema = z.object({
   max_projects: z.number().default(0),
   max_apps: z.number().default(0),
@@ -18,6 +26,7 @@ export const entitlementsSchema = z.object({
   artifact_storage_gb: z.number().default(0),
   web_bandwidth_gb: z.number().default(0),
   features: featureEntitlementsSchema.optional(),
+  overage: overagePricingSchema.optional(),
 });
 export type Entitlements = z.infer<typeof entitlementsSchema>;
 
@@ -80,6 +89,15 @@ export type CancelSubscriptionRequest = z.infer<
   typeof cancelSubscriptionRequestSchema
 >;
 
+export const invoiceLineItemSchema = z.object({
+  description: z.string(),
+  kind: z.enum(["base_plan", "overage"]),
+  quantity: z.number(),
+  unit_price_cents: z.number(),
+  amount_cents: z.number(),
+});
+export type InvoiceLineItem = z.infer<typeof invoiceLineItemSchema>;
+
 export const invoiceResponseSchema = z.object({
   id: z.string(),
   subscription_id: z.string(),
@@ -90,6 +108,7 @@ export const invoiceResponseSchema = z.object({
   paid_at: z.string().nullable().optional(),
   provider_invoice_id: z.string().nullable().optional(),
   created_at: z.string(),
+  line_items: z.array(invoiceLineItemSchema).default([]),
 });
 export type InvoiceResponse = z.infer<typeof invoiceResponseSchema>;
 
@@ -102,6 +121,18 @@ export const usageEnforcementSummarySchema = z.object({
 export type UsageEnforcementSummary = z.infer<
   typeof usageEnforcementSummarySchema
 >;
+
+export const usageOverageSummarySchema = z.object({
+  enabled: z.boolean().default(false),
+  build_minutes_over: z.number().default(0),
+  storage_gb_over: z.number().default(0),
+  bandwidth_gb_over: z.number().default(0),
+  build_minutes_cost_cents: z.number().default(0),
+  storage_cost_cents: z.number().default(0),
+  bandwidth_cost_cents: z.number().default(0),
+  total_cost_cents: z.number().default(0),
+});
+export type UsageOverageSummary = z.infer<typeof usageOverageSummarySchema>;
 
 export const usageSummaryResponseSchema = z.object({
   organization_id: z.string(),
@@ -120,6 +151,16 @@ export const usageSummaryResponseSchema = z.object({
     build_minutes_decision: "allow",
     storage_decision: "allow",
     bandwidth_decision: "allow",
+  }),
+  overage: usageOverageSummarySchema.default({
+    enabled: false,
+    build_minutes_over: 0,
+    storage_gb_over: 0,
+    bandwidth_gb_over: 0,
+    build_minutes_cost_cents: 0,
+    storage_cost_cents: 0,
+    bandwidth_cost_cents: 0,
+    total_cost_cents: 0,
   }),
 });
 export type UsageSummaryResponse = z.infer<typeof usageSummaryResponseSchema>;
