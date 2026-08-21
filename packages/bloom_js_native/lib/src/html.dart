@@ -174,6 +174,9 @@ void _render(BloomNode node, StringBuffer buf) {
       buf.write('<template data-bloom-portal="${escapeHtml(targetSelector)}">');
       _render(child, buf);
       buf.write('</template>');
+
+    case SuspenseNode(:final fallback):
+      _render(fallback, buf);
   }
 }
 

@@ -218,6 +218,25 @@ List<web.Node> _mountNode(
       }
       final comment = web.document.createComment(' portal:$targetSelector ');
       return [comment];
+
+    case SuspenseNode(:final resource, :final builder, :final fallback):
+      final sentinel = _Sentinel('suspense');
+      final inner = _Region();
+      final fallbackNodes = _mountNode(fallback, inner);
+      sentinel.appendAll(fallbackNodes);
+
+      resource().then((data) {
+        if (region.disposers.isNotEmpty) {
+          inner.disposeAll();
+          sentinel.clear();
+          final loadedNode = builder(data);
+          final loadedNodes = _mountNode(loadedNode, inner);
+          sentinel.appendAll(loadedNodes);
+        }
+      });
+
+      region.add(inner.disposeAll);
+      return [sentinel.start, sentinel.end];
   }
 }
 
