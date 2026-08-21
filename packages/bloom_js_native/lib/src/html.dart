@@ -169,6 +169,11 @@ void _render(BloomNode node, StringBuffer buf) {
         final fallbackNode = fallback(err, stack);
         _render(fallbackNode, buf);
       }
+
+    case PortalNode(:final child, :final targetSelector):
+      buf.write('<template data-bloom-portal="${escapeHtml(targetSelector)}">');
+      _render(child, buf);
+      buf.write('</template>');
   }
 }
 

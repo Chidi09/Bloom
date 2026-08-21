@@ -208,6 +208,16 @@ List<web.Node> _mountNode(
       }
       region.add(inner.disposeAll);
       return [sentinel.start, sentinel.end];
+
+    case PortalNode(:final child, :final targetSelector):
+      final targetEl = web.document.querySelector(targetSelector) ?? web.document.body!;
+      final childNodes = _mountNode(child, region);
+      for (final n in childNodes) {
+        targetEl.appendChild(n);
+        region.add(() => n.parentNode?.removeChild(n));
+      }
+      final comment = web.document.createComment(' portal:$targetSelector ');
+      return [comment];
   }
 }
 
