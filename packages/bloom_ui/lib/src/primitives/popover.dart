@@ -3,14 +3,55 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
-/// Anchored floating popover overlay matching shadcn/ui base-nova.
+/// An anchored floating popover overlay component.
+///
+/// Attaches a floating card overlay to a [trigger] widget using a [LayerLink].
+/// Tapping the trigger opens or closes the popover, and tapping anywhere outside
+/// dismisses it automatically.
+///
+/// Example:
+/// ```dart
+/// BloomPopover(
+///   trigger: OutlinedButton(
+///     onPressed: null, // trigger handles gesture internally
+///     child: const Text('Open Popover'),
+///   ),
+///   content: Column(
+///     mainAxisSize: MainAxisSize.min,
+///     crossAxisAlignment: CrossAxisAlignment.start,
+///     children: const [
+///       BloomPopoverHeader(
+///         title: BloomPopoverTitle('Dimensions'),
+///         description: BloomPopoverDescription('Set the dimensions for the layer.'),
+///       ),
+///       Text('Popover body content'),
+///     ],
+///   ),
+/// );
+/// ```
 class BloomPopover extends StatefulWidget {
+  /// The anchor widget that toggles the popover overlay when tapped.
   final Widget trigger;
+
+  /// The content displayed inside the floating popover card.
   final Widget content;
+
+  /// Fixed width of the floating popover card. Defaults to `280`.
   final double width;
+
+  /// Alignment anchor point on the trigger widget. Defaults to [Alignment.bottomLeft].
   final Alignment anchorAlignment;
+
+  /// Alignment anchor point on the popover content. Defaults to [Alignment.topLeft].
   final Alignment popoverAlignment;
 
+  /// Creates an anchored [BloomPopover].
+  ///
+  /// * [trigger]: The widget that toggles the popover when tapped.
+  /// * [content]: The content displayed inside the floating card.
+  /// * [width]: Width in logical pixels (defaults to `280`).
+  /// * [anchorAlignment]: Point on the trigger to align to (defaults to [Alignment.bottomLeft]).
+  /// * [popoverAlignment]: Point on the popover to align to (defaults to [Alignment.topLeft]).
   const BloomPopover({
     super.key,
     required this.trigger,
@@ -105,9 +146,15 @@ class _BloomPopoverState extends State<BloomPopover> {
   }
 }
 
+/// A standardized header container for [BloomPopover].
 class BloomPopoverHeader extends StatelessWidget {
+  /// Header title widget, typically a [BloomPopoverTitle].
   final Widget? title;
+
+  /// Header description widget, typically a [BloomPopoverDescription].
   final Widget? description;
+
+  /// Creates a [BloomPopoverHeader] with optional [title] and [description].
   const BloomPopoverHeader({super.key, this.title, this.description});
 
   @override
@@ -129,9 +176,14 @@ class BloomPopoverHeader extends StatelessWidget {
   }
 }
 
+/// Standardized title typography for [BloomPopoverHeader].
 class BloomPopoverTitle extends StatelessWidget {
+  /// The title text string.
   final String text;
+
+  /// Creates a [BloomPopoverTitle] displaying [text].
   const BloomPopoverTitle(this.text, {super.key});
+
   @override
   Widget build(BuildContext context) {
     return Text(
@@ -146,9 +198,14 @@ class BloomPopoverTitle extends StatelessWidget {
   }
 }
 
+/// Standardized description typography for [BloomPopoverHeader].
 class BloomPopoverDescription extends StatelessWidget {
+  /// The description text string.
   final String text;
+
+  /// Creates a [BloomPopoverDescription] displaying [text].
   const BloomPopoverDescription(this.text, {super.key});
+
   @override
   Widget build(BuildContext context) {
     return Text(
@@ -162,3 +219,4 @@ class BloomPopoverDescription extends StatelessWidget {
     );
   }
 }
+

@@ -19,7 +19,7 @@
 /// final backend = const BloomConsoleBackend();
 /// await backend.send(message);
 /// ```
-library bloom_mail;
+library;
 
 export 'src/backend.dart';
 export 'src/console_backend.dart';

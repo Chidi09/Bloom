@@ -2,14 +2,39 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
-/// Empty state container matching shadcn base-nova dashed border container.
+/// An empty state container matching shadcn base-nova dashed border container.
+///
+/// Provides structured slots for an [icon], [title], [description], and an [action] button,
+/// or accepts a custom [child] widget. Rendered inside a subtle muted background with rounded corners.
+///
+/// ```dart
+/// BloomEmpty(
+///   icon: const Icon(Icons.inbox_outlined),
+///   title: const BloomEmptyTitle('No messages'),
+///   description: const BloomEmptyDescription('Your inbox is completely clear.'),
+///   action: BloomButton(
+///     child: const Text('Refresh'),
+///     onPressed: () {},
+///   ),
+/// );
+/// ```
 class BloomEmpty extends StatelessWidget {
+  /// The icon widget rendered within a styled circular/rounded container.
   final Widget? icon;
+
+  /// The title widget, typically a [BloomEmptyTitle].
   final Widget? title;
+
+  /// The description widget, typically a [BloomEmptyDescription].
   final Widget? description;
+
+  /// An optional action button placed below the description.
   final Widget? action;
+
+  /// An optional custom child widget replacing the default layout.
   final Widget? child;
 
+  /// Creates a [BloomEmpty] state container.
   const BloomEmpty({
     super.key,
     this.icon,
@@ -90,16 +115,34 @@ class BloomEmpty extends StatelessWidget {
   }
 }
 
+/// Title typography wrapper for [BloomEmpty].
+///
+/// ```dart
+/// const BloomEmptyTitle('No results found');
+/// ```
 class BloomEmptyTitle extends StatelessWidget {
+  /// The title text string.
   final String text;
+
+  /// Creates a [BloomEmptyTitle].
   const BloomEmptyTitle(this.text, {super.key});
+
   @override
   Widget build(BuildContext context) => Text(text);
 }
 
+/// Description typography wrapper for [BloomEmpty].
+///
+/// ```dart
+/// const BloomEmptyDescription('Try adjusting your search filters.');
+/// ```
 class BloomEmptyDescription extends StatelessWidget {
+  /// The description text string.
   final String text;
+
+  /// Creates a [BloomEmptyDescription].
   const BloomEmptyDescription(this.text, {super.key});
+
   @override
   Widget build(BuildContext context) => Text(text);
 }

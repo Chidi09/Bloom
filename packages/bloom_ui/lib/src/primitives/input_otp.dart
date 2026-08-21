@@ -3,13 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/extensions.dart';
 
+/// A grouped one-time passcode (OTP) input component matching shadcn base-nova design.
+///
+/// Divides OTP digits into visual groups (e.g. 3-3 format) separated by [BloomInputOTPSeparator],
+/// with paste support and auto-focus traversal.
+///
+/// ```dart
+/// BloomInputOTP(
+///   length: 6,
+///   groupSize: 3,
+///   onCompleted: (code) => verifyCode(code),
+/// )
+/// ```
 class BloomInputOTP extends StatefulWidget {
+  /// The total number of OTP slots across all groups.
+  ///
+  /// Defaults to `6`.
   final int length;
+
+  /// The number of digit slots per group before displaying a separator.
+  ///
+  /// Defaults to `3`.
   final int groupSize;
+
+  /// Callback invoked when all slots are filled.
   final ValueChanged<String> onCompleted;
+
+  /// Callback invoked on each keystroke or paste update.
   final ValueChanged<String>? onChanged;
+
+  /// Whether to obscure the entered digits for security.
+  ///
+  /// Defaults to `false`.
   final bool obscureText;
 
+  /// Creates a [BloomInputOTP].
   const BloomInputOTP({
     super.key,
     this.length = 6,
@@ -121,10 +149,17 @@ class _BloomInputOTPState extends State<BloomInputOTP> {
   }
 }
 
+/// A container card that groups individual [BloomInputOTPSlot] widgets with a rounded border.
 class BloomInputOTPGroup extends StatelessWidget {
+  /// The slot widgets rendered inside this group.
   final List<Widget> children;
+
+  /// The horizontal spacing between child slots within this group.
+  ///
+  /// Defaults to `4.0`.
   final double spacing;
 
+  /// Creates a [BloomInputOTPGroup].
   const BloomInputOTPGroup({
     super.key,
     required this.children,
@@ -155,13 +190,24 @@ class BloomInputOTPGroup extends StatelessWidget {
   }
 }
 
+/// A single character slot input within an OTP entry group.
 class BloomInputOTPSlot extends StatelessWidget {
+  /// The text editing controller for this single character slot.
   final TextEditingController controller;
+
+  /// The focus node managing focus for this slot.
   final FocusNode focusNode;
+
+  /// Whether the input character should be obscured.
   final bool obscureText;
+
+  /// Callback invoked when the single character value changes.
   final ValueChanged<String>? onChanged;
+
+  /// Callback invoked when a pasted multi-character string is detected.
   final ValueChanged<String>? onPaste;
 
+  /// Creates a [BloomInputOTPSlot].
   const BloomInputOTPSlot({
     super.key,
     required this.controller,
@@ -234,7 +280,9 @@ class _PasteTextInputFormatter extends TextInputFormatter {
   }
 }
 
+/// A subtle visual dash divider placed between [BloomInputOTPGroup] groups.
 class BloomInputOTPSeparator extends StatelessWidget {
+  /// Creates a [BloomInputOTPSeparator].
   const BloomInputOTPSeparator({super.key});
 
   @override

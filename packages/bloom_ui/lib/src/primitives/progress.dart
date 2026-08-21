@@ -2,13 +2,40 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
-/// Linear progress bar matching shadcn/ui base-nova 4px height scale.
+/// A linear progress bar indicator matching shadcn/ui base-nova 4px height scale.
+///
+/// Supports determinate progress when [value] is provided (between `0.0` and `1.0`)
+/// or indeterminate animation when [value] is null.
+///
+/// ```dart
+/// // Determinate progress at 65%
+/// BloomProgress(value: 0.65);
+///
+/// // Indeterminate loading progress
+/// BloomProgress();
+/// ```
 class BloomProgress extends StatelessWidget {
+  /// The progress value between `0.0` and `1.0`.
+  ///
+  /// If null, displays an indeterminate animated progress bar.
   final double? value;
+
+  /// The height of the progress bar in logical pixels.
+  ///
+  /// Defaults to `4.0` (4px height scale).
   final double height;
+
+  /// The background track color of the progress bar.
+  ///
+  /// Defaults to [BloomColorScheme.surface0] (muted background).
   final Color? backgroundColor;
+
+  /// The fill color of the active progress indicator bar.
+  ///
+  /// Defaults to [BloomColorScheme.primary].
   final Color? color;
 
+  /// Creates a [BloomProgress] bar.
   const BloomProgress({
     super.key,
     this.value,
@@ -44,8 +71,18 @@ class BloomProgress extends StatelessWidget {
   }
 }
 
+/// A text label displayed adjacent to or above a [BloomProgress] bar.
+///
+/// Formats text using the theme's sans font family with medium font weight.
+///
+/// ```dart
+/// BloomProgressLabel('Downloading updates...');
+/// ```
 class BloomProgressLabel extends StatelessWidget {
+  /// The descriptive label text.
   final String text;
+
+  /// Creates a [BloomProgressLabel].
   const BloomProgressLabel(this.text, {super.key});
 
   @override
@@ -62,8 +99,18 @@ class BloomProgressLabel extends StatelessWidget {
   }
 }
 
+/// A numeric or percentage label displayed alongside a [BloomProgress] bar.
+///
+/// Formats text using the theme's monospaced font family for aligned tabular digits.
+///
+/// ```dart
+/// BloomProgressValue('65%');
+/// ```
 class BloomProgressValue extends StatelessWidget {
+  /// The formatted progress value text.
   final String text;
+
+  /// Creates a [BloomProgressValue].
   const BloomProgressValue(this.text, {super.key});
 
   @override

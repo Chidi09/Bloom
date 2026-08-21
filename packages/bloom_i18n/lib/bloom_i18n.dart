@@ -32,7 +32,7 @@
 ///   // Output: "3 nuevas notificaciones"
 /// }
 /// ```
-library bloom_i18n;
+library;
 
 export 'src/catalog.dart';
 export 'src/locales.dart';

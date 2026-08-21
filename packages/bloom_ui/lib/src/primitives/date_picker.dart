@@ -3,13 +3,40 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
 
+/// A date picker trigger button primitive styled with an outline border and calendar icon.
+///
+/// Tapping the button opens Flutter's themed [showDatePicker] dialog and invokes [onDateSelected] upon confirmation.
+///
+/// ```dart
+/// BloomDatePicker(
+///   selectedDate: birthday,
+///   placeholder: 'Select birthday',
+///   onDateSelected: (date) => setState(() => birthday = date),
+/// )
+/// ```
 class BloomDatePicker extends StatelessWidget {
+  /// The currently selected date, formatted as `YYYY-MM-DD` when non-null.
   final DateTime? selectedDate;
+
+  /// Callback invoked when the user confirms a date selection in the dialog.
   final ValueChanged<DateTime> onDateSelected;
+
+  /// The earliest selectable date in the picker dialog.
+  ///
+  /// Defaults to `DateTime(2000)`.
   final DateTime? firstDate;
+
+  /// The latest selectable date in the picker dialog.
+  ///
+  /// Defaults to `DateTime(2100)`.
   final DateTime? lastDate;
+
+  /// Placeholder text displayed when [selectedDate] is null.
+  ///
+  /// Defaults to `'Pick a date'`.
   final String placeholder;
 
+  /// Creates a [BloomDatePicker].
   const BloomDatePicker({
     super.key,
     required this.selectedDate,

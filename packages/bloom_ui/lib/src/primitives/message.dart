@@ -2,28 +2,68 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// Visual styling variants for [BloomMessage] and [BloomMessageGroup].
 enum BloomMessageVariant {
+  /// Primary background styling using theme primary colors.
   defaultVariant,
+
+  /// Secondary background styling using theme secondary colors.
   secondary,
+
+  /// Muted background styling using `surface0` colors.
   muted,
+
+  /// Outlined background styling with transparent fill and a border.
   outline,
+
+  /// Ghost styling with transparent background and no border.
   ghost,
 }
 
+/// Alignment options for [BloomMessage] and [BloomMessageGroup].
 enum BloomMessageAlign {
+  /// Aligns message to the start (left in LTR), typically for incoming messages.
   start,
+
+  /// Aligns message to the end (right in LTR), typically for outgoing/user messages.
   end,
 }
 
+/// A chat or conversation message bubble with optional avatar, sender name, timestamp, and footer.
+///
+/// Example:
+/// ```dart
+/// BloomMessage(
+///   name: 'Alex',
+///   timestamp: '10:42 AM',
+///   content: Text('Hello, how can I help you today?'),
+///   variant: BloomMessageVariant.muted,
+///   align: BloomMessageAlign.start,
+/// )
+/// ```
 class BloomMessage extends StatelessWidget {
+  /// Optional avatar widget placed beside the message bubble.
   final Widget? avatar;
+
+  /// Optional sender name displayed above the message bubble.
   final String? name;
+
+  /// Optional timestamp string displayed next to the sender name.
   final String? timestamp;
+
+  /// The main message body widget.
   final Widget content;
+
+  /// Optional widget displayed below the bubble (e.g. status or action buttons).
   final Widget? footer;
+
+  /// Visual styling variant for the bubble. Defaults to [BloomMessageVariant.defaultVariant].
   final BloomMessageVariant variant;
+
+  /// Alignment of the message bubble within the layout. Defaults to [BloomMessageAlign.start].
   final BloomMessageAlign align;
 
+  /// Creates a [BloomMessage].
   const BloomMessage({
     super.key,
     this.avatar,
@@ -147,14 +187,39 @@ class _MessageColors {
   const _MessageColors({required this.background, required this.foreground, required this.border});
 }
 
+/// A container for grouping multiple consecutive messages from the same sender.
+///
+/// Example:
+/// ```dart
+/// BloomMessageGroup(
+///   name: 'Assistant',
+///   timestamp: 'Just now',
+///   messages: [
+///     BloomMessage(content: Text('Here is the first piece of info.')),
+///     BloomMessage(content: Text('And here is a follow-up.')),
+///   ],
+/// )
+/// ```
 class BloomMessageGroup extends StatelessWidget {
+  /// Optional avatar widget placed beside the message group.
   final Widget? avatar;
+
+  /// Optional sender name displayed above the group.
   final String? name;
+
+  /// The list of message widgets in this group.
   final List<Widget> messages;
+
+  /// Optional timestamp string displayed next to the sender name.
   final String? timestamp;
+
+  /// Visual styling variant for child messages. Defaults to [BloomMessageVariant.defaultVariant].
   final BloomMessageVariant variant;
+
+  /// Alignment of the message group within the layout. Defaults to [BloomMessageAlign.start].
   final BloomMessageAlign align;
 
+  /// Creates a [BloomMessageGroup].
   const BloomMessageGroup({
     super.key,
     this.avatar,

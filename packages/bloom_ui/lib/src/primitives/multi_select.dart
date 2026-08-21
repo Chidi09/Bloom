@@ -5,13 +5,35 @@ import 'badge.dart';
 import 'checkbox.dart';
 import 'sheet.dart';
 
+/// A multi-selection input widget displaying selected items as removable badges
+/// and opening a bottom sheet to toggle options.
+///
+/// Example:
+/// ```dart
+/// BloomMultiSelect<String>(
+///   allValues: ['Design', 'Engineering', 'Marketing'],
+///   selectedValues: selectedTags,
+///   labelBuilder: (tag) => tag,
+///   onChanged: (newTags) => setState(() => selectedTags = newTags),
+/// )
+/// ```
 class BloomMultiSelect<T> extends StatelessWidget {
+  /// The currently selected values.
   final List<T> selectedValues;
+
+  /// The complete list of available values to select from.
   final List<T> allValues;
+
+  /// Function to generate human-readable string labels for each item.
   final String Function(T item) labelBuilder;
+
+  /// Callback fired when the selection changes.
   final ValueChanged<List<T>> onChanged;
+
+  /// Placeholder text displayed when no items are selected. Defaults to `'Select options...'`.
   final String placeholder;
 
+  /// Creates a [BloomMultiSelect].
   const BloomMultiSelect({
     super.key,
     required this.selectedValues,

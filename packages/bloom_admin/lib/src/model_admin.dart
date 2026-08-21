@@ -21,6 +21,7 @@ class BloomChangelistPage {
   /// Number of items displayed per page.
   final int perPage;
 
+  /// Creates a [BloomChangelistPage] containing paginated rows and metadata.
   const BloomChangelistPage({
     required this.columns,
     required this.rows,
@@ -262,8 +263,10 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
   @override
   List<BloomInlineConfig> get inlinesConfig => config.inlines ?? const [];
 
+  /// Returns the effective column names to display, falling back to [fieldNames].
   List<String> get effectiveColumns => config.listDisplay ?? fieldNames;
 
+  /// Constructs a filtered and ordered [QuerySet] based on active search, filters, and ordering parameters.
   QuerySet<T> buildFilteredQuerySet({
     String? order,
     String? search,

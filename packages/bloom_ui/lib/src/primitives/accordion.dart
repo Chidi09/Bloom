@@ -3,11 +3,20 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// A single expandable item entry within a [BloomAccordion].
 class BloomAccordionItem {
+  /// The header text title displayed on the clickable accordion trigger.
   final String title;
+
+  /// The widget content revealed when the accordion section expands.
   final Widget content;
+
+  /// Whether the accordion item is initially expanded upon first render.
+  ///
+  /// Defaults to `false`.
   final bool isExpanded;
 
+  /// Creates a [BloomAccordionItem].
   const BloomAccordionItem({
     required this.title,
     required this.content,
@@ -15,10 +24,36 @@ class BloomAccordionItem {
   });
 }
 
+/// An accordion primitive displaying vertically stacked, expandable content sections.
+///
+/// Features smooth animated chevron rotation, cross-fade content reveal, and support
+/// for single-open or multi-open ([allowMultiple]) accordion modes.
+///
+/// ```dart
+/// BloomAccordion(
+///   allowMultiple: true,
+///   items: const [
+///     BloomAccordionItem(
+///       title: 'Is it accessible?',
+///       content: Text('Yes. It adheres to the WAI-ARIA design pattern.'),
+///     ),
+///     BloomAccordionItem(
+///       title: 'Is it styled?',
+///       content: Text('Yes. It comes with default styles matching Bloom tokens.'),
+///     ),
+///   ],
+/// )
+/// ```
 class BloomAccordion extends StatefulWidget {
+  /// The list of expandable sections displayed in the accordion.
   final List<BloomAccordionItem> items;
+
+  /// Whether multiple sections can be expanded simultaneously.
+  ///
+  /// When `false`, expanding one section collapses all others. Defaults to `false`.
   final bool allowMultiple;
 
+  /// Creates a [BloomAccordion].
   const BloomAccordion({
     super.key,
     required this.items,

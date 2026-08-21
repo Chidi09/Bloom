@@ -3,12 +3,45 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
-/// Hover / tap preview card popup matching shadcn base-nova.
+/// A hover- and tap-activated preview card popup component.
+///
+/// Displays a rich content card overlay adjacent to a [trigger] widget when the
+/// user hovers with a pointer device or taps on touch interfaces. The overlay
+/// automatically hides when the pointer leaves the card area or when tapped again.
+///
+/// Example:
+/// ```dart
+/// BloomHoverCard(
+///   trigger: Text(
+///     '@bloom_ui',
+///     style: TextStyle(decoration: TextDecoration.underline),
+///   ),
+///   content: Column(
+///     mainAxisSize: MainAxisSize.min,
+///     crossAxisAlignment: CrossAxisAlignment.start,
+///     children: const [
+///       Text('Bloom UI', style: TextStyle(fontWeight: FontWeight.bold)),
+///       SizedBox(height: 4),
+///       Text('Modern design primitives built for high performance.'),
+///     ],
+///   ),
+/// );
+/// ```
 class BloomHoverCard extends StatefulWidget {
+  /// The anchor widget that triggers the hover card popup.
   final Widget trigger;
+
+  /// The preview content displayed inside the floating card popup.
   final Widget content;
+
+  /// Fixed width of the floating preview card. Defaults to `280`.
   final double width;
 
+  /// Creates a [BloomHoverCard].
+  ///
+  /// * [trigger]: The widget monitored for hover and tap interactions.
+  /// * [content]: The preview content displayed inside the popover.
+  /// * [width]: Width in logical pixels (defaults to `280`).
   const BloomHoverCard({
     super.key,
     required this.trigger,
@@ -94,3 +127,4 @@ class _BloomHoverCardState extends State<BloomHoverCard> {
     );
   }
 }
+

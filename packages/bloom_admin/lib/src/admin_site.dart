@@ -21,6 +21,7 @@ class BloomSiteBranding {
   /// Optional custom CSS accent color hex string.
   final String? accentColor;
 
+  /// Creates a [BloomSiteBranding] configuration with customizable header, title, logo, and accent color.
   const BloomSiteBranding({
     this.siteHeader = 'Bloom Administration',
     this.siteTitle = 'Bloom site admin',
@@ -28,6 +29,7 @@ class BloomSiteBranding {
     this.accentColor,
   });
 
+  /// Creates a copy of this branding configuration with optional replaced properties.
   BloomSiteBranding copyWith({
     String? siteHeader,
     String? siteTitle,
@@ -141,7 +143,7 @@ class BloomAdminSite {
 
       final html = const IndexTemplate().render({
         'models': models,
-        'recent_actions': const [],
+        'recent_actions': const <dynamic>[],
         'site_header': branding.siteHeader,
         'site_title': branding.siteTitle,
         'logo_url': branding.logoUrl,

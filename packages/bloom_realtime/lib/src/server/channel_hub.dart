@@ -159,9 +159,6 @@ class BloomChannelHub {
   /// Broadcasts [payload] to all active subscribers of [channelName].
   ///
   /// Dead or closing sockets are actively detected, dropped from the subscriber set,
-  /// Broadcasts [payload] to all active subscribers of [channelName].
-  ///
-  /// Dead or closing sockets are actively detected, dropped from the subscriber set,
   /// and cleaned up from the hub without throwing or leaking memory.
   ///
   /// - [channelName]: Target channel name.

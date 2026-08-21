@@ -3,18 +3,75 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
-enum BloomSheetSide { left, right, top, bottom }
+/// The screen edge from which a [BloomSheet] slides in.
+enum BloomSheetSide {
+  /// Slides in from the left edge of the screen.
+  left,
 
-/// Multi-directional slide-over sheet overlay matching shadcn base-nova.
+  /// Slides in from the right edge of the screen.
+  right,
+
+  /// Slides in from the top edge of the screen.
+  top,
+
+  /// Slides in from the bottom edge of the screen.
+  bottom,
+}
+
+/// A multi-directional slide-over sheet overlay component.
+///
+/// Sheets extend from any edge of the viewport (left, right, top, bottom) to display
+/// supplementary content, forms, navigation drawers, or detailed inspection panels.
+///
+/// Example:
+/// ```dart
+/// BloomSheet.show(
+///   context: context,
+///   side: BloomSheetSide.right,
+///   builder: (context) => BloomSheet(
+///     side: BloomSheetSide.right,
+///     header: BloomSheetHeader(
+///       title: BloomSheetTitle('Edit Profile'),
+///       description: BloomSheetDescription('Update your profile settings here.'),
+///     ),
+///     content: Center(child: Text('Profile form content')),
+///     footer: BloomSheetFooter(
+///       child: ElevatedButton(
+///         onPressed: () => Navigator.of(context).pop(),
+///         child: const Text('Save Changes'),
+///       ),
+///     ),
+///   ),
+/// );
+/// ```
 class BloomSheet extends StatelessWidget {
+  /// Optional header section placed at the top of the sheet.
   final Widget? header;
+
+  /// Main content widget occupying the expandable body area.
   final Widget? content;
+
+  /// Optional footer section placed at the bottom of the sheet.
   final Widget? footer;
+
+  /// Alternative single child widget spanning the body area.
   final Widget? child;
+
+  /// The edge of the viewport from which the sheet originates.
   final BloomSheetSide side;
+
+  /// Whether to show a close icon button in the top-right corner.
   final bool showClose;
+
+  /// Callback triggered when the close icon button is tapped.
+  /// Defaults to popping the current navigator route.
   final VoidCallback? onClose;
 
+  /// Creates a [BloomSheet] overlay.
+  ///
+  /// * [side] defines the viewport edge where the sheet is positioned.
+  /// * [showClose] determines whether the top-right dismiss button is visible.
+  /// * [header], [content], [footer], and [child] structure the internal layout.
   const BloomSheet({
     super.key,
     this.header,
@@ -26,7 +83,15 @@ class BloomSheet extends StatelessWidget {
     this.onClose,
   });
 
-  /// Static helper to display a directional sheet
+  /// Displays a [BloomSheet] modal overlay sliding in from the specified [side].
+  ///
+  /// When [side] is [BloomSheetSide.bottom], this uses [showModalBottomSheet].
+  /// For [BloomSheetSide.left], [BloomSheetSide.right], and [BloomSheetSide.top],
+  /// it uses [showGeneralDialog] with custom slide transitions.
+  ///
+  /// * [context]: The build context to mount the modal into.
+  /// * [builder]: Builder returning the sheet widget tree.
+  /// * [side]: Viewport origin side (defaults to [BloomSheetSide.right]).
   static Future<T?> show<T>({
     required BuildContext context,
     required WidgetBuilder builder,
@@ -135,11 +200,20 @@ class BloomSheet extends StatelessWidget {
   }
 }
 
+/// A standardized header container for [BloomSheet].
+///
+/// Formats title and description widgets with appropriate spacing and alignment.
 class BloomSheetHeader extends StatelessWidget {
+  /// Header title widget, typically a [BloomSheetTitle].
   final Widget? title;
+
+  /// Header description widget, typically a [BloomSheetDescription].
   final Widget? description;
+
+  /// Custom child widget that completely overrides title and description rendering.
   final Widget? child;
 
+  /// Creates a [BloomSheetHeader].
   const BloomSheetHeader({super.key, this.title, this.description, this.child});
 
   @override
@@ -162,8 +236,12 @@ class BloomSheetHeader extends StatelessWidget {
   }
 }
 
+/// A standardized title text component for [BloomSheetHeader].
 class BloomSheetTitle extends StatelessWidget {
+  /// The title text string.
   final String text;
+
+  /// Creates a [BloomSheetTitle] with the given [text].
   const BloomSheetTitle(this.text, {super.key});
 
   @override
@@ -181,8 +259,12 @@ class BloomSheetTitle extends StatelessWidget {
   }
 }
 
+/// A standardized secondary description text component for [BloomSheetHeader].
 class BloomSheetDescription extends StatelessWidget {
+  /// The description text string.
   final String text;
+
+  /// Creates a [BloomSheetDescription] with the given [text].
   const BloomSheetDescription(this.text, {super.key});
 
   @override
@@ -200,8 +282,14 @@ class BloomSheetDescription extends StatelessWidget {
   }
 }
 
+/// A standardized bottom footer container for [BloomSheet].
+///
+/// Features a subtle top border and subdued background styling suitable for action buttons.
 class BloomSheetFooter extends StatelessWidget {
+  /// Content to display inside the footer, typically action buttons.
   final Widget child;
+
+  /// Creates a [BloomSheetFooter] wrapping the provided [child].
   const BloomSheetFooter({super.key, required this.child});
 
   @override

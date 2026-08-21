@@ -25,7 +25,7 @@
 ///   await router.serve(port: 8080);
 /// }
 /// ```
-library bloom_security;
+library;
 
 export 'src/cors_middleware.dart';
 export 'src/rate_limit_middleware.dart';

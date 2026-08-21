@@ -477,8 +477,9 @@ class QuerySet<T extends Model> {
 
   /// Low-level INSERT query returning the generated primary key.
   ///
+  /// Supports both integer and String/UUID primary keys (Liskov Substitution Principle).
   /// Throws [BloomOrmFieldNotFoundError] if any field in [values] does not exist on [meta].
-  static Future<int> insertRaw(
+  static Future<dynamic> insertRaw(
     DbExecutor db,
     ModelMeta meta,
     Map<String, dynamic> values,
@@ -511,11 +512,14 @@ class QuerySet<T extends Model> {
         : 'INSERT INTO "${meta.tableName}" (${cols.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING "$pkCol"';
 
     final row = await db.fetchOne(sql, params);
-    return row.tryIntByName(pkCol) ?? row.tryInt(0) ?? 0;
+    if (pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt) {
+      return row.tryIntByName(pkCol) ?? row.tryInt(0) ?? 0;
+    }
+    return row.tryStringByName(pkCol) ?? row.tryIntByName(pkCol) ?? row[pkCol] ?? row[0];
   }
 
   /// Inserts many rows in a single multi-row INSERT statement and returns generated primary keys.
-  static Future<List<int>> bulkCreate<M extends Model>(
+  static Future<List<dynamic>> bulkCreate<M extends Model>(
     DbExecutor db,
     ModelMeta meta,
     List<M> items,
@@ -555,11 +559,17 @@ class QuerySet<T extends Model> {
         'INSERT INTO "${meta.tableName}" (${insertableCols.join(', ')}) VALUES ${placeholderGroups.join(', ')} RETURNING "$pkCol"';
 
     final rows = await db.fetchAll(sql, params);
-    return rows.map((r) => r.tryIntByName(pkCol) ?? r.tryInt(0) ?? 0).toList();
+    final isIntPk = pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt;
+    return rows.map((r) {
+      if (isIntPk) {
+        return r.tryIntByName(pkCol) ?? r.tryInt(0) ?? 0;
+      }
+      return r.tryStringByName(pkCol) ?? r.tryIntByName(pkCol) ?? r[pkCol] ?? r[0];
+    }).toList();
   }
 
   /// Snake_case alias for [bulkCreate].
-  static Future<List<int>> bulk_create<M extends Model>(
+  static Future<List<dynamic>> bulk_create<M extends Model>(
     DbExecutor db,
     ModelMeta meta,
     List<M> items,

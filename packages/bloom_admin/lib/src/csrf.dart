@@ -8,12 +8,18 @@ import 'package:bloom_framework/bloom_server.dart';
 /// Guarantees that state-changing admin actions (POST, PUT, DELETE) originate
 /// from authenticated and legitimate admin form submissions.
 class AdminCsrf {
+  /// Form field key used in POST/PUT forms containing the CSRF token.
   static const String formFieldName = 'csrfmiddlewaretoken';
+
+  /// Request header key containing the CSRF token.
   static const String headerName = 'x-csrftoken';
+
+  /// Cookie name containing the CSRF token.
   static const String cookieName = 'bloom_csrftoken';
 
   final String _secret;
 
+  /// Creates an [AdminCsrf] instance with an optional HMAC signing [_secret].
   AdminCsrf({String? secret})
       : _secret = secret ?? 'bloom_admin_default_secret_key_change_in_production';
 

@@ -153,11 +153,24 @@ class BloomViewSetOptions<T extends Model> {
 ///
 /// Mirrors `djangors_rest::ViewSet<M>`.
 class BloomViewSet<T extends Model> {
+  /// Model metadata describing database schema, columns, and relations.
   final ModelMeta meta;
+
+  /// Row deserializer mapping a database row to a model instance.
   final ModelFromRow<T> fromRow;
+
+  /// Database executor provider callback for a given request.
   final DbExecutor Function(BloomRequest req) getDb;
+
+  /// ViewSet options configuring serializers, pagination, permissions, filters, and throttles.
   final BloomViewSetOptions<T> options;
 
+  /// Creates a [BloomViewSet] for model [meta].
+  ///
+  /// - [meta]: Target model metadata.
+  /// - [fromRow]: Model instantiation function from a [DbRow].
+  /// - [getDb]: Database executor provider function for an incoming request.
+  /// - [options]: Optional [BloomViewSetOptions] (defaults to authenticated model serializer).
   BloomViewSet({
     required this.meta,
     required this.fromRow,
@@ -240,6 +253,9 @@ class BloomViewSet<T extends Model> {
         final decoded = decodeCursor(rawCursor);
         if (decoded != null) {
           final (cursorPk, rawVal) = decoded;
+          final pkBloomVal = cursorPk is int
+              ? BloomValue.i64(cursorPk)
+              : BloomValue.text(cursorPk.toString());
           if (rawVal != null) {
             final parsedVal = parseTypedValue(meta, orderField, rawVal);
             if (parsedVal != null) {
@@ -251,7 +267,7 @@ class BloomViewSet<T extends Model> {
                   BloomExpr.compare(
                     field: pkField,
                     op: cursorDescending ? CompareOp.lt : CompareOp.gt,
-                    value: BloomValue.i64(cursorPk),
+                    value: pkBloomVal,
                   ),
                 ]),
               ]));
@@ -259,7 +275,7 @@ class BloomViewSet<T extends Model> {
           } else {
             final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
             qs = qs.filter(
-              BloomExpr.compare(field: pkField, op: op, value: BloomValue.i64(cursorPk)),
+              BloomExpr.compare(field: pkField, op: op, value: pkBloomVal),
             );
           }
         }
@@ -273,9 +289,9 @@ class BloomViewSet<T extends Model> {
       if (hasNext && items.isNotEmpty) {
         final lastItem = items.last;
         final values = lastItem.fieldValues();
-        final pkVal = values.firstWhere((v) => v.$1 == pkField, orElse: () => (pkField, const BloomValue.i64(0))).$2.raw;
+        final pkVal = values.firstWhere((v) => v.$1 == pkField, orElse: () => (pkField, const BloomValue.nullVal())).$2.raw;
         final sortVal = values.firstWhere((v) => v.$1 == orderField, orElse: () => (orderField, const BloomValue.nullVal())).$2.raw;
-        nextCursor = encodeCursor(pkVal is int ? pkVal : 0, sortVal);
+        nextCursor = encodeCursor(pkVal ?? 0, sortVal);
       }
 
       final results = options.serializer.toRepresentationMany(items);
@@ -297,6 +313,15 @@ class BloomViewSet<T extends Model> {
     return BloomResponse.json(body);
   }
 
+  dynamic _parsePk(String? pkStr) {
+    if (pkStr == null || pkStr.trim().isEmpty) return null;
+    final pkField = meta.primaryKeyField;
+    if (pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt) {
+      return int.tryParse(pkStr.trim());
+    }
+    return pkStr.trim();
+  }
+
   /// `GET /:pk` — Retrieve single record details.
   Future<BloomResponse> retrieve(BloomRequest req) async {
     final guardRes = await _guard(req);
@@ -307,7 +332,7 @@ class BloomViewSet<T extends Model> {
     if (pkStr == null) {
       return BloomResponse.error('Missing primary key parameter', statusCode: 400);
     }
-    final pk = int.tryParse(pkStr);
+    final pk = _parsePk(pkStr);
     if (pk == null) {
       return BloomResponse.error('Invalid primary key', statusCode: 400);
     }
@@ -373,7 +398,7 @@ class BloomViewSet<T extends Model> {
     if (pkStr == null) {
       return BloomResponse.error('Missing primary key parameter', statusCode: 400);
     }
-    final pk = int.tryParse(pkStr);
+    final pk = _parsePk(pkStr);
     if (pk == null) {
       return BloomResponse.error('Invalid primary key', statusCode: 400);
     }
@@ -420,7 +445,7 @@ class BloomViewSet<T extends Model> {
     if (pkStr == null) {
       return BloomResponse.error('Missing primary key parameter', statusCode: 400);
     }
-    final pk = int.tryParse(pkStr);
+    final pk = _parsePk(pkStr);
     if (pk == null) {
       return BloomResponse.error('Invalid primary key', statusCode: 400);
     }

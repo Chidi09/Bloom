@@ -67,7 +67,7 @@ Future<BloomResponse> deleteGetView({
 
   final html = const DeleteConfirmTemplate().render({
     'fields': fields,
-    'related': const [],
+    'related': const <dynamic>[],
     'site_header': branding.siteHeader,
     'site_title': branding.siteTitle,
     'logo_url': branding.logoUrl,

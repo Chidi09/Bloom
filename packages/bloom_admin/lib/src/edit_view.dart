@@ -114,7 +114,7 @@ Future<BloomResponse> _renderFormView({
 
   final html = const EditFormTemplate().render({
     'rows': rows,
-    'inlines': const [],
+    'inlines': const <dynamic>[],
     'site_header': branding.siteHeader,
     'site_title': branding.siteTitle,
     'logo_url': branding.logoUrl,

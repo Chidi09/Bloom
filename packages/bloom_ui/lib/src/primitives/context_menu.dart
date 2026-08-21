@@ -3,12 +3,50 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import 'dropdown_menu.dart';
 
-/// Context menu triggered by right click / long press matching shadcn base-nova.
+/// A contextual overlay menu triggered by secondary click (right-click) or long-press gestures.
+///
+/// Wraps a [child] widget and responds to desktop secondary mouse clicks (`onSecondaryTapDown`)
+/// and mobile long-press gestures (`onLongPressStart`), displaying a floating menu styled
+/// with Bloom design tokens at the cursor/pointer coordinates.
+///
+/// Example:
+/// ```dart
+/// BloomContextMenu(
+///   items: [
+///     BloomDropdownMenuItem(
+///       label: 'Copy',
+///       icon: Icon(Icons.copy),
+///       shortcut: Text('Ctrl+C'),
+///       onTap: () => print('Copy'),
+///     ),
+///     BloomDropdownMenuItem(
+///       label: 'Delete',
+///       icon: Icon(Icons.delete_outline),
+///       isDestructive: true,
+///       onTap: () => print('Delete'),
+///     ),
+///   ],
+///   child: Container(
+///     padding: EdgeInsets.all(24),
+///     child: Text('Right-click or long-press me'),
+///   ),
+/// );
+/// ```
 class BloomContextMenu extends StatelessWidget {
+  /// The target widget that listens for right-click or long-press gestures.
   final Widget child;
+
+  /// The list of items displayed inside the contextual menu.
   final List<BloomDropdownMenuItem> items;
+
+  /// Width constraint of the contextual menu overlay. Defaults to `200`.
   final double width;
 
+  /// Creates a [BloomContextMenu].
+  ///
+  /// * [child]: The target content that receives the gestures.
+  /// * [items]: List of menu item definitions to display in the menu.
+  /// * [width]: Width in logical pixels of the context menu popup (defaults to `200`).
   const BloomContextMenu({
     super.key,
     required this.child,
@@ -86,3 +124,4 @@ class BloomContextMenu extends StatelessWidget {
     });
   }
 }
+

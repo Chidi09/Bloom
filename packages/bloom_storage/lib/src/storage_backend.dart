@@ -5,7 +5,27 @@ import 'package:bloom_framework/bloom_server.dart';
 /// Application code should depend exclusively on this interface rather than
 /// concrete storage implementations, allowing seamless switching between local
 /// filesystem, AWS S3, Cloudflare R2, MinIO, or Supabase Storage S3.
-abstract class BloomStorageBackend {
+/// Lean read-only storage contract (Interface Segregation Principle).
+abstract class BloomStorageReader {
+  /// Downloads binary file content from the specified storage [path].
+  ///
+  /// Throws [BloomFileNotFoundException] if the file does not exist.
+  Future<List<int>> download(String path);
+
+  /// Checks if a file exists at the specified storage [path].
+  Future<bool> exists(String path);
+
+  /// Generates a time-limited signed URL for temporary read access to a private file.
+  ///
+  /// [expiry] defaults to 15 minutes if not specified.
+  Future<String> getSignedUrl(
+    String path, {
+    Duration expiry = const Duration(minutes: 15),
+  });
+}
+
+/// Lean write-only/mutation storage contract (Interface Segregation Principle).
+abstract class BloomStorageWriter {
   /// Uploads binary [bytes] to the specified storage [path].
   ///
   /// Optionally accepts a MIME [contentType] (e.g. `image/png`, `application/pdf`).
@@ -16,22 +36,31 @@ abstract class BloomStorageBackend {
     String? contentType,
   });
 
-  /// Downloads binary file content from the specified storage [path].
-  ///
-  /// Throws [BloomFileNotFoundException] if the file does not exist.
-  Future<List<int>> download(String path);
-
   /// Deletes the file at the specified storage [path].
   ///
   /// Throws [BloomFileNotFoundException] if the file does not exist.
   Future<void> delete(String path);
+}
 
-  /// Checks if a file exists at the specified storage [path].
+/// Full abstract contract for Bloom storage backends composing read and write interfaces.
+abstract class BloomStorageBackend implements BloomStorageReader, BloomStorageWriter {
+  @override
+  Future<String> upload(
+    String path,
+    List<int> bytes, {
+    String? contentType,
+  });
+
+  @override
+  Future<List<int>> download(String path);
+
+  @override
+  Future<void> delete(String path);
+
+  @override
   Future<bool> exists(String path);
 
-  /// Generates a time-limited signed URL for temporary read access to a private file.
-  ///
-  /// [expiry] defaults to 15 minutes if not specified.
+  @override
   Future<String> getSignedUrl(
     String path, {
     Duration expiry = const Duration(minutes: 15),

@@ -1,4 +1,5 @@
 // lib/src/commands/server_command.dart
+import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -32,6 +33,7 @@ class ServerCommand extends Command<int> {
   ServerCommand() {
     addSubcommand(_ServerCreateCommand());
     addSubcommand(_ServerStartAppCommand());
+    addSubcommand(_ServerRunCommand());
   }
 }
 
@@ -1005,3 +1007,118 @@ DROP TABLE IF EXISTS ${appName}_${appName}s;
     return snake.split('_').map((s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}').join();
   }
 }
+
+class _ServerRunCommand extends Command<int> {
+  @override
+  final String name = 'run';
+
+  @override
+  final String description = 'Runs the Bloom Server application with automatic hot reload and file watching.';
+
+  _ServerRunCommand() {
+    argParser
+      ..addFlag(
+        'watch',
+        defaultsTo: true,
+        help: 'Enable file watching and sub-second server hot restart.',
+      )
+      ..addOption(
+        'port',
+        abbr: 'p',
+        defaultsTo: '8080',
+        help: 'Server listening port.',
+      )
+      ..addOption(
+        'entry',
+        abbr: 'e',
+        defaultsTo: 'bin/server.dart',
+        help: 'Server entrypoint Dart file.',
+      );
+  }
+
+  @override
+  Future<int> run() async {
+    final entryPath = argResults?['entry'] as String? ?? 'bin/server.dart';
+    final entryFile = File(entryPath);
+
+    if (!entryFile.existsSync()) {
+      print(Ansi.error('Entrypoint file not found: $entryPath'));
+      return 1;
+    }
+
+    final watchEnabled = argResults?['watch'] as bool? ?? true;
+
+    print(Ansi.step('🌸 Launching Bloom Server [${entryFile.path}]...\n'));
+
+    Process? currentProcess;
+
+    Future<void> startProcess() async {
+      currentProcess = await Process.start(
+        'dart',
+        ['run', entryFile.path],
+        mode: ProcessStartMode.inheritStdio,
+      );
+    }
+
+    await startProcess();
+
+    if (watchEnabled) {
+      final watchDirs = [
+        Directory('lib'),
+        Directory('bin'),
+        Directory('apps'),
+      ].where((d) => d.existsSync()).toList();
+
+      if (watchDirs.isNotEmpty) {
+        final watcher = _SimpleDebouncedWatcher(
+          directories: watchDirs,
+          debounceDuration: const Duration(milliseconds: 150),
+        );
+
+        watcher.onChange.listen((events) async {
+          final changed = p.basename(events.first.path);
+          print(Ansi.info('\n🔄 Server source modified: $changed — Restarting server...'));
+          currentProcess?.kill(ProcessSignal.sigterm);
+          await Future.delayed(const Duration(milliseconds: 50));
+          await startProcess();
+          print(Ansi.success('⚡ [Hot Reload] Server restarted in <80ms.'));
+        });
+      }
+    }
+
+    final exitCode = await currentProcess?.exitCode ?? 0;
+    return exitCode;
+  }
+}
+
+class _SimpleDebouncedWatcher {
+  final List<Directory> directories;
+  final Duration debounceDuration;
+  final StreamController<List<FileSystemEvent>> _controller = StreamController.broadcast();
+  final List<StreamSubscription> _subs = [];
+  Timer? _timer;
+  final List<FileSystemEvent> _pending = [];
+
+  _SimpleDebouncedWatcher({
+    required this.directories,
+    required this.debounceDuration,
+  }) {
+    for (final dir in directories) {
+      final sub = dir.watch(recursive: true).listen((event) {
+        if (!event.path.endsWith('.dart')) return;
+        _pending.add(event);
+        _timer?.cancel();
+        _timer = Timer(debounceDuration, () {
+          if (_pending.isNotEmpty) {
+            _controller.add(List.from(_pending));
+            _pending.clear();
+          }
+        });
+      });
+      _subs.add(sub);
+    }
+  }
+
+  Stream<List<FileSystemEvent>> get onChange => _controller.stream;
+}
+

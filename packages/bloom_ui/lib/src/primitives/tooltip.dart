@@ -3,13 +3,43 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
-/// Informative tooltip matching shadcn base-nova inverted contrast style.
+/// An informative tooltip component with inverted contrast styling.
+///
+/// Wraps Flutter's [Tooltip] with Bloom tokens for elevation, primary foreground
+/// text coloring, rounded corners, and customizable activation delays.
+///
+/// Example:
+/// ```dart
+/// BloomTooltip(
+///   message: 'Add item to favorites',
+///   child: IconButton(
+///     icon: const Icon(Icons.favorite_border),
+///     onPressed: () {},
+///   ),
+/// );
+/// ```
 class BloomTooltip extends StatelessWidget {
+  /// Plain text message displayed inside the tooltip bubble.
   final String? message;
+
+  /// Rich custom widget content displayed inside the tooltip bubble.
   final Widget? richMessage;
+
+  /// The widget that triggers the tooltip on hover or long-press.
   final Widget child;
+
+  /// The duration to wait before displaying the tooltip on pointer hover.
+  /// Defaults to `300` milliseconds.
   final Duration waitDuration;
 
+  /// Creates a [BloomTooltip].
+  ///
+  /// Either [message] or [richMessage] must be provided.
+  ///
+  /// * [message]: Plain string tooltip text.
+  /// * [richMessage]: Custom widget tooltip content.
+  /// * [child]: The target widget wrapped by the tooltip trigger.
+  /// * [waitDuration]: Hover delay duration before opening (defaults to 300ms).
   const BloomTooltip({
     super.key,
     this.message,
@@ -59,3 +89,4 @@ class BloomTooltip extends StatelessWidget {
     );
   }
 }
+

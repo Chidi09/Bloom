@@ -3,21 +3,65 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// Selection mode for [BloomCalendar].
 enum BloomCalendarMode {
+  /// Allows selecting a single day.
   single,
+
+  /// Allows selecting a contiguous start-to-end date range.
   range,
 }
 
+/// An inline calendar primitive for month navigation and single or range date selection.
+///
+/// Styled matching shadcn base-nova with 7-column weekday grids, month pagination controls,
+/// and highlighted selection/today states.
+///
+/// ```dart
+/// // Single date selection
+/// BloomCalendar.single(
+///   selected: selectedDate,
+///   onDaySelected: (day) => setState(() => selectedDate = day),
+/// )
+///
+/// // Date range selection
+/// BloomCalendar.range(
+///   rangeStart: rangeStart,
+///   rangeEnd: rangeEnd,
+///   onRangeSelected: (range) => setState(() {
+///     rangeStart = range.$1;
+///     rangeEnd = range.$2;
+///   }),
+/// )
+/// ```
 class BloomCalendar extends StatefulWidget {
+  /// The active selection mode of the calendar.
   final BloomCalendarMode mode;
+
+  /// The currently selected date in [BloomCalendarMode.single] mode.
   final DateTime? selected;
+
+  /// The start date of the selected range in [BloomCalendarMode.range] mode.
   final DateTime? rangeStart;
+
+  /// The end date of the selected range in [BloomCalendarMode.range] mode.
   final DateTime? rangeEnd;
+
+  /// The initial month displayed when the calendar first renders.
+  ///
+  /// Defaults to the current month if omitted.
   final DateTime? initialMonth;
+
+  /// Callback invoked when a day is tapped in [BloomCalendarMode.single] mode.
   final ValueChanged<DateTime>? onDaySelected;
+
+  /// Callback invoked when a range is selected or updated in [BloomCalendarMode.range] mode.
   final ValueChanged<(DateTime?, DateTime?)>? onRangeSelected;
+
+  /// Callback invoked when the user navigates between months.
   final ValueChanged<DateTime>? onMonthChanged;
 
+  /// Creates a [BloomCalendar] in single date selection mode.
   const BloomCalendar.single({
     super.key,
     this.selected,
@@ -29,6 +73,7 @@ class BloomCalendar extends StatefulWidget {
         rangeStart = null,
         rangeEnd = null;
 
+  /// Creates a [BloomCalendar] in date range selection mode.
   const BloomCalendar.range({
     super.key,
     this.rangeStart,

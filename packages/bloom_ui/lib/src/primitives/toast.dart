@@ -3,7 +3,29 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// A lightweight floating toast notification utility.
+///
+/// Dispatches floating SnackBar-based toast messages with structured title, optional description,
+/// leading icon, and surface container styling.
+///
+/// Example:
+/// ```dart
+/// BloomToast.show(
+///   context,
+///   title: 'Changes saved',
+///   description: 'Your profile settings have been updated.',
+///   icon: Icons.check_circle_outline,
+///   duration: const Duration(seconds: 3),
+/// );
+/// ```
 class BloomToast {
+  /// Displays a floating toast notification.
+  ///
+  /// * [context]: Build context used to locate [ScaffoldMessenger].
+  /// * [title]: Primary headline message.
+  /// * [description]: Optional secondary message details.
+  /// * [icon]: Optional leading icon displayed next to the text.
+  /// * [duration]: How long the toast remains visible (defaults to 4 seconds).
   static void show(
     BuildContext context, {
     required String title,
@@ -69,3 +91,4 @@ class BloomToast {
     );
   }
 }
+

@@ -4,20 +4,57 @@ import '../theme/tokens.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
+/// Size options for [BloomSwitch].
 enum BloomSwitchSize {
-  defaultSize, // 32x18px, 16px thumb
-  sm,          // 24x14px, 12px thumb
+  /// Default switch size: 32x18px track with a 14px thumb.
+  defaultSize,
+
+  /// Compact switch size: 24x14px track with a 10.5px thumb.
+  sm,
 }
 
-/// Animated toggle switch matching shadcn base-nova dimensions.
+/// An animated toggle switch primitive matching shadcn base-nova design specifications.
+///
+/// Supports both controlled ([checked]) and uncontrolled ([defaultChecked]) modes,
+/// disabled states, optional side labels, and compact sizing.
+///
+/// ```dart
+/// BloomSwitch(
+///   checked: isNotificationsEnabled,
+///   onChanged: (value) => setState(() => isNotificationsEnabled = value),
+///   label: const Text('Enable notifications'),
+/// )
+/// ```
 class BloomSwitch extends StatefulWidget {
+  /// Whether the switch is currently checked (controlled mode).
+  ///
+  /// When non-null, the switch operates in controlled mode and reflects this state.
   final bool? checked;
+
+  /// The initial checked state when operating in uncontrolled mode.
+  ///
+  /// Defaults to `false`.
   final bool defaultChecked;
+
+  /// Callback invoked when the switch state is toggled by user interaction.
   final ValueChanged<bool>? onChanged;
+
+  /// Whether the switch is disabled and non-interactive.
+  ///
+  /// When `true`, user interactions are ignored and styling reflects disabled state.
   final bool disabled;
+
+  /// The size variant of the switch.
+  ///
+  /// Defaults to [BloomSwitchSize.defaultSize].
   final BloomSwitchSize size;
+
+  /// An optional label widget displayed alongside the switch track.
+  ///
+  /// Tapping the label also toggles the switch when not disabled.
   final Widget? label;
 
+  /// Creates a [BloomSwitch].
   const BloomSwitch({
     super.key,
     this.checked,

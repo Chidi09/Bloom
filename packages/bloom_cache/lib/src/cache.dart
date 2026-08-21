@@ -2,21 +2,24 @@
 import 'dart:async';
 import 'dart:convert';
 
-/// Server-side caching abstraction for Bloom applications.
-///
-/// Provides a unified key-value caching interface supporting in-memory LRU,
-/// database-backed, and Redis backends. Cached values must be JSON-encodable
-/// so they round-trip cleanly across in-memory and persistent backends.
-abstract class BloomCache {
-  /// Deduplication map tracking in-flight asynchronous computations to prevent
-  /// cache stampedes (thundering herd problem) under concurrent requests.
-  final Map<String, Future<dynamic>> _inFlight = {};
-
+/// Lean read-only cache interface (Interface Segregation Principle).
+abstract class BloomCacheReader {
   /// Retrieves the value associated with [key] if present and not expired.
   ///
   /// Returns `null` if the key is missing or has expired.
   Future<T?> get<T>(String key);
 
+  /// Retrieves [key] if present and unexpired; otherwise executes [compute],
+  /// caches the returned value under [key] with optional [ttl], and returns it.
+  Future<T> getOrSet<T>(
+    String key,
+    Future<T> Function() compute, {
+    Duration? ttl,
+  });
+}
+
+/// Lean write-only/mutation cache interface (Interface Segregation Principle).
+abstract class BloomCacheWriter {
   /// Stores [value] under [key] with an optional time-to-live [ttl].
   ///
   /// The [value] must be JSON-encodable (e.g. primitives, [Map], [List], or objects
@@ -28,15 +31,31 @@ abstract class BloomCache {
 
   /// Clears all entries from this cache.
   Future<void> clear();
+}
 
-  /// Retrieves [key] if present and unexpired; otherwise executes [compute],
-  /// caches the returned value under [key] with optional [ttl], and returns it.
-  ///
-  /// Concurrent callers requesting the same [key] share the in-flight computation,
-  /// guaranteeing [compute] is called at most once during concurrent misses.
-  ///
-  /// If [compute] throws an exception, the error propagates to all awaiting callers,
-  /// nothing is cached, and the in-flight state is cleared so subsequent callers may retry.
+/// Server-side caching abstraction for Bloom applications.
+///
+/// Provides a unified key-value caching interface supporting in-memory LRU,
+/// database-backed, and Redis backends. Cached values must be JSON-encodable
+/// so they round-trip cleanly across in-memory and persistent backends.
+abstract class BloomCache implements BloomCacheReader, BloomCacheWriter {
+  /// Deduplication map tracking in-flight asynchronous computations to prevent
+  /// cache stampedes (thundering herd problem) under concurrent requests.
+  final Map<String, Future<dynamic>> _inFlight = {};
+
+  @override
+  Future<T?> get<T>(String key);
+
+  @override
+  Future<void> set<T>(String key, T value, {Duration? ttl});
+
+  @override
+  Future<void> delete(String key);
+
+  @override
+  Future<void> clear();
+
+  @override
   Future<T> getOrSet<T>(
     String key,
     Future<T> Function() compute, {

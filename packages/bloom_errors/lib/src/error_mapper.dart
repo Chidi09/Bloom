@@ -1,6 +1,7 @@
 // lib/src/error_mapper.dart
 import 'http_exception.dart';
 
+/// Function signature for transforming an error of type [T] into a [BloomApiException].
 typedef ErrorMappingFunction<T> = BloomApiException Function(T error);
 
 /// Registry that translates domain, database, authentication, and validation exceptions

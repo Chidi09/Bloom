@@ -3,11 +3,53 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
-enum BloomSonnerType { normal, success, error, warning, info, loading }
+/// Semantic notification type for [BloomSonner] toasts.
+enum BloomSonnerType {
+  /// Standard neutral toast notification without an icon.
+  normal,
 
-/// An opinionated, beautiful toast component for Flutter.
-/// Mirrors shadcn/ui Sonner toaster primitive.
+  /// Success toast featuring a green checkmark icon.
+  success,
+
+  /// Error toast featuring a red error icon.
+  error,
+
+  /// Warning toast featuring an amber alert icon.
+  warning,
+
+  /// Informational toast featuring a blue info icon.
+  info,
+
+  /// Loading toast featuring an active circular progress indicator.
+  loading,
+}
+
+/// An opinionated, modern toast notification system for Flutter applications.
+///
+/// Provides convenient static helpers for standard status toasts ([success], [error],
+/// [warning], [info], [loading]) as well as rich customizable action callbacks.
+///
+/// Example:
+/// ```dart
+/// BloomSonner.success(
+///   context,
+///   'Deployment successful',
+///   description: 'Version 2.4.0 is now live.',
+///   actionLabel: 'View',
+///   onAction: () => print('Viewing deployment'),
+/// );
+/// ```
 class BloomSonner {
+  /// Displays a floating [BloomSonner] toast with fully customizable parameters.
+  ///
+  /// * [context]: The build context containing the target [ScaffoldMessenger].
+  /// * [message]: Main headline message text.
+  /// * [description]: Optional secondary description text.
+  /// * [type]: Semantic category determining the leading indicator icon (defaults to [BloomSonnerType.normal]).
+  /// * [duration]: Visibility duration before automatic dismissal (defaults to 4 seconds).
+  /// * [action]: Custom widget displayed on the right edge of the toast.
+  /// * [actionLabel]: Label text for an action button on the right edge.
+  /// * [onAction]: Tap callback triggered when [actionLabel] button is clicked.
   static void show(
     BuildContext context, {
     required String message,
@@ -124,6 +166,13 @@ class BloomSonner {
     );
   }
 
+  /// Displays a success toast with a green checkmark icon.
+  ///
+  /// * [context]: The build context.
+  /// * [message]: Main success message.
+  /// * [description]: Optional secondary explanation.
+  /// * [actionLabel]: Optional action button text.
+  /// * [onAction]: Optional callback executed on action click.
   static void success(
     BuildContext context,
     String message, {
@@ -141,6 +190,13 @@ class BloomSonner {
     );
   }
 
+  /// Displays an error toast with a red alert icon.
+  ///
+  /// * [context]: The build context.
+  /// * [message]: Main error message.
+  /// * [description]: Optional secondary error details.
+  /// * [actionLabel]: Optional retry or action button text.
+  /// * [onAction]: Optional callback executed on action click.
   static void error(
     BuildContext context,
     String message, {
@@ -158,6 +214,13 @@ class BloomSonner {
     );
   }
 
+  /// Displays a warning toast with an amber alert icon.
+  ///
+  /// * [context]: The build context.
+  /// * [message]: Main warning message.
+  /// * [description]: Optional secondary details.
+  /// * [actionLabel]: Optional action button text.
+  /// * [onAction]: Optional callback executed on action click.
   static void warning(
     BuildContext context,
     String message, {
@@ -175,6 +238,13 @@ class BloomSonner {
     );
   }
 
+  /// Displays an informational toast with a blue info icon.
+  ///
+  /// * [context]: The build context.
+  /// * [message]: Main info message.
+  /// * [description]: Optional secondary details.
+  /// * [actionLabel]: Optional action button text.
+  /// * [onAction]: Optional callback executed on action click.
   static void info(
     BuildContext context,
     String message, {
@@ -192,6 +262,11 @@ class BloomSonner {
     );
   }
 
+  /// Displays an ongoing loading toast with an active spinner indicator.
+  ///
+  /// * [context]: The build context.
+  /// * [message]: Main loading status message.
+  /// * [description]: Optional secondary details.
   static void loading(
     BuildContext context,
     String message, {
@@ -205,3 +280,4 @@ class BloomSonner {
     );
   }
 }
+

@@ -3,12 +3,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/extensions.dart';
 
+/// A multi-digit one-time passcode (OTP) input row primitive.
+///
+/// Automatically advances focus to the next field when a digit is entered, moves back on deletion,
+/// and calls [onCompleted] once all slots are populated.
+///
+/// ```dart
+/// BloomOtpInput(
+///   length: 6,
+///   onCompleted: (code) => print('OTP: $code'),
+///   onChanged: (code) => print('Typing: $code'),
+/// )
+/// ```
 class BloomOtpInput extends StatefulWidget {
+  /// The total number of digit input cells.
+  ///
+  /// Defaults to `6`.
   final int length;
+
+  /// Callback invoked when all [length] digits have been entered.
   final ValueChanged<String> onCompleted;
+
+  /// Callback invoked whenever the value of any digit slot changes.
   final ValueChanged<String>? onChanged;
+
+  /// Whether to obscure entered digits (e.g. for PIN or password codes).
+  ///
+  /// Defaults to `false`.
   final bool obscureText;
 
+  /// Creates a [BloomOtpInput].
   const BloomOtpInput({
     super.key,
     this.length = 6,
