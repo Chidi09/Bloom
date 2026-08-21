@@ -197,7 +197,7 @@ class LimitOffsetPagination extends BloomPagination {
 ///
 /// Encodes a tuple of `(pk, sortValue)` into a base64 string.
 /// Format in JSON: `{"pk": 123, "v": "2026-08-17T15:00:00Z"}`.
-String encodeCursor(int pk, dynamic sortValue) {
+String encodeCursor(dynamic pk, dynamic sortValue) {
   final payload = <String, dynamic>{
     'pk': pk,
     if (sortValue != null) 'v': sortValue.toString(),
@@ -205,9 +205,9 @@ String encodeCursor(int pk, dynamic sortValue) {
   return base64Url.encode(utf8.encode(jsonEncode(payload)));
 }
 
-/// Decodes a base64 cursor string into `(int pk, String? sortValue)`.
+/// Decodes a base64 cursor string into `(dynamic pk, String? sortValue)`.
 /// Returns `null` if the cursor is malformed.
-(int, String?)? decodeCursor(String rawCursor) {
+(dynamic, String?)? decodeCursor(String rawCursor) {
   try {
     // Add padding if missing
     var normalized = rawCursor;
@@ -218,10 +218,9 @@ String encodeCursor(int pk, dynamic sortValue) {
     final map = jsonDecode(decodedStr);
     if (map is! Map) return null;
     final pk = map['pk'];
-    final pkInt = pk is int ? pk : int.tryParse(pk.toString());
-    if (pkInt == null) return null;
+    if (pk == null) return null;
     final v = map['v']?.toString();
-    return (pkInt, v);
+    return (pk, v);
   } catch (_) {
     return null;
   }

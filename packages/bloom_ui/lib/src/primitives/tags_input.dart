@@ -3,11 +3,27 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import 'badge.dart';
 
+/// An interactive tag/chip input field allowing users to add tags by typing and pressing Enter,
+/// and remove tags by clicking close icons on badges.
+///
+/// Example:
+/// ```dart
+/// BloomTagsInput(
+///   tags: currentTags,
+///   onChanged: (newTags) => setState(() => currentTags = newTags),
+/// )
+/// ```
 class BloomTagsInput extends StatefulWidget {
+  /// The current list of tag strings.
   final List<String> tags;
+
+  /// Callback fired when tags are added or removed.
   final ValueChanged<List<String>> onChanged;
+
+  /// Placeholder text for the inner text field. Defaults to `'Add tag and press Enter...'`.
   final String placeholder;
 
+  /// Creates a [BloomTagsInput].
   const BloomTagsInput({
     super.key,
     required this.tags,

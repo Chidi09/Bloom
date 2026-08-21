@@ -405,7 +405,7 @@ mixin BloomValidationRules {
       if (item is! T) {
         fail('Item at index $i in list "$key" must be of type $T: "$item"$desc.');
       }
-      list.add(item as T);
+      list.add(item);
     }
     return list;
   }
@@ -439,7 +439,7 @@ mixin BloomValidationRules {
       if (item is! T) {
         fail('Item at index $i in list "$key" must be of type $T: "$item"$desc.');
       }
-      list.add(item as T);
+      list.add(item);
     }
     return list;
   }

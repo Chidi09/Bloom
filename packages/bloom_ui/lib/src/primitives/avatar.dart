@@ -2,20 +2,55 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// Size variants for [BloomAvatar].
 enum BloomAvatarSize {
-  defaultSize, // 32x32px (size-8)
-  sm,          // 24x24px (size-6)
-  lg,          // 40x40px (size-10)
+  /// Default avatar size: 32x32px (size-8).
+  defaultSize,
+
+  /// Small avatar size: 24x24px (size-6).
+  sm,
+
+  /// Large avatar size: 40x40px (size-10).
+  lg,
 }
 
-/// User avatar matching shadcn base-nova dimensions and fallback monogram support.
+/// A user avatar matching shadcn base-nova dimensions and fallback monogram support.
+///
+/// Displays an image provided by [image], a monogram derived from [name], or a
+/// custom [fallback] widget inside a circular surface container. Can also display
+/// an optional status [badge] positioned at the bottom-right corner.
+///
+/// ```dart
+/// BloomAvatar(
+///   name: 'John Doe',
+///   size: BloomAvatarSize.lg,
+///   badge: Container(
+///     width: 10,
+///     height: 10,
+///     decoration: const BoxDecoration(
+///       color: Colors.green,
+///       shape: BoxShape.circle,
+///     ),
+///   ),
+/// );
+/// ```
 class BloomAvatar extends StatelessWidget {
+  /// The image provider used to render the avatar graphic.
   final ImageProvider? image;
+
+  /// The user's full name, from which a 1 or 2 letter monogram is automatically generated.
   final String? name;
+
+  /// The size variant determining the avatar dimensions. Defaults to [BloomAvatarSize.defaultSize].
   final BloomAvatarSize size;
+
+  /// An optional widget positioned at the bottom-right corner of the avatar (e.g. status indicator).
   final Widget? badge;
+
+  /// A custom fallback widget rendered when [image] is null and [name] is not provided or empty.
   final Widget? fallback;
 
+  /// Creates a [BloomAvatar].
   const BloomAvatar({
     super.key,
     this.image,
@@ -92,11 +127,29 @@ class BloomAvatar extends StatelessWidget {
   }
 }
 
-/// Overlapping group of user avatars
+/// An overlapping horizontal stack of user avatars.
+///
+/// Automatically applies negative margin and borders between children
+/// to create a compact avatar cluster.
+///
+/// ```dart
+/// BloomAvatarGroup(
+///   overlap: 8,
+///   children: const [
+///     BloomAvatar(name: 'Alice Cooper'),
+///     BloomAvatar(name: 'Bob Ross'),
+///     BloomAvatar(name: 'Charlie Chaplin'),
+///   ],
+/// );
+/// ```
 class BloomAvatarGroup extends StatelessWidget {
+  /// The list of avatar widgets to display within the group.
   final List<Widget> children;
+
+  /// The amount of horizontal overlap in pixels between consecutive avatars. Defaults to 10.
   final double overlap;
 
+  /// Creates a [BloomAvatarGroup].
   const BloomAvatarGroup({
     super.key,
     required this.children,

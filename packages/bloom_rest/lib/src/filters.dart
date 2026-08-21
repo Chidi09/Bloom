@@ -79,8 +79,10 @@ BloomValue? parseTypedValue(ModelMeta meta, String fieldName, String raw) {
 ///
 /// Mirrors `djangors_rest::FieldFilter`.
 class BloomFieldFilter<T extends Model> extends BloomFilterBackend<T> {
+  /// List of field names allowed for filtering.
   final List<String> fields;
 
+  /// Creates a [BloomFieldFilter] restricting lookups to the specified allowed [fields].
   const BloomFieldFilter(this.fields);
 
   @override
@@ -150,9 +152,13 @@ class BloomFieldFilter<T extends Model> extends BloomFilterBackend<T> {
 ///
 /// Mirrors `djangors_rest::SearchFilter`.
 class BloomSearchFilter<T extends Model> extends BloomFilterBackend<T> {
+  /// List of model text field names searched by this filter.
   final List<String> searchFields;
+
+  /// Query parameter name containing the search query (defaults to `'search'`).
   final String searchParam;
 
+  /// Creates a [BloomSearchFilter] targeting [searchFields] with optional [searchParam].
   const BloomSearchFilter(
     this.searchFields, {
     this.searchParam = 'search',
@@ -188,9 +194,13 @@ class BloomSearchFilter<T extends Model> extends BloomFilterBackend<T> {
 ///
 /// Mirrors `djangors_rest::OrderingFilter`.
 class BloomOrderingFilter<T extends Model> extends BloomFilterBackend<T> {
+  /// List of field names allowed for client-requested ordering.
   final List<String> orderableFields;
+
+  /// Query parameter name containing the ordering specification (defaults to `'ordering'`).
   final String orderingParam;
 
+  /// Creates a [BloomOrderingFilter] allowing ordering over [orderableFields].
   const BloomOrderingFilter(
     this.orderableFields, {
     this.orderingParam = 'ordering',

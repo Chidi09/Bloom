@@ -3,31 +3,74 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// Visual style variants for [BloomBadge].
 enum BloomBadgeVariant {
+  /// Default solid primary colored badge.
   defaultVariant,
+
+  /// Secondary badge with muted background.
   secondary,
+
+  /// Destructive badge with soft red/warning tint.
   destructive,
+
+  /// Outlined badge with a border and transparent background.
   outline,
+
+  /// Ghost badge with no background and no border.
   ghost,
+
+  /// Underlined link badge with primary text.
   link,
+
+  /// Success badge with green tint.
   success,
 }
 
+/// Size variants for [BloomBadge].
 enum BloomBadgeSize {
-  defaultSize, // h-5 (20px)
-  sm,          // h-4 (16px)
-  lg,          // h-6 (24px)
+  /// Default badge size: height 20px (h-5).
+  defaultSize,
+
+  /// Small badge size: height 16px (h-4).
+  sm,
+
+  /// Large badge size: height 24px (h-6).
+  lg,
 }
 
-/// Status and label badge pill matching shadcn base-nova exactly.
+/// A status and label badge pill matching shadcn base-nova exactly.
+///
+/// Supports various visual styles via [variant], sizes via [size],
+/// optional [leading] and [trailing] widgets, and interactive [onTap] callbacks.
+///
+/// ```dart
+/// BloomBadge(
+///   variant: BloomBadgeVariant.success,
+///   leading: const Icon(Icons.check, size: 12),
+///   child: const Text('Active'),
+/// );
+/// ```
 class BloomBadge extends StatelessWidget {
+  /// The visual style variant of the badge. Defaults to [BloomBadgeVariant.defaultVariant].
   final BloomBadgeVariant variant;
+
+  /// The size of the badge. Defaults to [BloomBadgeSize.defaultSize].
   final BloomBadgeSize size;
+
+  /// An optional leading widget, typically an icon or small dot.
   final Widget? leading;
+
+  /// An optional trailing widget, typically an icon or close action.
   final Widget? trailing;
+
+  /// An optional callback when the badge is tapped.
   final VoidCallback? onTap;
+
+  /// The content displayed inside the badge.
   final Widget child;
 
+  /// Creates a [BloomBadge].
   const BloomBadge({
     super.key,
     this.variant = BloomBadgeVariant.defaultVariant,
@@ -179,14 +222,34 @@ class BloomBadge extends StatelessWidget {
   }
 }
 
-/// Removable tag/chip component
+/// A removable tag or chip component based on [BloomBadge].
+///
+/// Features an optional leading [avatar] and an optional [onDeleted] handler
+/// which displays a close icon on the trailing side.
+///
+/// ```dart
+/// BloomChip(
+///   label: const Text('Design System'),
+///   onDeleted: () => print('deleted'),
+/// );
+/// ```
 class BloomChip extends StatelessWidget {
+  /// The primary label widget displayed in the chip.
   final Widget label;
+
+  /// An optional leading avatar or icon widget.
   final Widget? avatar;
+
+  /// An optional callback when the close icon is tapped. If non-null, renders a close icon button.
   final VoidCallback? onDeleted;
+
+  /// An optional callback when the chip is tapped.
   final VoidCallback? onTap;
+
+  /// The badge variant determining the styling of the chip. Defaults to [BloomBadgeVariant.secondary].
   final BloomBadgeVariant variant;
 
+  /// Creates a [BloomChip].
   const BloomChip({
     super.key,
     required this.label,

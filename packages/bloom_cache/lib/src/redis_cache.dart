@@ -12,11 +12,22 @@ import 'cache.dart';
 /// - Optional key prefix namespacing to isolate cache spaces within a single Redis instance.
 /// - Lazy connection initialization and lifecycle management.
 class RedisCache extends BloomCache {
+  /// The Redis server hostname.
   final String host;
+
+  /// The Redis server port.
   final int port;
+
+  /// Optional password used to authenticate against Redis.
   final String? password;
+
+  /// Optional database index to select after connecting.
   final int? db;
+
+  /// Whether to connect using TLS/SSL (`rediss://`).
   final bool secure;
+
+  /// Optional key prefix prepended to all cache keys.
   final String prefix;
 
   RedisConnection? _connection;

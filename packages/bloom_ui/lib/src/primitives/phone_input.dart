@@ -3,12 +3,29 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import 'input.dart';
 
+/// A specialized phone number text field with a country dialing prefix and formatting hints.
+///
+/// Example:
+/// ```dart
+/// BloomPhoneInput(
+///   countryCode: '+1',
+///   onChanged: (phone) => print(phone),
+/// )
+/// ```
 class BloomPhoneInput extends StatelessWidget {
+  /// Optional text editing controller.
   final TextEditingController? controller;
+
+  /// Initial phone number string when uncontrolled.
   final String? initialValue;
+
+  /// Callback fired when the phone number input changes.
   final ValueChanged<String>? onChanged;
+
+  /// Dialing code prefix displayed beside the input. Defaults to `'+1'`.
   final String countryCode;
 
+  /// Creates a [BloomPhoneInput].
   const BloomPhoneInput({
     super.key,
     this.controller,

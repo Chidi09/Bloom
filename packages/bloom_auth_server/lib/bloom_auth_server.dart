@@ -21,7 +21,7 @@
 /// final claims = verifySessionToken(token);
 /// print(claims.userId); // 'usr_123'
 /// ```
-library bloom_auth_server;
+library;
 
 export 'src/password.dart';
 export 'src/session_token.dart';

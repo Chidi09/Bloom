@@ -2,38 +2,106 @@
 import 'package:flutter/material.dart';
 import 'tokens.dart';
 
-/// Semantic Bloom Color Palette.
+/// Semantic color palette for Bloom UI components.
+///
+/// Defines contrast-compliant colors for primary actions, secondary elements,
+/// subtle surfaces, feedback indicators, borders, focus rings, and chart series.
+///
+/// ## Usage
+/// ```dart
+/// final scheme = BloomColorScheme.light;
+/// final primaryColor = scheme.primary;
+/// final textCol = scheme.textPrimary;
+/// ```
 class BloomColorScheme {
+  /// Whether this color scheme is intended for light or dark presentation mode.
   final Brightness brightness;
+
+  /// Primary fill color used for high-emphasis buttons, active states, and focus elements.
   final Color primary;
+
+  /// Text or icon foreground color placed on top of [primary].
   final Color primaryForeground;
+
+  /// Secondary fill color used for lower-emphasis cards, badges, and background chips.
   final Color secondary;
+
+  /// Text or icon foreground color placed on top of [secondary].
   final Color secondaryForeground;
+
+  /// Muted background color for subtle highlights and disabled controls.
   final Color muted;
+
+  /// Muted foreground color for captions, secondary descriptions, and hints.
   final Color mutedForeground;
+
+  /// Accent background color used for hover and active selection states.
   final Color accent;
+
+  /// Accent foreground color placed on top of [accent].
   final Color accentForeground;
+
+  /// Destructive color used for error states, delete actions, and danger alerts.
   final Color destructive;
+
+  /// High-contrast foreground color placed on top of [destructive].
   final Color destructiveForeground;
+
+  /// Deepest canvas/background surface level 0.
   final Color surface0;
+
+  /// Elevated card, modal, or sheet surface level 1.
   final Color surface1;
+
+  /// High-elevation dropdown, popover, or floating surface level 2.
   final Color surface2;
+
+  /// Default border color used across inputs, cards, separators, and containers.
   final Color border;
+
+  /// Specific border color applied to outline buttons and input groups.
   final Color buttonBorder;
+
+  /// Visual focus ring outline color for keyboard navigation and active input states.
   final Color ring;
+
+  /// Primary high-contrast body text color.
   final Color textPrimary;
+
+  /// Secondary muted text color for labels, subheadings, and subtitles.
   final Color textSecondary;
+
+  /// Tertiary subtle text color for placeholder hints, icons, and timestamps.
   final Color textTertiary;
+
+  /// Semantic color for success statuses, confirmations, and completed tasks.
   final Color success;
+
+  /// Semantic color for warnings, pending badges, and cautionary notices.
   final Color warning;
+
+  /// Semantic color for error statuses, validation failures, and destructive states.
   final Color error;
+
+  /// Semantic color for informational banners, tooltips, and guides.
   final Color info;
+
+  /// Primary palette color 1 for charts and data visualizations.
   final Color chart1;
+
+  /// Palette color 2 for charts and data visualizations.
   final Color chart2;
+
+  /// Palette color 3 for charts and data visualizations.
   final Color chart3;
+
+  /// Palette color 4 for charts and data visualizations.
   final Color chart4;
+
+  /// Palette color 5 for charts and data visualizations.
   final Color chart5;
 
+  /// Creates a [BloomColorScheme] specifying every semantic color role.
   const BloomColorScheme({
     required this.brightness,
     required this.primary,
@@ -66,8 +134,7 @@ class BloomColorScheme {
     this.chart5 = const Color(0xFFFE9A00),
   });
 
-  /// Default theme matching shadcn/ui (base-nova) neutral palette exactly.
-  /// Converted from shipped oklch values via exact oklch→sRGB conversion.
+  /// Default light scheme matching modern neutral palette with high-contrast monochrome tones.
   static const BloomColorScheme light = BloomColorScheme(
     brightness: Brightness.light,
     primary: Color(0xFF171717),
@@ -96,6 +163,7 @@ class BloomColorScheme {
     chart5: Color(0xFFFE9A00),
   );
 
+  /// Default dark scheme matching modern dark neutral palette with deep slate tones.
   static const BloomColorScheme dark = BloomColorScheme(
     brightness: Brightness.dark,
     primary: Color(0xFFE5E5E5),
@@ -128,7 +196,7 @@ class BloomColorScheme {
     chart5: Color(0xFFFF2056),
   );
 
-  /// Alternate opt-in theme preserving the original Bloom petal-brand palette.
+  /// Alternate opt-in light scheme preserving the original Bloom petal purple brand palette.
   static const BloomColorScheme petalLight = BloomColorScheme(
     brightness: Brightness.light,
     primary: BloomColors.petalPurple,
@@ -157,6 +225,7 @@ class BloomColorScheme {
     chart5: BloomColors.petalPurple,
   );
 
+  /// Alternate opt-in dark scheme preserving the original Bloom petal purple brand palette.
   static const BloomColorScheme petalDark = BloomColorScheme(
     brightness: Brightness.dark,
     primary: BloomColors.petalPurple,
@@ -185,6 +254,7 @@ class BloomColorScheme {
     chart5: BloomColors.petalPurple,
   );
 
+  /// Returns a new copy of this [BloomColorScheme] with specified properties replaced.
   BloomColorScheme copyWith({
     Brightness? brightness,
     Color? primary,
@@ -249,6 +319,7 @@ class BloomColorScheme {
     );
   }
 
+  /// Linearly interpolates between two [BloomColorScheme] instances by progress [t].
   static BloomColorScheme lerp(BloomColorScheme a, BloomColorScheme b, double t) {
     Color l(Color x, Color y) => Color.lerp(x, y, t)!;
     return BloomColorScheme(

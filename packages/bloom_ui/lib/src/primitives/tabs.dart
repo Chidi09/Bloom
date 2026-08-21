@@ -4,14 +4,35 @@ import '../theme/tokens.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
-enum BloomTabsVariant { defaultVariant, line }
+/// Visual style variant for [BloomTabs].
+enum BloomTabsVariant {
+  /// Segmented pill-style tab list container with an elevated active tab indicator.
+  defaultVariant,
 
+  /// Underlined tab list where the active tab has a colored bottom border highlight.
+  line,
+}
+
+/// Represents an individual tab item within a [BloomTabs] container.
+///
+/// Holds the identifier [value], the header [label], the [content] widget
+/// to render when active, and an optional leading [icon].
 class BloomTabItem<T> {
+  /// The unique value identifying this tab.
   final T value;
+
+  /// The widget displayed in the tab trigger bar (typically a [Text] widget).
   final Widget label;
+
+  /// The widget content rendered in the tab view body when this tab is selected.
   final Widget content;
+
+  /// An optional leading icon displayed beside the [label] in the tab trigger bar.
   final Widget? icon;
 
+  /// Creates a [BloomTabItem] configuration.
+  ///
+  /// The [value], [label], and [content] parameters are required.
   const BloomTabItem({
     required this.value,
     required this.label,
@@ -20,15 +41,61 @@ class BloomTabItem<T> {
   });
 }
 
-/// Tab navigation container matching shadcn base-nova.
+/// A versatile tabbed navigation container matching shadcn base-nova aesthetics.
+///
+/// Renders a list of tab triggers at the top and switches the active content view
+/// below based on the currently selected tab.
+///
+/// Supports both controlled (via [value] and [onChanged]) and uncontrolled
+/// (via [defaultValue]) modes of operation.
+///
+/// ```dart
+/// BloomTabs<String>(
+///   defaultValue: 'account',
+///   items: [
+///     BloomTabItem(
+///       value: 'account',
+///       label: Text('Account'),
+///       icon: Icon(Icons.person),
+///       content: Text('Account Settings'),
+///     ),
+///     BloomTabItem(
+///       value: 'password',
+///       label: Text('Password'),
+///       icon: Icon(Icons.lock),
+///       content: Text('Password Settings'),
+///     ),
+///   ],
+/// )
+/// ```
 class BloomTabs<T> extends StatefulWidget {
+  /// The list of tab items containing their identifier, label, and body content.
   final List<BloomTabItem<T>> items;
+
+  /// The currently active tab value when used as a controlled component.
+  ///
+  /// When provided, updates to the selected tab must be driven externally through [onChanged].
   final T? value;
+
+  /// The initial tab value selected on first render when uncontrolled.
   final T defaultValue;
+
+  /// Callback invoked when the user selects a different tab.
   final ValueChanged<T>? onChanged;
+
+  /// The visual style of the tab trigger header.
+  ///
+  /// Defaults to [BloomTabsVariant.defaultVariant].
   final BloomTabsVariant variant;
+
+  /// Layout axis for tab arrangement.
+  ///
+  /// Defaults to [Axis.horizontal].
   final Axis orientation;
 
+  /// Creates a [BloomTabs] component.
+  ///
+  /// Requires [items] and [defaultValue].
   const BloomTabs({
     super.key,
     required this.items,

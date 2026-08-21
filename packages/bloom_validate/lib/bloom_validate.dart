@@ -40,7 +40,7 @@
 ///   }
 /// }
 /// ```
-library bloom_validate;
+library;
 
 export 'src/errors.dart';
 export 'src/rules.dart';

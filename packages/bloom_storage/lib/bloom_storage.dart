@@ -28,7 +28,7 @@
 ///   print('Uploaded file URL: $resultUrl');
 /// }
 /// ```
-library bloom_storage;
+library;
 
 export 'src/exceptions.dart';
 export 'src/local_disk_backend.dart';

@@ -3,16 +3,55 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import 'dropdown_menu.dart';
 
+/// A top-level menu entry for [BloomMenubar], containing a list of dropdown items.
 class BloomMenubarMenu {
+  /// The title label of the menu displayed in the menubar strip.
   final String title;
+
+  /// The dropdown menu items revealed when this menu entry is activated.
   final List<BloomDropdownMenuItem> items;
+
+  /// Creates a [BloomMenubarMenu].
+  ///
+  /// * [title]: Label string for the menu header (e.g. 'File', 'Edit', 'View').
+  /// * [items]: List of dropdown items for this menu category.
   const BloomMenubarMenu({required this.title, required this.items});
 }
 
-/// Desktop top application menubar matching shadcn base-nova.
+/// A desktop application menubar bar component.
+///
+/// Arranges top-level [menus] horizontally in a compact toolbar container with
+/// surface tokens, borders, and rounded corners. Clicking any menu header opens its
+/// dropdown menu of actions.
+///
+/// Example:
+/// ```dart
+/// BloomMenubar(
+///   menus: [
+///     BloomMenubarMenu(
+///       title: 'File',
+///       items: [
+///         BloomDropdownMenuItem(label: 'New Tab', shortcut: Text('Ctrl+T')),
+///         BloomDropdownMenuItem(label: 'Close Window', shortcut: Text('Ctrl+W')),
+///       ],
+///     ),
+///     BloomMenubarMenu(
+///       title: 'Edit',
+///       items: [
+///         BloomDropdownMenuItem(label: 'Undo', shortcut: Text('Ctrl+Z')),
+///         BloomDropdownMenuItem(label: 'Redo', shortcut: Text('Ctrl+Y')),
+///       ],
+///     ),
+///   ],
+/// );
+/// ```
 class BloomMenubar extends StatelessWidget {
+  /// The collection of menu items displayed in this menubar.
   final List<BloomMenubarMenu> menus;
 
+  /// Creates a [BloomMenubar].
+  ///
+  /// * [menus]: The list of top-level menus to render in the horizontal bar.
   const BloomMenubar({super.key, required this.menus});
 
   @override
@@ -51,3 +90,4 @@ class BloomMenubar extends StatelessWidget {
     );
   }
 }
+

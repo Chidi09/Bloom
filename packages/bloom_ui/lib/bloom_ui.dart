@@ -1,4 +1,39 @@
-// lib/bloom_ui.dart
+/// A comprehensive, high-fidelity Flutter design system inspired by modern UI primitives.
+///
+/// Bloom UI provides a complete set of accessible, themeable, and responsive UI components
+/// configured according to the 8 official design styles (Nova, Vega, Maia, Lyra, Mira,
+/// Luma, Sera, Rhea) and customizable semantic color palettes.
+///
+/// Key features:
+/// * **Design Tokens**: Standardized scales for spacing, border radii, shadows, motion curves, and typography.
+/// * **Dynamic Theming**: Integrated [BloomTheme] and [BloomColorScheme] extensions.
+/// * **Comprehensive Primitives**: Buttons, inputs, forms, overlays, navigation, and data display components.
+/// * **Zero Magic**: Pure Flutter implementations with fine-grained customization.
+///
+/// ## Usage
+/// ```dart
+/// import 'package:bloom_ui/bloom_ui.dart';
+/// import 'package:flutter/material.dart';
+///
+/// void main() {
+///   runApp(
+///     MaterialApp(
+///       theme: ThemeData(
+///         extensions: [BloomTheme.novaLight],
+///       ),
+///       home: const Scaffold(
+///         body: Center(
+///           child: BloomButton(
+///             onPressed: null,
+///             child: Text('Click me'),
+///           ),
+///         ),
+///       ),
+///     ),
+///   );
+/// }
+/// ```
+library bloom_ui;
 
 // Theme & Tokens
 export 'src/theme/tokens.dart';
