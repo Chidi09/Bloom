@@ -4,11 +4,20 @@ import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 import 'input.dart';
 
+/// An item entry for [BloomCombobox].
+///
+/// Contains the underlying [value], the searchable [label], and an optional leading [icon].
 class BloomComboboxItem<T> {
+  /// The value associated with this item.
   final T value;
+
+  /// The searchable and display text label for this item.
   final String label;
+
+  /// An optional leading icon widget displayed beside the label.
   final Widget? icon;
 
+  /// Creates a [BloomComboboxItem].
   const BloomComboboxItem({
     required this.value,
     required this.label,
@@ -16,16 +25,52 @@ class BloomComboboxItem<T> {
   });
 }
 
+/// A searchable combobox (autocomplete dropdown) primitive with floating overlay menu.
+///
+/// Opens a dropdown popup containing a search filter input and filtered list of selectable items.
+///
+/// ```dart
+/// BloomCombobox<String>(
+///   value: selectedFramework,
+///   items: const [
+///     BloomComboboxItem(value: 'flutter', label: 'Flutter'),
+///     BloomComboboxItem(value: 'react', label: 'React'),
+///     BloomComboboxItem(value: 'vue', label: 'Vue'),
+///   ],
+///   searchPlaceholder: 'Search frameworks...',
+///   onChanged: (val) => setState(() => selectedFramework = val),
+/// )
+/// ```
 class BloomCombobox<T extends Object> extends StatefulWidget {
+  /// The currently selected value matching an item in [items].
   final T? value;
+
+  /// The list of items available for filtering and selection.
   final List<BloomComboboxItem<T>> items;
+
+  /// Callback invoked when an item is selected from the menu.
   final ValueChanged<T?>? onChanged;
+
+  /// Optional hint text displayed when no item is selected.
   final String? hintText;
+
+  /// Optional label text.
   final String? labelText;
+
+  /// Placeholder text displayed inside the search filter field.
+  ///
+  /// Defaults to `'Search...'`.
   final String searchPlaceholder;
+
+  /// Whether the combobox is disabled and non-interactive.
   final bool disabled;
+
+  /// The maximum height of the floating dropdown menu popup.
+  ///
+  /// Defaults to `280.0`.
   final double menuMaxHeight;
 
+  /// Creates a [BloomCombobox].
   const BloomCombobox({
     super.key,
     this.value,

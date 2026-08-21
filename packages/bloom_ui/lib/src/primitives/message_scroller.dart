@@ -3,13 +3,38 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
+/// An auto-scrolling container optimized for chat and conversation threads.
+///
+/// Features automated stick-to-bottom behavior when new messages arrive, a smooth scroll button
+/// to jump back to latest messages, and reverse scrolling support.
+///
+/// Example:
+/// ```dart
+/// BloomMessageScroller(
+///   items: [
+///     BloomMessage(content: Text('Hello')),
+///     BloomMessage(content: Text('Hi there!')),
+///   ],
+///   enableAutoScroll: true,
+/// )
+/// ```
 class BloomMessageScroller extends StatefulWidget {
+  /// The list of message or item widgets to display.
   final List<Widget> items;
+
+  /// Whether to automatically scroll to the bottom/newest message when items are added. Defaults to true.
   final bool enableAutoScroll;
+
+  /// Whether the scroll view is reversed (newest items at top). Defaults to false.
   final bool reverse;
+
+  /// Distance threshold in pixels near the edge where auto-scroll remains active. Defaults to 50.
   final double scrollThresholdPx;
+
+  /// Optional padding around the scrollable content. Defaults to 16.
   final EdgeInsetsGeometry? padding;
 
+  /// Creates a [BloomMessageScroller].
   const BloomMessageScroller({
     super.key,
     required this.items,
@@ -142,10 +167,15 @@ class _BloomMessageScrollerState extends State<BloomMessageScroller> {
   }
 }
 
+/// The inner content column managing item layout and ordering for [BloomMessageScroller].
 class BloomMessageScrollerContent extends StatelessWidget {
+  /// Whether the display order is reversed.
   final bool reverse;
+
+  /// The list of item widgets.
   final List<Widget> items;
 
+  /// Creates a [BloomMessageScrollerContent].
   const BloomMessageScrollerContent({
     super.key,
     required this.reverse,
@@ -169,10 +199,15 @@ class BloomMessageScrollerContent extends StatelessWidget {
   }
 }
 
+/// A wrapper item in [BloomMessageScroller] with standardized spacing.
 class BloomMessageScrollerItem extends StatelessWidget {
+  /// The child message widget.
   final Widget child;
+
+  /// Whether this is the final item in the list (removes bottom spacing). Defaults to false.
   final bool isLast;
 
+  /// Creates a [BloomMessageScrollerItem].
   const BloomMessageScrollerItem({
     super.key,
     required this.child,
@@ -188,10 +223,15 @@ class BloomMessageScrollerItem extends StatelessWidget {
   }
 }
 
+/// Floating action button that scrolls the [BloomMessageScroller] back to the latest message.
 class BloomMessageScrollerButton extends StatelessWidget {
+  /// Callback fired when the scroll button is pressed.
   final VoidCallback onPressed;
+
+  /// Whether the scroll view is reversed, determining arrow icon direction. Defaults to false.
   final bool isReverse;
 
+  /// Creates a [BloomMessageScrollerButton].
   const BloomMessageScrollerButton({
     super.key,
     required this.onPressed,

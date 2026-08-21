@@ -1,66 +1,74 @@
-# `bloom generate`
+# `bloom generate` CLI Reference Manual
 
-Scaffolds strongly-typed architecture components, filesystem routes, state controllers, domain models, services, and routing tables according to Bloom design conventions.
-
----
-
-## 💻 Synopsis
-
-```bash
-bloom generate <type> <name> [options]
-```
-
-### Supported Generator Types
-
-| Subcommand | Alias | Target Output Directory | Description |
-| :--- | :--- | :--- | :--- |
-| `route` | `page` | `lib/routes/<name>.dart` | Creates a new filesystem route and updates `lib/app/routes.g.dart`. |
-| `controller` | `ctrl` | `lib/features/<name>/<name>_controller.dart` | Creates a reactive `BloomController` with signals and lifecycle hooks. |
-| `model` | `m` | `lib/models/<name>.dart` | Creates an immutable data class with `fromJson` and `toJson` methods. |
-| `service` | `s` | `lib/services/<name>_service.dart` | Creates a business logic service injecting `BloomHttpClient`. |
-| `router` | `r` | `lib/app/routes.g.dart` | Explicitly scans `lib/routes/` and regenerates the `GoRouter` table. |
+Generates type-safe boilerplate components (routes, state controllers, domain models, services, repositories) and keeps filesystem routing tables (`routes.g.dart`) synchronized.
 
 ---
 
-## 🚀 Examples & Naming Rules
+## 1. Synopsis
 
-### 1. Generating a Route
 ```bash
-bloom generate route dashboard
+bloom generate <subcommand> [name] [options]
 ```
-* **Creates:** `lib/routes/dashboard.dart` (`class DashboardRoute extends StatelessWidget`)
-* **URL Match:** `/dashboard`
 
-### 2. Generating a Dynamic Route with Path Parameter
-```bash
-bloom generate route users/[id]
-```
-* **Creates:** `lib/routes/users/[id].dart` (`class UsersIdRoute extends StatelessWidget`)
-* **URL Match:** `/users/:id` (access parameter via `GoRouterState.of(context).pathParameters['id']`)
-
-### 3. Generating a Controller
-```bash
-bloom generate controller auth
-```
-* **Creates:** `lib/features/auth/auth_controller.dart` (`class AuthController extends BloomController`)
-
-### 4. Generating a Model
-```bash
-bloom generate model Product
-```
-* **Creates:** `lib/models/product.dart` (`class Product { ... }`)
-
-### 5. Generating a Service
-```bash
-bloom generate service Product
-```
-* **Creates:** `lib/services/product_service.dart` (`class ProductService extends BloomRepository`)
+### Supported Subcommands
+* `bloom generate route <path>`: Generates a new file-based route widget and updates `routes.g.dart`.
+* `bloom generate controller <name>`: Generates a `BloomController` with reactive signals and lifecycle hooks.
+* `bloom generate model <name>`: Generates an immutable, typed domain model with `fromJson` and `toJson`.
+* `bloom generate service <name>`: Generates an injectable service registered in `BloomContainer`.
+* `bloom generate router`: Rescans `lib/routes/` and re-generates `lib/app/routes.g.dart`.
 
 ---
 
-## 🚪 Exit Codes
+## 2. Examples
 
-| Code | Meaning |
-| :---: | :--- |
-| **`0`** | Generator completed successfully and files written. |
-| **`1`** | Failure: unknown generator type, missing component name, or invalid path. |
+### Generating a Dynamic Route
+```bash
+bloom generate route "tasks/[id]"
+```
+Generates `lib/routes/tasks/[id].dart`:
+```dart
+import 'package:bloom_framework/bloom_framework.dart';
+import 'package:flutter/material.dart';
+
+class TaskDetailRoute extends StatelessWidget {
+  final String id;
+  const TaskDetailRoute({super.key, required this.id});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Task $id')),
+      body: Center(child: Text('Details for task $id')),
+    );
+  }
+}
+```
+
+### Generating a Reactive Controller
+```bash
+bloom generate controller Task
+```
+Generates `lib/controllers/task_controller.dart`:
+```dart
+import 'package:bloom_framework/bloom_framework.dart';
+
+class TaskController extends BloomController {
+  final tasks = signal<List<Task>>([]);
+  final isLoading = signal(false);
+
+  @override
+  void onInit() {
+    super.onInit();
+    fetchTasks();
+  }
+
+  Future<void> fetchTasks() async {
+    isLoading.value = true;
+    try {
+      // Fetch logic
+    } finally {
+      isLoading.value = false;
+    }
+  }
+}
+```

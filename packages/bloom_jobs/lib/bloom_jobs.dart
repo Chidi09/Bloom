@@ -22,7 +22,7 @@
 /// final worker = BloomJobWorker(queue: queue, registry: registry);
 /// await worker.runOnce();
 /// ```
-library bloom_jobs;
+library;
 
 export 'src/task.dart';
 export 'src/registry.dart';

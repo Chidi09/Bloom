@@ -2,15 +2,49 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
-/// Styled range slider matching shadcn base-nova 4px track and white ring thumb.
+/// A styled range slider matching shadcn base-nova design specifications with a 4px track and custom thumb ring.
+///
+/// Wraps Flutter's [Slider] with themed styling tokens, rounded track shapes, and circular thumb shadow.
+///
+/// ```dart
+/// BloomSlider(
+///   value: volume,
+///   min: 0.0,
+///   max: 100.0,
+///   divisions: 10,
+///   onChanged: (val) => setState(() => volume = val),
+/// )
+/// ```
 class BloomSlider extends StatelessWidget {
+  /// The current value of the slider, clamped between [min] and [max].
   final double value;
+
+  /// Callback invoked when the user drags the slider thumb to a new value.
+  ///
+  /// If `null` or if [disabled] is `true`, the slider will be non-interactive.
   final ValueChanged<double>? onChanged;
+
+  /// The minimum selectable value on the track.
+  ///
+  /// Defaults to `0.0`.
   final double min;
+
+  /// The maximum selectable value on the track.
+  ///
+  /// Defaults to `1.0`.
   final double max;
+
+  /// The number of discrete subdivisions along the track.
+  ///
+  /// If `null`, the slider changes continuously.
   final int? divisions;
+
+  /// Whether the slider is disabled and non-interactive.
+  ///
+  /// When `true`, user interactions are disabled.
   final bool disabled;
 
+  /// Creates a [BloomSlider].
   const BloomSlider({
     super.key,
     required this.value,

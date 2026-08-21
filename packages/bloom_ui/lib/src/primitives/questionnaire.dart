@@ -6,20 +6,63 @@ import '../utils/extensions.dart';
 import 'button.dart';
 import 'input.dart';
 
+/// A multi-step questionnaire or survey wizard component with navigation controls and progress indicators.
+///
+/// Example:
+/// ```dart
+/// BloomQuestionnaire(
+///   items: [
+///     BloomQuestionnaireItem(
+///       child: Column(
+///         children: [
+///           BloomQuestionnaireTitle(Text('Step 1')),
+///           BloomQuestionnaireDescription(Text('Select an option below:')),
+///           BloomQuestionnaireChoices(children: [...]),
+///         ],
+///       ),
+///     ),
+///   ],
+///   onFinish: () => print('Survey finished'),
+/// )
+/// ```
 class BloomQuestionnaire extends StatefulWidget {
+  /// The list of step widgets to display one at a time.
   final List<Widget> items;
+
+  /// The initial step index when uncontrolled. Defaults to 0.
   final double? initialIndex;
+
+  /// The current controlled step index.
   final double? currentIndex;
+
+  /// Callback fired when the step index changes.
   final ValueChanged<int>? onIndexChanged;
+
+  /// Whether to display the default progress indicator. Defaults to true.
   final bool showProgress;
+
+  /// Optional custom builder for the progress indicator widget.
   final Widget Function(BuildContext, int)? progressBuilder;
+
+  /// Callback fired when the user completes the final step.
   final VoidCallback? onFinish;
+
+  /// Custom label widget for the Previous button.
   final Widget? previousLabel;
+
+  /// Custom label widget for the Next button.
   final Widget? nextLabel;
+
+  /// Custom label widget for the Skip button.
   final Widget? skipLabel;
+
+  /// Custom label widget for the Submit/Finish button on the last step.
   final Widget? submitLabel;
+
+  /// Whether to show the Skip button on non-final steps. Defaults to false.
   final bool showSkip;
 
+  /// Creates a [BloomQuestionnaire].
   const BloomQuestionnaire({
     super.key,
     required this.items,
@@ -124,10 +167,15 @@ class _BloomQuestionnaireState extends State<BloomQuestionnaire> {
   }
 }
 
+/// Step progress indicator text displaying current step out of total.
 class BloomQuestionnaireProgress extends StatelessWidget {
+  /// The zero-based current step index.
   final int current;
+
+  /// The total count of steps in the questionnaire.
   final int total;
 
+  /// Creates a [BloomQuestionnaireProgress].
   const BloomQuestionnaireProgress({
     super.key,
     required this.current,
@@ -151,9 +199,12 @@ class BloomQuestionnaireProgress extends StatelessWidget {
   }
 }
 
+/// A wrapper item for a single step in a [BloomQuestionnaire].
 class BloomQuestionnaireItem extends StatelessWidget {
+  /// The content of this questionnaire step.
   final Widget child;
 
+  /// Creates a [BloomQuestionnaireItem].
   const BloomQuestionnaireItem({
     super.key,
     required this.child,
@@ -165,9 +216,12 @@ class BloomQuestionnaireItem extends StatelessWidget {
   }
 }
 
+/// A title widget for a questionnaire step.
 class BloomQuestionnaireTitle extends StatelessWidget {
+  /// The title text or widget.
   final Widget child;
 
+  /// Creates a [BloomQuestionnaireTitle].
   const BloomQuestionnaireTitle({
     super.key,
     required this.child,
@@ -193,9 +247,12 @@ class BloomQuestionnaireTitle extends StatelessWidget {
   }
 }
 
+/// A description widget for a questionnaire step.
 class BloomQuestionnaireDescription extends StatelessWidget {
+  /// The description text or widget.
   final Widget child;
 
+  /// Creates a [BloomQuestionnaireDescription].
   const BloomQuestionnaireDescription({
     super.key,
     required this.child,
@@ -220,9 +277,12 @@ class BloomQuestionnaireDescription extends StatelessWidget {
   }
 }
 
+/// A vertical list container for [BloomQuestionnaireChoice] items.
 class BloomQuestionnaireChoices extends StatelessWidget {
+  /// The choice option widgets.
   final List<Widget> children;
 
+  /// Creates a [BloomQuestionnaireChoices].
   const BloomQuestionnaireChoices({
     super.key,
     required this.children,
@@ -240,13 +300,24 @@ class BloomQuestionnaireChoices extends StatelessWidget {
   }
 }
 
+/// A selectable option card in a questionnaire choice list.
 class BloomQuestionnaireChoice extends StatelessWidget {
+  /// The label or main widget for this choice.
   final Widget child;
+
+  /// Whether this choice is currently selected. Defaults to false.
   final bool selected;
+
+  /// Whether this choice is disabled. Defaults to false.
   final bool disabled;
+
+  /// Callback when this choice is tapped.
   final VoidCallback? onTap;
+
+  /// Optional leading indicator widget (e.g. radio icon or badge).
   final Widget? indicator;
 
+  /// Creates a [BloomQuestionnaireChoice].
   const BloomQuestionnaireChoice({
     super.key,
     required this.child,
@@ -301,9 +372,12 @@ class BloomQuestionnaireChoice extends StatelessWidget {
   }
 }
 
+/// Subtitle or helper description text within a [BloomQuestionnaireChoice].
 class BloomQuestionnaireChoiceDescription extends StatelessWidget {
+  /// The description text or widget.
   final Widget child;
 
+  /// Creates a [BloomQuestionnaireChoiceDescription].
   const BloomQuestionnaireChoiceDescription({
     super.key,
     required this.child,
@@ -328,12 +402,21 @@ class BloomQuestionnaireChoiceDescription extends StatelessWidget {
   }
 }
 
+/// A text input field tailored for questionnaire steps.
 class BloomQuestionnaireInput extends StatelessWidget {
+  /// Optional text editing controller.
   final TextEditingController? controller;
+
+  /// Initial text value when uncontrolled.
   final String? initialValue;
+
+  /// Hint text shown when input is empty.
   final String? hintText;
+
+  /// Callback fired when text changes.
   final ValueChanged<String>? onChanged;
 
+  /// Creates a [BloomQuestionnaireInput].
   const BloomQuestionnaireInput({
     super.key,
     this.controller,
@@ -356,9 +439,12 @@ class BloomQuestionnaireInput extends StatelessWidget {
   }
 }
 
+/// An error message text component for questionnaire validation.
 class BloomQuestionnaireError extends StatelessWidget {
+  /// The error text or widget.
   final Widget child;
 
+  /// Creates a [BloomQuestionnaireError].
   const BloomQuestionnaireError({
     super.key,
     required this.child,
@@ -383,16 +469,33 @@ class BloomQuestionnaireError extends StatelessWidget {
   }
 }
 
+/// Action button bar rendered at the bottom of a [BloomQuestionnaire].
 class BloomQuestionnaireActions extends StatelessWidget {
+  /// Callback for the Previous button action, or null to disable/hide.
   final VoidCallback? onPrevious;
+
+  /// Callback for the Next or Submit button action.
   final VoidCallback? onNext;
+
+  /// Callback for the Skip button action, or null to hide.
   final VoidCallback? onSkip;
+
+  /// Whether the questionnaire is currently at the final step.
   final bool isLastStep;
+
+  /// Custom label widget for Previous button.
   final Widget? previousLabel;
+
+  /// Custom label widget for Next button.
   final Widget? nextLabel;
+
+  /// Custom label widget for Skip button.
   final Widget? skipLabel;
+
+  /// Custom label widget for Submit button on last step.
   final Widget? submitLabel;
 
+  /// Creates a [BloomQuestionnaireActions] bar.
   const BloomQuestionnaireActions({
     super.key,
     this.onPrevious,
@@ -432,10 +535,15 @@ class BloomQuestionnaireActions extends StatelessWidget {
   }
 }
 
+/// Navigation button to return to the previous step in a questionnaire.
 class BloomQuestionnairePrevious extends StatelessWidget {
+  /// Callback fired on press.
   final VoidCallback onPressed;
+
+  /// Custom label widget. Defaults to `Text('Previous')`.
   final Widget? label;
 
+  /// Creates a [BloomQuestionnairePrevious] button.
   const BloomQuestionnairePrevious({
     super.key,
     required this.onPressed,
@@ -452,11 +560,18 @@ class BloomQuestionnairePrevious extends StatelessWidget {
   }
 }
 
+/// Navigation button to proceed to the next step or submit in a questionnaire.
 class BloomQuestionnaireNext extends StatelessWidget {
+  /// Callback fired on press.
   final VoidCallback onPressed;
+
+  /// Whether this button represents the final submission step. Defaults to false.
   final bool isLastStep;
+
+  /// Custom label widget. Defaults to `Text('Next')` or `Text('Submit')`.
   final Widget? label;
 
+  /// Creates a [BloomQuestionnaireNext] button.
   const BloomQuestionnaireNext({
     super.key,
     required this.onPressed,
@@ -474,10 +589,15 @@ class BloomQuestionnaireNext extends StatelessWidget {
   }
 }
 
+/// Action button to skip the current optional step in a questionnaire.
 class BloomQuestionnaireSkip extends StatelessWidget {
+  /// Callback fired on press.
   final VoidCallback onPressed;
+
+  /// Custom label widget. Defaults to `Text('Skip')`.
   final Widget? label;
 
+  /// Creates a [BloomQuestionnaireSkip] button.
   const BloomQuestionnaireSkip({
     super.key,
     required this.onPressed,
@@ -494,10 +614,15 @@ class BloomQuestionnaireSkip extends StatelessWidget {
   }
 }
 
+/// Action button to submit the completed questionnaire.
 class BloomQuestionnaireSubmit extends StatelessWidget {
+  /// Callback fired on press.
   final VoidCallback onPressed;
+
+  /// Custom label widget. Defaults to `Text('Submit')`.
   final Widget? label;
 
+  /// Creates a [BloomQuestionnaireSubmit] button.
   const BloomQuestionnaireSubmit({
     super.key,
     required this.onPressed,

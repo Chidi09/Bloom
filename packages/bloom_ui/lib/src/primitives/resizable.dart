@@ -2,15 +2,55 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// A split-pane container that allows the user to resize two adjacent children by dragging a handle.
+///
+/// Divides available space between [startChild] and [endChild] along [axis] based on a proportional ratio
+/// clamped between [minRatio] and [maxRatio].
+///
+/// ```dart
+/// BloomResizable(
+///   axis: Axis.horizontal,
+///   initialRatio: 0.3,
+///   minRatio: 0.15,
+///   maxRatio: 0.85,
+///   onRatioChanged: (ratio) => print('New ratio: $ratio'),
+///   startChild: Sidebar(),
+///   endChild: MainContent(),
+/// );
+/// ```
 class BloomResizable extends StatefulWidget {
+  /// The leading child widget (left pane when horizontal, top pane when vertical).
   final Widget startChild;
+
+  /// The trailing child widget (right pane when horizontal, bottom pane when vertical).
   final Widget endChild;
+
+  /// The orientation of the resize split.
+  ///
+  /// Defaults to [Axis.horizontal].
   final Axis axis;
+
+  /// The initial split ratio assigned to [startChild] (between 0.0 and 1.0).
+  ///
+  /// Defaults to `0.5`.
   final double initialRatio;
+
+  /// The minimum proportional split ratio allowed for [startChild].
+  ///
+  /// Defaults to `0.2`.
   final double minRatio;
+
+  /// The maximum proportional split ratio allowed for [startChild].
+  ///
+  /// Defaults to `0.8`.
   final double maxRatio;
+
+  /// Callback invoked whenever the user drags the resize handle to a new ratio.
   final ValueChanged<double>? onRatioChanged;
 
+  /// Creates a [BloomResizable] split pane.
+  ///
+  /// The [startChild] and [endChild] widgets are required.
   const BloomResizable({
     super.key,
     required this.startChild,
@@ -82,10 +122,20 @@ class _BloomResizableState extends State<BloomResizable> {
   }
 }
 
+/// An interactive handle rendered between resizable panes that captures drag updates.
+///
+/// Changes cursor on hover ([SystemMouseCursors.resizeLeftRight] or [SystemMouseCursors.resizeUpDown])
+/// and renders a 1px border line using [BloomColorScheme.border].
 class BloomResizableHandle extends StatelessWidget {
+  /// The orientation of the split containing this handle.
   final Axis axis;
+
+  /// Callback fired as the handle is dragged with [DragUpdateDetails].
   final ValueChanged<DragUpdateDetails> onDragUpdate;
 
+  /// Creates a [BloomResizableHandle].
+  ///
+  /// Both [axis] and [onDragUpdate] are required.
   const BloomResizableHandle({
     super.key,
     required this.axis,

@@ -217,10 +217,14 @@ Map<String, dynamic> serializeModel(Model instance) {
 ///
 /// Mirrors `djangors_rest::ModelSerializer<M>`.
 class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
+  /// Model metadata describing database columns, types, and relations.
   final ModelMeta meta;
+
+  /// Field set controlling which fields are exposed on read and accepted on write.
   final BloomFieldSet fields;
   final List<BloomValidator> _validators = [];
 
+  /// Creates a [BloomModelSerializer] for [meta] with optional [fields] filtering.
   BloomModelSerializer({
     required this.meta,
     BloomFieldSet? fields,
@@ -420,16 +424,22 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
       } else if (rawVal is int) {
         values[rel.fieldName] = rawVal;
       } else if (rawVal is String) {
-        final id = int.tryParse(rawVal);
-        if (id != null) {
-          values[rel.fieldName] = id;
+        final targetMeta = rel.target();
+        final isIntPk = targetMeta.primaryKeyField.kind == FieldKind.integer ||
+            targetMeta.primaryKeyField.kind == FieldKind.bigInt;
+        if (isIntPk) {
+          final id = int.tryParse(rawVal);
+          if (id != null) {
+            values[rel.fieldName] = id;
+          } else {
+            errors.add(
+                rel.fieldName, "Field '${rel.fieldName}' must be a valid integer ID.");
+          }
         } else {
-          errors.add(
-              rel.fieldName, "Field '${rel.fieldName}' must be a valid integer ID.");
+          values[rel.fieldName] = rawVal;
         }
       } else {
-        errors.add(
-            rel.fieldName, "Field '${rel.fieldName}' must be a valid integer ID.");
+        values[rel.fieldName] = rawVal;
       }
     }
 
@@ -457,10 +467,16 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
 /// Mirrors `djangors_rest::NestedSerializer<M, R>`.
 class BloomNestedSerializer<T extends Model, R extends Model>
     extends BloomSerializer<T> {
+  /// Base serializer for the primary model instance.
   final BloomSerializer<T> base;
+
+  /// Target field or relation name where the nested object is rendered.
   final String relation;
+
+  /// Serializer used to serialize the related child model instance.
   final BloomSerializer<R> inner;
 
+  /// Creates a [BloomNestedSerializer] nesting [inner] into [base] at [relation].
   BloomNestedSerializer({
     required this.base,
     required this.relation,

@@ -2,32 +2,79 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// Visual styling variants for chat bubbles.
 enum BloomBubbleVariant {
+  /// Solid primary styling using theme primary background and foreground colors.
   defaultVariant,
+
+  /// Secondary styling using theme secondary background and foreground colors.
   secondary,
+
+  /// Muted background styling using `surface0` and primary text colors.
   muted,
+
+  /// Transparent background with border outline.
   outline,
+
+  /// Transparent background with no border.
   ghost,
+
+  /// Tinted surface styling using `surface2` background and border.
   tinted,
+
+  /// Destructive/error styling using destructive background and foreground colors.
   destructive,
 }
 
+/// Alignment positions for [BloomBubble].
 enum BloomBubbleAlign {
+  /// Aligns bubble to the start (left in LTR).
   start,
+
+  /// Aligns bubble to the end (right in LTR).
   end,
 }
 
+/// A flexible chat bubble container supporting header, footer, reactions, and variants.
+///
+/// Example:
+/// ```dart
+/// BloomBubble(
+///   variant: BloomBubbleVariant.defaultVariant,
+///   align: BloomBubbleAlign.end,
+///   content: Text('Sounds great, let me review!'),
+///   footer: Text('10:45 AM'),
+/// )
+/// ```
 class BloomBubble extends StatelessWidget {
+  /// Visual variant styling for the bubble container. Defaults to [BloomBubbleVariant.defaultVariant].
   final BloomBubbleVariant variant;
+
+  /// Alignment of the bubble. Defaults to [BloomBubbleAlign.start].
   final BloomBubbleAlign align;
+
+  /// The primary content widget placed inside the bubble.
   final Widget content;
+
+  /// Optional header widget rendered above the bubble.
   final Widget? header;
+
+  /// Optional footer widget rendered below the bubble.
   final Widget? footer;
+
+  /// Optional reaction widget rendered below or alongside the bubble.
   final Widget? reaction;
+
+  /// Maximum width fraction of screen width (0.0 to 1.0). Defaults to 0.8.
   final double maxWidth;
+
+  /// Internal padding for the bubble content. Defaults to horizontal 14, vertical 10.
   final EdgeInsetsGeometry padding;
+
+  /// Custom border radius override for the bubble container.
   final BorderRadiusGeometry? borderRadius;
 
+  /// Creates a [BloomBubble].
   const BloomBubble({
     super.key,
     required this.content,
@@ -86,12 +133,29 @@ class BloomBubble extends StatelessWidget {
   }
 }
 
+/// The styled container wrapping the child content within a [BloomBubble].
+///
+/// Example:
+/// ```dart
+/// BloomBubbleContent(
+///   variant: BloomBubbleVariant.secondary,
+///   child: Text('Bubble content here'),
+/// )
+/// ```
 class BloomBubbleContent extends StatelessWidget {
+  /// Visual variant styling. Defaults to [BloomBubbleVariant.defaultVariant].
   final BloomBubbleVariant variant;
+
+  /// The child widget to render inside the styled container.
   final Widget child;
+
+  /// Internal padding for the bubble content. Defaults to horizontal 14, vertical 10.
   final EdgeInsetsGeometry padding;
+
+  /// Custom border radius override.
   final BorderRadiusGeometry? borderRadius;
 
+  /// Creates a [BloomBubbleContent].
   const BloomBubbleContent({
     super.key,
     required this.child,
@@ -152,10 +216,25 @@ class _BubbleColors {
   const _BubbleColors({required this.background, required this.foreground, required this.border});
 }
 
+/// A wrap layout container for displaying emoji or action reactions on a bubble.
+///
+/// Example:
+/// ```dart
+/// BloomBubbleReactions(
+///   children: [
+///     BloomBadge(child: Text('👍 3')),
+///     BloomBadge(child: Text('❤️ 1')),
+///   ],
+/// )
+/// ```
 class BloomBubbleReactions extends StatelessWidget {
+  /// The list of reaction widgets to display in a wrapped row.
   final List<Widget> children;
+
+  /// Whether to display reactions aligned horizontally across top/bottom. Defaults to false.
   final bool showOnTop;
 
+  /// Creates a [BloomBubbleReactions].
   const BloomBubbleReactions({
     super.key,
     required this.children,

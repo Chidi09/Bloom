@@ -2,12 +2,38 @@
 import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 
+/// A scrollable area container with customized minimalist scrollbars matching the Bloom design system.
+///
+/// Wraps its [child] in a [SingleChildScrollView] paired with a visible, rounded [Scrollbar]
+/// styled with [BloomColorScheme.border] color and pill-shaped thumb radius.
+///
+/// ```dart
+/// BloomScrollArea(
+///   scrollDirection: Axis.vertical,
+///   padding: EdgeInsets.all(16),
+///   child: Column(
+///     children: List.generate(50, (i) => Text('Item $i')),
+///   ),
+/// );
+/// ```
 class BloomScrollArea extends StatelessWidget {
+  /// The widget that will be scrolled inside the viewport.
   final Widget child;
+
+  /// An optional [ScrollController] to control or observe the scroll position.
   final ScrollController? controller;
+
+  /// The axis along which the scroll area expands and scrolls.
+  ///
+  /// Defaults to [Axis.vertical].
   final Axis scrollDirection;
+
+  /// Padding applied to the inside of the scrollable content.
   final EdgeInsetsGeometry? padding;
 
+  /// Creates a [BloomScrollArea].
+  ///
+  /// The [child] parameter is required.
   const BloomScrollArea({
     super.key,
     required this.child,

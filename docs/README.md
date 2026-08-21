@@ -16,14 +16,19 @@ Welcome to the comprehensive technical documentation for **Bloom** — an opinio
 
 ---
 
-### 💻 Section B: CLI Reference & Commands
-* [**05. `bloom create` Reference**](file:///root/dev/Bloom/docs/cli/create.md) — Project generator flags (`--org`, `--description`, `--framework-path`) and exit codes.
+### 💻 Section B: CLI Reference & Developer Tooling
+* [**05. Master CLI Command Index**](file:///root/dev/Bloom/docs/cli/commands.md) — Exhaustive index of all 31 CLI commands, global options, and environment variables.
 * [**06. `bloom dev` Reference**](file:///root/dev/Bloom/docs/cli/dev.md) — Interactive DX server, device selection, port hosting, QR pairing, and TUI keyboard controls (<kbd>r</kbd>/<kbd>R</kbd>/<kbd>w</kbd>/<kbd>d</kbd>/<kbd>o</kbd>/<kbd>v</kbd>/<kbd>c</kbd>/<kbd>q</kbd>).
-* [**07. `bloom generate` Reference**](file:///root/dev/Bloom/docs/cli/generate.md) — Component generator for routes, controllers, models, services, and routing tables.
-* [**08. `bloom doctor` Reference**](file:///root/dev/Bloom/docs/cli/doctor.md) — Toolchain diagnostics, Android/Java SDK, Xcode, Shorebird, and network interfaces.
-* [**09. `bloom prebuild` Reference**](file:///root/dev/Bloom/docs/cli/prebuild.md) — Managed native transformations on `AndroidManifest.xml`, `Info.plist`, and idempotency rules.
-* [**10. `bloom deploy` Reference**](file:///root/dev/Bloom/docs/cli/deploy.md) — Shorebird Over-The-Air code-push patching and base binary release orchestration.
-* [**11. Secondary CLI Commands**](file:///root/dev/Bloom/docs/cli/commands.md) — Manual workflows for `bloom add`, `bloom remove`, `bloom build`, `bloom test`, and `bloom analyze`.
+* [**07. `bloom js` Reference**](file:///root/dev/Bloom/docs/cli/js.md) — Developing (`bloom js dev` with SSE Hot Reload), building (`-O4` tree-shaking), and vendoring JS Native apps.
+* [**08. `bloom server` Reference**](file:///root/dev/Bloom/docs/cli/server.md) — Multi-isolate server runtime (`bloom server run --watch`), scaffolding (`bloom server create`), and modular apps (`bloom server startapp`).
+* [**09. `bloom ui` Reference**](file:///root/dev/Bloom/docs/cli/ui.md) — Shadcn-style UI component management (`bloom ui add`, `bloom ui list`, `bloom ui diff`).
+* [**10. `bloom npm` & `bloom add` Reference**](file:///root/dev/Bloom/docs/cli/npm.md) — Integrated NPM package management, Bun bundling, and ESM importmaps.
+* [**11. `bloom create` Reference**](file:///root/dev/Bloom/docs/cli/create.md) — Project scaffolding, full-stack monorepo templates, and configuration options.
+* [**12. `bloom generate` Reference**](file:///root/dev/Bloom/docs/cli/generate.md) — Code generators for routes, controllers, models, services, and dynamic routing tables.
+* [**13. `bloom doctor` Reference**](file:///root/dev/Bloom/docs/cli/doctor.md) — Diagnostic audit of local SDKs, Android/iOS toolchains, Bun runtime, and network interfaces.
+* [**14. `bloom prebuild` Reference**](file:///root/dev/Bloom/docs/cli/prebuild.md) — Managed native transformations on `AndroidManifest.xml`, `Info.plist`, and entitlements.
+* [**15. `bloom deploy` Reference**](file:///root/dev/Bloom/docs/cli/deploy.md) — Shorebird Over-The-Air (OTA) code-push patching and production release orchestration.
+* [**16. `bloom module` & `autolink` Reference**](file:///root/dev/Bloom/docs/cli/module.md) — Native module scaffolding (`@BloomModule`), Swift/Kotlin bindings, and autolinking.
 
 ---
 
@@ -85,6 +90,13 @@ Welcome to the comprehensive technical documentation for **Bloom** — an opinio
 * [**42. Architectural Best Practices**](file:///root/dev/Bloom/docs/guides/best_practices.md) — Domain-driven folder layouts, controller boundaries, and key design.
 * [**43. End-to-End Cookbook**](file:///root/dev/Bloom/docs/guides/cookbook.md) — Recipes for offline CRUD, OTA patching, and prebuild plugin additions.
 * [**44. Contributing & Monorepo Guide**](file:///root/dev/Bloom/docs/guides/contributing.md) — Monorepo structure, 4-package validation matrix, and commit standards.
+
+---
+
+### 🎯 Section J: Developer Ecosystem Guides (By Background)
+* [**45. Bloom for React & JavaScript Developers**](file:///root/dev/Bloom/docs/guides/for-react-and-js-devs.md) — Mental model mapping, Signals vs Virtual DOM, JSX vs AST descriptors, NPM vendoring, and instant hot reload.
+* [**46. Bloom for Flutter Developers**](file:///root/dev/Bloom/docs/guides/for-flutter-devs.md) — Unified full-stack models, Bloom UI engineering primitives vs Material, Pure Dart Web vs CanvasKit, Riverpod/Bloc vs Bloom Signals.
+* [**47. Bloom for Backend & Dart Developers**](file:///root/dev/Bloom/docs/guides/for-backend-and-dart-devs.md) — Multi-isolate server execution, sub-millisecond SSR, OpenAPI/Swagger auto-generation, WebSocket hubs, and background worker isolates.
 
 ---
 

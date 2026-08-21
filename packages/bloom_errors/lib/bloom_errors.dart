@@ -24,7 +24,7 @@
 ///   });
 /// }
 /// ```
-library bloom_errors;
+library;
 
 export 'src/error_mapper.dart';
 export 'src/error_middleware.dart';

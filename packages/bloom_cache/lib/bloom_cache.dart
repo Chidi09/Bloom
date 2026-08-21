@@ -29,7 +29,7 @@
 ///   print(stats['activeUsers']); // 420
 /// }
 /// ```
-library bloom_cache;
+library;
 
 export 'src/cache.dart';
 export 'src/in_memory_cache.dart';

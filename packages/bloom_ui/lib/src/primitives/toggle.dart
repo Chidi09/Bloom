@@ -4,24 +4,68 @@ import '../theme/tokens.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
-enum BloomToggleVariant { defaultVariant, outline }
+/// Visual style variants for [BloomToggle] and [BloomToggleGroup].
+enum BloomToggleVariant {
+  /// Default variant with transparent background when unselected and muted background when active.
+  defaultVariant,
 
-enum BloomToggleSize {
-  defaultSize, // h-8 (32px)
-  sm,          // h-7 (28px)
-  lg,          // h-9 (36px)
+  /// Outline variant with a subtle border when unselected.
+  outline,
 }
 
-/// Two-state toggle button matching shadcn/ui base-nova.
+/// Size options for [BloomToggle] and [BloomToggleGroup].
+enum BloomToggleSize {
+  /// Default height of 32px (h-8) with 14px font and 16px icon.
+  defaultSize,
+
+  /// Compact height of 28px (h-7) with 12.8px font and 14px icon.
+  sm,
+
+  /// Large height of 36px (h-9) with 14px font and 16px icon.
+  lg,
+}
+
+/// A two-state toggle button matching shadcn/ui base-nova design specifications.
+///
+/// Supports controlled ([checked]) and uncontrolled ([defaultChecked]) modes,
+/// outline and ghost styling variants, and multiple sizes.
+///
+/// ```dart
+/// BloomToggle(
+///   checked: isBold,
+///   onPressed: (val) => setState(() => isBold = val),
+///   child: const Icon(Icons.format_bold),
+/// )
+/// ```
 class BloomToggle extends StatefulWidget {
+  /// Whether the toggle is currently active (controlled mode).
   final bool? checked;
+
+  /// The initial active state when operating in uncontrolled mode.
+  ///
+  /// Defaults to `false`.
   final bool defaultChecked;
+
+  /// Callback invoked when the toggle is clicked.
   final ValueChanged<bool>? onPressed;
+
+  /// Whether the toggle is disabled and non-interactive.
   final bool disabled;
+
+  /// The visual style variant of the toggle.
+  ///
+  /// Defaults to [BloomToggleVariant.defaultVariant].
   final BloomToggleVariant variant;
+
+  /// The size of the toggle.
+  ///
+  /// Defaults to [BloomToggleSize.defaultSize].
   final BloomToggleSize size;
+
+  /// The widget content rendered inside the toggle (typically an icon or text label).
   final Widget child;
 
+  /// Creates a [BloomToggle].
   const BloomToggle({
     super.key,
     this.checked,
@@ -162,27 +206,91 @@ class _ToggleDimensions {
   });
 }
 
+/// A data model representing an item in a [BloomToggleGroup].
 class BloomToggleGroupItem<T> {
+  /// The value associated with this toggle option.
   final T value;
+
+  /// The widget label or icon displayed inside the toggle button.
   final Widget label;
+
+  /// Creates a [BloomToggleGroupItem].
   const BloomToggleGroupItem({required this.value, required this.label});
 }
 
-/// Composable ToggleGroup supporting single and multiple selection matching shadcn base-nova.
+/// A composable toggle button group matching shadcn base-nova design specifications.
+///
+/// Supports single selection mode ([value], [onChanged]) and multiple selection mode
+/// ([values], [onMultipleChanged], [isMultiple] set to `true`).
+///
+/// ```dart
+/// // Single selection
+/// BloomToggleGroup<String>(
+///   value: selectedAlign,
+///   items: const [
+///     BloomToggleGroupItem(value: 'left', label: Icon(Icons.format_align_left)),
+///     BloomToggleGroupItem(value: 'center', label: Icon(Icons.format_align_center)),
+///     BloomToggleGroupItem(value: 'right', label: Icon(Icons.format_align_right)),
+///   ],
+///   onChanged: (val) => setState(() => selectedAlign = val),
+/// )
+///
+/// // Multiple selection
+/// BloomToggleGroup<String>(
+///   isMultiple: true,
+///   values: activeFormats,
+///   items: const [
+///     BloomToggleGroupItem(value: 'bold', label: Icon(Icons.format_bold)),
+///     BloomToggleGroupItem(value: 'italic', label: Icon(Icons.format_italic)),
+///     BloomToggleGroupItem(value: 'underline', label: Icon(Icons.format_underlined)),
+///   ],
+///   onMultipleChanged: (vals) => setState(() => activeFormats = vals),
+/// )
+/// ```
 class BloomToggleGroup<T> extends StatelessWidget {
+  /// Structured list of toggle items. Mutually exclusive with [children].
   final List<BloomToggleGroupItem<T>>? items;
+
+  /// Custom list of child widgets. Mutually exclusive with [items].
   final List<Widget>? children;
+
+  /// The currently selected value for single-selection mode.
   final T? value;
+
+  /// The currently selected values for multiple-selection mode.
   final List<T>? values;
+
+  /// Callback invoked when selection changes in single-selection mode.
   final ValueChanged<T>? onChanged;
+
+  /// Callback invoked when selection changes in multiple-selection mode.
   final ValueChanged<List<T>>? onMultipleChanged;
+
+  /// Whether multiple toggle items can be simultaneously selected.
+  ///
+  /// Defaults to `false`.
   final bool isMultiple;
+
+  /// Whether the entire toggle group is disabled.
   final bool disabled;
+
+  /// The visual variant for items in this toggle group.
   final BloomToggleVariant variant;
+
+  /// The size variant for items in this toggle group.
   final BloomToggleSize size;
+
+  /// Spacing between toggle items.
+  ///
+  /// Defaults to `2.0`.
   final double spacing;
+
+  /// The layout orientation of the toggle group.
+  ///
+  /// Defaults to [Axis.horizontal].
   final Axis orientation;
 
+  /// Creates a [BloomToggleGroup].
   const BloomToggleGroup({
     super.key,
     this.items,

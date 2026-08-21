@@ -37,9 +37,13 @@ extension BloomPermissionExt on BloomRestPermission {
 
 /// Combinator requiring both policies (A AND B).
 class BloomAndPermission extends BloomRestPermission {
+  /// First permission requirement.
   final BloomRestPermission a;
+
+  /// Second permission requirement.
   final BloomRestPermission b;
 
+  /// Creates an AND combinator requiring both [a] and [b] to succeed.
   const BloomAndPermission(this.a, this.b);
 
   @override
@@ -52,9 +56,13 @@ class BloomAndPermission extends BloomRestPermission {
 
 /// Combinator requiring either policy (A OR B).
 class BloomOrPermission extends BloomRestPermission {
+  /// First permission requirement.
   final BloomRestPermission a;
+
+  /// Second permission requirement.
   final BloomRestPermission b;
 
+  /// Creates an OR combinator requiring either [a] or [b] to succeed.
   const BloomOrPermission(this.a, this.b);
 
   @override
@@ -67,8 +75,10 @@ class BloomOrPermission extends BloomRestPermission {
 
 /// Combinator inverting a policy (NOT P).
 class BloomNotPermission extends BloomRestPermission {
+  /// Inner permission requirement to invert.
   final BloomRestPermission inner;
 
+  /// Creates a NOT combinator inverting [inner].
   const BloomNotPermission(this.inner);
 
   @override
@@ -112,6 +122,7 @@ List<String> resolveCurrentUserRoles(BloomRequest req) {
 ///
 /// Mirrors `djangors_rest::AllowAny`.
 class AllowAny extends BloomRestPermission {
+  /// Creates an [AllowAny] permission granting access to all requests.
   const AllowAny();
 
   @override
@@ -122,6 +133,7 @@ class AllowAny extends BloomRestPermission {
 ///
 /// Mirrors `djangors_rest::IsAuthenticated`.
 class IsAuthenticated extends BloomRestPermission {
+  /// Creates an [IsAuthenticated] permission.
   const IsAuthenticated();
 
   @override
@@ -135,8 +147,10 @@ class IsAuthenticated extends BloomRestPermission {
 ///
 /// Mirrors `djangors_rest::IsStaff`.
 class IsStaff extends BloomRestPermission {
+  /// Role name required for staff access (defaults to `'staff'`).
   final String roleName;
 
+  /// Creates an [IsStaff] permission requiring [roleName], `'admin'`, or `'superuser'`.
   const IsStaff({this.roleName = 'staff'});
 
   @override
@@ -150,6 +164,7 @@ class IsStaff extends BloomRestPermission {
 ///
 /// Mirrors `djangors_rest::IsSuperuser`.
 class IsSuperuser extends BloomRestPermission {
+  /// Creates an [IsSuperuser] permission requiring `'admin'` or `'superuser'` roles.
   const IsSuperuser();
 
   @override
@@ -166,6 +181,7 @@ class IsSuperuser extends BloomRestPermission {
 ///
 /// Mirrors `djangors_rest::IsReadOnly`.
 class IsReadOnly extends BloomRestPermission {
+  /// Creates an [IsReadOnly] permission permitting only safe HTTP methods (GET, HEAD, OPTIONS).
   const IsReadOnly();
 
   @override

@@ -10,6 +10,7 @@ import 'storage_backend.dart';
 /// Compatible with AWS S3, Cloudflare R2, MinIO, Supabase Storage S3 API,
 /// and other standard S3 object stores.
 class S3Backend implements BloomStorageBackend {
+  /// S3 configuration options for credentials, bucket, and endpoint.
   final BloomS3Config config;
   final http.Client _httpClient;
   final S3Signer _signer;
