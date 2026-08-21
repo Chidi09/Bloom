@@ -4,6 +4,7 @@ import 'dart:js_interop';
 import 'package:signals/signals.dart';
 import 'package:web/web.dart' as web;
 
+import 'devtools.dart';
 import 'events.dart';
 import 'framework.dart';
 
@@ -72,9 +73,17 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
 class _Region {
   final Set<void Function()> disposers = {};
 
+  _Region() {
+    BloomJsDevTools.activeRegionCount++;
+  }
+
   void add(void Function() d) => disposers.add(d);
 
   void disposeAll() {
+    if (disposers.isNotEmpty) {
+      BloomJsDevTools.activeRegionCount =
+          (BloomJsDevTools.activeRegionCount - 1).clamp(0, 10000000);
+    }
     for (final d in disposers) {
       try {
         d();
