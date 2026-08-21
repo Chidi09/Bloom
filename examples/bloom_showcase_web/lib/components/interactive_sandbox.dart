@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:web/web.dart' as web;
 import '../plugins/confetti.dart';
 import '../state/showcase_store.dart';
 
@@ -12,7 +13,7 @@ class InteractiveSandboxComponent {
     (id: '2', text: 'Vendor NPM packages with Bun', done: true),
     (id: '3', text: 'Deploy to Cloudflare edge in <1ms', done: false),
   ]);
-  final newTodoText = signal<String>('');
+  String _todoInputDraft = '';
 
   // Counter Sandbox State
   final counter = signal<int>(42);
@@ -91,7 +92,7 @@ class InteractiveSandboxComponent {
     });
   }
 
-  // 1. Keyed Todo View
+  // 1. Keyed Todo View (Persistent inputs without focus loss)
   BloomNode _todoListView() {
     return Div(
       className: 'space-y-4 max-w-xl mx-auto',
@@ -102,20 +103,26 @@ class InteractiveSandboxComponent {
           children: [
             Input(
               placeholder: 'Add new task...',
-              value: newTodoText.value,
               className: 'flex-1 bg-[#14141A] border border-[#27272A] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors',
-              onInput: (e) => newTodoText.value = e.value ?? '',
+              onInput: (e) {
+                _todoInputDraft = e.value ?? '';
+              },
             ),
             Button(
-              className: 'px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-md',
+              className: 'px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-md active:scale-95',
               onClick: (_) {
-                final txt = newTodoText.value.trim();
+                final txt = _todoInputDraft.trim();
                 if (txt.isNotEmpty) {
                   todos.value = [
                     ...todos.value,
                     (id: DateTime.now().millisecondsSinceEpoch.toString(), text: txt, done: false),
                   ];
-                  newTodoText.value = '';
+                  _todoInputDraft = '';
+
+                  // Clear input field DOM value
+                  final el = web.document.querySelector('#sandbox input') as web.HTMLInputElement?;
+                  if (el != null) el.value = '';
+
                   Confetti.burst(x: 0.5, y: 0.5);
                 }
               },
@@ -176,20 +183,20 @@ class InteractiveSandboxComponent {
           className: 'p-6 rounded-2xl bg-[#14141A] border border-[#27272A]',
           children: [
             Span(className: 'text-xs font-mono text-zinc-500 uppercase tracking-widest', text: 'Signal Value'),
-            H3(className: 'text-5xl font-extrabold font-mono text-white mt-2 mb-1', text: '${counter.value}'),
-            Span(className: 'text-xs font-mono px-2.5 py-0.5 rounded-full ${isEven.value ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-violet-500/10 text-violet-400 border border-violet-500/20"}', text: isEven.value ? 'Even Number' : 'Odd Number'),
+            Live(() => H3(className: 'text-5xl font-extrabold font-mono text-white mt-2 mb-1', text: '${counter.value}')),
+            Live(() => Span(className: 'text-xs font-mono px-2.5 py-0.5 rounded-full ${isEven.value ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-violet-500/10 text-violet-400 border border-violet-500/20"}', text: isEven.value ? 'Even Number' : 'Odd Number')),
           ],
         ),
         Div(
           className: 'flex justify-center gap-3',
           children: [
             Button(
-              className: 'px-5 py-2.5 rounded-xl bg-[#1E1E24] hover:bg-[#27272A] text-white font-mono text-sm cursor-pointer border border-[#27272A]',
+              className: 'px-5 py-2.5 rounded-xl bg-[#1E1E24] hover:bg-[#27272A] text-white font-mono text-sm cursor-pointer border border-[#27272A] active:scale-95',
               onClick: (_) => counter.value--,
               text: '- Decrement',
             ),
             Button(
-              className: 'px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-sm cursor-pointer shadow-md shadow-indigo-600/20',
+              className: 'px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-sm cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95',
               onClick: (_) => counter.value++,
               text: '+ Increment',
             ),
@@ -240,7 +247,7 @@ class InteractiveSandboxComponent {
           ],
         ),
         Button(
-          className: 'w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/25 mt-4',
+          className: 'w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/25 mt-4 active:scale-95',
           onClick: (_) {
             if (isEmailValid.value && isPasswordStrong.value) {
               store.showToast('Validation Success! Account Ready.');
@@ -265,12 +272,12 @@ class InteractiveSandboxComponent {
           className: 'flex justify-center gap-4 flex-wrap',
           children: [
             Button(
-              className: 'px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/30',
+              className: 'px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95',
               onClick: (_) => Confetti.burst(x: 0.5, y: 0.5),
               text: 'Center Explosion',
             ),
             Button(
-              className: 'px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-violet-600/30',
+              className: 'px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-violet-600/30 active:scale-95',
               onClick: (_) {
                 Confetti.burst(x: 0.2, y: 0.6);
                 Confetti.burst(x: 0.8, y: 0.6);

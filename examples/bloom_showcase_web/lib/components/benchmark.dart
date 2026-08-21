@@ -39,7 +39,7 @@ class BenchmarkComponent {
                         Live(() => store.isBenchmarking.value
                             ? Raw('<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>')
                             : Raw('<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>')),
-                        Live(() => Span(text: store.isBenchmarking.value ? 'Pause Stress Ticker' : 'Run Live Stress Ticker')),
+                        Live(() => Span(text: store.isBenchmarking.value ? 'Pause Stress Ticker' : 'Resume Live Stress Ticker')),
                       ],
                     ),
                     Div(
@@ -64,7 +64,7 @@ class BenchmarkComponent {
 
                 // Right: Real-Time Telemetry Stats
                 Div(
-                  className: 'flex items-center gap-6 font-mono text-xs',
+                  className: 'flex items-center gap-6 font-mono text-xs flex-wrap',
                   children: [
                     Div(
                       className: 'flex items-center gap-2',
@@ -82,27 +82,52 @@ class BenchmarkComponent {
                         Live(() => Span(className: 'text-indigo-400 font-bold', text: '${store.patchLatencyMs.value} ms')),
                       ],
                     ),
+                    Div(
+                      className: 'flex items-center gap-2 bg-[#14141A] px-3 py-1 rounded-md border border-[#27272A]',
+                      children: [
+                        Span(className: 'text-zinc-400', text: 'Throughput:'),
+                        Live(() => Span(className: 'text-cyan-400 font-bold', text: '${store.patchesPerSec.value} patches/s')),
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
 
-            // Reactive Node Grid (Stress Display)
+            // Reactive Node Grid (Stress Display with Keyed ForEach)
             Div(
               className: 'pt-6',
               children: [
                 Div(
-                  className: 'grid grid-cols-3 sm:grid-cols-6 md:grid-cols-12 gap-2.5',
+                  className: 'grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2.5',
                   children: [
-                    Live(() => Fragment.fromList(
-                      store.benchmarkItems.value.map((item) => Div(
-                        className: 'p-3 rounded-lg bg-[#14141A] border border-[#27272A] flex flex-col items-center justify-center transition-colors shadow-sm',
+                    ForEach<BenchmarkItem>(
+                      () => store.benchmarkItems.value,
+                      (item) => Div(
+                        className: 'p-3 rounded-xl bg-[#14141A] border border-[#27272A] hover:border-indigo-500/50 flex flex-col justify-between transition-colors shadow-sm',
                         children: [
-                          Span(className: 'text-[10px] font-mono text-zinc-500', text: '#$item'),
-                          Span(className: 'text-sm font-mono font-bold text-indigo-400 mt-1', text: '${(item * 137) % 999}'),
+                          Div(
+                            className: 'flex items-center justify-between text-[10px] font-mono text-zinc-500 mb-1',
+                            children: [
+                              Span(text: '#${item.id}'),
+                              Span(className: 'text-zinc-400', text: '${item.metric}%'),
+                            ],
+                          ),
+                          Span(className: 'text-base font-mono font-extrabold text-indigo-400 my-0.5 tracking-tight', text: '${item.value}'),
+                          // Micro Sparkline Bar
+                          Div(
+                            className: 'w-full h-1 bg-[#1E1E24] rounded-full overflow-hidden mt-1.5',
+                            children: [
+                              Div(
+                                className: 'h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-75',
+                                style: 'width: ${item.metric}%;',
+                              ),
+                            ],
+                          ),
                         ],
-                      )).toList(),
-                    )),
+                      ),
+                      key: (item) => '${item.id}',
+                    ),
                   ],
                 ),
               ],

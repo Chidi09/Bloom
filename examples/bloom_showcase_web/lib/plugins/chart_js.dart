@@ -2,7 +2,9 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 @JS('Chart')
-external JSObject _createChart(web.HTMLCanvasElement canvas, JSObject config);
+extension type Chart._(JSObject _) implements JSObject {
+  external Chart(web.HTMLCanvasElement canvas, JSObject config);
+}
 
 class ChartJsPlugin {
   static void renderPerformanceChart(web.HTMLCanvasElement canvas) {
@@ -67,7 +69,7 @@ class ChartJsPlugin {
         },
       }.jsify() as JSObject;
 
-      _createChart(canvas, config);
+      Chart(canvas, config);
     } catch (_) {}
   }
 }

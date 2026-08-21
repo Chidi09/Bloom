@@ -1,3 +1,4 @@
+import 'dart:js_interop';
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 import 'package:web/web.dart' as web;
@@ -56,15 +57,18 @@ void main() {
   // Mount fine-grained reactive DOM tree
   mount(app, '#app');
 
-  // Initialize Three.js hero canvas
-  final canvas = web.document.getElementById('three-hero-canvas') as web.HTMLCanvasElement?;
-  if (canvas != null) {
-    ThreeHeroScene(canvas).init();
-  }
+  // Defer canvas initialization so layout engine has settled computed styles
+  web.window.requestAnimationFrame((double time) {
+    // Initialize Three.js hero canvas
+    final canvas = web.document.getElementById('three-hero-canvas') as web.HTMLCanvasElement?;
+    if (canvas != null) {
+      ThreeHeroScene(canvas).init();
+    }
 
-  // Initialize Chart.js comparative performance graph
-  final chartCanvas = web.document.getElementById('perf-chart') as web.HTMLCanvasElement?;
-  if (chartCanvas != null) {
-    ChartJsPlugin.renderPerformanceChart(chartCanvas);
-  }
+    // Initialize Chart.js comparative performance graph
+    final chartCanvas = web.document.getElementById('perf-chart') as web.HTMLCanvasElement?;
+    if (chartCanvas != null) {
+      ChartJsPlugin.renderPerformanceChart(chartCanvas);
+    }
+  }.toJS);
 }

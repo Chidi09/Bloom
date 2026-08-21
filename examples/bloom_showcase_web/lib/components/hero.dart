@@ -13,7 +13,7 @@ class HeroComponent {
         Div(
           className: 'absolute inset-0 pointer-events-none flex items-center justify-center opacity-70 z-0',
           children: [
-            Raw('<canvas id="three-hero-canvas" class="w-full h-full max-w-5xl max-h-[640px]"></canvas>'),
+            Raw('<canvas id="three-hero-canvas" class="w-full h-full max-w-5xl max-h-[640px]" style="display: block; width: 100%; height: 100%;"></canvas>'),
           ],
         ),
 
