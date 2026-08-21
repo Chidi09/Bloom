@@ -10,3 +10,4 @@ export 'src/npm.dart';
 export 'src/router.dart';
 export 'src/signals.dart';
 export 'src/devtools.dart';
+export 'src/data.dart';
