@@ -1,4 +1,36 @@
+import 'dart:async';
 import 'events.dart';
+
+/// Token representing an ambient context value of type [T].
+class BloomContext<T> {
+  final T defaultValue;
+  final Object zoneKey = Object();
+
+  BloomContext(this.defaultValue);
+
+  /// Provides [value] to all children in the subtree.
+  BloomNode provide(T value, BloomNode child) =>
+      ContextProviderNode<T>(this, value, child);
+}
+
+/// Creates a typed ambient [BloomContext] with [defaultValue].
+BloomContext<T> createContext<T>(T defaultValue) => BloomContext<T>(defaultValue);
+
+/// Reads the current ambient value for [context].
+T useContext<T>(BloomContext<T> context) {
+  final value = Zone.current[context.zoneKey];
+  if (value != null && value is T) return value;
+  return context.defaultValue;
+}
+
+/// AST node that injects context [value] into its descendant tree.
+class ContextProviderNode<T> extends BloomNode {
+  final BloomContext<T> context;
+  final T value;
+  final BloomNode child;
+
+  const ContextProviderNode(this.context, this.value, this.child);
+}
 
 /// The core descriptor tree — pure Dart, zero DOM dependency.
 ///

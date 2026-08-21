@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'framework.dart';
 
 /// HTML void elements — must not have a closing tag.
@@ -153,6 +154,12 @@ void _render(BloomNode node, StringBuffer buf) {
     case RefNode(:final child):
       // SSR: render child; ref remains unmounted (no DOM).
       _render(child, buf);
+
+    case ContextProviderNode(:final context, :final value, :final child):
+      runZoned(
+        () => _render(child, buf),
+        zoneValues: {context.zoneKey: value},
+      );
   }
 }
 
