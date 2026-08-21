@@ -51,5 +51,23 @@ void main() {
       final html = renderToHtml(node);
       expect(html, '<a href="/about">About</a>');
     });
+
+    test('notFound route matches unmatched path', () {
+      final r = BloomRouter(
+        [BloomRoute('/home', (_) => Text('home'))],
+        notFound: BloomRoute('/404', (_) => Text('not found')),
+      );
+      final m = r.match('/missing');
+      expect(m, isNotNull);
+      expect(m!.route.path, '/404');
+    });
+
+    test('trailing slash treated as same route when trailing=true', () {
+      final r = BloomRouter(
+        [BloomRoute('/about', (_) => Text('about'))],
+        trailing: true,
+      );
+      expect(r.match('/about/')!.route.path, '/about');
+    });
   });
 }
