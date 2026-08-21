@@ -16,7 +16,8 @@ environment:
 
 dependencies:
   signals: ^5.5.0
-  bloom_js_native: ^0.1.0
+  bloom_js_native:
+    path: ../bloom_js_native
 
 dev_dependencies:
   lints: ^5.0.0
