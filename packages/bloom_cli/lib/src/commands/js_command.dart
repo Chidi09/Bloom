@@ -35,7 +35,7 @@ class JsDevCommand extends Command<int> {
 
   @override
   final String description =
-      'Starts the Bloom JS Native development server with live reload.';
+      'Starts the native Bloom JS dev server with live reload and automatic compilation.';
 
   JsDevCommand() {
     argParser
@@ -49,6 +49,11 @@ class JsDevCommand extends Command<int> {
         'entry',
         abbr: 'e',
         help: 'Custom entry point Dart file.',
+      )
+      ..addOption(
+        'host',
+        defaultsTo: '0.0.0.0',
+        help: 'Host interface to bind.',
       );
   }
 
@@ -61,7 +66,7 @@ class JsDevCommand extends Command<int> {
     }
 
     final port = int.tryParse(argResults?['port'] ?? '8080') ?? 8080;
-    print(Ansi.step('\n⚡ Starting Bloom JS Native Dev Server on http://localhost:$port\n'));
+    final host = argResults?['host'] ?? '0.0.0.0';
 
     // 1. Sync NPM vendors
     final assembler = NpmVendorAssembler(project);
@@ -81,7 +86,39 @@ class JsDevCommand extends Command<int> {
     final outputFile = File(p.join(webDir.path, 'main.js'));
 
     // 3. Initial Compile
-    print(Ansi.info('› Compiling ${p.basename(entryFile.path)} → main.js...'));
+    await _compile(entryFile, outputFile);
+
+    // 4. Start Native Pure-Dart Static & SPA Server
+    final server = await HttpServer.bind(host, port);
+    print(Ansi.step('\n⚡ Bloom JS Native Dev Server active on http://$host:$port'));
+    print(Ansi.info('› Serving static assets from ${webDir.path}'));
+    print(Ansi.boldText('› Watching for file changes in ${project.rootDir.path}/lib... (Ctrl+C to stop)\n'));
+
+    // 5. Watch for Dart file changes and auto-recompile
+    final watchDir = Directory(p.join(project.rootDir.path, 'lib'));
+    if (watchDir.existsSync()) {
+      Timer? debounce;
+      watchDir.watch(recursive: true).listen((event) {
+        if (event.path.endsWith('.dart')) {
+          debounce?.cancel();
+          debounce = Timer(const Duration(milliseconds: 300), () async {
+            print(Ansi.info('\n🔄 File change detected: ${p.basename(event.path)} — Recompiling...'));
+            await _compile(entryFile, outputFile);
+          });
+        }
+      });
+    }
+
+    // 6. Handle HTTP Requests
+    await for (final request in server) {
+      _handleRequest(request, webDir);
+    }
+
+    return 0;
+  }
+
+  Future<void> _compile(File entryFile, File outputFile) async {
+    final sw = Stopwatch()..start();
     final compileRes = await Process.run('dart', [
       'compile',
       'js',
@@ -90,15 +127,73 @@ class JsDevCommand extends Command<int> {
       outputFile.path,
       entryFile.path,
     ]);
+    sw.stop();
 
     if (compileRes.exitCode != 0) {
-      print(Ansi.error('Compilation failed:\n${compileRes.stderr}'));
+      print(Ansi.error('✖ Compilation failed:\n${compileRes.stderr}'));
     } else {
-      print(Ansi.success('✓ Compilation successful.'));
+      final sizeKb = (outputFile.lengthSync() / 1024).toStringAsFixed(1);
+      print(Ansi.success('✓ Compiled main.js ($sizeKb kB) in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s'));
     }
+  }
 
-    print(Ansi.boldText('\nReady. Serving at http://localhost:$port (Press Ctrl+C to stop)\n'));
-    return 0;
+  void _handleRequest(HttpRequest req, Directory webDir) async {
+    try {
+      var reqPath = req.uri.path;
+      if (reqPath.startsWith('/')) reqPath = reqPath.substring(1);
+      if (reqPath.isEmpty) reqPath = 'index.html';
+
+      var targetPath = p.canonicalize(p.join(webDir.path, reqPath));
+
+      if (p.isWithin(webDir.path, targetPath) || targetPath == p.canonicalize(webDir.path)) {
+        var targetFile = File(targetPath);
+        if (targetFile.existsSync() && !FileSystemEntity.isDirectorySync(targetFile.path)) {
+          final bytes = targetFile.readAsBytesSync();
+          final ext = targetFile.path.split('.').last.toLowerCase();
+          req.response.headers.set(HttpHeaders.contentTypeHeader, _getContentType(ext));
+          req.response.headers.set('Cache-Control', 'no-cache');
+          req.response.add(bytes);
+          await req.response.close();
+          return;
+        }
+
+        // SPA Fallback to index.html
+        final indexFile = File(p.join(webDir.path, 'index.html'));
+        if (indexFile.existsSync()) {
+          final bytes = indexFile.readAsBytesSync();
+          req.response.headers.set(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');
+          req.response.headers.set('Cache-Control', 'no-cache');
+          req.response.add(bytes);
+          await req.response.close();
+          return;
+        }
+      }
+
+      req.response.statusCode = HttpStatus.notFound;
+      req.response.write('404 Not Found');
+      await req.response.close();
+    } catch (e) {
+      try {
+        req.response.statusCode = HttpStatus.internalServerError;
+        await req.response.close();
+      } catch (_) {}
+    }
+  }
+
+  String _getContentType(String ext) {
+    switch (ext) {
+      case 'html': return 'text/html; charset=utf-8';
+      case 'js': return 'application/javascript; charset=utf-8';
+      case 'css': return 'text/css; charset=utf-8';
+      case 'json': return 'application/json; charset=utf-8';
+      case 'png': return 'image/png';
+      case 'jpg':
+      case 'jpeg': return 'image/jpeg';
+      case 'svg': return 'image/svg+xml';
+      case 'ico': return 'image/x-icon';
+      case 'wasm': return 'application/wasm';
+      default: return 'application/octet-stream';
+    }
   }
 }
 
