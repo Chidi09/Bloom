@@ -4,21 +4,7 @@ import 'package:web/web.dart' as web;
 import 'framework.dart';
 import 'router.dart';
 
-/// Client-side router using the HTML5 History API.
-///
-/// Usage:
-/// ```dart
-/// final ctrl = BloomRouterController(BloomRouter([
-///   BloomRoute('/', (_) => HomePage()),
-///   BloomRoute('/about', (_) => AboutPage()),
-/// ]));
-///
-/// // In app tree:
-/// Live(() => ctrl.resolve())
-///
-/// // Navigate programmatically:
-/// ctrl.navigate('/about');
-/// ```
+/// Client-side router using the HTML5 History API with async guard evaluation.
 class BloomRouterController {
   final BloomRouter _router;
   late final Signal<String> currentPath;
@@ -27,27 +13,44 @@ class BloomRouterController {
   BloomRouterController(this._router) {
     currentPath = signal(web.window.location.pathname);
     _popStateListener = (web.Event _) {
-      currentPath.value = web.window.location.pathname;
+      final newPath = web.window.location.pathname;
+      _handleNavigation(newPath, replaceState: true);
     };
     web.window.addEventListener('popstate', _popStateListener.toJS);
   }
 
-  /// Navigate to [path] — pushes to browser history and updates [currentPath].
-  void navigate(String path) {
-    web.window.history.pushState(null, '', path);
-    currentPath.value = path.split('?').first.split('#').first;
+  /// Navigate to [path] — evaluates guards, pushes history, and updates [currentPath].
+  Future<void> navigate(String path) async {
+    await _handleNavigation(path, replaceState: false);
   }
 
   /// Replace current history entry without a new history item.
-  void replace(String path) {
-    web.window.history.replaceState(null, '', path);
-    currentPath.value = path.split('?').first.split('#').first;
+  Future<void> replace(String path) async {
+    await _handleNavigation(path, replaceState: true);
   }
 
-  /// Resolve current path to a descriptor. Returns empty fragment on no match.
+  Future<void> _handleNavigation(String path, {required bool replaceState}) async {
+    final clean = path.split('?').first.split('#').first;
+    final match = _router.match(clean);
+    if (match != null) {
+      final guardRes = await _router.evaluateGuards(match.route, clean, match.params);
+      if (!guardRes.isAllowed && guardRes.redirectPath != null) {
+        return _handleNavigation(guardRes.redirectPath!, replaceState: true);
+      }
+    }
+
+    if (replaceState) {
+      web.window.history.replaceState(null, '', path);
+    } else {
+      web.window.history.pushState(null, '', path);
+    }
+    currentPath.value = clean;
+  }
+
+  /// Resolve current path to a descriptor.
   BloomNode resolve() {
     final m = _router.match(currentPath.value);
-    return m == null ? FragmentNode(const []) : m.route.builder(m.params);
+    return m == null ? const FragmentNode([]) : m.build();
   }
 
   /// Remove popstate listener. Call on app unmount.
