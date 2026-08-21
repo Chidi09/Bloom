@@ -42,6 +42,18 @@ void main() {
       expect(built.text, '42');
     });
 
+    test('ForEachNode keyFn extracts key string correctly', () {
+      final items = signal([{'id': 'a', 'text': 'Apple'}, {'id': 'b', 'text': 'Banana'}]);
+      final forEach = ForEach<Map<String, String>>(
+        () => items.value,
+        (m) => Li(text: m['text']!),
+        key: (m) => m['id']!,
+      );
+      expect(forEach.keyFn, isNotNull);
+      expect(forEach.keyFn!(items.value[0]), 'a');
+      expect(forEach.keyFn!(items.value[1]), 'b');
+    });
+
     test('Element builders produce correct tags', () {
       expect((Div() as ElNode).tag, 'div');
       expect((Span(text: 'x') as ElNode).tag, 'span');
