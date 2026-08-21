@@ -19,3 +19,4 @@ library;
 
 export 'src/mount.dart';
 export 'src/router_browser.dart';
+export 'src/hydrate.dart';
