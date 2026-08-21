@@ -132,32 +132,32 @@ List<web.Node> _mountNode(
       return out;
 
     case LiveNode(:final builder):
-      final container = web.document.createElement('span');
-      container.setAttribute('data-bloom-live', '');
-      _bindReactiveRegion(container, region, builder);
-      return [container];
+      final sentinel = _Sentinel('live');
+      _bindSentinelRegion(sentinel, region, builder);
+      return [sentinel.start, sentinel.end];
 
     case ShowNode(:final child, :final fallback):
-      final container = web.document.createElement('span');
-      container.setAttribute('data-bloom-show', '');
-      _bindReactiveRegion(container, region,
-          () => node.when() ? child : (fallback ?? FragmentNode(const [])));
-      return [container];
+      final sentinel = _Sentinel('show');
+      _bindSentinelRegion(
+        sentinel,
+        region,
+        () => node.when() ? child : (fallback ?? FragmentNode(const [])),
+      );
+      return [sentinel.start, sentinel.end];
 
     case ForEachNode():
-      final container = web.document.createElement('span');
-      container.setAttribute('data-bloom-foreach', '');
+      final sentinel = _Sentinel('foreach');
       if (node.keyFn != null) {
-        _bindKeyedForEach(container, region, node);
+        _bindKeyedForEachSentinel(sentinel, region, node);
       } else {
-        _bindReactiveRegion<List<BloomNode>>(
-          container,
+        _bindSentinelRegion<List<BloomNode>>(
+          sentinel,
           region,
           () => node.buildChildren(),
           wrap: (children) => FragmentNode(children),
         );
       }
-      return [container];
+      return [sentinel.start, sentinel.end];
 
     case StyleNode(:final css):
       final el = web.document.createElement('style');
@@ -187,6 +187,42 @@ List<web.Node> _mountNode(
   }
 }
 
+/// A pair of comment nodes that bracket a reactive DOM region.
+/// Used instead of a wrapper `<span>` to avoid polluting CSS layout.
+class _Sentinel {
+  final web.Comment start;
+  final web.Comment end;
+
+  _Sentinel(String label)
+      : start = web.document.createComment(' bloom:$label '),
+        end = web.document.createComment(' /bloom:$label ');
+
+  /// All child nodes between start and end (exclusive).
+  List<web.Node> get childNodes {
+    final result = <web.Node>[];
+    var current = start.nextSibling;
+    while (current != null && current != end) {
+      result.add(current);
+      current = current.nextSibling;
+    }
+    return result;
+  }
+
+  /// Remove all children between the sentinel comments.
+  void clear() {
+    for (final n in childNodes) {
+      n.parentNode?.removeChild(n);
+    }
+  }
+
+  /// Insert a list of nodes before the end sentinel.
+  void appendAll(List<web.Node> nodes) {
+    for (final n in nodes) {
+      end.parentNode?.insertBefore(n, end);
+    }
+  }
+}
+
 class _KeyedEntry {
   final String key;
   final List<web.Node> domNodes;
@@ -199,8 +235,8 @@ class _KeyedEntry {
   });
 }
 
-void _bindKeyedForEach<T>(
-  web.Element container,
+void _bindKeyedForEachSentinel<T>(
+  _Sentinel sentinel,
   _Region parentRegion,
   ForEachNode<T> forEachNode,
 ) {
@@ -210,7 +246,7 @@ void _bindKeyedForEach<T>(
   void reconcile() {
     final items = forEachNode.items();
     final newKeys = <String>{};
-    final newEntries = <_KeyedEntry>[];
+    final newOrder = <_KeyedEntry>[];
 
     for (final item in items) {
       final key = keyFn(item);
@@ -222,31 +258,32 @@ void _bindKeyedForEach<T>(
         final descriptor = forEachNode.builder(item);
         final newDomNodes = _mountNode(descriptor, existing.region);
 
-        for (var idx = 0; idx < existing.domNodes.length; idx++) {
-          final oldN = existing.domNodes[idx];
-          if (idx < newDomNodes.length) {
-            final newN = newDomNodes[idx];
-            if (oldN != newN && oldN.parentNode == container) {
-              container.replaceChild(newN, oldN);
-            }
-          } else if (oldN.parentNode == container) {
-            container.removeChild(oldN);
+        final parent = sentinel.end.parentNode;
+        if (parent != null) {
+          for (final n in existing.domNodes) {
+            if (n.parentNode == parent) parent.removeChild(n);
+          }
+          for (final n in newDomNodes) {
+            parent.insertBefore(n, sentinel.end);
           }
         }
-        for (var idx = existing.domNodes.length; idx < newDomNodes.length; idx++) {
-          container.appendChild(newDomNodes[idx]);
-        }
 
-        final updatedEntry = _KeyedEntry(key: key, domNodes: newDomNodes, region: existing.region);
-        activeEntries[key] = updatedEntry;
-        newEntries.add(updatedEntry);
+        final updated = _KeyedEntry(key: key, domNodes: newDomNodes, region: existing.region);
+        activeEntries[key] = updated;
+        newOrder.add(updated);
       } else {
         final itemRegion = _Region();
         final descriptor = forEachNode.builder(item);
         final domNodes = _mountNode(descriptor, itemRegion);
         final entry = _KeyedEntry(key: key, domNodes: domNodes, region: itemRegion);
         activeEntries[key] = entry;
-        newEntries.add(entry);
+        newOrder.add(entry);
+        final parent = sentinel.end.parentNode;
+        if (parent != null) {
+          for (final n in domNodes) {
+            parent.insertBefore(n, sentinel.end);
+          }
+        }
       }
     }
 
@@ -255,21 +292,21 @@ void _bindKeyedForEach<T>(
     for (final k in toRemove) {
       final entry = activeEntries.remove(k)!;
       entry.region.disposeAll();
-      for (final n in entry.domNodes) {
-        if (n.parentNode == container) {
-          container.removeChild(n);
+      final parent = sentinel.end.parentNode;
+      if (parent != null) {
+        for (final n in entry.domNodes) {
+          if (n.parentNode == parent) {
+            parent.removeChild(n);
+          }
         }
       }
     }
 
-    // Reorder DOM nodes in container to match newEntries
-    for (var i = 0; i < newEntries.length; i++) {
-      final entry = newEntries[i];
+    // Reorder DOM nodes in container to match newOrder
+    for (var i = 0; i < newOrder.length; i++) {
+      final entry = newOrder[i];
       for (final n in entry.domNodes) {
-        final currentChildAtIndex = container.childNodes.item(i);
-        if (currentChildAtIndex != n) {
-          container.insertBefore(n, currentChildAtIndex);
-        }
+        sentinel.end.parentNode?.insertBefore(n, sentinel.end);
       }
     }
   }
@@ -287,11 +324,10 @@ void _bindKeyedForEach<T>(
   });
 }
 
-/// Shared reactive-region binding: re-renders the container's contents
-/// whenever signals read inside [build] change, disposing the previous
-/// subtree's effects before each rebuild.
-void _bindReactiveRegion<T>(
-  web.Element container,
+/// Shared sentinel reactive-region binding: re-renders between comments
+/// whenever signals read inside [build] change.
+void _bindSentinelRegion<T>(
+  _Sentinel sentinel,
   _Region parentRegion,
   T Function() build, {
   BloomNode Function(T value)? wrap,
@@ -300,16 +336,13 @@ void _bindReactiveRegion<T>(
 
   void renderRegion() {
     inner.disposeAll();
+    sentinel.clear();
     final value = build();
     final node = wrap == null ? value as BloomNode : wrap(value);
     final nodes = _mountNode(node, inner);
-    container.textContent = '';
-    for (final n in nodes) {
-      container.appendChild(n);
-    }
+    sentinel.appendAll(nodes);
   }
 
-  // effect() runs immediately, giving the initial render exactly once.
   final stop = effect(() {
     renderRegion();
   });
