@@ -163,6 +163,27 @@ List<web.Node> _mountNode(
       final el = web.document.createElement('style');
       el.textContent = css;
       return [el];
+
+    case MountNode(:final child, :final onMount, :final onUnmount):
+      final nodes = _mountNode(child, region);
+      if (onMount != null) {
+        Future.microtask(onMount);
+      }
+      if (onUnmount != null) {
+        region.add(onUnmount);
+      }
+      return nodes;
+
+    case RefNode(:final ref, :final child):
+      final nodes = _mountNode(child, region);
+      for (final n in nodes) {
+        if (n.isA<web.Element>()) {
+          ref.attach(n as web.Element);
+          region.add(ref.detach);
+          break;
+        }
+      }
+      return nodes;
   }
 }
 

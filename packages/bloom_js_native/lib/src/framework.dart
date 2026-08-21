@@ -162,6 +162,61 @@ class Raw extends RawHtmlNode {
   const Raw(super.html);
 }
 
+// ── Lifecycle & Refs ──────────────────────────────────────────────────
+
+/// DOM reference holder. Filled by the browser mount engine.
+/// Value is null until the node is mounted.
+class Ref<T extends Object> {
+  T? _value;
+
+  /// The mounted DOM element. Throws [StateError] if not yet mounted.
+  T get value => _value ?? (throw StateError('Ref<$T> not yet mounted'));
+
+  /// Whether this ref has been attached to a DOM element.
+  bool get isMounted => _value != null;
+
+  /// Internal — only called by the mount engine.
+  // ignore: use_setters_to_change_properties
+  void attach(T element) => _value = element;
+
+  /// Internal — called when the mounted subtree is disposed.
+  void detach() => _value = null;
+}
+
+/// Lifecycle boundary — calls [onMount] after children are added to the DOM
+/// and [onUnmount] when the tree is disposed.
+///
+/// In SSR, only [child] is rendered. Lifecycle callbacks are not invoked.
+///
+/// ```dart
+/// Mount(
+///   Canvas(id: 'chart'),
+///   onMount: () => initChart(canvasRef.value),
+///   onUnmount: () => chart.destroy(),
+/// )
+/// ```
+class MountNode extends BloomNode {
+  final BloomNode child;
+  final void Function()? onMount;
+  final void Function()? onUnmount;
+  const MountNode(this.child, {this.onMount, this.onUnmount});
+}
+
+/// DSL sugar for [MountNode].
+class Mount extends MountNode {
+  const Mount(super.child, {super.onMount, super.onUnmount});
+}
+
+/// Attaches a [Ref] to the DOM [Element] created by the first child element.
+///
+/// In SSR, [child] is rendered normally; [ref] remains unmounted.
+class RefNode extends BloomNode {
+  /// The ref to populate.
+  final Ref<Object> ref;
+  final BloomNode child;
+  const RefNode(this.ref, this.child);
+}
+
 // ── Helpers for Attr / Event Merging ──────────────────────────────────
 
 Map<String, String>? _mergeAttrs(

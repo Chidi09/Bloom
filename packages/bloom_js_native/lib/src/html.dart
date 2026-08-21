@@ -145,6 +145,14 @@ void _render(BloomNode node, StringBuffer buf) {
     case RawHtmlNode(:final html):
       // Trusted HTML passthrough — never feed this user input.
       buf.write(html);
+
+    case MountNode(:final child):
+      // SSR: render child only; lifecycle callbacks intentionally skipped.
+      _render(child, buf);
+
+    case RefNode(:final child):
+      // SSR: render child; ref remains unmounted (no DOM).
+      _render(child, buf);
   }
 }
 
