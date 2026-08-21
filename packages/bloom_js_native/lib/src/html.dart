@@ -164,3 +164,68 @@ String renderToHtmlAll(List<BloomNode> nodes) {
   }
   return buf.toString();
 }
+
+/// Render a complete HTML5 document.
+///
+/// Wraps [body] in `<!DOCTYPE html><html><head>...</head><body>...</body></html>`.
+/// All head elements are rendered before the body fragment.
+///
+/// - [lang]: `<html lang="...">` attribute. Default `'en'`.
+/// - [charset]: charset meta tag. Default `'UTF-8'`.
+/// - [title]: `<title>` content. Omitted if null.
+/// - [head]: additional `BloomNode` trees rendered inside `<head>`.
+/// - [importMapJson]: if non-null, emits `<script type="importmap">` in head.
+/// - [stylesheets]: list of CSS URLs; emitted as `<link rel="stylesheet">` tags.
+/// - [scripts]: list of JS URLs; emitted as `<script src="...">` tags before `</body>`.
+String renderToDocument(
+  BloomNode body, {
+  String lang = 'en',
+  String charset = 'UTF-8',
+  String? title,
+  List<BloomNode> head = const [],
+  String? importMapJson,
+  List<String> stylesheets = const [],
+  List<String> scripts = const [],
+}) {
+  final buf = StringBuffer();
+  buf.write('<!DOCTYPE html>\n<html lang="${escapeHtml(lang)}">\n<head>\n');
+  buf.write('<meta charset="${escapeHtml(charset)}">\n');
+  buf.write('<meta name="viewport" content="width=device-width, initial-scale=1">\n');
+  if (title != null) {
+    buf.write('<title>${escapeHtml(title)}</title>\n');
+  }
+  if (importMapJson != null) {
+    buf.write('<script type="importmap">$importMapJson</script>\n');
+  }
+  for (final url in stylesheets) {
+    buf.write('<link rel="stylesheet" href="${escapeHtml(url)}">\n');
+  }
+  for (final node in head) {
+    _render(node, buf);
+    buf.write('\n');
+  }
+  buf.write('</head>\n<body>\n');
+  _render(body, buf);
+  buf.write('\n');
+  for (final url in scripts) {
+    buf.write('<script src="${escapeHtml(url)}"></script>\n');
+  }
+  buf.write('</body>\n</html>');
+  return buf.toString();
+}
+
+/// Streaming SSR — yields HTML string chunks as the node tree is walked.
+///
+/// On most servers this allows early flushing of head/shell content while
+/// slower parts (data-driven sections) are still being built. The sum of
+/// all chunks equals [renderToHtml] on the same node.
+Stream<String> renderToStream(BloomNode node) async* {
+  final buf = StringBuffer();
+  _render(node, buf);
+  const chunkSize = 4096;
+  final str = buf.toString();
+  for (var i = 0; i < str.length; i += chunkSize) {
+    yield str.substring(
+        i, i + chunkSize > str.length ? str.length : i + chunkSize);
+  }
+}

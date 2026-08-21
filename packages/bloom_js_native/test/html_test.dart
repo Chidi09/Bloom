@@ -117,4 +117,50 @@ void main() {
       expect(html, '<circle cx="12" cy="12" r="5"></circle>');
     });
   });
+
+  group('renderToDocument', () {
+    test('wraps body in full HTML shell', () {
+      final html = renderToDocument(
+        Div(text: 'hello'),
+        title: 'My App',
+        lang: 'en',
+      );
+      expect(html, startsWith('<!DOCTYPE html>'));
+      expect(html, contains('<html lang="en">'));
+      expect(html, contains('<title>My App</title>'));
+      expect(html, contains('<div>hello</div>'));
+      expect(html, contains('</body>'));
+      expect(html, contains('</html>'));
+    });
+
+    test('includes import map when provided', () {
+      final html = renderToDocument(
+        Div(),
+        importMapJson: '{"imports":{"zod":"https://esm.sh/zod@3"}}',
+      );
+      expect(html, contains('<script type="importmap">'));
+      expect(html, contains('"zod"'));
+    });
+
+    test('includes stylesheets', () {
+      final html = renderToDocument(Div(), stylesheets: ['/app.css']);
+      expect(html, contains('<link rel="stylesheet" href="/app.css">'));
+    });
+
+    test('includes head nodes', () {
+      final html = renderToDocument(
+        Div(),
+        head: [ElNode('meta', attrs: {'name': 'description', 'content': 'test'})],
+      );
+      expect(html, contains('<meta name="description" content="test">'));
+    });
+  });
+
+  group('renderToStream', () {
+    test('emits same content as renderToHtml', () async {
+      final node = Div(children: [P(text: 'a'), P(text: 'b')]);
+      final streamed = await renderToStream(node).join();
+      expect(streamed, renderToHtml(node));
+    });
+  });
 }
