@@ -17,6 +17,7 @@ import '../lib/src/commands/explain_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/graph_command.dart';
 import '../lib/src/commands/module_command.dart';
+import '../lib/src/commands/npm_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/registry_command.dart';
 import '../lib/src/commands/remove_command.dart';
@@ -63,6 +64,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(TestCommand())
     ..addCommand(BuildCommand())
     ..addCommand(PrebuildCommand())
+    ..addCommand(NpmCommand())
     ..addCommand(AddCommand())
     ..addCommand(RemoveCommand())
     ..addCommand(UiCommand())

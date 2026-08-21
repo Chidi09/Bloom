@@ -195,6 +195,31 @@ class BloomPrerenderEngine {
     }
   }
 
+  /// Fast static site pre-rendering for Bloom JS Native apps without launching headless Chromium.
+  ///
+  /// Writes pre-rendered route HTML strings into individual `index.html` static route files.
+  void prerenderNativeRoutes({
+    required Directory outputDir,
+    required Map<String, String> routeHtmlMap,
+  }) {
+    for (final entry in routeHtmlMap.entries) {
+      var routePath = entry.key;
+      if (routePath.startsWith('/')) routePath = routePath.substring(1);
+
+      final File targetFile;
+      if (routePath.isEmpty || routePath == 'index.html') {
+        targetFile = File(p.join(outputDir.path, 'index.html'));
+      } else {
+        final routeDir = Directory(p.join(outputDir.path, routePath));
+        routeDir.createSync(recursive: true);
+        targetFile = File(p.join(routeDir.path, 'index.html'));
+      }
+
+      targetFile.parent.createSync(recursive: true);
+      targetFile.writeAsStringSync(entry.value, flush: true);
+    }
+  }
+
   /// Closes the browser instance and any running static file server.
   Future<void> close() async {
     if (_browser != null) {

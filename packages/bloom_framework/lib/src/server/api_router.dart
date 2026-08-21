@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'bloom_middleware.dart';
 import 'bloom_request.dart';
 import 'bloom_response.dart';
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_seo/bloom_seo.dart';
 
 /// Handler function signature for Bloom server route endpoints.
 typedef BloomRouteHandler = FutureOr<BloomResponse> Function(BloomRequest request);
@@ -38,7 +40,26 @@ class _RouteEntry {
   });
 }
 
-/// High-performance server router for Bloom API routes and SSR endpoints.
+/// High-performance server router for Bloom API routes, WebSocket gateways, and SSR endpoints.
+///
+/// ### Architectural Contract
+/// - Provides unified route registration (`get`, `post`, `put`, `delete`, `patch`, `all`) with nested
+///   or route-scoped middleware pipelines and global pipeline hooks ([use]).
+/// - Supports path parameter matching (`/api/tasks/:id`), wildcard captures (`/*`), and automatic
+///   OpenAPI 3.1 schema specification generation and interactive Scalar / Swagger UI mounting ([enableOpenApi]).
+/// - Bridges native `dart:io` [HttpRequest] to typed, testable [BloomRequest] and [BloomResponse] abstractions.
+///
+/// ### Concurrency & Shutdown Model
+/// - Non-blocking asynchronous request handling across server isolates.
+/// - Tracks active requests via `_inFlightRequests` completers to support graceful zero-downtime shutdown
+///   via [close], draining active connections within a configurable timeout before force-closing sockets.
+/// - Rejects incoming requests with HTTP 503 Service Unavailable during shutdown drain phase.
+///
+/// ### Non-Obvious Design Decisions
+/// - **Specificity-Based Route Sorting**: Routes are sorted by specificity score (exact static matches >
+///   parameterized segments > wildcard routes) so registration order does not cause unintentional route shadowing.
+/// - **Streaming Body Size Guards**: [handleIoRequest] checks byte stream length against [maxRequestBodyBytes]
+///   before buffering full payloads, short-circuiting large payload attacks with 413 Payload Too Large.
 class BloomApiRouter {
   final List<BloomMiddleware> _globalMiddlewares = [];
   final List<_RouteEntry> _routes = [];
@@ -79,6 +100,34 @@ class BloomApiRouter {
   /// Registers a route matching all HTTP methods.
   void all(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('*', path, handler, middlewares);
+  }
+
+  /// Mounts a high-performance Server-Side Rendered (SSR) endpoint using [BloomNode].
+  ///
+  /// Executes pure-Dart [builder] in <1ms without JavaScript engine overhead.
+  void ssr(
+    String path,
+    BloomNode Function(BloomRequest request) builder, {
+    HeadManager Function(BloomRequest request)? head,
+    String Function(String bodyHtml, HeadManager? head)? layout,
+    List<BloomMiddleware> middlewares = const [],
+  }) {
+    get(path, (request) async {
+      final node = builder(request);
+      final bodyHtml = renderToHtml(node);
+      final headManager = head?.call(request);
+
+      final String fullHtml;
+      if (layout != null) {
+        fullHtml = layout(bodyHtml, headManager);
+      } else if (headManager != null) {
+        fullHtml = headManager.wrapDocument(bodyHtml);
+      } else {
+        fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
+      }
+
+      return BloomResponse.html(fullHtml);
+    }, middlewares: middlewares);
   }
 
   void _addRoute(String method, String pattern, BloomRouteHandler handler, List<BloomMiddleware> middlewares) {
