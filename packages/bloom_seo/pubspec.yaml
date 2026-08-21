@@ -1,24 +1,22 @@
 name: bloom_seo
-description: SEO toolkit for Bloom JS Native — reactive HeadManager, JSON-LD, sitemap and static prerendering over renderToHtml.
+description: Reactive document metadata, JSON-LD structured data, XML sitemaps, and SSG prerendering for Bloom JS Native and server.
 version: 0.1.0
-publish_to: none
 homepage: https://bloom.dev
 repository: https://github.com/bloom-framework/bloom
 issue_tracker: https://github.com/bloom-framework/bloom/issues
 topics:
   - bloom
   - seo
+  - metadata
+  - sitemap
   - ssr
-  - ssg
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
-  bloom_js_native:
-    path: ../bloom_js_native
   signals: ^5.5.0
-  meta: ^1.15.0
+  bloom_js_native: ^0.1.0
 
 dev_dependencies:
   lints: ^5.0.0
