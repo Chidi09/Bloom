@@ -9,11 +9,11 @@ class HeroComponent {
     return Section(
       className: 'relative pt-24 pb-20 px-6 overflow-hidden',
       children: [
-        // 3D Canvas Background Container
+        // 3D Three.js Canvas Backdrop
         Div(
-          className: 'absolute inset-0 pointer-events-none flex items-center justify-center opacity-60',
+          className: 'absolute inset-0 pointer-events-none flex items-center justify-center opacity-70 z-0',
           children: [
-            Raw('<canvas id="three-hero-canvas" class="w-full h-full max-w-5xl max-h-[600px]"></canvas>'),
+            Raw('<canvas id="three-hero-canvas" class="w-full h-full max-w-5xl max-h-[640px]"></canvas>'),
           ],
         ),
 
@@ -21,12 +21,12 @@ class HeroComponent {
         Div(
           className: 'relative max-w-5xl mx-auto text-center flex flex-col items-center z-10',
           children: [
-            // Pill Badge
+            // Top Feature Pill
             Div(
-              className: 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#14141A] border border-[#27272A] text-xs font-medium text-zinc-300 mb-8 shadow-sm',
+              className: 'inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#14141A]/90 border border-indigo-500/30 text-xs font-medium text-zinc-300 mb-8 shadow-lg shadow-indigo-500/10 backdrop-blur-sm',
               children: [
                 Span(className: 'w-2 h-2 rounded-full bg-indigo-500 animate-pulse'),
-                Span(text: 'Bloom JS Native — Fine-Grained Web Architecture for Dart'),
+                Span(text: 'Bloom 1.0 — The Fine-Grained Web Architecture for Dart'),
               ],
             ),
 
@@ -36,7 +36,7 @@ class HeroComponent {
               children: [
                 Span(text: 'Pure Dart on the DOM.\n'),
                 Span(
-                  className: 'bg-gradient-to-r from-indigo-400 via-violet-400 to-indigo-200 bg-clip-text text-transparent',
+                  className: 'bg-gradient-to-r from-indigo-400 via-violet-300 to-cyan-300 bg-clip-text text-transparent drop-shadow-sm',
                   text: '0kB Flutter Runtime.',
                 ),
               ],
@@ -54,11 +54,11 @@ class HeroComponent {
               children: [
                 // Copy Command Box
                 Button(
-                  className: 'group px-5 py-3.5 rounded-xl bg-[#14141A] hover:bg-[#1E1E24] border border-[#27272A] hover:border-indigo-500/50 flex items-center gap-3 transition-all cursor-pointer shadow-lg shadow-black/40',
+                  className: 'group px-5 py-3.5 rounded-xl bg-[#14141A] hover:bg-[#1E1E24] border border-[#27272A] hover:border-indigo-500/50 flex items-center gap-3 transition-all cursor-pointer shadow-xl shadow-black/60 active:scale-95',
                   onClick: (_) => store.triggerCopyCommand(),
                   children: [
                     Span(className: 'text-xs font-mono text-zinc-500 select-none', text: '\$'),
-                    Span(className: 'text-sm font-mono text-zinc-200', text: 'bloom create my_app --target=web_dom'),
+                    Span(className: 'text-sm font-mono text-zinc-200 font-medium', text: 'bloom create my_app --target=web_dom'),
                     Live(() => store.isCopied.value
                         ? Raw('<svg class="w-4 h-4 text-emerald-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>')
                         : Raw('<svg class="w-4 h-4 text-zinc-400 group-hover:text-white ml-2 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>')),
@@ -68,7 +68,7 @@ class HeroComponent {
                 // Star on GitHub Link
                 A(
                   href: 'https://github.com/Chidi09/Bloom',
-                  className: 'px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/25 cursor-pointer',
+                  className: 'px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/30 cursor-pointer active:scale-95',
                   children: [
                     Raw('<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>'),
                     Span(text: 'Star on GitHub'),
@@ -95,9 +95,9 @@ class HeroComponent {
 
   BloomNode _metricCard(String value, String label, String valueColor) {
     return Div(
-      className: 'p-4 rounded-xl bg-[#101014] border border-[#1E1E24] text-center flex flex-col items-center justify-center',
+      className: 'p-4 rounded-xl bg-[#101014]/90 border border-[#1E1E24] text-center flex flex-col items-center justify-center backdrop-blur-sm shadow-md',
       children: [
-        Span(className: 'text-2xl sm:text-3xl font-extrabold font-mono mb-1 $valueColor', text: value),
+        Span(className: 'text-2xl sm:text-3xl font-extrabold font-mono mb-1 $valueColor tracking-tight', text: value),
         Span(className: 'text-xs text-zinc-400 font-medium', text: label),
       ],
     );

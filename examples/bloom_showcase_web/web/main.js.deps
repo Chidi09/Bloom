@@ -227,8 +227,10 @@ file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/code_showcase.
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/feature_grid.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/footer.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/hero.dart
+file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/interactive_sandbox.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/components/navbar.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/main.dart
+file:///root/dev/Bloom/examples/bloom_showcase_web/lib/plugins/chart_js.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/plugins/confetti.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/plugins/three_js.dart
 file:///root/dev/Bloom/examples/bloom_showcase_web/lib/state/showcase_store.dart

@@ -14,7 +14,7 @@ class BenchmarkComponent {
         Div(
           className: 'text-center max-w-3xl mx-auto mb-12',
           children: [
-            Span(className: 'text-xs font-mono text-indigo-400 font-semibold uppercase tracking-wider', text: 'Real-Time Telemetry'),
+            Span(className: 'text-xs font-mono text-indigo-400 font-semibold uppercase tracking-wider', text: 'Real-Time Telemetry & Comparative Benchmarks'),
             H2(className: 'text-3xl sm:text-4xl font-bold text-white mt-2 mb-4', text: 'Fine-Grained Signals vs VDOM Diffing'),
             P(className: 'text-zinc-400 text-base leading-relaxed', text: 'Unlike React or Flutter which recreate virtual element trees on every state change, Bloom binds signals directly to individual DOM text nodes and attributes with zero reconciliation overhead.'),
           ],
@@ -22,7 +22,7 @@ class BenchmarkComponent {
 
         // Live Benchmark Console Card
         Div(
-          className: 'rounded-2xl bg-[#101014] border border-[#1E1E24] p-6 sm:p-8 shadow-2xl overflow-hidden',
+          className: 'rounded-2xl bg-[#101014] border border-[#1E1E24] p-6 sm:p-8 shadow-2xl overflow-hidden mb-12',
           children: [
             // Top Controls Bar
             Div(
@@ -33,7 +33,7 @@ class BenchmarkComponent {
                   className: 'flex items-center gap-4 flex-wrap',
                   children: [
                     Button(
-                      className: 'px-4 py-2.5 rounded-lg font-medium text-xs flex items-center gap-2 cursor-pointer transition-all bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20',
+                      className: 'px-4 py-2.5 rounded-lg font-medium text-xs flex items-center gap-2 cursor-pointer transition-all bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 active:scale-95',
                       onClick: (_) => store.toggleBenchmark(),
                       children: [
                         Live(() => store.isBenchmarking.value
@@ -69,7 +69,7 @@ class BenchmarkComponent {
                     Div(
                       className: 'flex items-center gap-2',
                       children: [
-                        Span(className: 'w-2 h-2 rounded-full bg-emerald-400'),
+                        Span(className: 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse'),
                         Span(className: 'text-zinc-400', text: 'FPS:'),
                         Live(() => Span(className: 'text-emerald-400 font-bold', text: '${store.fps.value}')),
                       ],
@@ -96,7 +96,7 @@ class BenchmarkComponent {
                   children: [
                     Live(() => Fragment.fromList(
                       store.benchmarkItems.value.map((item) => Div(
-                        className: 'p-3 rounded-lg bg-[#14141A] border border-[#27272A] flex flex-col items-center justify-center transition-colors',
+                        className: 'p-3 rounded-lg bg-[#14141A] border border-[#27272A] flex flex-col items-center justify-center transition-colors shadow-sm',
                         children: [
                           Span(className: 'text-[10px] font-mono text-zinc-500', text: '#$item'),
                           Span(className: 'text-sm font-mono font-bold text-indigo-400 mt-1', text: '${(item * 137) % 999}'),
@@ -105,6 +105,31 @@ class BenchmarkComponent {
                     )),
                   ],
                 ),
+              ],
+            ),
+          ],
+        ),
+
+        // Live Chart.js Comparative Performance Canvas Card
+        Div(
+          className: 'rounded-2xl bg-[#101014] border border-[#1E1E24] p-6 sm:p-8 shadow-2xl',
+          children: [
+            Div(
+              className: 'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6',
+              children: [
+                Div(
+                  children: [
+                    H3(className: 'text-lg font-bold text-white', text: 'Benchmark Matrix: Web Frameworks Comparison'),
+                    P(className: 'text-xs text-zinc-400 mt-0.5', text: 'Independent cold-start SSR latency and production JS gzip footprint benchmarks.'),
+                  ],
+                ),
+                Span(className: 'text-xs font-mono px-3 py-1 rounded-full bg-[#14141A] text-indigo-400 border border-[#27272A]', text: 'Chart.js Native Binding'),
+              ],
+            ),
+            Div(
+              className: 'h-72 w-full relative',
+              children: [
+                Raw('<canvas id="perf-chart" class="w-full h-full"></canvas>'),
               ],
             ),
           ],
