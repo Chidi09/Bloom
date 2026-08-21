@@ -62,8 +62,27 @@ This document is the persistent memory, architectural contract, and operational 
 ## 5. 🧪 Testing & Code Quality Gates
 
 * **Zero-Error Analysis**:
-  * `dart analyze` and `flutter analyze` must pass with **0 errors and 0 warnings** across all 6 packages/apps before committing.
+  * `dart analyze` and `flutter analyze` must pass with **0 errors and 0 warnings** across all packages/apps before committing.
 * **Automated Tests**:
   * Run `cd packages/bloom_framework && flutter test`
+  * Run `cd packages/bloom_js_native && dart test`
+  * Run `cd packages/bloom_seo && dart test`
   * Run `cd examples/bloom_todo/packages/core && dart test`
   * Run `cd examples/bloom_todo/packages/ui && flutter test`
+
+---
+
+## 6. ⚡ Bloom JS Native Architecture & Reactivity Contract
+
+* **Pure Dart AST Descriptors**:
+  * All UI components compile to `BloomNode` (`ElNode`, `TextNode`, `LiveNode`, `ShowNode`, `ForEachNode`, `FragmentNode`) in `package:bloom_js_native/bloom_js_native.dart`.
+  * **Strict VM/Web Boundary**: `bloom_js_native.dart` is pure Dart (runs on VM, SSR, tests). DOM mounting is strictly isolated in `package:bloom_js_native/browser.dart` via `package:web`.
+* **Zero Linter Warnings via Const AST Subclasses**:
+  * HTML element builders (`Div`, `Span`, `Button`, `Input`, `Form`, `H1`–`H6`, `Ul`, `Ol`, `Li`, `Link`) are `const` subclasses of `ElNode`, ensuring 0 `non_constant_identifier_names` warnings.
+* **Dual-Backend Execution**:
+  * **SSR/SSG**: `renderToHtml()` executes pure-Dart descriptor trees in `< 1ms` with full XSS escaping.
+  * **Browser Mount**: `mount(app, '#app')` binds fine-grained `signals` effects with scoped `_Region` cleanup to prevent memory leaks.
+* **NPM & Vendoring**:
+  * Managed via `bloom_cli` (`bloom add npm:<pkg>`, `bloom npm sync`, `NpmVendorAssembler`).
+  * Prefers `bun` for local ESM minified bundle vendoring; gracefully falls back to ESM CDN HTTP resolver.
+

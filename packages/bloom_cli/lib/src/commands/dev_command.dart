@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../dev/dashboard.dart';
 import '../dev/dev_server.dart';
+import '../npm/npm_vendor_assembler.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -72,6 +73,14 @@ class DevCommand extends Command<int> {
     final routerFile = File(p.join(project.rootDir.path, 'lib', 'app', 'routes.g.dart'));
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
+
+    // 1b. Assemble NPM vendor packages for web projects
+    final config = project.loadBloomConfig();
+    if (config['target'] == 'web_dom' || config['target'] == 'web' ||
+        (config['platforms'] is Map && (config['platforms'] as Map).containsKey('web'))) {
+      final assembler = NpmVendorAssembler(project);
+      await assembler.assemble();
+    }
 
     // 2. Start DevServer & Discovery Broadcaster
     final devServer = BloomDevServer(
