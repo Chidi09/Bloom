@@ -233,6 +233,26 @@ Map<String, BloomEventHandler>? _mergeEvents(
   return {...base, ...extras};
 }
 
+/// Conditional className builder — clsx-style.
+///
+/// Filters `null`, `false`, and blank strings. Joins remaining values
+/// with a single space and trims each part.
+///
+/// ```dart
+/// cx(['btn', isActive && 'btn-active', null])  // => 'btn btn-active'
+/// ```
+String cx(List<Object?> parts) {
+  final out = StringBuffer();
+  for (final part in parts) {
+    if (part == null || part == false) continue;
+    final s = part.toString().trim();
+    if (s.isEmpty) continue;
+    if (out.isNotEmpty) out.write(' ');
+    out.write(s);
+  }
+  return out.toString();
+}
+
 // ── Generic Element ───────────────────────────────────────────────────
 
 class El extends ElNode {
@@ -1087,4 +1107,113 @@ class Pre extends ElNode {
     super.on,
     super.children = const [],
   }) : super('pre');
+}
+
+/// `<br>` — line break (void element).
+class Br extends ElNode {
+  const Br({super.className, super.attrs}) : super('br');
+}
+
+/// `<hr>` — horizontal rule (void element).
+class Hr extends ElNode {
+  const Hr({super.className, super.style, super.attrs}) : super('hr');
+}
+
+/// `<blockquote>` — block quotation.
+class Blockquote extends ElNode {
+  Blockquote({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('blockquote');
+  const Blockquote.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('blockquote');
+}
+
+/// `<cite>` — citation.
+class Cite extends ElNode {
+  const Cite({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('cite');
+}
+
+/// `<time>` — machine-readable date/time.
+class TimeEl extends ElNode {
+  TimeEl({super.text, String? dateTime, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on})
+      : super('time', attrs: _mergeAttrs(attrs, {if (dateTime != null) 'datetime': dateTime}));
+  const TimeEl.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('time');
+}
+
+/// `<mark>` — highlighted text.
+class Mark extends ElNode {
+  const Mark({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('mark');
+}
+
+/// `<small>` — small print.
+class Small extends ElNode {
+  const Small({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('small');
+}
+
+/// `<sub>` — subscript.
+class Sub extends ElNode {
+  const Sub({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sub');
+}
+
+/// `<sup>` — superscript.
+class Sup extends ElNode {
+  const Sup({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sup');
+}
+
+/// `<abbr>` — abbreviation.
+class Abbr extends ElNode {
+  Abbr({super.text, String? title, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on})
+      : super('abbr', attrs: _mergeAttrs(attrs, {if (title != null) 'title': title}));
+  const Abbr.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('abbr');
+}
+
+/// `<kbd>` — keyboard input.
+class KbdEl extends ElNode {
+  const KbdEl({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('kbd');
+}
+
+/// `<figure>` — figure with optional caption.
+class Figure extends ElNode {
+  Figure({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figure');
+  const Figure.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('figure');
+}
+
+/// `<figcaption>` — caption for a figure.
+class Figcaption extends ElNode {
+  const Figcaption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figcaption');
+}
+
+/// `<details>` — disclosure widget.
+class Details extends ElNode {
+  Details({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open})
+      : super('details', attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
+  const Details.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('details');
+}
+
+/// `<summary>` — visible heading of a `<details>`.
+class Summary extends ElNode {
+  const Summary({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('summary');
+}
+
+/// `<dialog>` — modal/non-modal dialog.
+class Dialog extends ElNode {
+  Dialog({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open})
+      : super('dialog', attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
+  const Dialog.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('dialog');
+}
+
+/// `<canvas>` — 2D/WebGL canvas.
+class Canvas extends ElNode {
+  Canvas({int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on})
+      : super('canvas', attrs: _mergeAttrs(attrs, {if (width != null) 'width': '$width', if (height != null) 'height': '$height'}));
+  const Canvas.raw({super.className, super.style, super.attrs, super.on}) : super('canvas');
+}
+
+/// `<iframe>` — inline frame.
+class IFrame extends ElNode {
+  IFrame({String? src, String? title, int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on})
+      : super('iframe', attrs: _mergeAttrs(attrs, {
+          if (src != null) 'src': src,
+          if (title != null) 'title': title,
+          if (width != null) 'width': '$width',
+          if (height != null) 'height': '$height',
+        }));
+  const IFrame.raw({super.className, super.style, super.attrs, super.on}) : super('iframe');
 }
