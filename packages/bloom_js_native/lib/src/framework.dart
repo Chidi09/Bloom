@@ -269,6 +269,26 @@ class ErrorBoundary extends ErrorBoundaryNode {
   });
 }
 
+/// Renders [child] into a target DOM node outside the parent hierarchy
+/// while maintaining parent reactive region lifecycle.
+class PortalNode extends BloomNode {
+  final BloomNode child;
+  final String targetSelector;
+
+  const PortalNode({
+    required this.child,
+    this.targetSelector = 'body',
+  });
+}
+
+/// DSL sugar for [PortalNode].
+class Portal extends PortalNode {
+  const Portal({
+    required super.child,
+    super.targetSelector = 'body',
+  });
+}
+
 // ── Helpers for Attr / Event Merging ──────────────────────────────────
 
 Map<String, String>? _mergeAttrs(
