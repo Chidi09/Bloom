@@ -175,30 +175,62 @@ Map<String, String>? _mergeAttrs(
 Map<String, BloomEventHandler>? _mergeEvents(
   Map<String, BloomEventHandler>? base, {
   BloomEventHandler? onClick,
+  BloomEventHandler? onDblClick,
   BloomEventHandler? onInput,
   BloomEventHandler? onChange,
   BloomEventHandler? onSubmit,
   BloomEventHandler? onKeyDown,
   BloomEventHandler? onKeyUp,
+  BloomEventHandler? onKeyPress,
+  BloomEventHandler? onFocus,
+  BloomEventHandler? onBlur,
+  BloomEventHandler? onMouseEnter,
+  BloomEventHandler? onMouseLeave,
+  BloomEventHandler? onMouseDown,
+  BloomEventHandler? onMouseUp,
+  BloomEventHandler? onMouseMove,
+  BloomEventHandler? onScroll,
+  BloomEventHandler? onWheel,
+  BloomEventHandler? onContextMenu,
+  BloomEventHandler? onPointerDown,
+  BloomEventHandler? onPointerUp,
+  BloomEventHandler? onDrop,
+  BloomEventHandler? onDragOver,
+  BloomEventHandler? onDragStart,
+  BloomEventHandler? onTouchStart,
+  BloomEventHandler? onTouchEnd,
 }) {
-  if (base == null &&
-      onClick == null &&
-      onInput == null &&
-      onChange == null &&
-      onSubmit == null &&
-      onKeyDown == null &&
-      onKeyUp == null) {
-    return null;
-  }
-  return {
-    if (base != null) ...base,
+  final extras = <String, BloomEventHandler>{
     if (onClick != null) 'click': onClick,
+    if (onDblClick != null) 'dblclick': onDblClick,
     if (onInput != null) 'input': onInput,
     if (onChange != null) 'change': onChange,
     if (onSubmit != null) 'submit': onSubmit,
     if (onKeyDown != null) 'keydown': onKeyDown,
     if (onKeyUp != null) 'keyup': onKeyUp,
+    if (onKeyPress != null) 'keypress': onKeyPress,
+    if (onFocus != null) 'focus': onFocus,
+    if (onBlur != null) 'blur': onBlur,
+    if (onMouseEnter != null) 'mouseenter': onMouseEnter,
+    if (onMouseLeave != null) 'mouseleave': onMouseLeave,
+    if (onMouseDown != null) 'mousedown': onMouseDown,
+    if (onMouseUp != null) 'mouseup': onMouseUp,
+    if (onMouseMove != null) 'mousemove': onMouseMove,
+    if (onScroll != null) 'scroll': onScroll,
+    if (onWheel != null) 'wheel': onWheel,
+    if (onContextMenu != null) 'contextmenu': onContextMenu,
+    if (onPointerDown != null) 'pointerdown': onPointerDown,
+    if (onPointerUp != null) 'pointerup': onPointerUp,
+    if (onDrop != null) 'drop': onDrop,
+    if (onDragOver != null) 'dragover': onDragOver,
+    if (onDragStart != null) 'dragstart': onDragStart,
+    if (onTouchStart != null) 'touchstart': onTouchStart,
+    if (onTouchEnd != null) 'touchend': onTouchEnd,
   };
+  if (base == null && extras.isEmpty) return null;
+  if (base == null) return extras;
+  if (extras.isEmpty) return base;
+  return {...base, ...extras};
 }
 
 // ── Generic Element ───────────────────────────────────────────────────
@@ -213,19 +245,57 @@ class El extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    BloomEventHandler? onDblClick,
     BloomEventHandler? onInput,
     BloomEventHandler? onChange,
     BloomEventHandler? onSubmit,
     BloomEventHandler? onKeyDown,
     BloomEventHandler? onKeyUp,
+    BloomEventHandler? onKeyPress,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
+    BloomEventHandler? onMouseEnter,
+    BloomEventHandler? onMouseLeave,
+    BloomEventHandler? onMouseDown,
+    BloomEventHandler? onMouseUp,
+    BloomEventHandler? onMouseMove,
+    BloomEventHandler? onScroll,
+    BloomEventHandler? onWheel,
+    BloomEventHandler? onContextMenu,
+    BloomEventHandler? onPointerDown,
+    BloomEventHandler? onPointerUp,
+    BloomEventHandler? onDrop,
+    BloomEventHandler? onDragOver,
+    BloomEventHandler? onDragStart,
+    BloomEventHandler? onTouchStart,
+    BloomEventHandler? onTouchEnd,
   }) : super(
           on: _mergeEvents(on,
               onClick: onClick,
+              onDblClick: onDblClick,
               onInput: onInput,
               onChange: onChange,
               onSubmit: onSubmit,
               onKeyDown: onKeyDown,
-              onKeyUp: onKeyUp),
+              onKeyUp: onKeyUp,
+              onKeyPress: onKeyPress,
+              onFocus: onFocus,
+              onBlur: onBlur,
+              onMouseEnter: onMouseEnter,
+              onMouseLeave: onMouseLeave,
+              onMouseDown: onMouseDown,
+              onMouseUp: onMouseUp,
+              onMouseMove: onMouseMove,
+              onScroll: onScroll,
+              onWheel: onWheel,
+              onContextMenu: onContextMenu,
+              onPointerDown: onPointerDown,
+              onPointerUp: onPointerUp,
+              onDrop: onDrop,
+              onDragOver: onDragOver,
+              onDragStart: onDragStart,
+              onTouchStart: onTouchStart,
+              onTouchEnd: onTouchEnd),
         );
 
   const El.raw(
@@ -250,16 +320,44 @@ class Div extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    BloomEventHandler? onDblClick,
     BloomEventHandler? onInput,
     BloomEventHandler? onChange,
     BloomEventHandler? onSubmit,
+    BloomEventHandler? onKeyDown,
+    BloomEventHandler? onKeyUp,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
+    BloomEventHandler? onMouseEnter,
+    BloomEventHandler? onMouseLeave,
+    BloomEventHandler? onMouseDown,
+    BloomEventHandler? onMouseUp,
+    BloomEventHandler? onMouseMove,
+    BloomEventHandler? onScroll,
+    BloomEventHandler? onContextMenu,
+    BloomEventHandler? onDrop,
+    BloomEventHandler? onDragOver,
   }) : super(
           'div',
           on: _mergeEvents(on,
               onClick: onClick,
+              onDblClick: onDblClick,
               onInput: onInput,
               onChange: onChange,
-              onSubmit: onSubmit),
+              onSubmit: onSubmit,
+              onKeyDown: onKeyDown,
+              onKeyUp: onKeyUp,
+              onFocus: onFocus,
+              onBlur: onBlur,
+              onMouseEnter: onMouseEnter,
+              onMouseLeave: onMouseLeave,
+              onMouseDown: onMouseDown,
+              onMouseUp: onMouseUp,
+              onMouseMove: onMouseMove,
+              onScroll: onScroll,
+              onContextMenu: onContextMenu,
+              onDrop: onDrop,
+              onDragOver: onDragOver),
         );
 
   const Div.raw({
@@ -281,9 +379,16 @@ class Span extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    BloomEventHandler? onDblClick,
+    BloomEventHandler? onMouseEnter,
+    BloomEventHandler? onMouseLeave,
   }) : super(
           'span',
-          on: _mergeEvents(on, onClick: onClick),
+          on: _mergeEvents(on,
+              onClick: onClick,
+              onDblClick: onDblClick,
+              onMouseEnter: onMouseEnter,
+              onMouseLeave: onMouseLeave),
         );
 
   const Span.raw({
@@ -473,9 +578,28 @@ class Button extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    BloomEventHandler? onDblClick,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
+    BloomEventHandler? onMouseEnter,
+    BloomEventHandler? onMouseLeave,
+    BloomEventHandler? onMouseDown,
+    BloomEventHandler? onMouseUp,
+    BloomEventHandler? onKeyDown,
+    BloomEventHandler? onKeyUp,
   }) : super(
           'button',
-          on: _mergeEvents(on, onClick: onClick),
+          on: _mergeEvents(on,
+              onClick: onClick,
+              onDblClick: onDblClick,
+              onFocus: onFocus,
+              onBlur: onBlur,
+              onMouseEnter: onMouseEnter,
+              onMouseLeave: onMouseLeave,
+              onMouseDown: onMouseDown,
+              onMouseUp: onMouseUp,
+              onKeyDown: onKeyDown,
+              onKeyUp: onKeyUp),
         );
 
   const Button.raw({
@@ -505,6 +629,9 @@ class Input extends ElNode {
     BloomEventHandler? onClick,
     BloomEventHandler? onKeyDown,
     BloomEventHandler? onKeyUp,
+    BloomEventHandler? onKeyPress,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
   }) : super(
           'input',
           attrs: _mergeAttrs(attrs, {
@@ -520,7 +647,10 @@ class Input extends ElNode {
               onChange: onChange,
               onClick: onClick,
               onKeyDown: onKeyDown,
-              onKeyUp: onKeyUp),
+              onKeyUp: onKeyUp,
+              onKeyPress: onKeyPress,
+              onFocus: onFocus,
+              onBlur: onBlur),
         );
 
   const Input.raw({
@@ -544,6 +674,10 @@ class Textarea extends ElNode {
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onInput,
     BloomEventHandler? onChange,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
+    BloomEventHandler? onKeyDown,
+    BloomEventHandler? onKeyUp,
   }) : super(
           'textarea',
           attrs: _mergeAttrs(attrs, {
@@ -553,7 +687,13 @@ class Textarea extends ElNode {
             if (rows != null) 'rows': '$rows',
             if (cols != null) 'cols': '$cols',
           }),
-          on: _mergeEvents(on, onInput: onInput, onChange: onChange),
+          on: _mergeEvents(on,
+              onInput: onInput,
+              onChange: onChange,
+              onFocus: onFocus,
+              onBlur: onBlur,
+              onKeyDown: onKeyDown,
+              onKeyUp: onKeyUp),
         );
 
   const Textarea.raw({
@@ -576,6 +716,10 @@ class A extends ElNode {
     super.children = const [],
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onClick,
+    BloomEventHandler? onMouseEnter,
+    BloomEventHandler? onMouseLeave,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
   }) : super(
           'a',
           attrs: _mergeAttrs(attrs, {
@@ -583,7 +727,12 @@ class A extends ElNode {
             if (target != null) 'target': target,
             if (rel != null) 'rel': rel,
           }),
-          on: _mergeEvents(on, onClick: onClick),
+          on: _mergeEvents(on,
+              onClick: onClick,
+              onMouseEnter: onMouseEnter,
+              onMouseLeave: onMouseLeave,
+              onFocus: onFocus,
+              onBlur: onBlur),
         );
 
   const A.raw({
