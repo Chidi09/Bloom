@@ -49,6 +49,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  bloom_js_native:
+    dependency: "direct main"
+    description:
+      path: "../bloom_js_native"
+      relative: true
+    source: path
+    version: "0.1.0"
+  bloom_seo:
+    dependency: "direct main"
+    description:
+      path: "../bloom_seo"
+      relative: true
+    source: path
+    version: "0.1.0"
   boolean_selector:
     dependency: transitive
     description:

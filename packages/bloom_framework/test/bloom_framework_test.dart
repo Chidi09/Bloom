@@ -215,6 +215,38 @@ void main() {
       expect(find.text('Count: 1'), findsOneWidget);
     });
   });
+
+  group('Core: Bloom.reset() Lifecycle & Test Isolation', () {
+    test('clears BloomData query cache and resets simulated permissions', () async {
+      // 1. Populate query cache
+      BloomData.setQueryData(['test', 'key'], (old) => {'hello': 'world'});
+      expect(BloomData.entryCount, 1);
+      expect(BloomData.getQueryData<Map<String, dynamic>>(['test', 'key']), {'hello': 'world'});
+
+      // 2. Simulate permission override
+      BloomPermissions.simulate(
+        permission: BloomPermission.camera,
+        status: BloomPermissionStatus.granted,
+      );
+      final permStatusBefore = await BloomPermissions.check(BloomPermission.camera);
+      expect(permStatusBefore, BloomPermissionStatus.granted);
+
+      // 3. Invoke Bloom.reset()
+      await Bloom.reset();
+
+      // 4. Verify BloomData query cache is completely emptied
+      expect(BloomData.entryCount, 0);
+      expect(BloomData.getQueryData<Map<String, dynamic>>(['test', 'key']), isNull);
+
+      // 5. Verify BloomPermissions simulation is cleared
+      BloomPermissions.simulate(
+        permission: BloomPermission.camera,
+        status: BloomPermissionStatus.denied,
+      );
+      expect(await BloomPermissions.check(BloomPermission.camera), BloomPermissionStatus.denied);
+      BloomPermissions.resetSimulation();
+    });
+  });
 }
 
 class FakeBuildContext extends Fake implements BuildContext {}

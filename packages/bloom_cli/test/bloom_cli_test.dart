@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import '../lib/src/npm/npm_resolver.dart';
 import '../lib/src/templates/templates.dart';
 import '../lib/src/utils/project.dart';
 
@@ -104,6 +105,24 @@ void main() {
       expect(paths.contains('/about'), true);
       expect(paths.contains('/users'), true);
       expect(paths.contains('/users/:id'), true);
+    });
+  });
+
+  group('NPM Dynamic Resolver', () {
+    test('resolves live package metadata from NPM registry', () async {
+      final resolver = NpmResolver();
+      final meta = await resolver.fetchPackageMetadata('dayjs');
+      expect(meta, isNotNull);
+      expect(meta!.name, equals('dayjs'));
+      expect(meta.version, isNotEmpty);
+      expect(meta.description, isNotEmpty);
+    });
+
+    test('searches live NPM registry for packages', () async {
+      final resolver = NpmResolver();
+      final results = await resolver.search('chart', limit: 5);
+      expect(results, isNotEmpty);
+      expect(results.first.name, isNotEmpty);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../provenance/provenance_generator.dart';
+import '../npm/npm_vendor_assembler.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -103,6 +104,26 @@ class BuildCommand extends Command<int> {
     if (target == 'provenance') {
       final provenanceGen = ProvenanceGenerator(project);
       provenanceGen.generateProvenance();
+      return 0;
+    }
+
+    if (target == 'web' || target == 'web_dom') {
+      final assembler = NpmVendorAssembler(project);
+      await assembler.assemble();
+    }
+
+    if (target == 'web_dom') {
+      print(Ansi.step('Compiling Pure Dart Web application (AOT JS)...'));
+      final dartBuildResult = await processRunner(
+        'dart',
+        ['compile', 'js', '-O2', '-o', 'web/main.dart.js', 'lib/main.dart'],
+        workingDirectory: project.rootDir.path,
+      );
+      if (dartBuildResult.exitCode != 0) {
+        print(Ansi.error('dart compile js failed:\n${dartBuildResult.stdout}\n${dartBuildResult.stderr}'));
+        return 1;
+      }
+      print('\n${Ansi.success('Pure Dart web application compiled successfully!')}\n');
       return 0;
     }
 

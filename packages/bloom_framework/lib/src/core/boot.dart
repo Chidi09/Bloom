@@ -11,6 +11,7 @@ import '../di/container.dart';
 import '../di/scope.dart';
 import '../features/feature_flags.dart';
 import '../native/deep_links.dart';
+import '../native/permissions.dart';
 import '../modules/module_registry.dart';
 import '../observability/models.dart';
 import '../observability/observability.dart';
@@ -257,7 +258,13 @@ class Bloom {
     return BloomTestScope(parent: container, overrides: overrides);
   }
 
-  /// Reset Bloom runtime state (useful between tests).
+  /// Reset Bloom runtime state to a pristine baseline (useful between tests).
+  ///
+  /// Clears the global DI container, environment variables, feature flags, deep link subscriptions,
+  /// simulated native permissions, query cache data & active subscriptions, OTA update states,
+  /// registered dynamic modules, and observability ring buffers.
+  ///
+  /// Guarantees clean state isolation for test suites with zero cross-test state leakage.
   static Future<void> reset() async {
     _isBooted = false;
     _config = const BloomConfig();
@@ -266,7 +273,9 @@ class Bloom {
     _features.reset();
     resetActiveContainer();
     BloomDeepLinks.dispose();
+    BloomPermissions.resetSimulation();
     BloomData.stopGarbageCollector();
+    BloomData.clear();
     BloomOTA.reset();
     BloomUpdates.reset();
     BloomModuleRegistry().resetSync();

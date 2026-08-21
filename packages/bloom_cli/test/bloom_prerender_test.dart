@@ -82,6 +82,27 @@ void main() {
       await engine.close();
     });
 
+    test('BloomPrerenderEngine writes native SSG route HTML maps to disk', () async {
+      final engine = BloomPrerenderEngine();
+      final outDir = Directory(p.join(tempDir.path, 'native_ssg_out'))..createSync();
+
+      engine.prerenderNativeRoutes(
+        outputDir: outDir,
+        routeHtmlMap: {
+          '/': '<!DOCTYPE html><html><body>Home</body></html>',
+          '/about': '<!DOCTYPE html><html><body>About</body></html>',
+        },
+      );
+
+      final indexFile = File(p.join(outDir.path, 'index.html'));
+      final aboutFile = File(p.join(outDir.path, 'about', 'index.html'));
+
+      expect(indexFile.existsSync(), isTrue);
+      expect(indexFile.readAsStringSync(), contains('Home'));
+      expect(aboutFile.existsSync(), isTrue);
+      expect(aboutFile.readAsStringSync(), contains('About'));
+    });
+
     test('BloomSsgEngine falls back gracefully to template when Chromium is unavailable', () async {
       final appDir = Directory(p.join(tempDir.path, 'ssg_fallback_app'))..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: ssg_fallback_app\n');

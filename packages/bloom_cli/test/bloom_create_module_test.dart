@@ -1,4 +1,6 @@
-// test/bloom_create_module_test.dart
+@Timeout(Duration(minutes: 2))
+library bloom_create_module_test;
+
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
