@@ -76,5 +76,25 @@ void main() {
       expect(n.attrs!['value'], 'hi');
       expect(n.attrs!['type'], 'text');
     });
+
+    test('onMouseEnter sugar merges into "mouseenter"', () {
+      final n = Div(onMouseEnter: (_) {}) as ElNode;
+      expect(n.on, contains('mouseenter'));
+    });
+
+    test('onFocus sugar merges into "focus"', () {
+      final n = Input(onFocus: (_) {}) as ElNode;
+      expect(n.on, contains('focus'));
+    });
+
+    test('onBlur sugar merges into "blur"', () {
+      final n = Input(onBlur: (_) {}) as ElNode;
+      expect(n.on, contains('blur'));
+    });
+
+    test('onDblClick sugar merges into "dblclick"', () {
+      final n = Button(onDblClick: (_) {}) as ElNode;
+      expect(n.on, contains('dblclick'));
+    });
   });
 }
