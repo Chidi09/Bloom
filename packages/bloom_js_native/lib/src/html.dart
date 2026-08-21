@@ -160,6 +160,15 @@ void _render(BloomNode node, StringBuffer buf) {
         () => _render(child, buf),
         zoneValues: {context.zoneKey: value},
       );
+
+    case ErrorBoundaryNode(:final builder, :final fallback):
+      try {
+        final inner = builder();
+        _render(inner, buf);
+      } catch (err, stack) {
+        final fallbackNode = fallback(err, stack);
+        _render(fallbackNode, buf);
+      }
   }
 }
 
