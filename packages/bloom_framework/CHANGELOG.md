@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1
+
+### Added
+* **Fabric-Grade Native Mobile AST Engine (`bloom_mobile.dart`)**:
+  * `BloomFlexLayout` & `RenderBloomFlex`: Multi-pass Flexbox layout solver resolving flex-wrap, percentage dimensions, margins, and paddings on mobile devices.
+  * `BloomLeafRenderBox` & `RenderBloomLeafText`: Direct GPU canvas signal painter bypassing widget tree rebuilds on state changes.
+  * `BloomNativeInputHost`: Persistent native text controller bridge preserving keyboard insets and cursor selections.
+  * `BloomVirtualList`: Viewport sliver recycling for `ForEachNode`.
+  * `BloomMobileApp` & `runBloomMobile`: Root mobile application wrapper mounting pure-Dart AST descriptor trees.
+
 ## 0.3.0
 
 ### Added
