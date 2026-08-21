@@ -11,3 +11,4 @@ export 'src/router.dart';
 export 'src/signals.dart';
 export 'src/devtools.dart';
 export 'src/data.dart';
+export 'src/transition.dart';
