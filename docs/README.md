@@ -88,8 +88,20 @@ Welcome to the comprehensive technical documentation for **Bloom** — an opinio
 
 ---
 
-### 🔍 Section J: Transparency & Honesty Disclosures
-* [**45. Platform Capabilities & Current Gaps**](file:///root/dev/Bloom/docs/transparency/platform_capabilities_and_gaps.md) — Honest evaluation of production-ready modules versus staged Dart facades/protocols.
+### 🌐 Section K: Bloom JS Native (Fine-Grained Web Architecture)
+* [**45. Thinking in Signals & Pure Dart AST**](file:///root/dev/Bloom/docs/js-native/01_thinking_in_signals.md) — Mental model, VDOM vs Fine-Grained Signals, Dual-Backend architecture.
+* [**46. Describing the UI & Elements**](file:///root/dev/Bloom/docs/js-native/02_describing_the_ui.md) — All 38 HTML AST element builders, fragments, conditional `Show`, and keyed `ForEach`.
+* [**47. Reactivity & State Management**](file:///root/dev/Bloom/docs/js-native/03_reactivity_and_state.md) — `signal`, `computed`, `effect`, `batch`, `untracked`, and `_Region` cleanup scopes.
+* [**48. Interactivity, Events & Forms**](file:///root/dev/Bloom/docs/js-native/04_interactivity_and_forms.md) — `BloomEvent` abstraction, form validation, keyboard focus management, VM testing.
+* [**49. Server-Side Rendering (SSR) & SSG**](file:///root/dev/Bloom/docs/js-native/05_server_side_rendering_and_ssg.md) — Sub-millisecond `renderToHtml()`, `BloomApiRouter.ssr()`, `HeadManager`, `JsonLd`.
+* [**50. NPM Ecosystem & JS Interop**](file:///root/dev/Bloom/docs/js-native/06_npm_and_js_interop.md) — Modern `dart:js_interop` extension types, Bun ESM toolchain, Three.js, Chart.js.
+* [**51. Developer Tooling & CLI Suite**](file:///root/dev/Bloom/docs/js-native/07_developer_tooling_and_cli.md) — Native `bloom js dev` zero-Python server, `bloom js build --analyze`.
+* [**52. Complete JS Native API Reference**](file:///root/dev/Bloom/docs/js-native/08_api_reference.md) — Symbol-level index of exported AST descriptors and browser mounting handles.
+
+---
+
+### 🔍 Section L: Transparency & Honesty Disclosures
+* [**53. Platform Capabilities & Current Gaps**](file:///root/dev/Bloom/docs/transparency/platform_capabilities_and_gaps.md) — Honest evaluation of production-ready modules versus staged Dart facades/protocols.
 
 ---
 
