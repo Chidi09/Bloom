@@ -88,14 +88,16 @@ dart test              # framework descriptors + renderToHtml goldens + npm + ro
 dart test -p chrome    # mount/events against real DOM (phase M1 stretch)
 ```
 
-## Docs
+## Complete Documentation Suite
 
-- `docs/ARCHITECTURE.md` — dual-backend, why no VDOM, why no Flutter
-- `docs/REACTIVITY.md` — signals, Live/Show/ForEach, disposal
-- `docs/NPM_INTEROP.md` — import maps → Bun → typed bindings
-- `docs/STYLING.md` — CSS-first philosophy
-- `docs/SSR_AND_SEO.md` — BloomApiRouter integration + bloom_seo
-- `docs/COMPILER_ROADMAP.md` — T0–T4
+- [01 — Thinking in Signals & Pure Dart AST](../../docs/js-native/01_thinking_in_signals.md)
+- [02 — Describing the UI (Elements, Fragments & Keyed Lists)](../../docs/js-native/02_describing_the_ui.md)
+- [03 — Reactivity & State Deep Dive (Signals, Computed, Batching)](../../docs/js-native/03_reactivity_and_state.md)
+- [04 — Interactivity, Events & Forms](../../docs/js-native/04_interactivity_and_forms.md)
+- [05 — Server-Side Rendering (SSR) & Static Generation (SSG)](../../docs/js-native/05_server_side_rendering_and_ssg.md)
+- [06 — NPM Ecosystem & JavaScript Interop](../../docs/js-native/06_npm_and_js_interop.md)
+- [07 — Developer Tooling & CLI Suite (Zero-Python Dev Server)](../../docs/js-native/07_developer_tooling_and_cli.md)
+- [08 — Complete API Reference](../../docs/js-native/08_api_reference.md)
 
 ## Status
 
