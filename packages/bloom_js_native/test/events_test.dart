@@ -37,5 +37,32 @@ void main() {
       el.on!['click']!(BloomEvent.fakeClick());
       expect(received, 'click');
     });
+
+    test('fakeKeyDown carries key and code', () {
+      final e = BloomEvent.fakeKeyDown('Enter', code: 'Enter');
+      expect(e.type, 'keydown');
+      expect(e.key, 'Enter');
+      expect(e.code, 'Enter');
+    });
+
+    test('fakeMouseMove carries clientX/Y', () {
+      final e = BloomEvent.fakeMouseMove(100.0, 200.0);
+      expect(e.type, 'mousemove');
+      expect(e.clientX, 100.0);
+      expect(e.clientY, 200.0);
+    });
+
+    test('modifier keys default false', () {
+      final e = BloomEvent.fakeClick();
+      expect(e.shiftKey, isFalse);
+      expect(e.ctrlKey, isFalse);
+      expect(e.altKey, isFalse);
+      expect(e.metaKey, isFalse);
+    });
+
+    test('files field carries filename list', () {
+      final e = BloomEvent(type: 'change', files: ['photo.jpg', 'doc.pdf']);
+      expect(e.files, ['photo.jpg', 'doc.pdf']);
+    });
   });
 }

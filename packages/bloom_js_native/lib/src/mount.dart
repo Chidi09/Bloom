@@ -317,6 +317,19 @@ void _attachListener(
 BloomEvent _wrapEvent(String type, web.Event e) {
   String? value;
   bool? checked;
+  String? key;
+  String? code;
+  bool shiftKey = false;
+  bool ctrlKey = false;
+  bool altKey = false;
+  bool metaKey = false;
+  double? clientX;
+  double? clientY;
+  double? offsetX;
+  double? offsetY;
+  int? button;
+  List<String>? files;
+  String? dataTransfer;
 
   // Try to read value/checked from target for input-like events.
   try {
@@ -329,11 +342,41 @@ BloomEvent _wrapEvent(String type, web.Event e) {
     }
   } catch (_) {}
 
+  try {
+    final jsEvent = e as JSAny;
+    key = _jsGetString(jsEvent, 'key');
+    code = _jsGetString(jsEvent, 'code');
+    shiftKey = _jsGetBool(jsEvent, 'shiftKey') ?? false;
+    ctrlKey = _jsGetBool(jsEvent, 'ctrlKey') ?? false;
+    altKey = _jsGetBool(jsEvent, 'altKey') ?? false;
+    metaKey = _jsGetBool(jsEvent, 'metaKey') ?? false;
+    clientX = _jsGetDouble(jsEvent, 'clientX');
+    clientY = _jsGetDouble(jsEvent, 'clientY');
+    offsetX = _jsGetDouble(jsEvent, 'offsetX');
+    offsetY = _jsGetDouble(jsEvent, 'offsetY');
+    button = _jsGetInt(jsEvent, 'button');
+    dataTransfer = _jsGetString(jsEvent, 'dataTransfer');
+    files = _jsGetFileNames(jsEvent);
+  } catch (_) {}
+
   return BloomEvent(
     type: type,
     value: value,
     checked: checked,
     rawTarget: e.target as JSAny?,
+    key: key,
+    code: code,
+    shiftKey: shiftKey,
+    ctrlKey: ctrlKey,
+    altKey: altKey,
+    metaKey: metaKey,
+    clientX: clientX,
+    clientY: clientY,
+    offsetX: offsetX,
+    offsetY: offsetY,
+    button: button,
+    files: files,
+    dataTransfer: dataTransfer,
     preventDefaultFn: () => e.preventDefault(),
     stopPropagationFn: () => e.stopPropagation(),
   );
@@ -359,6 +402,44 @@ bool? _jsGetBool(JSAny target, String key) {
     if (v == null) return null;
     if (v.isA<JSBoolean>()) return (v as JSBoolean).toDart;
     return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+double? _jsGetDouble(JSAny target, String key) {
+  try {
+    final v = _reflectGet(target, key);
+    if (v == null) return null;
+    if (v.isA<JSNumber>()) return (v as JSNumber).toDartDouble;
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+int? _jsGetInt(JSAny target, String key) {
+  final d = _jsGetDouble(target, key);
+  return d?.toInt();
+}
+
+List<String>? _jsGetFileNames(JSAny event) {
+  try {
+    final target = _reflectGet(event, 'target');
+    if (target == null) return null;
+    final filesObj = _reflectGet(target, 'files');
+    if (filesObj == null) return null;
+    final length = _jsGetInt(filesObj, 'length') ?? 0;
+    if (length == 0) return null;
+    final names = <String>[];
+    for (var i = 0; i < length; i++) {
+      final file = _reflectGet(filesObj, '$i');
+      if (file != null) {
+        final name = _jsGetString(file, 'name');
+        if (name != null) names.add(name);
+      }
+    }
+    return names.isEmpty ? null : names;
   } catch (_) {
     return null;
   }
