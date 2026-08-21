@@ -9,7 +9,6 @@ topics:
   - web
   - dom
   - signals
-  - npm
   - ssr
 
 environment:

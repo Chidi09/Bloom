@@ -36,9 +36,10 @@ packages:
   bloom_js_native:
     dependency: "direct main"
     description:
-      path: "../bloom_js_native"
-      relative: true
-    source: path
+      name: bloom_js_native
+      sha256: "099084e49c4ab47f3db4a4fb9864d9269b3c14ff90cf7f7f6d684ecce3af8af9"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   boolean_selector:
     dependency: transitive
@@ -182,7 +183,7 @@ packages:
     source: hosted
     version: "0.13.0"
   meta:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: meta
       sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"

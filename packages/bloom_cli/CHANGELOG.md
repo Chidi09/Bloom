@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+### Added
+* **Live SSE Hot Reload Dev Server**: Introduced `BloomLiveReloadServer` with automatic script injection and Server-Sent Events on `/_bloom_hr`.
+* **Debounced Recursive Source Watcher**: Added `BloomSourceWatcher` with 150ms debouncing and multi-directory inotify tracking for `.dart`, `.html`, `.css`, and `.yaml` files.
+* **Server Hot Restart**: Integrated sub-80ms isolate hot restart in `bloom server run --watch`.
+* **Fast JS Dev Compiler**: Upgraded `bloom js dev` with `-O0` fast development compiler and live browser reload.
+
 ## 0.3.0
 
 ### Breaking
