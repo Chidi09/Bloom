@@ -28,17 +28,29 @@ class BloomRoute {
 class BloomRouter {
   final List<BloomRoute> routes;
 
-  BloomRouter(this.routes);
+  /// Fallback route when no pattern matches. If null, [match] returns null
+  /// on unmatched paths.
+  final BloomRoute? notFound;
+
+  /// When true, trailing slashes are stripped before matching.
+  /// `/about/` is treated as `/about`. Default: false.
+  final bool trailing;
+
+  BloomRouter(this.routes, {this.notFound, this.trailing = false});
 
   /// Match [path] against registered routes.
   /// Returns the matched route and extracted params, or null.
   ({BloomRoute route, Map<String, String> params})? match(String path) {
     // Strip query and hash.
-    final clean = path.split('?').first.split('#').first;
+    var clean = path.split('?').first.split('#').first;
+    if (trailing && clean.length > 1 && clean.endsWith('/')) {
+      clean = clean.substring(0, clean.length - 1);
+    }
     for (final route in routes) {
       final params = _matchPattern(route.path, clean);
       if (params != null) return (route: route, params: params);
     }
+    if (notFound != null) return (route: notFound!, params: {});
     return null;
   }
 
