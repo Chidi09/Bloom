@@ -147,12 +147,16 @@ List<web.Node> _mountNode(
     case ForEachNode():
       final container = web.document.createElement('span');
       container.setAttribute('data-bloom-foreach', '');
-      _bindReactiveRegion<List<BloomNode>>(
-        container,
-        region,
-        () => node.buildChildren(),
-        wrap: (children) => FragmentNode(children),
-      );
+      if (node.keyFn != null) {
+        _bindKeyedForEach(container, region, node);
+      } else {
+        _bindReactiveRegion<List<BloomNode>>(
+          container,
+          region,
+          () => node.buildChildren(),
+          wrap: (children) => FragmentNode(children),
+        );
+      }
       return [container];
 
     case StyleNode(:final css):
@@ -160,6 +164,84 @@ List<web.Node> _mountNode(
       el.textContent = css;
       return [el];
   }
+}
+
+class _KeyedEntry {
+  final String key;
+  final List<web.Node> domNodes;
+  final _Region region;
+
+  _KeyedEntry({
+    required this.key,
+    required this.domNodes,
+    required this.region,
+  });
+}
+
+void _bindKeyedForEach<T>(
+  web.Element container,
+  _Region parentRegion,
+  ForEachNode<T> forEachNode,
+) {
+  final keyFn = forEachNode.keyFn!;
+  final Map<String, _KeyedEntry> activeEntries = {};
+
+  void reconcile() {
+    final items = forEachNode.items();
+    final newKeys = <String>{};
+    final newEntries = <_KeyedEntry>[];
+
+    for (final item in items) {
+      final key = keyFn(item);
+      newKeys.add(key);
+
+      if (activeEntries.containsKey(key)) {
+        newEntries.add(activeEntries[key]!);
+      } else {
+        final itemRegion = _Region();
+        final descriptor = forEachNode.builder(item);
+        final domNodes = _mountNode(descriptor, itemRegion);
+        final entry = _KeyedEntry(key: key, domNodes: domNodes, region: itemRegion);
+        activeEntries[key] = entry;
+        newEntries.add(entry);
+      }
+    }
+
+    // Remove deleted keys & dispose their regions
+    final toRemove = activeEntries.keys.where((k) => !newKeys.contains(k)).toList();
+    for (final k in toRemove) {
+      final entry = activeEntries.remove(k)!;
+      entry.region.disposeAll();
+      for (final n in entry.domNodes) {
+        if (n.parentNode == container) {
+          container.removeChild(n);
+        }
+      }
+    }
+
+    // Reorder DOM nodes in container to match newEntries
+    for (var i = 0; i < newEntries.length; i++) {
+      final entry = newEntries[i];
+      for (final n in entry.domNodes) {
+        final currentChildAtIndex = container.childNodes.item(i);
+        if (currentChildAtIndex != n) {
+          container.insertBefore(n, currentChildAtIndex);
+        }
+      }
+    }
+  }
+
+  final stop = effect(() {
+    reconcile();
+  });
+
+  parentRegion.add(() {
+    stop();
+    for (final entry in activeEntries.values) {
+      entry.region.disposeAll();
+    }
+    activeEntries.clear();
+  });
 }
 
 /// Shared reactive-region binding: re-renders the container's contents
