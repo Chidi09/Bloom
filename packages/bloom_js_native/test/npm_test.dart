@@ -48,5 +48,26 @@ void main() {
       NpmRegistry.register(const NpmDependency('zod', '^3.24.0'));
       expect(NpmRegistry.all['zod']!.version, '^3.24.0');
     });
+
+    test('integrity field round-trips through toJson', () {
+      final dep = NpmDependency('zod', '^3.23.0', integrity: 'sha384-abc123');
+      expect(dep.toJson()['integrity'], 'sha384-abc123');
+    });
+
+    test('subPath entry appears in scopes block', () {
+      NpmRegistry.clear();
+      NpmRegistry.register(const NpmDependency('lucide', '^0.460.0'));
+      NpmRegistry.register(const NpmDependency('lucide', '^0.460.0', subPath: 'icons', importAs: 'lucide/icons'));
+      final json = NpmRegistry.generateImportMapJson();
+      expect(json, contains('"scopes"'));
+      NpmRegistry.clear();
+    });
+
+    test('conflicts() returns empty list by default', () {
+      NpmRegistry.clear();
+      NpmRegistry.register(const NpmDependency('zod', '^3.23.0'));
+      expect(NpmRegistry.conflicts(), isEmpty);
+      NpmRegistry.clear();
+    });
   });
 }
