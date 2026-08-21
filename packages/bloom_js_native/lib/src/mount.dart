@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:signals/signals.dart';
@@ -184,6 +185,12 @@ List<web.Node> _mountNode(
         }
       }
       return nodes;
+
+    case ContextProviderNode(:final context, :final value, :final child):
+      return runZoned(
+        () => _mountNode(child, region),
+        zoneValues: {context.zoneKey: value},
+      );
   }
 }
 
