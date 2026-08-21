@@ -249,6 +249,26 @@ class RefNode extends BloomNode {
   const RefNode(this.ref, this.child);
 }
 
+/// Catches exceptions during subtree rendering or reactive rebuilds
+/// and renders [fallback] instead of crashing.
+class ErrorBoundaryNode extends BloomNode {
+  final BloomNode Function() builder;
+  final BloomNode Function(Object error, StackTrace stackTrace) fallback;
+
+  const ErrorBoundaryNode({
+    required this.builder,
+    required this.fallback,
+  });
+}
+
+/// DSL sugar for [ErrorBoundaryNode].
+class ErrorBoundary extends ErrorBoundaryNode {
+  const ErrorBoundary({
+    required super.builder,
+    required super.fallback,
+  });
+}
+
 // ── Helpers for Attr / Event Merging ──────────────────────────────────
 
 Map<String, String>? _mergeAttrs(

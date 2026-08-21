@@ -191,6 +191,23 @@ List<web.Node> _mountNode(
         () => _mountNode(child, region),
         zoneValues: {context.zoneKey: value},
       );
+
+    case ErrorBoundaryNode(:final builder, :final fallback):
+      final sentinel = _Sentinel('error-boundary');
+      final inner = _Region();
+      try {
+        final node = builder();
+        final nodes = _mountNode(node, inner);
+        sentinel.appendAll(nodes);
+      } catch (err, stack) {
+        inner.disposeAll();
+        sentinel.clear();
+        final fallbackNode = fallback(err, stack);
+        final nodes = _mountNode(fallbackNode, inner);
+        sentinel.appendAll(nodes);
+      }
+      region.add(inner.disposeAll);
+      return [sentinel.start, sentinel.end];
   }
 }
 
