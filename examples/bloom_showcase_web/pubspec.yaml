@@ -1,0 +1,17 @@
+name: bloom_showcase_web
+description: Flagship showcase landing page built with Bloom JS Native, Three.js, and Fine-Grained Signals.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  web: ^1.1.0
+  bloom_js_native:
+    path: ../../packages/bloom_js_native
+  bloom_seo:
+    path: ../../packages/bloom_seo
+
+dev_dependencies:
+  lints: ^4.0.0

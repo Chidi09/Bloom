@@ -1,0 +1,14 @@
+name: bloom_showcase_web
+target: web_dom
+
+npm_packages:
+  three:
+    npm_name: three
+    version: 0.160.0
+    vendor_file: web/vendor/three.min.js
+    dart_binding: lib/plugins/three_js.dart
+  canvas-confetti:
+    npm_name: canvas-confetti
+    version: 1.9.3
+    vendor_file: web/vendor/canvas-confetti.min.js
+    dart_binding: lib/plugins/confetti.dart
