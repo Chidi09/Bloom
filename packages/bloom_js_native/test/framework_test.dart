@@ -97,4 +97,47 @@ void main() {
       expect(n.on, contains('dblclick'));
     });
   });
+
+  group('cx()', () {
+    test('joins non-null strings', () {
+      expect(cx(['foo', 'bar']), 'foo bar');
+    });
+    test('filters null and false', () {
+      expect(cx(['a', null, false, 'b']), 'a b');
+    });
+    test('includes conditional string', () {
+      bool getActive() => true;
+      expect(cx(['base', getActive() ? 'active' : null]), 'base active');
+    });
+    test('trims extra whitespace', () {
+      expect(cx(['  a  ', 'b']), 'a b');
+    });
+    test('returns empty string for all null', () {
+      expect(cx([null, false, null]), '');
+    });
+  });
+
+  group('Text-semantic and interactive elements', () {
+    test('Br produces void br element in SSR', () {
+      final html = renderToHtml(Br());
+      expect(html, '<br>');
+    });
+
+    test('Hr produces void hr element in SSR', () {
+      final html = renderToHtml(Hr());
+      expect(html, '<hr>');
+    });
+
+    test('Details and Summary render', () {
+      final html = renderToHtml(
+        Details(children: [Summary(text: 'Title'), P(text: 'body')]),
+      );
+      expect(html, '<details><summary>Title</summary><p>body</p></details>');
+    });
+
+    test('TimeEl and Abbr render with attrs', () {
+      expect(renderToHtml(TimeEl(text: 'now', dateTime: '2026-08-21')), '<time datetime="2026-08-21">now</time>');
+      expect(renderToHtml(Abbr(text: 'HTML', title: 'HyperText Markup Language')), '<abbr title="HyperText Markup Language">HTML</abbr>');
+    });
+  });
 }
