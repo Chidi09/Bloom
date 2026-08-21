@@ -1398,3 +1398,204 @@ class Optgroup extends ElNode {
     super.children = const [],
   }) : super('optgroup');
 }
+
+// ── SVG Descriptors ───────────────────────────────────────────────────
+
+/// SVG element node. Emitted with SVG namespace by browser mount and SSR.
+class SvgNode extends ElNode {
+  const SvgNode(
+    super.tag, {
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  });
+}
+
+/// `<svg>` — SVG container element.
+class Svg extends SvgNode {
+  Svg({
+    String? viewBox,
+    String? width,
+    String? height,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+  }) : super('svg',
+            attrs: _mergeAttrs(attrs, {
+              if (viewBox != null) 'viewBox': viewBox,
+              if (width != null) 'width': width,
+              if (height != null) 'height': height,
+            }));
+
+  const Svg.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  }) : super('svg');
+}
+
+/// `<g>` — SVG group element.
+class SvgG extends SvgNode {
+  SvgG({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+  }) : super('g');
+
+  const SvgG.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  }) : super('g');
+}
+
+/// `<path>` — SVG path element.
+class SvgPath extends SvgNode {
+  SvgPath({
+    required String d,
+    String? fill,
+    String? stroke,
+    String? strokeWidth,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+  }) : super('path',
+            attrs: _mergeAttrs(attrs, {
+              'd': d,
+              if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': strokeWidth,
+            }));
+
+  const SvgPath.raw({
+    super.className,
+    super.attrs,
+    super.on,
+  }) : super('path');
+}
+
+/// `<circle>` — SVG circle element.
+class SvgCircle extends SvgNode {
+  SvgCircle({
+    required num cx,
+    required num cy,
+    required num r,
+    String? fill,
+    String? stroke,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+  }) : super('circle',
+            attrs: _mergeAttrs(attrs, {
+              'cx': '$cx',
+              'cy': '$cy',
+              'r': '$r',
+              if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+            }));
+
+  const SvgCircle.raw({
+    super.className,
+    super.attrs,
+    super.on,
+  }) : super('circle');
+}
+
+/// `<rect>` — SVG rectangle element.
+class SvgRect extends SvgNode {
+  SvgRect({
+    num? x,
+    num? y,
+    required num width,
+    required num height,
+    num? rx,
+    String? fill,
+    String? stroke,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+  }) : super('rect',
+            attrs: _mergeAttrs(attrs, {
+              if (x != null) 'x': '$x',
+              if (y != null) 'y': '$y',
+              'width': '$width',
+              'height': '$height',
+              if (rx != null) 'rx': '$rx',
+              if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+            }));
+
+  const SvgRect.raw({
+    super.className,
+    super.attrs,
+    super.on,
+  }) : super('rect');
+}
+
+/// `<line>` — SVG line element.
+class SvgLine extends SvgNode {
+  SvgLine({
+    required num x1,
+    required num y1,
+    required num x2,
+    required num y2,
+    String? stroke,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+  }) : super('line',
+            attrs: _mergeAttrs(attrs, {
+              'x1': '$x1',
+              'y1': '$y1',
+              'x2': '$x2',
+              'y2': '$y2',
+              if (stroke != null) 'stroke': stroke,
+            }));
+}
+
+/// `<text>` — SVG text element.
+class SvgText extends SvgNode {
+  SvgText({
+    super.text,
+    num? x,
+    num? y,
+    String? fill,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+    super.children = const [],
+  }) : super('text',
+            attrs: _mergeAttrs(attrs, {
+              if (x != null) 'x': '$x',
+              if (y != null) 'y': '$y',
+              if (fill != null) 'fill': fill,
+            }));
+}
+
+/// `<use>` — SVG element reuse instance.
+class SvgUse extends SvgNode {
+  SvgUse({
+    required String href,
+    num? x,
+    num? y,
+    super.className,
+    Map<String, String>? attrs,
+    super.on,
+  }) : super('use',
+            attrs: _mergeAttrs(attrs, {
+              'href': href,
+              if (x != null) 'x': '$x',
+              if (y != null) 'y': '$y',
+            }));
+}

@@ -104,5 +104,17 @@ void main() {
       final html = renderToHtmlAll([P(text: 'a'), P(text: 'b')]);
       expect(html, '<p>a</p><p>b</p>');
     });
+
+    test('Svg renders with viewBox', () {
+      final html = renderToHtml(Svg(viewBox: '0 0 24 24', children: [
+        SvgPath(d: 'M12 2L2 7l10 5 10-5-10-5z'),
+      ]));
+      expect(html, '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"></path></svg>');
+    });
+
+    test('SvgCircle renders cx cy r', () {
+      final html = renderToHtml(SvgCircle(cx: 12, cy: 12, r: 5));
+      expect(html, '<circle cx="12" cy="12" r="5"></circle>');
+    });
   });
 }

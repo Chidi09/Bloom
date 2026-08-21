@@ -51,6 +51,33 @@ void _render(BloomNode node, StringBuffer buf) {
     case TextNode(:final text):
       buf.write(escapeHtml(text));
 
+    case SvgNode(
+        :final tag,
+        :final text,
+        :final className,
+        :final style,
+        :final attrs,
+        :final children
+      ):
+      buf.write('<$tag');
+      if (className != null && className.isNotEmpty) {
+        buf.write(' class="${escapeHtml(className)}"');
+      }
+      if (style != null && style.isNotEmpty) {
+        buf.write(' style="${escapeHtml(style)}"');
+      }
+      if (attrs != null) {
+        for (final entry in attrs.entries) {
+          buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
+        }
+      }
+      buf.write('>');
+      if (text != null) buf.write(escapeHtml(text));
+      for (final c in children) {
+        _render(c, buf);
+      }
+      buf.write('</$tag>');
+
     case ElNode(
         :final tag,
         :final text,
