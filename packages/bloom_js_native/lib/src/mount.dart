@@ -196,7 +196,29 @@ void _bindKeyedForEach<T>(
       newKeys.add(key);
 
       if (activeEntries.containsKey(key)) {
-        newEntries.add(activeEntries[key]!);
+        final existing = activeEntries[key]!;
+        existing.region.disposeAll();
+        final descriptor = forEachNode.builder(item);
+        final newDomNodes = _mountNode(descriptor, existing.region);
+
+        for (var idx = 0; idx < existing.domNodes.length; idx++) {
+          final oldN = existing.domNodes[idx];
+          if (idx < newDomNodes.length) {
+            final newN = newDomNodes[idx];
+            if (oldN != newN && oldN.parentNode == container) {
+              container.replaceChild(newN, oldN);
+            }
+          } else if (oldN.parentNode == container) {
+            container.removeChild(oldN);
+          }
+        }
+        for (var idx = existing.domNodes.length; idx < newDomNodes.length; idx++) {
+          container.appendChild(newDomNodes[idx]);
+        }
+
+        final updatedEntry = _KeyedEntry(key: key, domNodes: newDomNodes, region: existing.region);
+        activeEntries[key] = updatedEntry;
+        newEntries.add(updatedEntry);
       } else {
         final itemRegion = _Region();
         final descriptor = forEachNode.builder(item);
