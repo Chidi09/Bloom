@@ -21,24 +21,35 @@ class NpmDependency {
   /// CDN provider. Defaults to esm.sh.
   final String cdn;
 
+  /// SRI integrity hash, e.g. `sha384-abc...`. Included in the import-map
+  /// tag as an `integrity` field when provided.
+  final String? integrity;
+
+  /// Sub-path specifier, e.g. `'icons'` → `lucide/icons` scope entry.
+  final String? subPath;
+
   const NpmDependency(
     this.name,
     this.version, {
     this.importAs,
     this.cdn = 'https://esm.sh',
+    this.integrity,
+    this.subPath,
   });
 
   /// Resolved import specifier key in the import map.
   String get specifier => importAs ?? name;
 
   /// Resolved ESM URL, e.g. https://esm.sh/zod@^3.23.0
-  String get url => '$cdn/$name@$version';
+  String get url => '$cdn/$name@$version${subPath != null ? '/$subPath' : ''}';
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'version': version,
         'specifier': specifier,
         'url': url,
+        if (integrity != null) 'integrity': integrity,
+        if (subPath != null) 'subPath': subPath,
       };
 }
 
@@ -67,16 +78,35 @@ class NpmRegistry {
   /// Clear the registry (useful in tests).
   static void clear() => _deps.clear();
 
+  /// Returns specifiers that were registered with conflicting versions.
+  /// Since later registrations silently win, this is always empty unless
+  /// extended to track registration history. Reserved for future use.
+  static List<String> conflicts() => const [];
+
   /// Generate the raw import-map JSON string.
   ///
   /// ```json
   /// { "imports": { "zod": "https://esm.sh/zod@^3.23.0" } }
   /// ```
   static String generateImportMapJson({bool pretty = false}) {
-    final imports = <String, String>{
-      for (final e in _deps.entries) e.key: e.value.url,
+    final mainImports = <String, String>{};
+    final scopes = <String, Map<String, String>>{};
+
+    for (final e in _deps.entries) {
+      if (e.value.subPath != null) {
+        // Emit as a scopes entry.
+        final baseUrl = '${e.value.cdn}/${e.value.name}@${e.value.version}/';
+        scopes[baseUrl] = {e.value.specifier: e.value.url};
+      } else {
+        mainImports[e.key] = e.value.url;
+      }
+    }
+
+    final map = <String, dynamic>{
+      'imports': mainImports,
+      if (scopes.isNotEmpty) 'scopes': scopes,
     };
-    final map = {'imports': imports};
+
     return pretty
         ? const JsonEncoder.withIndent('  ').convert(map)
         : jsonEncode(map);
