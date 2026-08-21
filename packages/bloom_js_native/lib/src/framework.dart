@@ -1217,3 +1217,184 @@ class IFrame extends ElNode {
         }));
   const IFrame.raw({super.className, super.style, super.attrs, super.on}) : super('iframe');
 }
+
+// ── Table Elements ────────────────────────────────────────────────────
+
+/// `<table>` — tabular data element.
+class Table extends ElNode {
+  Table({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('table');
+  const Table.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('table');
+}
+
+/// `<caption>` — title or explanation for a table.
+class Caption extends ElNode {
+  const Caption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('caption');
+}
+
+/// `<thead>` — set of rows defining table column headers.
+class Thead extends ElNode {
+  Thead({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('thead');
+  const Thead.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('thead');
+}
+
+/// `<tbody>` — encapsulated set of table rows containing data.
+class Tbody extends ElNode {
+  Tbody({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tbody');
+  const Tbody.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tbody');
+}
+
+/// `<tfoot>` — set of rows summarizing table columns.
+class Tfoot extends ElNode {
+  Tfoot({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tfoot');
+  const Tfoot.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tfoot');
+}
+
+/// `<tr>` — row of cells in a table.
+class Tr extends ElNode {
+  Tr({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tr');
+  const Tr.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tr');
+}
+
+/// `<th>` — header cell in a table.
+class Th extends ElNode {
+  Th({
+    super.text,
+    String? scope,
+    int? colSpan,
+    int? rowSpan,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+  }) : super(
+          'th',
+          attrs: _mergeAttrs(attrs, {
+            if (scope != null) 'scope': scope,
+            if (colSpan != null) 'colspan': '$colSpan',
+            if (rowSpan != null) 'rowspan': '$rowSpan',
+          }),
+        );
+
+  const Th.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  }) : super('th');
+}
+
+/// `<td>` — standard data cell in a table.
+class Td extends ElNode {
+  Td({
+    super.text,
+    int? colSpan,
+    int? rowSpan,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+  }) : super(
+          'td',
+          attrs: _mergeAttrs(attrs, {
+            if (colSpan != null) 'colspan': '$colSpan',
+            if (rowSpan != null) 'rowspan': '$rowSpan',
+          }),
+        );
+
+  const Td.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  }) : super('td');
+}
+
+// ── Form Select ───────────────────────────────────────────────────────
+
+/// `<select>` — control that provides a menu of options.
+class Select extends ElNode {
+  Select({
+    String? name,
+    bool? multiple,
+    bool? disabled,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    Map<String, BloomEventHandler>? on,
+    BloomEventHandler? onChange,
+    BloomEventHandler? onFocus,
+    BloomEventHandler? onBlur,
+  }) : super(
+          'select',
+          attrs: _mergeAttrs(attrs, {
+            if (name != null) 'name': name,
+            if (multiple == true) 'multiple': 'multiple',
+            if (disabled == true) 'disabled': 'disabled',
+          }),
+          on: _mergeEvents(on,
+              onChange: onChange,
+              onFocus: onFocus,
+              onBlur: onBlur),
+        );
+
+  const Select.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+  }) : super('select');
+}
+
+/// `<option>` — item in a select control.
+class Option extends ElNode {
+  Option({
+    required String value,
+    super.text,
+    bool? selected,
+    bool? disabled,
+    super.className,
+    Map<String, String>? attrs,
+    super.children = const [],
+  }) : super(
+          'option',
+          attrs: _mergeAttrs(attrs, {
+            'value': value,
+            if (selected == true) 'selected': 'selected',
+            if (disabled == true) 'disabled': 'disabled',
+          }),
+        );
+
+  const Option.raw({
+    super.text,
+    super.className,
+    super.attrs,
+    super.children = const [],
+  }) : super('option');
+}
+
+/// `<optgroup>` — group of option items within a select control.
+class Optgroup extends ElNode {
+  Optgroup({
+    required String label,
+    super.className,
+    Map<String, String>? attrs,
+    super.children = const [],
+  }) : super(
+          'optgroup',
+          attrs: _mergeAttrs(attrs, {'label': label}),
+        );
+
+  const Optgroup.raw({
+    super.className,
+    super.attrs,
+    super.children = const [],
+  }) : super('optgroup');
+}

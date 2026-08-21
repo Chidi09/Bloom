@@ -140,4 +140,26 @@ void main() {
       expect(renderToHtml(Abbr(text: 'HTML', title: 'HyperText Markup Language')), '<abbr title="HyperText Markup Language">HTML</abbr>');
     });
   });
+
+  group('Table and Select elements', () {
+    test('Table renders full structure', () {
+      final html = renderToHtml(Table(children: [
+        Thead(children: [Tr(children: [Th(text: 'Name')])]),
+        Tbody(children: [Tr(children: [Td(text: 'Alice')])]),
+      ]));
+      expect(html, '<table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Alice</td></tr></tbody></table>');
+    });
+
+    test('Select with Options renders', () {
+      final html = renderToHtml(Select(children: [
+        Option(value: '1', text: 'One'),
+        Option(value: '2', text: 'Two'),
+      ]));
+      expect(html, '<select><option value="1">One</option><option value="2">Two</option></select>');
+    });
+
+    test('Th with scope emits attribute', () {
+      expect(renderToHtml(Th(text: 'H', scope: 'col')), '<th scope="col">H</th>');
+    });
+  });
 }
