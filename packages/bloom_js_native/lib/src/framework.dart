@@ -289,6 +289,28 @@ class Portal extends PortalNode {
   });
 }
 
+/// Declarative async boundary that renders [fallback] while [resource] resolves.
+class SuspenseNode<T> extends BloomNode {
+  final Future<T> Function() resource;
+  final BloomNode Function(T data) builder;
+  final BloomNode fallback;
+
+  const SuspenseNode({
+    required this.resource,
+    required this.builder,
+    required this.fallback,
+  });
+}
+
+/// DSL sugar for [SuspenseNode].
+class Suspense<T> extends SuspenseNode<T> {
+  const Suspense({
+    required super.resource,
+    required super.builder,
+    required super.fallback,
+  });
+}
+
 // ── Helpers for Attr / Event Merging ──────────────────────────────────
 
 Map<String, String>? _mergeAttrs(
