@@ -1,0 +1,51 @@
+name: bloom_ecommerce_server
+description: Basic e-commerce REST API backend built on the Flutter-free bloom_server package.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_server:
+    path: ../../../packages/bloom_server
+  bloom_db:
+    path: ../../../packages/bloom_db
+  bloom_validate:
+    path: ../../../packages/bloom_validate
+  bloom_auth_server:
+    path: ../../../packages/bloom_auth_server
+  bloom_errors:
+    path: ../../../packages/bloom_errors
+  bloom_rest:
+    path: ../../../packages/bloom_rest
+  bloom_migrate:
+    path: ../../../packages/bloom_migrate
+  bloom_security:
+    path: ../../../packages/bloom_security
+
+  # Ecosystem dependencies
+  postgres: ^3.2.1
+  crypto: ^3.0.3
+
+dev_dependencies:
+  build_runner: ^2.4.9
+  bloom_db_generator:
+    path: ../../../packages/bloom_db_generator
+  lints: ^4.0.0
+
+# bloom_db_generator's published pubspec depends on the hosted bloom_db (^0.1.0),
+# which conflicts with this package's own local path dependency on bloom_db.
+# Override forces pub to resolve a single local bloom_db everywhere instead of
+# refusing to solve (a pre-existing issue also present in bloom_fullstack_todo).
+#
+# bloom_cache: bloom_rest's own pubspec already overrides bloom_cache to its
+# local path copy, but dependency_overrides do not propagate transitively to
+# a consuming package's own resolution -- without repeating it here, pub
+# re-acquires the hosted bloom_cache (^0.1.0), which still depends on the
+# Flutter-requiring bloom_framework. Same pattern used in bloom_realtime.
+dependency_overrides:
+  bloom_db:
+    path: ../../../packages/bloom_db
+  bloom_cache:
+    path: ../../../packages/bloom_cache
