@@ -367,6 +367,17 @@ class SuspenseNode<T> extends BloomNode {
     required this.builder,
     required this.fallback,
   });
+
+  /// [resource], viewed untyped.
+  ///
+  /// Same contravariance constraint as [ForEachNode.keyFnErased]: a
+  /// `case SuspenseNode():` match binds `T` as `dynamic`, so reading
+  /// [builder] there casts it to `BloomNode Function(dynamic)` and throws.
+  Future<Object?> Function() get resourceErased => resource;
+
+  /// [builder], accepting untyped resolved data.
+  BloomNode Function(Object? data) get builderErased =>
+      (data) => builder(data as T);
 }
 
 /// DSL sugar for [SuspenseNode].

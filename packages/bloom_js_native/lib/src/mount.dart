@@ -296,16 +296,19 @@ List<web.Node> _mountNode(
       final comment = web.document.createComment(' portal:$targetSelector ');
       return [comment];
 
-    case SuspenseNode(:final resource, :final builder, :final fallback):
+    case SuspenseNode(:final fallback):
       final sentinel = _Sentinel('suspense');
       final inner = _Region();
       final fallbackNodes = _mountNode(fallback, inner);
 
-      resource().then((data) {
+      // Erased views: reading `resource`/`builder` straight off the pattern
+      // match casts them to `Function(dynamic)`, which throws for any
+      // `Suspense<T>` with a concrete `T`. See [SuspenseNode.builderErased].
+      node.resourceErased().then((data) {
         if (region.disposers.isNotEmpty) {
           inner.disposeAll();
           sentinel.clear();
-          final loadedNode = builder(data);
+          final loadedNode = node.builderErased(data);
           final loadedNodes = _mountNode(loadedNode, inner);
           sentinel.appendAll(loadedNodes);
         }
