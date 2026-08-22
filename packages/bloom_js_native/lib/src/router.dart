@@ -40,12 +40,33 @@ class BloomRoute {
   /// Nested sub-routes.
   final List<BloomRoute> children;
 
+  /// Optional data loader, run before [dataBuilder] (or [builder], if
+  /// [dataBuilder] is not given) renders. When present, this route's
+  /// content is automatically wrapped in a [Suspense] boundary — no
+  /// manual composition needed. Analogous to React Router's `loader`.
+  final Future<dynamic> Function(Map<String, String> params)? loader;
+
+  /// Builder invoked with both [params] and the resolved [loader] result,
+  /// used instead of [builder] when [loader] is present. If [loader] is
+  /// present but [dataBuilder] is not given, [builder] is used instead,
+  /// receiving only [params] (the loaded data is simply discarded in that
+  /// case — useful when you only want the loading gate, not the data).
+  final BloomNode Function(Map<String, String> params, dynamic data)?
+      dataBuilder;
+
+  /// Fallback node shown while [loader] is pending. Defaults to an empty
+  /// fragment if not provided.
+  final BloomNode Function()? loadingFallback;
+
   const BloomRoute(
     this.path,
     this.builder, {
     this.layout,
     this.guards = const [],
     this.children = const [],
+    this.loader,
+    this.dataBuilder,
+    this.loadingFallback,
   });
 
   /// Factory for persistent shell layouts (sidebars, navbars).
@@ -78,6 +99,18 @@ class BloomRouteMatch {
 
   BloomNode build() {
     if (_buildNode != null) return _buildNode();
+    final loader = route.loader;
+    if (loader != null) {
+      return Suspense<dynamic>(
+        resource: () => loader(params),
+        builder: (data) {
+          if (route.dataBuilder != null) return route.dataBuilder!(params, data);
+          if (route.builder != null) return route.builder!(params);
+          return const FragmentNode([]);
+        },
+        fallback: route.loadingFallback?.call() ?? const FragmentNode([]),
+      );
+    }
     if (route.builder != null) return route.builder!(params);
     return const FragmentNode([]);
   }
