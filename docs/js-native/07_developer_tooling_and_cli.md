@@ -66,3 +66,61 @@ Synchronizes and snapshots NPM libraries declared in `bloom.yaml` into `web/vend
 ```bash
 bloom js vendor
 ```
+
+---
+
+## 4. Code Scaffolding (`bloom js create`)
+
+Generates a new component, page, or route guard from a template, matching the
+role Angular's `ng generate`/`create-react-app` templates play — but scoped to
+a single file (plus a matching test) instead of a whole project.
+
+```bash
+bloom js create <Name> [--page | --guard]
+```
+
+Must be run from inside a Bloom project (i.e. somewhere `BloomProject.find()`
+can locate the project root). `--page` and `--guard` are mutually exclusive;
+passing neither scaffolds a plain component.
+
+### Component (default)
+
+```bash
+bloom js create UserCard
+```
+
+Writes `lib/components/user_card.dart` (a `BloomNode UserCard(...)` function
+skeleton) and a matching `test/user_card_test.dart` using `bloom_test`'s
+`renderForTest`.
+
+### Page (`--page` / `-p`)
+
+```bash
+bloom js create Dashboard --page
+```
+
+Writes `lib/pages/dashboard.dart` with a `BloomNode Dashboard(Map<String,
+String> params)` signature (matching `BloomRoute.builder`'s shape) and a doc
+comment showing both a plain `BloomRoute` registration and a
+`loader`/`dataBuilder` registration for data-driven pages. No test file is
+required to be added manually — one is scaffolded alongside it, same as the
+component case.
+
+### Route guard (`--guard` / `-g`)
+
+```bash
+bloom js create Auth --guard
+```
+
+Writes `lib/guards/auth_guard.dart` with a `class AuthGuard extends
+BloomRouteGuard` skeleton (`canActivate` stub returning a `GuardResult`). The
+name is auto-suffixed with `Guard` unless it already ends in one (`Auth` →
+`AuthGuard`, but `AuthGuard` stays `AuthGuard`). No test file is scaffolded
+for guards — a guard's `canActivate` behavior is typically exercised via the
+router's own test suite rather than in isolation.
+
+Name validation is shared across all three variants: the name must be
+non-empty and start with a letter (`snake_case`/`PascalCase` are both
+accepted as input; the CLI derives both the Dart class name and the
+`snake_case` file name from whatever's given). Running against a name whose
+target file already exists is an error — it will not silently overwrite.
