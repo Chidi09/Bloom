@@ -83,5 +83,62 @@ void main() {
       expect(chunks, hasLength(1));
       expect(chunks.first, contains('loading'));
     });
+
+    test('a Suspense nested inside a Div child streams progressively', () async {
+      final node = Div(children: [
+        Suspense<String>(
+          resource: () => Future.value('nested-data'),
+          builder: (data) => Div(text: data),
+          fallback: Div(text: 'nested-loading'),
+        ),
+      ]);
+
+      final chunks = await renderToStreamWithSuspense(node).toList();
+      expect(chunks.first, contains('nested-loading'));
+      expect(chunks.first, isNot(contains('nested-data')));
+
+      final joined = chunks.join();
+      expect(joined, contains('nested-data'));
+      expect(joined, contains('<script>'));
+    });
+
+    test('a Suspense nested two levels deep (Div > Fragment > Div) streams', () async {
+      final node = Div(children: [
+        Fragment(children: [
+          Div(children: [
+            Suspense<String>(
+              resource: () => Future.value('deep-data'),
+              builder: (data) => Div(text: data),
+              fallback: Div(text: 'deep-loading'),
+            ),
+          ]),
+        ]),
+      ]);
+
+      final chunks = await renderToStreamWithSuspense(node).toList();
+      final joined = chunks.join();
+      expect(joined, contains('deep-loading'));
+      expect(joined, contains('deep-data'));
+    });
+
+    test('a Suspense nested inside another Suspense\'s resolved content streams', () async {
+      final node = Suspense<String>(
+        resource: () => Future.value('outer'),
+        builder: (outerData) => Div(children: [
+          Suspense<String>(
+            resource: () => Future.value('inner'),
+            builder: (innerData) => Div(text: '$outerData-$innerData'),
+            fallback: Div(text: 'inner-loading'),
+          ),
+        ]),
+        fallback: Div(text: 'outer-loading'),
+      );
+
+      final chunks = await renderToStreamWithSuspense(node).toList();
+      final joined = chunks.join();
+      expect(joined, contains('outer-loading'));
+      expect(joined, contains('inner-loading'));
+      expect(joined, contains('outer-inner'));
+    });
   });
 }

@@ -79,7 +79,7 @@ cd example && bash build.sh
 - **Events:** handlers receive `BloomEvent` with `.value`, `.checked`, `.preventDefault()`, `.stopPropagation()` — VM-testable via `BloomEvent.fake*()`
 - **Mount:** `mount(node, '#app')` → `BloomMountHandle` with `unmount()` / `dispose()`; `hydrate(node, '#app')` for hydrating server-rendered markup
 - **Lazy loading:** `lazy(() async { ...; return Component(); }, fallback: ...)` — Suspense-backed, pairs with Dart's `deferred as` for real JS code-splitting (React.lazy equivalent)
-- **SSR:** `renderToHtml(node)` → `String` (XSS-escaped, void elements handled); `renderToStream(node)` for simple chunked output; `renderToStreamWithSuspense(node)` for true out-of-order streaming SSR (React `renderToPipeableStream` equivalent) — flushes each top-level Suspense fallback immediately, streams resolved content as it lands
+- **SSR:** `renderToHtml(node)` → `String` (XSS-escaped, void elements handled); `renderToStream(node)` for simple chunked output; `renderToStreamWithSuspense(node)` for true out-of-order streaming SSR (React `renderToPipeableStream` equivalent) — flushes every Suspense fallback immediately (root, nested, or discovered inside resolved async content), streams resolved content as each boundary lands, independent of nesting depth
 - **Data & mutations:** `BloomQuery` (cached, deduplicated, auto-revalidating fetches — tanstack query equivalent), `BloomMutation` (optimistic updates, rollback, cache invalidation)
 - **Router:** `BloomRouter` + `BloomRoute` (nested layouts via `BloomRoute.shell`, `guards: [BloomRouteGuard]`, `loader`/`dataBuilder`/`loadingFallback` for React Router `loader`-style data APIs — auto-revalidates via `BloomQuery`+`BloomMutation.invalidateKeys`) + `Link(href: ...)`
 - **Testing:** `bloom_test` — `renderForTest(node)` with `getByTestId`/`getByText`/`getByTag` queries and `fireEvent.click/input/change/submit` (Testing Library equivalent), operates on the descriptor tree with no browser required
@@ -124,7 +124,8 @@ signals-based reactivity (state, reducer, context, controller stores),
 routing (nested layouts, guards, data loaders with revalidation),
 component testing utilities, lazy loading, a DevTools inspector, a dev
 error overlay, and CLI scaffolding (`bloom js create`) are implemented.
-Tracked follow-ups: true node-reuse hydration (currently a correct but
-non-optimal full remount), and progressive streaming for Suspense
-boundaries nested deeper than the root/its direct Fragment children.
+Tracked follow-up: true node-reuse hydration (currently a correct but
+non-optimal full remount). Progressive streaming now covers Suspense
+boundaries at any nesting depth, including boundaries discovered inside
+another boundary's resolved content.
 See root `GEMINI.md` § Bloom JS Native.

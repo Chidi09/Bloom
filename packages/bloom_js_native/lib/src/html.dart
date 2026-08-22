@@ -54,7 +54,14 @@ String renderToHtml(BloomNode node) {
 /// public render entrypoint.
 final Set<String> _emittedKeyframeNames = {};
 
-void _render(BloomNode node, StringBuffer buf) {
+/// Hook invoked by [_render] whenever it encounters a [SuspenseNode], used
+/// by [renderToStreamWithSuspense] to progressively stream boundaries that
+/// are nested inside [ElNode]/[FragmentNode] children rather than only at
+/// the root. When null, [_render] falls back to its default synchronous
+/// behavior (render the fallback only).
+typedef _SuspenseHook = void Function(SuspenseNode<dynamic> node, StringBuffer buf);
+
+void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
   switch (node) {
     case TextNode(:final text):
       buf.write(escapeHtml(text));
@@ -82,7 +89,7 @@ void _render(BloomNode node, StringBuffer buf) {
       buf.write('>');
       if (text != null) buf.write(escapeHtml(text));
       for (final c in children) {
-        _render(c, buf);
+        _render(c, buf, onSuspense);
       }
       buf.write('</$tag>');
 
@@ -119,30 +126,30 @@ void _render(BloomNode node, StringBuffer buf) {
 
       if (text != null) buf.write(escapeHtml(text));
       for (final c in children) {
-        _render(c, buf);
+        _render(c, buf, onSuspense);
       }
 
       buf.write('</$tag>');
 
     case FragmentNode(:final children):
       for (final c in children) {
-        _render(c, buf);
+        _render(c, buf, onSuspense);
       }
 
     case LiveNode(:final builder):
       final inner = builder();
-      _render(inner, buf);
+      _render(inner, buf, onSuspense);
 
     case ShowNode(:final child, :final fallback):
       if (node.when()) {
-        _render(child, buf);
+        _render(child, buf, onSuspense);
       } else if (fallback != null) {
-        _render(fallback, buf);
+        _render(fallback, buf, onSuspense);
       }
 
     case ForEachNode():
       for (final child in node.buildChildren()) {
-        _render(child, buf);
+        _render(child, buf, onSuspense);
       }
 
     case StyleNode(:final css):
@@ -159,39 +166,43 @@ void _render(BloomNode node, StringBuffer buf) {
         buf.write('<style>${animation.toKeyframesCSS()}</style>');
       }
       buf.write('<div style="${animation.toInlineStyle()}">');
-      _render(child, buf);
+      _render(child, buf, onSuspense);
       buf.write('</div>');
 
     case MountNode(:final child):
       // SSR: render child only; lifecycle callbacks intentionally skipped.
-      _render(child, buf);
+      _render(child, buf, onSuspense);
 
     case RefNode(:final child):
       // SSR: render child; ref remains unmounted (no DOM).
-      _render(child, buf);
+      _render(child, buf, onSuspense);
 
     case ContextProviderNode(:final context, :final value, :final child):
       runZoned(
-        () => _render(child, buf),
+        () => _render(child, buf, onSuspense),
         zoneValues: {context.zoneKey: value},
       );
 
     case ErrorBoundaryNode(:final builder, :final fallback):
       try {
         final inner = builder();
-        _render(inner, buf);
+        _render(inner, buf, onSuspense);
       } catch (err, stack) {
         final fallbackNode = fallback(err, stack);
-        _render(fallbackNode, buf);
+        _render(fallbackNode, buf, onSuspense);
       }
 
     case PortalNode(:final child, :final targetSelector):
       buf.write('<template data-bloom-portal="${escapeHtml(targetSelector)}">');
-      _render(child, buf);
+      _render(child, buf, onSuspense);
       buf.write('</template>');
 
     case SuspenseNode(:final fallback):
-      _render(fallback, buf);
+      if (onSuspense != null) {
+        onSuspense(node, buf);
+      } else {
+        _render(fallback, buf, onSuspense);
+      }
   }
 }
 
@@ -283,70 +294,80 @@ Stream<String> renderToStream(BloomNode node) async* {
 /// necessarily source order). This lets the initial paint reach the
 /// client before slow data-dependent sections are ready.
 ///
-/// Supported boundary shape (v1): [node] itself, or each direct child of
-/// [node] when [node] is a [FragmentNode]. A [SuspenseNode] nested deeper
-/// in the tree (e.g. inside an [ElNode]'s children) still renders
-/// correctly, but synchronously via its `fallback` only, matching
-/// [renderToHtml]'s behavior — it does not get progressive streaming.
-/// Widening progressive support to arbitrarily-nested Suspense boundaries
-/// is a possible future enhancement.
+/// Progressive support: every [SuspenseNode] in the tree gets a streamed
+/// replacement chunk — the root itself, a direct child of a root
+/// [FragmentNode], or one nested arbitrarily deep inside [ElNode]/
+/// [FragmentNode] (and other passthrough wrapper) children. Boundaries are
+/// discovered via a hook threaded through [_render]'s normal recursive
+/// walk, so no rendering logic is duplicated. Content resolved by a
+/// boundary's `builder` is itself walked with the same hook, so a
+/// [SuspenseNode] nested inside resolved async content also streams.
 Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
   _emittedKeyframeNames.clear();
 
-  final roots = switch (node) {
-    FragmentNode(:final children) => children,
-    _ => [node],
-  };
-
   final shellBuf = StringBuffer();
-  final pending = <Future<String> Function()>[];
+  final controller = StreamController<String>();
+  var outstanding = 0;
+  var shellDone = false;
   var counter = 0;
 
-  for (final root in roots) {
-    switch (root) {
-      case SuspenseNode(:final fallback):
-        final id = 'bloom-suspense-${counter++}';
-        shellBuf.write('<div id="$id">');
-        _render(fallback, shellBuf);
-        shellBuf.write('</div>');
-        // Routed through a `dynamic`-typed reference so `resource`/`builder`
-        // are invoked via fully dynamic dispatch. Reading them through any
-        // statically-typed `SuspenseNode<...>` view (even `<dynamic>`) trips
-        // Dart's generic covariance check — the real object is
-        // `SuspenseNode<T>` for some concrete `T`, and a `BloomNode
-        // Function(T)` is genuinely not a `BloomNode Function(dynamic)` by
-        // Dart's static function-subtyping rules. Dynamic dispatch skips
-        // that check and calls correctly regardless of `T`.
-        final dynamic dynRoot = root;
-        pending.add(() async {
-          final data = await dynRoot.resource();
-          final resolved = dynRoot.builder(data) as BloomNode;
-          final innerBuf = StringBuffer();
-          _render(resolved, innerBuf);
-          final safeJson =
-              jsonEncode(innerBuf.toString()).replaceAll('</script', '<\\/script');
-          return '<script>(function(){var e=document.getElementById("$id");'
-              'if(e){e.outerHTML=$safeJson;}})();</script>';
-        });
-      default:
-        _render(root, shellBuf);
+  void maybeClose() {
+    if (shellDone && outstanding == 0 && !controller.isClosed) {
+      controller.close();
     }
   }
 
-  yield shellBuf.toString();
-  if (pending.isEmpty) return;
-
-  final controller = StreamController<String>();
-  var remaining = pending.length;
-  for (final task in pending) {
-    task().then((chunk) {
-      if (!controller.isClosed) controller.add(chunk);
-      remaining--;
-      if (remaining == 0 && !controller.isClosed) controller.close();
-    }).catchError((Object error, StackTrace stackTrace) {
-      remaining--;
-      if (remaining == 0 && !controller.isClosed) controller.close();
-    });
+  void onSuspense(SuspenseNode<dynamic> boundary, StringBuffer buf) {
+    final id = 'bloom-suspense-${counter++}';
+    buf.write('<div id="$id">');
+    _render(boundary.fallback, buf, onSuspense);
+    buf.write('</div>');
+    // Routed through a `dynamic`-typed reference so `resource`/`builder`
+    // are invoked via fully dynamic dispatch. Reading them through any
+    // statically-typed `SuspenseNode<...>` view (even `<dynamic>`) trips
+    // Dart's generic covariance check — the real object is
+    // `SuspenseNode<T>` for some concrete `T`, and a `BloomNode
+    // Function(T)` is genuinely not a `BloomNode Function(dynamic)` by
+    // Dart's static function-subtyping rules. Dynamic dispatch skips
+    // that check and calls correctly regardless of `T`.
+    final dynamic dynBoundary = boundary;
+    outstanding++;
+    () async {
+      try {
+        final data = await dynBoundary.resource();
+        final resolved = dynBoundary.builder(data) as BloomNode;
+        final innerBuf = StringBuffer();
+        // Nested boundaries discovered here (from resolved async content)
+        // register themselves via the same [onSuspense] hook, incrementing
+        // [outstanding] before this task's own decrement below — so the
+        // stream never closes early while a nested boundary is pending.
+        _render(resolved, innerBuf, onSuspense);
+        final safeJson = jsonEncode(innerBuf.toString())
+            .replaceAll('</script', '<\\/script');
+        if (!controller.isClosed) {
+          controller.add(
+            '<script>(function(){var e=document.getElementById("$id");'
+            'if(e){e.outerHTML=$safeJson;}})();</script>',
+          );
+        }
+      } catch (_) {
+        // Resource rejected — the fallback already flushed in the shell
+        // stands as the final content for this boundary.
+      } finally {
+        outstanding--;
+        maybeClose();
+      }
+    }();
   }
+
+  _render(node, shellBuf, onSuspense);
+  shellDone = true;
+  // Closes immediately if no boundary was encountered (outstanding stays 0).
+  // If boundaries resolved synchronously-fast enough to have already closed
+  // the controller by this point, buffered events are still delivered once
+  // `controller.stream` gets its listener below — never skip the `yield*`.
+  maybeClose();
+
+  yield shellBuf.toString();
   yield* controller.stream;
 }
