@@ -74,21 +74,28 @@ Future<void> main(List<String> args) async {
   final router = BloomApiRouter();
 
   // MIDDLEWARE ORDER (OUTERMOST FIRST):
-  // 1. bloom_errors: Catches and normalizes all unhandled exceptions
+  // 1. bloom_security: CORS handling (permissive for the bloom_js_native dev client).
+  //    Must be outermost: BloomAdvancedCorsMiddleware only decorates the response
+  //    it gets back from `next()` — it has no catch of its own. If an inner
+  //    middleware/handler throws, that response only exists after
+  //    BloomErrorMiddleware converts the exception, so CORS has to sit outside
+  //    BloomErrorMiddleware to see (and decorate) that converted response too;
+  //    otherwise every error response (4xx/5xx) leaves without CORS headers and
+  //    the browser blocks it before the client ever sees the real error body.
+  router.use(BloomAdvancedCorsMiddleware.permissive());
+
+  // 2. bloom_errors: Catches and normalizes all unhandled exceptions
   router.use(const BloomErrorMiddleware());
 
-  // 2. bloom_security: Rate limiting (IP sliding window: 120 req / min)
+  // 3. bloom_security: Rate limiting (IP sliding window: 120 req / min)
   router.use(BloomRateLimitMiddleware(
     maxRequests: 120,
     window: const Duration(minutes: 1),
     whitelist: {'127.0.0.1'},
   ));
 
-  // 3. bloom_security: Security headers (nosniff, DENY frame, etc.)
+  // 4. bloom_security: Security headers (nosniff, DENY frame, etc.)
   router.use(const BloomSecurityHeadersMiddleware());
-
-  // 4. bloom_security: CORS handling (permissive for the bloom_js_native dev client)
-  router.use(BloomAdvancedCorsMiddleware.permissive());
 
   // ---------------------------------------------------------------------------
   // 5. Register All API Routes via urls.dart (Django-style central routing)

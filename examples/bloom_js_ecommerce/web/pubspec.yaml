@@ -8,10 +8,13 @@ environment:
 
 dependencies:
   web: ^1.1.0
+  http: ^1.2.0
   bloom_js_native:
     path: ../../../packages/bloom_js_native
   bloom_seo:
     path: ../../../packages/bloom_seo
+  bloom_validate:
+    path: ../../../packages/bloom_validate
 
 dev_dependencies:
   lints: ^4.0.0
