@@ -131,6 +131,22 @@ void main() {
       expect(prints.join('\n'), contains('Invalid component name'));
     });
 
+    test('with --page flag creates lib/pages/dashboard.dart', () async {
+      createBloomProjectFixture(tempDir);
+
+      final (exitCode, prints) =
+          await runCreate(['create', 'Dashboard', '--page']);
+
+      expect(exitCode, 0);
+      final pageFile =
+          File(p.join(tempDir.path, 'lib', 'pages', 'dashboard.dart'));
+      expect(pageFile.existsSync(), isTrue);
+      final content = pageFile.readAsStringSync();
+      expect(content, contains('BloomNode Dashboard(Map<String, String> params)'));
+      expect(content, contains('BloomRoute'));
+      expect(prints.join('\n'), contains('Created page:'));
+    });
+
     test('outside Bloom project returns No Bloom project found error', () async {
       // tempDir intentionally has no bloom.yaml — do not create fixture
       final (exitCode, prints) = await runCreate(['create', 'Widget']);
