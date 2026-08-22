@@ -4,9 +4,16 @@ import 'dart:js_interop';
 import 'package:signals/signals.dart';
 import 'package:web/web.dart' as web;
 
+import 'dev_error_overlay.dart';
 import 'devtools.dart';
 import 'events.dart';
 import 'framework.dart';
+
+/// When `true`, an uncaught error thrown while mounting a tree is rendered
+/// as a full-screen [renderDevErrorOverlay] instead of propagating past
+/// [mount]/[mountToElement]. Intended to be set by a dev server bootstrap
+/// (e.g. `bloom js dev`), not enabled by default in production builds.
+bool bloomDevErrorOverlayEnabled = false;
 
 /// Tracks animation names whose `@keyframes` `<style>` element has already
 /// been injected into `document.head` for the lifetime of this page.
@@ -60,11 +67,31 @@ BloomMountHandle mount(BloomNode node, String selector) {
 /// Mount into a specific [Element] (useful for tests / manual roots).
 BloomMountHandle mountToElement(BloomNode node, web.Element root) {
   final region = _Region();
-  final domNodes = _mountNode(node, region);
-  for (final n in domNodes) {
-    root.appendChild(n);
+  try {
+    final domNodes = _mountNode(node, region);
+    for (final n in domNodes) {
+      root.appendChild(n);
+    }
+    return BloomMountHandle(root, region.disposers.toList());
+  } catch (error, stackTrace) {
+    for (final d in region.disposers) {
+      try {
+        d();
+      } catch (_) {}
+    }
+    BloomJsDevTools.notify('mount-error', {
+      'error': error.toString(),
+      'stackTrace': stackTrace.toString(),
+    });
+    if (bloomDevErrorOverlayEnabled) {
+      root.textContent = '';
+      final overlayHost = web.document.createElement('div');
+      overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
+      root.appendChild(overlayHost);
+      return BloomMountHandle(root, []);
+    }
+    rethrow;
   }
-  return BloomMountHandle(root, region.disposers.toList());
 }
 
 // ── Internal mount helpers ────────────────────────────────────────────
