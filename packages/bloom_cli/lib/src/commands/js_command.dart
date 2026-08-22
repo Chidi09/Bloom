@@ -7,6 +7,7 @@ import '../dev/source_watcher.dart';
 import '../npm/npm_vendor_assembler.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
+import '../dev/server_supervisor.dart';
 
 /// Top-level command `bloom js` for Bloom JS Native web apps.
 class JsCommand extends Command<int> {
@@ -123,11 +124,40 @@ class JsDevCommand extends Command<int> {
       });
     }
 
+    // 6. Optional: Supervise a co-located Bloom server if bin/server.dart exists
+    final serverEntry =
+        File(p.join(project.rootDir.path, 'bin', 'server.dart'));
+    BloomServerSupervisor? supervisor;
+    if (serverEntry.existsSync()) {
+      supervisor = BloomServerSupervisor(entryFile: serverEntry);
+      await supervisor.start();
+      supervisor.onOutput
+          .listen((line) => print(Ansi.dimText('[server] $line')));
+      print(Ansi.info('› Backend server supervisor active (bin/server.dart)'));
+
+      final serverWatchDir =
+          Directory(p.join(project.rootDir.path, 'lib'));
+      if (serverWatchDir.existsSync()) {
+        final serverWatcher = BloomSourceWatcher(
+          directories: [serverWatchDir],
+          debounceDuration: const Duration(milliseconds: 200),
+        );
+        serverWatcher.onChange.listen((events) async {
+          final changed = p.basename(events.first.path);
+          print(
+              Ansi.info('\n🔄 Server source changed: $changed — Restarting...'));
+          await supervisor!.restart(reason: changed);
+          print(Ansi.success('⚡ Server restarted.'));
+        });
+      }
+    }
+
     // Keep process active
     final completer = Completer<void>();
     ProcessSignal.sigint.watch().listen((_) async {
       print(Ansi.dimText('\nStopping Bloom JS dev server...'));
       await devServer.stop();
+      await supervisor?.stop();
       completer.complete();
     });
 
