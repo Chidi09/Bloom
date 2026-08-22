@@ -181,31 +181,32 @@ List<web.Node> _mountNode(
 
     case LiveNode(:final builder):
       final sentinel = _Sentinel('live');
-      _bindSentinelRegion(sentinel, region, builder);
-      return [sentinel.start, sentinel.end];
+      final initial = _bindSentinelRegion(sentinel, region, builder);
+      return [sentinel.start, ...initial, sentinel.end];
 
     case ShowNode(:final child, :final fallback):
       final sentinel = _Sentinel('show');
-      _bindSentinelRegion(
+      final initial = _bindSentinelRegion(
         sentinel,
         region,
         () => node.when() ? child : (fallback ?? FragmentNode(const [])),
       );
-      return [sentinel.start, sentinel.end];
+      return [sentinel.start, ...initial, sentinel.end];
 
     case ForEachNode():
       final sentinel = _Sentinel('foreach');
+      List<web.Node> initial = const [];
       if (node.keyFn != null) {
-        _bindKeyedForEachSentinel(sentinel, region, node);
+        initial = _bindKeyedForEachSentinel(sentinel, region, node);
       } else {
-        _bindSentinelRegion<List<BloomNode>>(
+        initial = _bindSentinelRegion<List<BloomNode>>(
           sentinel,
           region,
           () => node.buildChildren(),
           wrap: (children) => FragmentNode(children),
         );
       }
-      return [sentinel.start, sentinel.end];
+      return [sentinel.start, ...initial, sentinel.end];
 
     case StyleNode(:final css):
       final el = web.document.createElement('style');
@@ -256,19 +257,17 @@ List<web.Node> _mountNode(
     case ErrorBoundaryNode(:final builder, :final fallback):
       final sentinel = _Sentinel('error-boundary');
       final inner = _Region();
+      List<web.Node> initial;
       try {
         final node = builder();
-        final nodes = _mountNode(node, inner);
-        sentinel.appendAll(nodes);
+        initial = _mountNode(node, inner);
       } catch (err, stack) {
         inner.disposeAll();
-        sentinel.clear();
         final fallbackNode = fallback(err, stack);
-        final nodes = _mountNode(fallbackNode, inner);
-        sentinel.appendAll(nodes);
+        initial = _mountNode(fallbackNode, inner);
       }
       region.add(inner.disposeAll);
-      return [sentinel.start, sentinel.end];
+      return [sentinel.start, ...initial, sentinel.end];
 
     case PortalNode(:final child, :final targetSelector):
       final targetEl = web.document.querySelector(targetSelector) ?? web.document.body!;
@@ -284,7 +283,6 @@ List<web.Node> _mountNode(
       final sentinel = _Sentinel('suspense');
       final inner = _Region();
       final fallbackNodes = _mountNode(fallback, inner);
-      sentinel.appendAll(fallbackNodes);
 
       resource().then((data) {
         if (region.disposers.isNotEmpty) {
@@ -297,7 +295,7 @@ List<web.Node> _mountNode(
       });
 
       region.add(inner.disposeAll);
-      return [sentinel.start, sentinel.end];
+      return [sentinel.start, ...fallbackNodes, sentinel.end];
   }
 }
 
@@ -349,18 +347,39 @@ class _KeyedEntry {
   });
 }
 
-void _bindKeyedForEachSentinel<T>(
+List<web.Node> _bindKeyedForEachSentinel<T>(
   _Sentinel sentinel,
   _Region parentRegion,
   ForEachNode<T> forEachNode,
 ) {
   final keyFn = forEachNode.keyFn!;
   final Map<String, _KeyedEntry> activeEntries = {};
+  var isFirstRun = true;
+  final initialNodes = <web.Node>[];
 
   void reconcile() {
     final items = forEachNode.items();
     final newKeys = <String>{};
     final newOrder = <_KeyedEntry>[];
+
+    // On the effect's synchronous initial run, the sentinel comments are not
+    // attached to the document yet (mounting is still building the node tree
+    // bottom-up), so sentinel.end.parentNode is null and any insertBefore
+    // would silently no-op. Collect nodes to hand back to the caller instead.
+    if (isFirstRun) {
+      for (final item in items) {
+        final key = keyFn(item);
+        newKeys.add(key);
+        final itemRegion = _Region();
+        final descriptor = forEachNode.builder(item);
+        final domNodes = _mountNode(descriptor, itemRegion);
+        final entry = _KeyedEntry(key: key, domNodes: domNodes, region: itemRegion);
+        activeEntries[key] = entry;
+        newOrder.add(entry);
+        initialNodes.addAll(domNodes);
+      }
+      return;
+    }
 
     for (final item in items) {
       final key = keyFn(item);
@@ -427,6 +446,7 @@ void _bindKeyedForEachSentinel<T>(
 
   final stop = effect(() {
     reconcile();
+    isFirstRun = false;
   });
 
   parentRegion.add(() {
@@ -436,35 +456,51 @@ void _bindKeyedForEachSentinel<T>(
     }
     activeEntries.clear();
   });
+
+  return initialNodes;
 }
 
 /// Shared sentinel reactive-region binding: re-renders between comments
 /// whenever signals read inside [build] change.
-void _bindSentinelRegion<T>(
+List<web.Node> _bindSentinelRegion<T>(
   _Sentinel sentinel,
   _Region parentRegion,
   T Function() build, {
   BloomNode Function(T value)? wrap,
 }) {
   final inner = _Region();
+  var isFirstRun = true;
+  List<web.Node> initialNodes = const [];
 
   void renderRegion() {
     inner.disposeAll();
-    sentinel.clear();
     final value = build();
     final node = wrap == null ? value as BloomNode : wrap(value);
     final nodes = _mountNode(node, inner);
-    sentinel.appendAll(nodes);
+    if (isFirstRun) {
+      // The sentinel comments are not attached to the document yet on the
+      // effect's synchronous initial run (mounting is still building the
+      // node tree bottom-up), so appendAll's insertBefore(..., sentinel.end)
+      // would silently no-op. Hand the initial nodes back to the caller to
+      // splice in alongside the sentinel comments instead.
+      initialNodes = nodes;
+    } else {
+      sentinel.clear();
+      sentinel.appendAll(nodes);
+    }
   }
 
   final stop = effect(() {
     renderRegion();
+    isFirstRun = false;
   });
 
   parentRegion.add(() {
     stop();
     inner.disposeAll();
   });
+
+  return initialNodes;
 }
 
 void _attachListener(
