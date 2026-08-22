@@ -6,15 +6,28 @@
   <title>Bloom E-Commerce</title>
   <meta name="description" content="A basic e-commerce storefront built with Bloom JS Native talking to Bloom Server over a real REST API.">
 
+  <!-- Import map MUST come before any <script type="module"> that uses
+       bare specifiers ("gsap", "@tailwindcss/browser", ...) — a module
+       script earlier in the document than the import map fails to resolve
+       those specifiers entirely. -->
+  <script type="importmap">
+{
+  "imports": {
+    "canvas-confetti": "/vendor/canvas-confetti.min.js",
+    "gsap": "/vendor/gsap.min.js",
+    "lucide": "/vendor/lucide.min.js",
+    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js"
+  }
+}
+</script>
+
   <!-- Real Tailwind, installed via `bloom add npm:@tailwindcss/browser` and
        vendored locally (web/vendor/tailwindcss-browser.min.js) — this is
        Tailwind's own in-browser JIT compiler package, not the deprecated
-       Play CDN <script src="https://cdn.tailwindcss.com"> shortcut. It scans
-       the DOM and compiles the <style type="text/tailwindcss"> sheet below
-       at runtime. -->
-  <style type="text/tailwindcss">
-    @import "tailwindcss";
-  </style>
+       Play CDN <script src="https://cdn.tailwindcss.com"> shortcut. Just
+       importing it is enough: it scans class="..." attributes on the DOM
+       and injects the compiled stylesheet itself, no manual <style
+       type="text/tailwindcss"> block needed. -->
   <script type="module">
     import "@tailwindcss/browser";
   </script>
@@ -26,16 +39,6 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
   </style>
-  <script type="importmap">
-{
-  "imports": {
-    "canvas-confetti": "/vendor/canvas-confetti.min.js",
-    "gsap": "/vendor/gsap.min.js",
-    "lucide": "/vendor/lucide.min.js",
-    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js"
-  }
-}
-</script>
 
   <!-- Bootstrap: these packages are real ES modules (loaded through the
        import map above, not UMD <script> tags), so nothing registers a
