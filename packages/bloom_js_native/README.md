@@ -57,7 +57,7 @@ cd example && bash build.sh
 | React Router `loader`/nested routes | `BloomRoute(loader:, dataBuilder:, layout:, guards:)` |
 | React.lazy + Suspense | `lazy(loader, fallback:)` (pairs with Dart `deferred as`) |
 | `renderToPipeableStream` | `renderToStreamWithSuspense(node)` |
-| `hydrateRoot` | `hydrate(node, '#app')` (full-remount v1; DOM-reuse hydration planned) |
+| `hydrateRoot` | `hydrate(node, '#app')` (true DOM-reuse for static trees; reactive trees fall back to a correct full remount) |
 | React/Vite error overlay | `renderDevErrorOverlay()`, auto-shown via `bloomDevErrorOverlayEnabled` |
 | React Testing Library | `bloom_test` — `renderForTest()` + `fireEvent` |
 | React DevTools (inspector) | `BloomJsDevTools.snapshotTree()` / `.eventLog` |
@@ -77,7 +77,7 @@ cd example && bash build.sh
 - **Reactivity:** `Live(() => ...)`, `Show(() => bool, child:, fallback:)`, `ForEach<T>(() => List<T>, (T) => BloomNode)`
 - **State management:** `signal()`/`computed()`/`effect()`/`batch()` (useState/useMemo/useEffect), `BloomReducer`/`useReducer` (useReducer), `BloomController` (Zustand-style store with lifecycle), `createContext()`/`useContext()`/`BloomContext.provide()` (Context)
 - **Events:** handlers receive `BloomEvent` with `.value`, `.checked`, `.preventDefault()`, `.stopPropagation()` — VM-testable via `BloomEvent.fake*()`
-- **Mount:** `mount(node, '#app')` → `BloomMountHandle` with `unmount()` / `dispose()`; `hydrate(node, '#app')` for hydrating server-rendered markup
+- **Mount:** `mount(node, '#app')` → `BloomMountHandle` with `unmount()` / `dispose()`; `hydrate(node, '#app')` for hydrating server-rendered markup — reuses existing DOM nodes in place (attaches listeners, patches text/attrs) for purely static subtrees, falls back to a safe full remount wherever the tree contains reactive nodes or the DOM doesn't structurally match
 - **Lazy loading:** `lazy(() async { ...; return Component(); }, fallback: ...)` — Suspense-backed, pairs with Dart's `deferred as` for real JS code-splitting (React.lazy equivalent)
 - **SSR:** `renderToHtml(node)` → `String` (XSS-escaped, void elements handled); `renderToStream(node)` for simple chunked output; `renderToStreamWithSuspense(node)` for true out-of-order streaming SSR (React `renderToPipeableStream` equivalent) — flushes every Suspense fallback immediately (root, nested, or discovered inside resolved async content), streams resolved content as each boundary lands, independent of nesting depth
 - **Data & mutations:** `BloomQuery` (cached, deduplicated, auto-revalidating fetches — tanstack query equivalent), `BloomMutation` (optimistic updates, rollback, cache invalidation)
@@ -124,8 +124,15 @@ signals-based reactivity (state, reducer, context, controller stores),
 routing (nested layouts, guards, data loaders with revalidation),
 component testing utilities, lazy loading, a DevTools inspector, a dev
 error overlay, and CLI scaffolding (`bloom js create`) are implemented.
-Tracked follow-up: true node-reuse hydration (currently a correct but
-non-optimal full remount). Progressive streaming now covers Suspense
+Hydration performs true DOM-reuse (React `hydrateRoot`-style: walks
+existing server-rendered nodes in place, attaches listeners without
+recreating them) for purely static trees, and safely falls back to a
+full remount for any tree containing a reactive node or a structural
+mismatch against the actual DOM — verified via static analysis and a
+successful `dart compile js` of the browser entrypoint; this repo has
+no headless-browser runner available to exercise it against a live
+DOM, so treat it as reviewed-but-not-runtime-verified until it's been
+run in an actual browser. Progressive streaming covers Suspense
 boundaries at any nesting depth, including boundaries discovered inside
 another boundary's resolved content.
 See root `GEMINI.md` § Bloom JS Native.

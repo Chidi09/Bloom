@@ -94,6 +94,13 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
   }
 }
 
+/// Attaches a Bloom event listener to an existing [el] for [type], invoking
+/// [handler] with a synthesized [BloomEvent]. Exposed (not private) so
+/// [hydrateElement] in `hydrate.dart` can wire listeners onto reused DOM
+/// nodes without duplicating this file's JS-interop event-wrapping logic.
+void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
+    _attachListener(el, type, handler);
+
 // ── Internal mount helpers ────────────────────────────────────────────
 
 /// A scoped set of disposers owned by one reactive boundary.
