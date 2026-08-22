@@ -320,6 +320,13 @@ class JsCreateCommand extends Command<int> {
           'Scaffold a route/page component (lib/pages/) with a BloomRoute '
           'registration snippet, instead of a plain component.',
     );
+    argParser.addFlag(
+      'guard',
+      abbr: 'g',
+      negatable: false,
+      help: 'Scaffold a BloomRouteGuard (lib/guards/) instead of a '
+          'plain component.',
+    );
   }
 
   @override
@@ -345,40 +352,55 @@ class JsCreateCommand extends Command<int> {
     }
 
     final isPage = (argResults!['page'] as bool?) ?? false;
-    final className = _pascalCase(rawName);
-    final fileBaseName = _snakeCase(rawName);
+    final isGuard = (argResults!['guard'] as bool?) ?? false;
+    if (isPage && isGuard) {
+      print(Ansi.error('Cannot combine --page and --guard.'));
+      return 1;
+    }
 
-    final targetDir = Directory(
-        p.join(project.rootDir.path, 'lib', isPage ? 'pages' : 'components'));
+    final kind = isGuard ? 'guard' : (isPage ? 'page' : 'component');
+    final subDir = isGuard ? 'guards' : (isPage ? 'pages' : 'components');
+
+    final baseName = _pascalCase(rawName);
+    final className = isGuard && !baseName.endsWith('Guard')
+        ? '${baseName}Guard'
+        : baseName;
+    final fileBaseName = _snakeCase(className);
+
+    final targetDir = Directory(p.join(project.rootDir.path, 'lib', subDir));
     if (!targetDir.existsSync()) {
       targetDir.createSync(recursive: true);
     }
 
     final targetFile = File(p.join(targetDir.path, '$fileBaseName.dart'));
     if (targetFile.existsSync()) {
-      print(Ansi.error(
-          '${isPage ? 'Page' : 'Component'} file already exists: ${targetFile.path}'));
+      print(Ansi.error('${_capitalize(kind)} file already exists: ${targetFile.path}'));
       return 1;
     }
 
-    targetFile.writeAsStringSync(isPage
-        ? _pageTemplate(className, fileBaseName)
-        : _componentTemplate(className));
-    print(Ansi.success(
-        'Created ${isPage ? 'page' : 'component'}: ${targetFile.path}'));
+    targetFile.writeAsStringSync(switch (kind) {
+      'page' => _pageTemplate(className, fileBaseName),
+      'guard' => _guardTemplate(className),
+      _ => _componentTemplate(className),
+    });
+    print(Ansi.success('Created $kind: ${targetFile.path}'));
 
-    final testDir = Directory(p.join(project.rootDir.path, 'test'));
-    if (!testDir.existsSync()) {
-      testDir.createSync(recursive: true);
-    }
-    final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
-    if (!testFile.existsSync()) {
-      testFile.writeAsStringSync(_componentTestTemplate(className, fileBaseName));
-      print(Ansi.success('Created test: ${testFile.path}'));
+    if (!isGuard) {
+      final testDir = Directory(p.join(project.rootDir.path, 'test'));
+      if (!testDir.existsSync()) {
+        testDir.createSync(recursive: true);
+      }
+      final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
+      if (!testFile.existsSync()) {
+        testFile.writeAsStringSync(_componentTestTemplate(className, fileBaseName));
+        print(Ansi.success('Created test: ${testFile.path}'));
+      }
     }
 
     return 0;
   }
+
+  String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   String _pascalCase(String input) {
     if (input.isEmpty) return input;
@@ -435,6 +457,28 @@ BloomNode $className(Map<String, String> params) {
       Text('$className'),
     ],
   );
+}
+''';
+
+  String _guardTemplate(String className) => '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+/// $className route guard.
+///
+/// Register on a route via the `guards` list, e.g.:
+///
+///   BloomRoute('/admin', (params) => AdminPage(), guards: [$className()]),
+class $className extends BloomRouteGuard {
+  const $className();
+
+  @override
+  Future<GuardResult> canActivate(
+      String location, Map<String, String> params) async {
+    // TODO: implement your authorization check.
+    return GuardResult.allow();
+    // To deny and redirect instead:
+    // return GuardResult.redirect('/login');
+  }
 }
 ''';
 

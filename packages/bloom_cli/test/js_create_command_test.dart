@@ -147,6 +147,49 @@ void main() {
       expect(prints.join('\n'), contains('Created page:'));
     });
 
+    test('with --guard flag creates lib/guards/auth_guard.dart', () async {
+      createBloomProjectFixture(tempDir);
+
+      final (exitCode, prints) = await runCreate(['create', 'Auth', '--guard']);
+
+      expect(exitCode, 0);
+      final guardFile =
+          File(p.join(tempDir.path, 'lib', 'guards', 'auth_guard.dart'));
+      expect(guardFile.existsSync(), isTrue);
+      final content = guardFile.readAsStringSync();
+      expect(content, contains('class AuthGuard extends BloomRouteGuard'));
+      expect(content, contains('GuardResult'));
+      expect(prints.join('\n'), contains('Created guard:'));
+
+      // No matching test file is scaffolded for guards.
+      final testFile = File(p.join(tempDir.path, 'test', 'auth_guard_test.dart'));
+      expect(testFile.existsSync(), isFalse);
+    });
+
+    test('--guard on a name already ending in "Guard" does not double-suffix',
+        () async {
+      createBloomProjectFixture(tempDir);
+
+      final (exitCode, _) = await runCreate(['create', 'AdminGuard', '--guard']);
+
+      expect(exitCode, 0);
+      final guardFile =
+          File(p.join(tempDir.path, 'lib', 'guards', 'admin_guard.dart'));
+      expect(guardFile.existsSync(), isTrue);
+      expect(guardFile.readAsStringSync(),
+          contains('class AdminGuard extends BloomRouteGuard'));
+    });
+
+    test('combining --page and --guard returns an error', () async {
+      createBloomProjectFixture(tempDir);
+
+      final (exitCode, prints) =
+          await runCreate(['create', 'Widget', '--page', '--guard']);
+
+      expect(exitCode, isNot(0));
+      expect(prints.join('\n'), contains('Cannot combine --page and --guard'));
+    });
+
     test('outside Bloom project returns No Bloom project found error', () async {
       // tempDir intentionally has no bloom.yaml — do not create fixture
       final (exitCode, prints) = await runCreate(['create', 'Widget']);
