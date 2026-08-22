@@ -139,7 +139,20 @@ class NpmResolver {
     return version == 'latest' ? 'latest' : version.replaceAll('^', '').replaceAll('~', '');
   }
 
+  /// Matches esm.sh's thin re-export shim, e.g.
+  /// `export * from "/gsap@3.15.0/es2022/gsap.mjs";` or
+  /// `export { default } from "/pkg@1.0.0/es2022/pkg.mjs";`.
+  static final RegExp _shimReexport = RegExp('''from\\s*["'](/[^"']+)["']''');
+
   /// Downloads the ESM bundle from esm.sh CDN into web/vendor/.
+  ///
+  /// esm.sh's package-root endpoint (and even its `?bundle` variant) returns
+  /// a thin re-export shim like `export * from "/pkg@ver/es2022/pkg.mjs"` —
+  /// those paths are root-relative to esm.sh itself. Vendoring that shim
+  /// verbatim produces a file that 404s once self-hosted from a different
+  /// origin (the browser resolves "/pkg@ver/..." against the local dev
+  /// server, not esm.sh). So: follow the shim's own reference(s) and vendor
+  /// the actual, self-contained module content instead.
   Future<String> downloadVendorBundle(
     String packageName,
     String version,
@@ -147,8 +160,8 @@ class NpmResolver {
     String vendorRelativePath,
   ) async {
     final String esmUrl = version == 'latest'
-        ? '$_esmBase/$packageName'
-        : '$_esmBase/$packageName@$version';
+        ? '$_esmBase/$packageName?bundle'
+        : '$_esmBase/$packageName@$version?bundle';
 
     final response = await _client.get(Uri.parse(esmUrl), headers: {
       'User-Agent': 'Bloom-CLI/0.2.3',
@@ -158,9 +171,28 @@ class NpmResolver {
       throw Exception('Failed to download from esm.sh: $esmUrl (HTTP ${response.statusCode})');
     }
 
+    var body = response.body;
+    final targets = _shimReexport.allMatches(body).map((m) => m.group(1)!).toSet();
+
+    // If the response is (or starts with) a shim pointing elsewhere, follow
+    // the first reference and vendor that content instead. esm.sh's shims
+    // are a couple of forwarding lines total, so checking body length keeps
+    // this from ever mistaking a real (large) bundle for a shim.
+    if (targets.isNotEmpty && body.trim().length < 512) {
+      final targetUrl = '$_esmBase${targets.first}';
+      final targetResponse = await _client.get(Uri.parse(targetUrl), headers: {
+        'User-Agent': 'Bloom-CLI/0.2.3',
+      });
+      if (targetResponse.statusCode == 200) {
+        body = targetResponse.body;
+      }
+      // If the follow-up fetch fails, fall back to vendoring the shim as-is
+      // rather than throwing — better than a hard install failure.
+    }
+
     final outFile = File(p.join(projectRoot, vendorRelativePath));
     await outFile.parent.create(recursive: true);
-    await outFile.writeAsBytes(response.bodyBytes);
+    await outFile.writeAsString(body);
     return esmUrl;
   }
 }
