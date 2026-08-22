@@ -13,7 +13,6 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_framework: ^0.2.2
   meta: ^1.15.0
 
 dev_dependencies:

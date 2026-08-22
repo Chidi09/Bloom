@@ -7,7 +7,7 @@
 /// ```dart
 /// import 'package:bloom_cache/bloom_cache.dart';
 /// import 'package:bloom_db/bloom_db.dart';
-/// import 'package:bloom_framework/bloom_server.dart';
+/// import 'package:bloom_server/bloom_server.dart';
 /// import 'package:bloom_rest/bloom_rest.dart';
 ///
 /// void setupRoutes(BloomApiRouter router, DbExecutor db, BloomCache cache) {

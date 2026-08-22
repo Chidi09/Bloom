@@ -1,0 +1,25 @@
+name: bloom_server
+description: Flutter-free HTTP server core for Bloom applications — BloomApiRouter (routing, middleware, SSR via bloom_js_native), BloomRequest/BloomResponse, env config, and a DI container. Pure dart:io, safe to import from a plain `dart run`/`dart compile` backend with no Flutter SDK required.
+version: 0.1.0
+publish_to: none
+homepage: https://bloom.dev
+repository: https://github.com/bloom-framework/bloom
+issue_tracker: https://github.com/bloom-framework/bloom/issues
+topics:
+  - bloom
+  - server
+  - http
+  - ssr
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_js_native:
+    path: ../bloom_js_native
+  bloom_seo:
+    path: ../bloom_seo
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0

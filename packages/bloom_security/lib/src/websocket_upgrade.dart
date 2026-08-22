@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// Handler callback invoked when a WebSocket connection is successfully upgraded.
 typedef BloomWebSocketHandler = FutureOr<void> Function(

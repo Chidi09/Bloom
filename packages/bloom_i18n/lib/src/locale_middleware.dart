@@ -1,6 +1,6 @@
 // lib/src/locale_middleware.dart
 import 'dart:async';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'locales.dart';
 
 /// Private Expando storing resolved locale attached to [BloomRequest] instances.

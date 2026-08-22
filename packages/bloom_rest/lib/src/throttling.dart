@@ -1,7 +1,7 @@
 // lib/src/throttling.dart
 import 'dart:async';
 import 'package:bloom_cache/bloom_cache.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'permissions.dart';
 
 /// Parses a DRF-style rate string such as `"100/hour"` or `"5/minute"` into a count and [Duration].

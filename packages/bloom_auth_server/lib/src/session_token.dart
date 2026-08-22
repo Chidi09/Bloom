@@ -1,5 +1,5 @@
 // lib/src/session_token.dart
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 
 /// Exception thrown when session token verification fails.

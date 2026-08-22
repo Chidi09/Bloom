@@ -1,7 +1,7 @@
 // lib/src/viewset.dart
 import 'dart:async';
 import 'package:bloom_db/bloom_db.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'filters.dart';
 import 'pagination.dart';
 import 'permissions.dart';

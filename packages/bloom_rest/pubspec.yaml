@@ -14,10 +14,22 @@ environment:
 
 dependencies:
   meta: ^1.15.0
-  bloom_framework: ^0.2.2
+  bloom_server:
+    path: ../bloom_server
   bloom_db: ^0.1.0
   bloom_cache: ^0.1.0
 
 dev_dependencies:
   test: ^1.25.0
   lints: ^4.0.0
+
+# bloom_cache's hosted 0.1.0 release still depends on the Flutter-requiring
+# bloom_framework (this repo's local bloom_cache was ported off it in this
+# same change, but that fix isn't published yet). Override to the local
+# copy so dart pub get/analyze/test reflect the real, current dependency
+# graph instead of silently re-acquiring Flutter transitively. Remove this
+# once a Flutter-free bloom_cache is published and the version constraint
+# above is bumped to match.
+dependency_overrides:
+  bloom_cache:
+    path: ../bloom_cache
