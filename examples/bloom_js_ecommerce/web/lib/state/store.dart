@@ -61,7 +61,7 @@ class EcommerceStore {
   late final productsQuery = BloomQuery<List<dynamic>>(
     key: const ['products'],
     fetch: () async {
-      final res = await http.get<Map<String, dynamic>>('/products');
+      final res = await http.get<Map<String, dynamic>>('/products?page_size=500');
       return (res['results'] as List<dynamic>?) ?? const [];
     },
   );

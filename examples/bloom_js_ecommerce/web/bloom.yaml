@@ -20,4 +20,9 @@ npm_packages:
     esm_url: https://esm.sh/@tailwindcss/browser@4.3.3?bundle
     vendor_file: web/vendor/tailwindcss-browser.min.js
     dart_binding: lib/src/plugins/tailwindcss_browser.dart
+  "@tanstack\/virtual-core":
+    version: 3.17.8
+    esm_url: https://esm.sh/@tanstack/virtual-core@3.17.8?bundle
+    vendor_file: web/vendor/tanstack-virtual-core.min.js
+    dart_binding: lib/src/plugins/tanstack_virtual_core.dart
 target: web_dom
