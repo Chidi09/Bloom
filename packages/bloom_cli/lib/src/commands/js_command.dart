@@ -309,7 +309,18 @@ class JsCreateCommand extends Command<int> {
       'Scaffold a new Bloom JS Native component with a matching test file.';
 
   @override
-  String get invocation => 'bloom js create <ComponentName>';
+  String get invocation => 'bloom js create <ComponentName> [--page]';
+
+  JsCreateCommand() {
+    argParser.addFlag(
+      'page',
+      abbr: 'p',
+      negatable: false,
+      help:
+          'Scaffold a route/page component (lib/pages/) with a BloomRoute '
+          'registration snippet, instead of a plain component.',
+    );
+  }
 
   @override
   Future<int> run() async {
@@ -333,25 +344,28 @@ class JsCreateCommand extends Command<int> {
       return 1;
     }
 
+    final isPage = (argResults!['page'] as bool?) ?? false;
     final className = _pascalCase(rawName);
     final fileBaseName = _snakeCase(rawName);
 
-    final componentsDir =
-        Directory(p.join(project.rootDir.path, 'lib', 'components'));
-    if (!componentsDir.existsSync()) {
-      componentsDir.createSync(recursive: true);
+    final targetDir = Directory(
+        p.join(project.rootDir.path, 'lib', isPage ? 'pages' : 'components'));
+    if (!targetDir.existsSync()) {
+      targetDir.createSync(recursive: true);
     }
 
-    final componentFile =
-        File(p.join(componentsDir.path, '$fileBaseName.dart'));
-    if (componentFile.existsSync()) {
+    final targetFile = File(p.join(targetDir.path, '$fileBaseName.dart'));
+    if (targetFile.existsSync()) {
       print(Ansi.error(
-          'Component file already exists: ${componentFile.path}'));
+          '${isPage ? 'Page' : 'Component'} file already exists: ${targetFile.path}'));
       return 1;
     }
 
-    componentFile.writeAsStringSync(_componentTemplate(className));
-    print(Ansi.success('Created component: ${componentFile.path}'));
+    targetFile.writeAsStringSync(isPage
+        ? _pageTemplate(className, fileBaseName)
+        : _componentTemplate(className));
+    print(Ansi.success(
+        'Created ${isPage ? 'page' : 'component'}: ${targetFile.path}'));
 
     final testDir = Directory(p.join(project.rootDir.path, 'test'));
     if (!testDir.existsSync()) {
@@ -388,6 +402,33 @@ import 'package:bloom_js_native/bloom_js_native.dart';
 
 /// $className component.
 BloomNode $className() {
+  return Div(
+    className: '$className',
+    children: [
+      Text('$className'),
+    ],
+  );
+}
+''';
+
+  String _pageTemplate(String className, String fileBaseName) => '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+/// $className page.
+///
+/// Register this page as a route in your router setup, e.g.:
+///
+///   BloomRoute('/$fileBaseName', (params) => $className(params)),
+///
+/// Or with a data loader (React Router `loader`-style):
+///
+///   BloomRoute(
+///     '/$fileBaseName',
+///     null,
+///     loader: (params) async => fetchSomething(params),
+///     dataBuilder: (params, data) => $className(params),
+///   ),
+BloomNode $className(Map<String, String> params) {
   return Div(
     className: '$className',
     children: [
