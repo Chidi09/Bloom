@@ -99,6 +99,25 @@ class LiveNode extends BloomNode {
   const LiveNode(this.builder);
 }
 
+/// Memoization boundary — only re-evaluates [builder] when [dependency] produces
+/// a value that differs (`!=`) from its previous value.
+class MemoNode<T> extends BloomNode {
+  final T Function() dependency;
+  final BloomNode Function(T value) builder;
+  const MemoNode(this.dependency, this.builder);
+
+  /// [dependency], viewed untyped.
+  ///
+  /// Same contravariance constraint as [ForEachNode.keyFnErased]: a
+  /// `case MemoNode():` match binds `T` as `dynamic`, so [builder] must be
+  /// cast inside the class rather than at the match site.
+  Object? Function() get dependencyErased => dependency;
+
+  /// [builder], accepting an untyped dependency value.
+  BloomNode Function(Object? value) get builderErased =>
+      (value) => builder(value as T);
+}
+
 /// Conditional rendering primitive.
 class ShowNode extends BloomNode {
   /// Reactive predicate — called inside an effect (browser) or once (SSR).
@@ -120,6 +139,32 @@ class ForEachNode<T> extends BloomNode {
 
   List<BloomNode> buildChildren() =>
       items().map((item) => builder(item)).toList();
+
+  // ── Type-erased views ───────────────────────────────────────────────
+  //
+  // A `case ForEachNode():` pattern match against a [BloomNode] binds the type
+  // argument as `dynamic`, so reading [keyFn] or [builder] at that site casts
+  // them to `Function(dynamic)` — which fails at runtime, because function
+  // parameters are CONTRAVARIANT: a `String Function(Product)` is not a
+  // subtype of `String Function(dynamic)`. The backends therefore cannot touch
+  // the raw fields through an erased reference.
+  //
+  // These getters do the cast inside the class, where `T` is still known, and
+  // hand back closures that are safe to call from a type-erased context.
+
+  /// [items], viewed as an untyped list.
+  List<Object?> Function() get itemsErased => items;
+
+  /// [keyFn], accepting an untyped item. `null` when the list is unkeyed.
+  String Function(Object? item)? get keyFnErased {
+    final fn = keyFn;
+    if (fn == null) return null;
+    return (item) => fn(item as T);
+  }
+
+  /// [builder], accepting an untyped item.
+  BloomNode Function(Object? item) get builderErased =>
+      (item) => builder(item as T);
 }
 
 /// Style element helper — emits `<style>css</style>`.
@@ -169,6 +214,15 @@ class Fragment extends FragmentNode {
 /// ```
 class Live extends LiveNode {
   const Live(super.builder);
+}
+
+/// Memoization sugar.
+///
+/// ```dart
+/// Memo(() => user.value.id, (id) => UserCard(id))
+/// ```
+class Memo<T> extends MemoNode<T> {
+  const Memo(super.dependency, super.builder);
 }
 
 /// Conditional rendering.

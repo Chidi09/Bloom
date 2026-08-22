@@ -140,6 +140,10 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       final inner = builder();
       _render(inner, buf, onSuspense);
 
+    case MemoNode(:final dependency, :final builder):
+      final value = dependency();
+      _render(builder(value), buf, onSuspense);
+
     case ShowNode(:final child, :final fallback):
       if (node.when()) {
         _render(child, buf, onSuspense);
