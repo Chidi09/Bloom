@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'framework.dart';
 
 /// HTML void elements — must not have a closing tag.
@@ -269,4 +270,83 @@ Stream<String> renderToStream(BloomNode node) async* {
     yield str.substring(
         i, i + chunkSize > str.length ? str.length : i + chunkSize);
   }
+}
+
+/// True out-of-order streaming SSR, analogous to React's
+/// `renderToPipeableStream`/`renderToReadableStream`.
+///
+/// Unlike [renderToStream] (which fully renders the tree synchronously
+/// before chunking the finished string), this function flushes the shell
+/// — including each top-level [SuspenseNode]'s `fallback` — as its first
+/// chunk, then streams a `<script>` replacement snippet for each Suspense
+/// boundary as its `resource` resolves, in resolution order (not
+/// necessarily source order). This lets the initial paint reach the
+/// client before slow data-dependent sections are ready.
+///
+/// Supported boundary shape (v1): [node] itself, or each direct child of
+/// [node] when [node] is a [FragmentNode]. A [SuspenseNode] nested deeper
+/// in the tree (e.g. inside an [ElNode]'s children) still renders
+/// correctly, but synchronously via its `fallback` only, matching
+/// [renderToHtml]'s behavior — it does not get progressive streaming.
+/// Widening progressive support to arbitrarily-nested Suspense boundaries
+/// is a possible future enhancement.
+Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
+  _emittedKeyframeNames.clear();
+
+  final roots = switch (node) {
+    FragmentNode(:final children) => children,
+    _ => [node],
+  };
+
+  final shellBuf = StringBuffer();
+  final pending = <Future<String> Function()>[];
+  var counter = 0;
+
+  for (final root in roots) {
+    switch (root) {
+      case SuspenseNode(:final fallback):
+        final id = 'bloom-suspense-${counter++}';
+        shellBuf.write('<div id="$id">');
+        _render(fallback, shellBuf);
+        shellBuf.write('</div>');
+        // Routed through a `dynamic`-typed reference so `resource`/`builder`
+        // are invoked via fully dynamic dispatch. Reading them through any
+        // statically-typed `SuspenseNode<...>` view (even `<dynamic>`) trips
+        // Dart's generic covariance check — the real object is
+        // `SuspenseNode<T>` for some concrete `T`, and a `BloomNode
+        // Function(T)` is genuinely not a `BloomNode Function(dynamic)` by
+        // Dart's static function-subtyping rules. Dynamic dispatch skips
+        // that check and calls correctly regardless of `T`.
+        final dynamic dynRoot = root;
+        pending.add(() async {
+          final data = await dynRoot.resource();
+          final resolved = dynRoot.builder(data) as BloomNode;
+          final innerBuf = StringBuffer();
+          _render(resolved, innerBuf);
+          final safeJson =
+              jsonEncode(innerBuf.toString()).replaceAll('</script', '<\\/script');
+          return '<script>(function(){var e=document.getElementById("$id");'
+              'if(e){e.outerHTML=$safeJson;}})();</script>';
+        });
+      default:
+        _render(root, shellBuf);
+    }
+  }
+
+  yield shellBuf.toString();
+  if (pending.isEmpty) return;
+
+  final controller = StreamController<String>();
+  var remaining = pending.length;
+  for (final task in pending) {
+    task().then((chunk) {
+      if (!controller.isClosed) controller.add(chunk);
+      remaining--;
+      if (remaining == 0 && !controller.isClosed) controller.close();
+    }).catchError((Object error, StackTrace stackTrace) {
+      remaining--;
+      if (remaining == 0 && !controller.isClosed) controller.close();
+    });
+  }
+  yield* controller.stream;
 }
