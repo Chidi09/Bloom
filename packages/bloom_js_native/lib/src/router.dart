@@ -44,6 +44,28 @@ class BloomRoute {
   /// [dataBuilder] is not given) renders. When present, this route's
   /// content is automatically wrapped in a [Suspense] boundary — no
   /// manual composition needed. Analogous to React Router's `loader`.
+  ///
+  /// For React Router's `action` + revalidation-on-mutation loop: this
+  /// [loader] itself is a one-shot fetch run once per navigation, but a
+  /// component *inside* the loaded page can instead read a `BloomQuery`
+  /// (from `data.dart`) for the same data — `BloomQuery` subscribes to
+  /// `BloomData.invalidateQueries` and refetches/reactively updates
+  /// automatically. Give a `BloomMutation` (from `mutation.dart`) the
+  /// same cache key in `invalidateKeys` so a form submission ("action")
+  /// invalidates the page's data without any router changes:
+  ///
+  ///   // Inside the loaded page component:
+  ///   final todoQuery = BloomQuery&lt;Todo&gt;(
+  ///     key: ['todo', todoId],
+  ///     fetch: () => api.fetchTodo(todoId),
+  ///   );
+  ///
+  ///   // The "action" — submitting this invalidates todoQuery above,
+  ///   // which then refetches on its own:
+  ///   final updateTodo = BloomMutation&lt;Todo, Todo&gt;(
+  ///     mutateFn: api.updateTodo,
+  ///     invalidateKeys: [['todo', todoId]],
+  ///   );
   final Future<dynamic> Function(Map<String, String> params)? loader;
 
   /// Builder invoked with both [params] and the resolved [loader] result,
