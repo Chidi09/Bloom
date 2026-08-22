@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'events.dart';
+import 'animate.dart';
 
 /// Token representing an ambient context value of type [T].
 class BloomContext<T> {
@@ -134,6 +135,18 @@ class StyleNode extends BloomNode {
 class RawHtmlNode extends BloomNode {
   final String html;
   const RawHtmlNode(this.html);
+}
+
+/// AST node that wraps [child] with a CSS animation described by [animation].
+/// On SSR (`html.dart`) it emits a `<style>@keyframes …</style>` block
+/// (deduplicated by animation name per render pass) and a wrapper `<div>`
+/// carrying the `animation:` inline style. On the browser (`mount.dart`) it
+/// injects the `@keyframes` rule into `document.head` once per animation name
+/// and creates a wrapper `<div>` with the same inline style.
+class AnimatedNode extends BloomNode {
+  final BloomNode child;
+  final BloomAnimation animation;
+  const AnimatedNode({required this.child, required this.animation});
 }
 
 // ── Sugar / DSL Constructors ──────────────────────────────────────────

@@ -8,6 +8,10 @@ import 'devtools.dart';
 import 'events.dart';
 import 'framework.dart';
 
+/// Tracks animation names whose `@keyframes` `<style>` element has already
+/// been injected into `document.head` for the lifetime of this page.
+final Set<String> _injectedAnimationNames = {};
+
 // ── Public API ──────────────────────────────────────────────────────────
 
 /// Handle returned by [mount]. Call [unmount] / [dispose] to detach the
@@ -194,6 +198,20 @@ List<web.Node> _mountNode(
         }
       }
       return nodes;
+
+    case AnimatedNode(:final child, :final animation):
+      if (_injectedAnimationNames.add(animation.name)) {
+        final styleEl = web.document.createElement('style');
+        styleEl.textContent = animation.toKeyframesCSS();
+        web.document.head?.appendChild(styleEl);
+      }
+      final wrapper = web.document.createElement('div');
+      wrapper.setAttribute('style', animation.toInlineStyle());
+      final childNodes = _mountNode(child, region);
+      for (final cn in childNodes) {
+        wrapper.appendChild(cn);
+      }
+      return [wrapper];
 
     case ContextProviderNode(:final context, :final value, :final child):
       return runZoned(
