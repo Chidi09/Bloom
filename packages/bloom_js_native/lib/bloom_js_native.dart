@@ -24,4 +24,5 @@ export 'src/realtime.dart';
 export 'src/bloom_test.dart';
 export 'src/lazy.dart';
 export 'src/dev_error_overlay.dart';
+export 'src/reducer.dart';
 
