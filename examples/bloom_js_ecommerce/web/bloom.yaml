@@ -1,2 +1,23 @@
 name: bloom_ecommerce_web
+npm_packages:
+  canvas-confetti:
+    version: 1.9.4
+    esm_url: https://esm.sh/canvas-confetti@1.9.4
+    vendor_file: web/vendor/canvas-confetti.min.js
+    dart_binding: lib/src/plugins/canvas_confetti.dart
+  gsap:
+    version: 3.15.0
+    esm_url: https://esm.sh/gsap@3.15.0
+    vendor_file: web/vendor/gsap.min.js
+    dart_binding: lib/src/plugins/gsap.dart
+  lucide:
+    version: 1.33.0
+    esm_url: https://esm.sh/lucide@1.33.0
+    vendor_file: web/vendor/lucide.min.js
+    dart_binding: lib/src/plugins/lucide.dart
+  "@tailwindcss\/browser":
+    version: 4.3.3
+    esm_url: https://esm.sh/@tailwindcss/browser@4.3.3
+    vendor_file: web/vendor/tailwindcss-browser.min.js
+    dart_binding: lib/src/plugins/tailwindcss_browser.dart
 target: web_dom

@@ -6,8 +6,18 @@
   <title>Bloom E-Commerce</title>
   <meta name="description" content="A basic e-commerce storefront built with Bloom JS Native talking to Bloom Server over a real REST API.">
 
-  <!-- Tailwind CDN (dev convenience — mirrors bloom_showcase_web's setup) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Real Tailwind, installed via `bloom add npm:@tailwindcss/browser` and
+       vendored locally (web/vendor/tailwindcss-browser.min.js) — this is
+       Tailwind's own in-browser JIT compiler package, not the deprecated
+       Play CDN <script src="https://cdn.tailwindcss.com"> shortcut. It scans
+       the DOM and compiles the <style type="text/tailwindcss"> sheet below
+       at runtime. -->
+  <style type="text/tailwindcss">
+    @import "tailwindcss";
+  </style>
+  <script type="module">
+    import "@tailwindcss/browser";
+  </script>
 
   <style>
     body {
@@ -16,6 +26,30 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
   </style>
+  <script type="importmap">
+{
+  "imports": {
+    "canvas-confetti": "/vendor/canvas-confetti.min.js",
+    "gsap": "/vendor/gsap.min.js",
+    "lucide": "/vendor/lucide.min.js",
+    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js"
+  }
+}
+</script>
+
+  <!-- Bootstrap: these packages are real ES modules (loaded through the
+       import map above, not UMD <script> tags), so nothing registers a
+       window global automatically. This module assigns each one to the
+       exact global name the matching Dart @JS(...) binding in
+       lib/plugins/ expects, before main.js runs. -->
+  <script type="module">
+    import confettiFn from "canvas-confetti";
+    import { gsap } from "gsap";
+    import * as lucide from "lucide";
+    window.canvas_confetti = confettiFn;
+    window.gsap = gsap;
+    window.lucide = lucide;
+  </script>
 </head>
 <body class="min-h-screen">
   <div id="app"></div>
