@@ -1,5 +1,5 @@
 // lib/src/error_middleware.dart
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'error_mapper.dart';
 import 'http_exception.dart';
 

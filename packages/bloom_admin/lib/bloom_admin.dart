@@ -6,7 +6,7 @@
 ///
 /// Example usage:
 /// ```dart
-/// import 'package:bloom_framework/bloom_framework.dart';
+/// import 'package:bloom_server/bloom_server.dart';
 /// import 'package:bloom_db/bloom_db.dart';
 /// import 'package:bloom_admin/bloom_admin.dart';
 ///

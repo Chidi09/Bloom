@@ -1,6 +1,6 @@
 // lib/src/cache_middleware.dart
 import 'dart:convert';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'cache.dart';
 
 /// Serializable representation of an HTTP response stored in cache.

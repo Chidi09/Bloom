@@ -1,7 +1,7 @@
 // lib/src/pagination.dart
 import 'dart:convert';
 import 'dart:math';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// Default page size for REST ViewSet list pagination.
 /// Matches DRF and Bloom convention (100).

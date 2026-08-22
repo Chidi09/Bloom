@@ -5,7 +5,7 @@
 /// ([BloomRateLimitMiddleware]), and dual HTTP / WebSocket upgrade routing ([BloomWebSocketServer]).
 ///
 /// ```dart
-/// import 'package:bloom_framework/bloom_server.dart';
+/// import 'package:bloom_server/bloom_server.dart';
 /// import 'package:bloom_security/bloom_security.dart';
 ///
 /// void main() async {

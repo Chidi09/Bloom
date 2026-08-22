@@ -1,6 +1,6 @@
 // lib/src/middleware.dart
 import 'dart:async';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'session_token.dart';
 
 /// Private Expando storing verified [BloomAuthClaims] attached to [BloomRequest] instances.

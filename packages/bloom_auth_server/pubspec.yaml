@@ -13,7 +13,8 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_framework: ^0.2.2
+  bloom_server:
+    path: ../bloom_server
   bcrypt: ^1.1.3
   crypto: ^3.0.3
   dart_jsonwebtoken: ^3.4.1

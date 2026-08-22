@@ -1,6 +1,6 @@
 // lib/src/filters.dart
 import 'package:bloom_db/bloom_db.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// The lookup suffixes a client may attach to a filterable field in query parameters.
 ///

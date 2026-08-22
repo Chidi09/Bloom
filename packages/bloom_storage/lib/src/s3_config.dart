@@ -1,4 +1,4 @@
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// Configuration options for S3 and S3-compatible object storage backends.
 ///

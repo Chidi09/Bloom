@@ -1,5 +1,5 @@
 // lib/src/smtp_backend.dart
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'package:mailer/mailer.dart' as mailer;
 import 'package:mailer/smtp_server.dart' as mailer_smtp;
 

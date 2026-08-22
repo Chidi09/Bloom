@@ -1,5 +1,5 @@
 import 'package:bloom_errors/bloom_errors.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'package:test/test.dart';
 
 class _DomainNotFoundError implements Exception {

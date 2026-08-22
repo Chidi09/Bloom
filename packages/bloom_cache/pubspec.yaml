@@ -15,7 +15,8 @@ environment:
 dependencies:
   meta: ^1.15.0
   redis: ^4.1.0
-  bloom_framework: ^0.2.2
+  bloom_server:
+    path: ../bloom_server
   bloom_db: ^0.1.0
 
 dev_dependencies:

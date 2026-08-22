@@ -1,5 +1,5 @@
 // lib/src/http_exception.dart
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// Base abstract class for all strongly-typed HTTP exceptions in the Bloom framework.
 ///
