@@ -184,6 +184,16 @@ List<web.Node> _mountNode(
       final initial = _bindSentinelRegion(sentinel, region, builder);
       return [sentinel.start, ...initial, sentinel.end];
 
+    case MemoNode():
+      final sentinel = _Sentinel('memo');
+      final initial = _bindMemoRegion(
+        sentinel,
+        region,
+        node.dependencyErased,
+        node.builderErased,
+      );
+      return [sentinel.start, ...initial, sentinel.end];
+
     case ShowNode(:final child, :final fallback):
       final sentinel = _Sentinel('show');
       final initial = _bindSentinelRegion(
@@ -196,8 +206,15 @@ List<web.Node> _mountNode(
     case ForEachNode():
       final sentinel = _Sentinel('foreach');
       List<web.Node> initial = const [];
-      if (node.keyFn != null) {
-        initial = _bindKeyedForEachSentinel(sentinel, region, node);
+      final keyFnErased = node.keyFnErased;
+      if (keyFnErased != null) {
+        initial = _bindKeyedForEachSentinel(
+          sentinel,
+          region,
+          node.itemsErased,
+          keyFnErased,
+          node.builderErased,
+        );
       } else {
         initial = _bindSentinelRegion<List<BloomNode>>(
           sentinel,
@@ -395,30 +412,223 @@ void _setSelectionRange(web.Element el, int start, int end) {
   } catch (_) {}
 }
 
+
+/// Whether [n] is guaranteed to mount to exactly one DOM node.
+///
+/// Only these four descriptor kinds have a 1:1 descriptor-to-DOM-node
+/// relationship (see the corresponding branches of [_mountNode]): text nodes,
+/// elements, `<style>` blocks, and the raw-HTML `<span>` host. Everything else
+/// either wraps its content in sentinel comments (the reactive nodes) or may
+/// emit sibling nodes (e.g. [AnimatedNode] can emit a keyframes `<style>`
+/// alongside its wrapper), so index-aligned child patching is unsound for them.
+bool _isSingleNodeDescriptor(BloomNode n) =>
+    n is TextNode || n is ElNode || n is StyleNode || n is RawHtmlNode;
+
+/// Attempts to update [existingDom] in place to match [newDesc].
+///
+/// Returns `true` if the patch succeeded. Returns `false` if the two descriptors
+/// are structurally incompatible, in which case [existingDom] is left untouched
+/// and the caller must fall back to destroy-and-recreate.
+bool _patchNode(
+  web.Node existingDom,
+  BloomNode oldDesc,
+  BloomNode newDesc,
+  _Region region,
+) {
+  if (identical(oldDesc, newDesc)) return true;
+
+  if (oldDesc is TextNode && newDesc is TextNode) {
+    if (existingDom.nodeType != web.Node.TEXT_NODE) return false;
+    if (oldDesc.text != newDesc.text) {
+      existingDom.textContent = newDesc.text;
+    }
+    return true;
+  }
+
+  if (oldDesc is StyleNode && newDesc is StyleNode) {
+    if (!existingDom.isA<web.Element>()) return false;
+    final el = existingDom as web.Element;
+    if (el.tagName.toLowerCase() != 'style') return false;
+    if (oldDesc.css != newDesc.css) {
+      el.textContent = newDesc.css;
+    }
+    return true;
+  }
+
+  if (oldDesc is RawHtmlNode && newDesc is RawHtmlNode) {
+    if (!existingDom.isA<web.Element>()) return false;
+    final host = existingDom as web.Element;
+    if (oldDesc.html != newDesc.html) {
+      host.innerHTML = newDesc.html.toJS;
+    }
+    return true;
+  }
+
+  if (oldDesc is ElNode && newDesc is ElNode) {
+    if (oldDesc.tag != newDesc.tag) return false;
+    if (!existingDom.isA<web.Element>()) return false;
+    final el = existingDom as web.Element;
+    if (el.tagName.toLowerCase() != oldDesc.tag.toLowerCase()) return false;
+
+    // Child patching below aligns descriptor index to child-DOM index 1:1. That
+    // holds only while every child mounts to exactly one node. A reactive or
+    // effectful child (Live/Show/ForEach/Suspense/...) mounts to a sentinel
+    // comment pair wrapping its content — several DOM nodes for one descriptor
+    // — so the indices desync and we would patch descriptors against unrelated
+    // DOM, orphan the old region's nodes, and leak its effect. Bail out to the
+    // caller's destroy-and-recreate path instead. Checked up front, before any
+    // mutation, because returning false must leave `existingDom` untouched.
+    for (final c in oldDesc.children) {
+      if (!_isSingleNodeDescriptor(c)) return false;
+    }
+    for (final c in newDesc.children) {
+      if (!_isSingleNodeDescriptor(c)) return false;
+    }
+
+    // className: if changed, set class attribute; if new is null, remove class
+    if (oldDesc.className != newDesc.className) {
+      if (newDesc.className != null) {
+        el.className = newDesc.className!;
+      } else {
+        el.removeAttribute('class');
+      }
+    }
+
+    // style: if changed, set style attribute; if null, remove it
+    if (oldDesc.style != newDesc.style) {
+      if (newDesc.style != null) {
+        el.setAttribute('style', newDesc.style!);
+      } else {
+        el.removeAttribute('style');
+      }
+    }
+
+    // attrs: set new/changed attrs, remove deleted attrs
+    final oldAttrs = oldDesc.attrs ?? const <String, String>{};
+    final newAttrs = newDesc.attrs ?? const <String, String>{};
+    for (final key in oldAttrs.keys) {
+      if (!newAttrs.containsKey(key)) {
+        el.removeAttribute(key);
+      }
+    }
+    for (final entry in newAttrs.entries) {
+      if (!oldAttrs.containsKey(entry.key) || oldAttrs[entry.key] != entry.value) {
+        el.setAttribute(entry.key, entry.value);
+      }
+    }
+
+    // Event handlers: update new/changed handlers, remove deleted handlers
+    final oldOn = oldDesc.on ?? const <String, BloomEventHandler>{};
+    final newOn = newDesc.on ?? const <String, BloomEventHandler>{};
+    for (final key in oldOn.keys) {
+      if (!newOn.containsKey(key)) {
+        _removeListener(el, key);
+      }
+    }
+    for (final entry in newOn.entries) {
+      _attachListener(el, entry.key, entry.value);
+    }
+
+    // Children & text sugar
+    final oldChildren = <BloomNode>[
+      if (oldDesc.text != null) TextNode(oldDesc.text!),
+      ...oldDesc.children,
+    ];
+    final newChildren = <BloomNode>[
+      if (newDesc.text != null) TextNode(newDesc.text!),
+      ...newDesc.children,
+    ];
+
+    final domChildren = <web.Node>[];
+    for (var i = 0; i < el.childNodes.length; i++) {
+      domChildren.add(el.childNodes.item(i)!);
+    }
+
+    final commonLength = oldChildren.length < newChildren.length
+        ? oldChildren.length
+        : newChildren.length;
+
+    for (var i = 0; i < commonLength; i++) {
+      if (i < domChildren.length) {
+        final existingChild = domChildren[i];
+        final patched = _patchNode(
+          existingChild,
+          oldChildren[i],
+          newChildren[i],
+          region,
+        );
+        if (!patched) {
+          final newMounted = _mountNode(newChildren[i], region);
+          if (newMounted.isNotEmpty) {
+            el.replaceChild(newMounted[0], existingChild);
+            var prev = newMounted[0];
+            for (var j = 1; j < newMounted.length; j++) {
+              el.insertBefore(newMounted[j], prev.nextSibling);
+              prev = newMounted[j];
+            }
+          } else {
+            el.removeChild(existingChild);
+          }
+        }
+      } else {
+        final newMounted = _mountNode(newChildren[i], region);
+        for (final n in newMounted) {
+          el.appendChild(n);
+        }
+      }
+    }
+
+    if (newChildren.length < oldChildren.length) {
+      for (var i = newChildren.length; i < domChildren.length; i++) {
+        if (domChildren[i].parentNode == el) {
+          el.removeChild(domChildren[i]);
+        }
+      }
+    } else if (newChildren.length > oldChildren.length) {
+      for (var i = oldChildren.length; i < newChildren.length; i++) {
+        final extraNodes = _mountNode(newChildren[i], region);
+        for (final n in extraNodes) {
+          el.appendChild(n);
+        }
+      }
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 class _KeyedEntry {
   final String key;
   final List<web.Node> domNodes;
   final _Region region;
+  BloomNode descriptor;
 
   _KeyedEntry({
     required this.key,
     required this.domNodes,
     required this.region,
+    required this.descriptor,
   });
 }
 
-List<web.Node> _bindKeyedForEachSentinel<T>(
+/// Keyed list reconciler. Takes [ForEachNode]'s type-erased closure views
+/// rather than the node itself — see the note on [ForEachNode.keyFnErased]
+/// for why the raw generic fields cannot be read from this call site.
+List<web.Node> _bindKeyedForEachSentinel(
   _Sentinel sentinel,
   _Region parentRegion,
-  ForEachNode<T> forEachNode,
+  List<Object?> Function() itemsFn,
+  String Function(Object? item) keyFn,
+  BloomNode Function(Object? item) builderFn,
 ) {
-  final keyFn = forEachNode.keyFn!;
   final Map<String, _KeyedEntry> activeEntries = {};
   var isFirstRun = true;
   final initialNodes = <web.Node>[];
 
   void reconcile() {
-    final items = forEachNode.items();
+    final items = itemsFn();
     final newKeys = <String>{};
     final newOrder = <_KeyedEntry>[];
 
@@ -431,9 +641,14 @@ List<web.Node> _bindKeyedForEachSentinel<T>(
         final key = keyFn(item);
         newKeys.add(key);
         final itemRegion = _Region();
-        final descriptor = forEachNode.builder(item);
+        final descriptor = builderFn(item);
         final domNodes = _mountNode(descriptor, itemRegion);
-        final entry = _KeyedEntry(key: key, domNodes: domNodes, region: itemRegion);
+        final entry = _KeyedEntry(
+          key: key,
+          domNodes: domNodes,
+          region: itemRegion,
+          descriptor: descriptor,
+        );
         activeEntries[key] = entry;
         newOrder.add(entry);
         initialNodes.addAll(domNodes);
@@ -447,28 +662,54 @@ List<web.Node> _bindKeyedForEachSentinel<T>(
 
       if (activeEntries.containsKey(key)) {
         final existing = activeEntries[key]!;
-        existing.region.disposeAll();
-        final descriptor = forEachNode.builder(item);
-        final newDomNodes = _mountNode(descriptor, existing.region);
+        final descriptor = builderFn(item);
 
-        final parent = sentinel.end.parentNode;
-        if (parent != null) {
-          for (final n in existing.domNodes) {
-            if (n.parentNode == parent) parent.removeChild(n);
-          }
-          for (final n in newDomNodes) {
-            parent.insertBefore(n, sentinel.end);
-          }
+        var patched = false;
+        if (existing.domNodes.length == 1) {
+          patched = _patchNode(
+            existing.domNodes.first,
+            existing.descriptor,
+            descriptor,
+            existing.region,
+          );
         }
 
-        final updated = _KeyedEntry(key: key, domNodes: newDomNodes, region: existing.region);
-        activeEntries[key] = updated;
-        newOrder.add(updated);
+        if (patched) {
+          existing.descriptor = descriptor;
+          newOrder.add(existing);
+        } else {
+          existing.region.disposeAll();
+          final newDomNodes = _mountNode(descriptor, existing.region);
+
+          final parent = sentinel.end.parentNode;
+          if (parent != null) {
+            for (final n in existing.domNodes) {
+              if (n.parentNode == parent) parent.removeChild(n);
+            }
+            for (final n in newDomNodes) {
+              parent.insertBefore(n, sentinel.end);
+            }
+          }
+
+          final updated = _KeyedEntry(
+            key: key,
+            domNodes: newDomNodes,
+            region: existing.region,
+            descriptor: descriptor,
+          );
+          activeEntries[key] = updated;
+          newOrder.add(updated);
+        }
       } else {
         final itemRegion = _Region();
-        final descriptor = forEachNode.builder(item);
+        final descriptor = builderFn(item);
         final domNodes = _mountNode(descriptor, itemRegion);
-        final entry = _KeyedEntry(key: key, domNodes: domNodes, region: itemRegion);
+        final entry = _KeyedEntry(
+          key: key,
+          domNodes: domNodes,
+          region: itemRegion,
+          descriptor: descriptor,
+        );
         activeEntries[key] = entry;
         newOrder.add(entry);
         final parent = sentinel.end.parentNode;
@@ -515,6 +756,72 @@ List<web.Node> _bindKeyedForEachSentinel<T>(
       entry.region.disposeAll();
     }
     activeEntries.clear();
+  });
+
+  return initialNodes;
+}
+
+/// Reactive memo region: re-evaluates [dependency] inside an effect and
+/// only rebuilds / patches when the dependency value changes (`!=`).
+List<web.Node> _bindMemoRegion(
+  _Sentinel sentinel,
+  _Region parentRegion,
+  Object? Function() dependencyFn,
+  BloomNode Function(Object? value) builderFn,
+) {
+  final inner = _Region();
+  var isFirstRun = true;
+  var hasPrevValue = false;
+  Object? prevValue;
+  BloomNode? prevDescriptor;
+  List<web.Node> currentNodes = const [];
+  List<web.Node> initialNodes = const [];
+
+  void renderRegion() {
+    final value = dependencyFn();
+    if (!isFirstRun && hasPrevValue && prevValue == value) {
+      return;
+    }
+
+    final newDescriptor = builderFn(value);
+
+    if (!isFirstRun && prevDescriptor != null && currentNodes.length == 1) {
+      final patched = _patchNode(
+        currentNodes.first,
+        prevDescriptor!,
+        newDescriptor,
+        inner,
+      );
+      if (patched) {
+        prevDescriptor = newDescriptor;
+        prevValue = value;
+        hasPrevValue = true;
+        return;
+      }
+    }
+
+    inner.disposeAll();
+    final nodes = _mountNode(newDescriptor, inner);
+    if (isFirstRun) {
+      initialNodes = nodes;
+    } else {
+      sentinel.clear();
+      sentinel.appendAll(nodes);
+    }
+    currentNodes = nodes;
+    prevDescriptor = newDescriptor;
+    prevValue = value;
+    hasPrevValue = true;
+  }
+
+  final stop = effect(() {
+    renderRegion();
+    isFirstRun = false;
+  });
+
+  parentRegion.add(() {
+    stop();
+    inner.disposeAll();
   });
 
   return initialNodes;
@@ -605,19 +912,66 @@ List<web.Node> _bindSentinelRegion<T>(
   return initialNodes;
 }
 
+const String _bloomHandlersProp = '__bloom_handlers__';
+
+Map<String, BloomEventHandler?> _getOrCreateHandlersMap(web.Element el) {
+  final jsEl = el as JSAny;
+  final boxed = _reflectGet(jsEl, _bloomHandlersProp);
+  if (boxed != null && boxed.isA<JSBoxedDartObject>()) {
+    final dartObj = (boxed as JSBoxedDartObject).toDart;
+    if (dartObj is Map<String, BloomEventHandler?>) {
+      return dartObj;
+    }
+  }
+  final map = <String, BloomEventHandler?>{};
+  _reflectSet(jsEl, _bloomHandlersProp, map.toJSBox);
+  return map;
+}
+
+Map<String, BloomEventHandler?>? _getHandlersMap(web.Element el) {
+  final jsEl = el as JSAny;
+  final boxed = _reflectGet(jsEl, _bloomHandlersProp);
+  if (boxed != null && boxed.isA<JSBoxedDartObject>()) {
+    final dartObj = (boxed as JSBoxedDartObject).toDart;
+    if (dartObj is Map<String, BloomEventHandler?>) {
+      return dartObj;
+    }
+  }
+  return null;
+}
+
 void _attachListener(
   web.Element el,
   String type,
   BloomEventHandler handler,
 ) {
-  void listener(web.Event e) {
-    final bloomEvent = _wrapEvent(type, e);
-    handler(bloomEvent);
-    if (bloomEvent.defaultPrevented) e.preventDefault();
-    if (bloomEvent.propagationStopped) e.stopPropagation();
-  }
+  final handlers = _getOrCreateHandlersMap(el);
+  final alreadyAttached = handlers.containsKey(type);
+  handlers[type] = handler;
 
-  el.addEventListener(type, listener.toJS);
+  if (!alreadyAttached) {
+    void listener(web.Event e) {
+      final activeHandler = handlers[type];
+      if (activeHandler != null) {
+        final bloomEvent = _wrapEvent(type, e);
+        activeHandler(bloomEvent);
+        if (bloomEvent.defaultPrevented) e.preventDefault();
+        if (bloomEvent.propagationStopped) e.stopPropagation();
+      }
+    }
+
+    el.addEventListener(type, listener.toJS);
+  }
+}
+
+void _removeListener(
+  web.Element el,
+  String type,
+) {
+  final handlers = _getHandlersMap(el);
+  if (handlers != null && handlers.containsKey(type)) {
+    handlers[type] = null;
+  }
 }
 
 BloomEvent _wrapEvent(String type, web.Event e) {
@@ -690,6 +1044,9 @@ BloomEvent _wrapEvent(String type, web.Event e) {
 
 @JS('Reflect.get')
 external JSAny? _reflectGet(JSAny target, String key);
+
+@JS('Reflect.set')
+external bool _reflectSet(JSAny target, String key, JSAny? value);
 
 String? _jsGetString(JSAny target, String key) {
   try {

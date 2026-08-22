@@ -63,7 +63,10 @@ void main() {
       }
       final html = renderDevErrorOverlay(StateError('x'), captured);
       expect(html, contains('main.<anonymous closure>'.replaceAll('<', '&lt;').replaceAll('>', '&gt;')));
-    });
+      // VM-only: asserts the Dart VM's stack-trace frame format. Compiled to
+      // JS the same trace reads `main__closure8.call$0 (...js:27317:17)`, so
+      // this assertion is meaningless on the browser platform.
+    }, testOn: 'vm');
   });
 
   group('renderDevErrorOverlayJson', () {
