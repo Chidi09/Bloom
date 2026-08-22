@@ -21,4 +21,5 @@ export 'src/controller.dart';
 export 'src/animate.dart';
 export 'src/form.dart';
 export 'src/realtime.dart';
+export 'src/bloom_test.dart';
 
