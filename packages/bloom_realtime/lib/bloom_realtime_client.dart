@@ -1,10 +1,12 @@
-/// Flutter client-only query cache invalidation extras for bloom_realtime.
+/// Query cache invalidation extras for bloom_realtime.
 ///
-/// Bridges channel broadcasts directly to the `BloomData` client query cache
-/// (which depends on `package:flutter` via `signals_flutter`).
+/// Bridges channel broadcasts directly to `bloom_js_native`'s pure-Dart
+/// `BloomData` client query cache (signals-backed, no Flutter dependency).
 ///
-/// Import this library from Flutter client applications only — never from pure-Dart
-/// server entrypoints. Servers should import `package:bloom_realtime/bloom_realtime.dart` instead.
+/// Import this library from `bloom_js_native` client applications that use
+/// `BloomQuery`/`BloomData`. Pure server entrypoints that don't need the
+/// client query-invalidation bridge can import
+/// `package:bloom_realtime/bloom_realtime.dart` instead.
 library;
 
 export 'bloom_realtime.dart';

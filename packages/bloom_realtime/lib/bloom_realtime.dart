@@ -8,8 +8,8 @@
 /// - Seamless [BloomData] query invalidation bridge ([RealtimeQueryBridge], [BloomRealtimeClientQueryBridgeExtension]).
 ///
 /// ```dart
-/// import 'package:bloom_framework/bloom_data.dart';
-/// import 'package:bloom_realtime/bloom_realtime.dart';
+/// import 'package:bloom_js_native/bloom_js_native.dart';
+/// import 'package:bloom_realtime/bloom_realtime_client.dart';
 ///
 /// void main() async {
 ///   // 1. Connect realtime client

@@ -1,6 +1,6 @@
 // lib/src/client/query_bridge.dart
 import 'dart:async';
-import 'package:bloom_framework/bloom_data.dart';
+import 'package:bloom_js_native/bloom_js_native.dart';
 import 'realtime_client.dart';
 
 /// Bridges Realtime channel broadcasts to the `BloomData` client query cache.

@@ -13,8 +13,20 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_framework: ^0.2.2
+  bloom_js_native:
+    path: ../bloom_js_native
   bloom_security: ^0.1.0
 
 dev_dependencies:
-  flutter_lints: ^5.0.0
+  lints: ^4.0.0
+
+# bloom_security's hosted 0.1.0 release still depends on the Flutter-requiring
+# bloom_framework (this repo's local bloom_security was ported off it in a
+# separate change, but that fix isn't published yet). Override to the local
+# copy so dart pub get/analyze/test reflect the real, current dependency
+# graph instead of silently re-acquiring Flutter transitively. Remove this
+# once a Flutter-free bloom_security is published and the version constraint
+# above is bumped to match.
+dependency_overrides:
+  bloom_security:
+    path: ../bloom_security
