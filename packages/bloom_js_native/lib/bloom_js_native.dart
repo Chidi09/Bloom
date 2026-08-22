@@ -12,3 +12,10 @@ export 'src/signals.dart';
 export 'src/devtools.dart';
 export 'src/data.dart';
 export 'src/transition.dart';
+export 'src/mutation.dart';
+export 'src/http.dart';
+export 'src/env.dart';
+export 'src/di.dart';
+export 'src/features.dart';
+export 'src/controller.dart';
+
