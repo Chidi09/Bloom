@@ -42,10 +42,16 @@ String escapeHtml(String input) {
 /// This is the SSR / SSG / SEO backend. The same tree can also be mounted
 /// to the real DOM via `mount()`.
 String renderToHtml(BloomNode node) {
+  _emittedKeyframeNames.clear();
   final buf = StringBuffer();
   _render(node, buf);
   return buf.toString();
 }
+
+/// Tracks animation names whose `@keyframes` block has already been emitted
+/// in the current top-level render pass. Cleared at the start of every
+/// public render entrypoint.
+final Set<String> _emittedKeyframeNames = {};
 
 void _render(BloomNode node, StringBuffer buf) {
   switch (node) {
@@ -147,6 +153,14 @@ void _render(BloomNode node, StringBuffer buf) {
       // Trusted HTML passthrough — never feed this user input.
       buf.write(html);
 
+    case AnimatedNode(:final child, :final animation):
+      if (_emittedKeyframeNames.add(animation.name)) {
+        buf.write('<style>${animation.toKeyframesCSS()}</style>');
+      }
+      buf.write('<div style="${animation.toInlineStyle()}">');
+      _render(child, buf);
+      buf.write('</div>');
+
     case MountNode(:final child):
       // SSR: render child only; lifecycle callbacks intentionally skipped.
       _render(child, buf);
@@ -182,6 +196,7 @@ void _render(BloomNode node, StringBuffer buf) {
 
 /// Convenience: render multiple roots (e.g. head + body fragments).
 String renderToHtmlAll(List<BloomNode> nodes) {
+  _emittedKeyframeNames.clear();
   final buf = StringBuffer();
   for (final n in nodes) {
     _render(n, buf);
@@ -211,6 +226,7 @@ String renderToDocument(
   List<String> stylesheets = const [],
   List<String> scripts = const [],
 }) {
+  _emittedKeyframeNames.clear();
   final buf = StringBuffer();
   buf.write('<!DOCTYPE html>\n<html lang="${escapeHtml(lang)}">\n<head>\n');
   buf.write('<meta charset="${escapeHtml(charset)}">\n');
@@ -244,6 +260,7 @@ String renderToDocument(
 /// slower parts (data-driven sections) are still being built. The sum of
 /// all chunks equals [renderToHtml] on the same node.
 Stream<String> renderToStream(BloomNode node) async* {
+  _emittedKeyframeNames.clear();
   final buf = StringBuffer();
   _render(node, buf);
   const chunkSize = 4096;

@@ -18,4 +18,5 @@ export 'src/env.dart';
 export 'src/di.dart';
 export 'src/features.dart';
 export 'src/controller.dart';
+export 'src/animate.dart';
 
