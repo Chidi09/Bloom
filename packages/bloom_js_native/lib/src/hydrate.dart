@@ -16,11 +16,17 @@ BloomMountHandle hydrate(BloomNode root, String selector) {
 }
 
 /// Hydrates into a specific pre-rendered [Element].
+///
+/// Current implementation: a full client-side re-mount rather than a true
+/// node-reuse hydration (React's `hydrateRoot` walks the existing DOM and
+/// attaches listeners in place without recreating nodes; that algorithm is
+/// not yet implemented here — tracked as a follow-up). This still produces
+/// a *correct* result — existing server-rendered content is cleared first,
+/// so calling this on a non-empty root does not duplicate content the way
+/// blindly delegating to [mountToElement] would (which only ever appends).
 BloomMountHandle hydrateElement(BloomNode root, web.Element element) {
-  // If the root element is empty, fallback to fresh mount
-  if (element.childNodes.length == 0) {
-    return mountToElement(root, element);
+  if (element.childNodes.length > 0) {
+    element.textContent = '';
   }
-  // Otherwise attach reactivity to existing DOM subtree
   return mountToElement(root, element);
 }
