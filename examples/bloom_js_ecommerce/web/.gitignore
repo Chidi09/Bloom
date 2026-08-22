@@ -1,0 +1,4 @@
+*.js.deps
+*.js.map
+web/main.js
+.dart_tool/
