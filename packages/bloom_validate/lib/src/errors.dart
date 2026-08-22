@@ -1,5 +1,5 @@
 // lib/src/errors.dart
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 /// Exception thrown when request body or DTO schema validation fails.
 ///
