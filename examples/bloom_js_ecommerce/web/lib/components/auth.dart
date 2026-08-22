@@ -48,7 +48,7 @@ class AuthComponent {
 
   BloomNode build() {
     return Main(
-      className: 'max-w-md mx-auto px-6 py-10',
+      className: 'w-full max-w-md mx-auto px-6 py-10',
       children: [
         Live(() {
           if (store.isLoggedIn) {
@@ -112,7 +112,6 @@ class AuthComponent {
               Label(text: 'Name', className: 'block text-sm text-zinc-400 mb-1'),
               Input(
                 className: 'w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white',
-                value: _name.value,
                 onInput: (e) => _name.value = e.value ?? '',
               ),
             ],
@@ -123,7 +122,6 @@ class AuthComponent {
             Input(
               type: 'email',
               className: 'w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white',
-              value: _email.value,
               onInput: (e) => _email.value = e.value ?? '',
             ),
           ],
@@ -134,7 +132,6 @@ class AuthComponent {
             Input(
               type: 'password',
               className: 'w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white',
-              value: _password.value,
               onInput: (e) => _password.value = e.value ?? '',
             ),
           ],

@@ -335,6 +335,66 @@ class _Sentinel {
   }
 }
 
+/// Returns the index path from [roots] down to [target], or `null` if
+/// [target] is not a descendant of (or one of) [roots]. Used by the focus
+/// guard in [_bindSentinelRegion] to relocate a focused element's
+/// equivalent position after a region rebuild.
+List<int>? _pathToNode(List<web.Node> roots, web.Node target) {
+  for (var i = 0; i < roots.length; i++) {
+    final found = _searchPath(roots[i], target, [i]);
+    if (found != null) return found;
+  }
+  return null;
+}
+
+List<int>? _searchPath(web.Node node, web.Node target, List<int> soFar) {
+  if (identical(node, target)) return soFar;
+  final children = node.childNodes;
+  for (var i = 0; i < children.length; i++) {
+    final found = _searchPath(children.item(i)!, target, [...soFar, i]);
+    if (found != null) return found;
+  }
+  return null;
+}
+
+/// Inverse of [_pathToNode]: walks [path] down from [roots] to find the
+/// node at the same structural position in a freshly rebuilt tree.
+web.Node? _nodeAtPath(List<web.Node> roots, List<int> path) {
+  if (path.isEmpty || path[0] >= roots.length) return null;
+  web.Node current = roots[path[0]];
+  for (var i = 1; i < path.length; i++) {
+    final children = current.childNodes;
+    if (path[i] >= children.length) return null;
+    current = children.item(path[i])!;
+  }
+  return current;
+}
+
+(int, int)? _selectionRange(web.Element el) {
+  try {
+    if (el.isA<web.HTMLInputElement>()) {
+      final input = el as web.HTMLInputElement;
+      final s = input.selectionStart;
+      final e = input.selectionEnd;
+      if (s != null && e != null) return (s, e);
+    } else if (el.isA<web.HTMLTextAreaElement>()) {
+      final textarea = el as web.HTMLTextAreaElement;
+      return (textarea.selectionStart, textarea.selectionEnd);
+    }
+  } catch (_) {}
+  return null;
+}
+
+void _setSelectionRange(web.Element el, int start, int end) {
+  try {
+    if (el.isA<web.HTMLInputElement>()) {
+      (el as web.HTMLInputElement).setSelectionRange(start, end);
+    } else if (el.isA<web.HTMLTextAreaElement>()) {
+      (el as web.HTMLTextAreaElement).setSelectionRange(start, end);
+    }
+  } catch (_) {}
+}
+
 class _KeyedEntry {
   final String key;
   final List<web.Node> domNodes;
@@ -473,6 +533,37 @@ List<web.Node> _bindSentinelRegion<T>(
   List<web.Node> initialNodes = const [];
 
   void renderRegion() {
+    // Framework-level focus guard: this region replaces its whole DOM
+    // subtree on every rebuild (no diffing), so a form control that reads
+    // its own bound signal for rendering — and is focused when that same
+    // signal changes (typing into a controlled `<input>` is the common
+    // case) — gets destroyed and recreated on every keystroke, silently
+    // dropping focus. Capture the focused element's position (and text
+    // selection) within this region before the old nodes are torn down,
+    // then try to restore focus onto whatever sits at that same position
+    // in the freshly rebuilt tree. This is a best-effort structural-path
+    // match, not real reconciliation — if the shape of the rebuilt tree
+    // has changed (a different element there now), it just no-ops.
+    web.Element? focusedEl;
+    List<int>? focusPath;
+    int? selStart;
+    int? selEnd;
+    if (!isFirstRun) {
+      final active = web.document.activeElement;
+      if (active != null) {
+        final path = _pathToNode(sentinel.childNodes, active);
+        if (path != null) {
+          focusedEl = active;
+          focusPath = path;
+          final range = _selectionRange(active);
+          if (range != null) {
+            selStart = range.$1;
+            selEnd = range.$2;
+          }
+        }
+      }
+    }
+
     inner.disposeAll();
     final value = build();
     final node = wrap == null ? value as BloomNode : wrap(value);
@@ -487,6 +578,17 @@ List<web.Node> _bindSentinelRegion<T>(
     } else {
       sentinel.clear();
       sentinel.appendAll(nodes);
+      if (focusPath != null) {
+        final replacement = _nodeAtPath(nodes, focusPath);
+        if (replacement != null &&
+            replacement.isA<web.HTMLElement>() &&
+            (replacement as web.HTMLElement).tagName == focusedEl!.tagName) {
+          replacement.focus();
+          if (selStart != null && selEnd != null) {
+            _setSelectionRange(replacement, selStart, selEnd);
+          }
+        }
+      }
     }
   }
 

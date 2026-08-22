@@ -12,7 +12,7 @@ class CartComponent {
 
   BloomNode build() {
     return Main(
-      className: 'max-w-3xl mx-auto px-6 py-10',
+      className: 'w-full max-w-3xl mx-auto px-6 py-10',
       children: [
         H1(className: 'text-2xl font-bold text-white mb-6', text: 'Your cart'),
         Live(() => _buildBody()),

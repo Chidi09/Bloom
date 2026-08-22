@@ -16,7 +16,8 @@
     "canvas-confetti": "/vendor/canvas-confetti.min.js",
     "gsap": "/vendor/gsap.min.js",
     "lucide": "/vendor/lucide.min.js",
-    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js"
+    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js",
+    "@tanstack/virtual-core": "/vendor/tanstack-virtual-core.min.js"
   }
 }
 </script>
@@ -49,9 +50,11 @@
     import confettiFn from "canvas-confetti";
     import { gsap } from "gsap";
     import * as lucide from "lucide";
+    import { Virtualizer, observeElementRect, observeElementOffset, elementScroll } from "@tanstack/virtual-core";
     window.canvas_confetti = confettiFn;
     window.gsap = gsap;
     window.lucide = lucide;
+    window.__bloomVirtualCore = { Virtualizer, observeElementRect, observeElementOffset, elementScroll };
   </script>
 </head>
 <body class="min-h-screen">
