@@ -43,7 +43,13 @@ class ImportMapManager {
         ? Map<String, dynamic>.from(currentMap['imports'] as Map)
         : <String, dynamic>{};
 
-    imports[packageName] = '/$vendorPath';
+    // vendorPath is project-root-relative (e.g. "web/vendor/foo.min.js"), but
+    // the dev/build server document root *is* the web/ directory itself
+    // (see BloomLiveReloadServer.webDir), so the browser-facing URL must
+    // drop the leading "web/" segment or it 404s against a nonexistent
+    // "web/web/vendor/..." path.
+    final urlPath = vendorPath.startsWith('web/') ? vendorPath.substring(4) : vendorPath;
+    imports[packageName] = '/$urlPath';
     currentMap['imports'] = imports;
 
     final newImportMapJson = const JsonEncoder.withIndent('  ').convert(currentMap);
