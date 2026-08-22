@@ -22,6 +22,7 @@ class JsCommand extends Command<int> {
     addSubcommand(JsDevCommand());
     addSubcommand(JsBuildCommand());
     addSubcommand(JsVendorCommand());
+    addSubcommand(JsCreateCommand());
   }
 
   @override
@@ -295,4 +296,119 @@ class JsVendorCommand extends Command<int> {
     await assembler.assemble();
     return 0;
   }
+}
+
+/// `bloom js create <name>` — scaffolds a new Bloom JS Native component
+/// file with boilerplate, plus a matching test file.
+class JsCreateCommand extends Command<int> {
+  @override
+  final String name = 'create';
+
+  @override
+  final String description =
+      'Scaffold a new Bloom JS Native component with a matching test file.';
+
+  @override
+  String get invocation => 'bloom js create <ComponentName>';
+
+  @override
+  Future<int> run() async {
+    final args = argResults!.rest;
+    if (args.isEmpty) {
+      print(Ansi.error('Usage: bloom js create <ComponentName>'));
+      return 1;
+    }
+
+    final rawName = args.first;
+    if (!RegExp(r'^[A-Za-z][A-Za-z0-9]*$').hasMatch(rawName)) {
+      print(Ansi.error(
+          'Invalid component name: "$rawName". Must be alphanumeric, starting with a letter.'));
+      return 1;
+    }
+
+    final project = BloomProject.find();
+    if (project == null) {
+      print(Ansi.error(
+          'No Bloom project found. Run this command from inside a Bloom project directory (or an ancestor of one).'));
+      return 1;
+    }
+
+    final className = _pascalCase(rawName);
+    final fileBaseName = _snakeCase(rawName);
+
+    final componentsDir =
+        Directory(p.join(project.rootDir.path, 'lib', 'components'));
+    if (!componentsDir.existsSync()) {
+      componentsDir.createSync(recursive: true);
+    }
+
+    final componentFile =
+        File(p.join(componentsDir.path, '$fileBaseName.dart'));
+    if (componentFile.existsSync()) {
+      print(Ansi.error(
+          'Component file already exists: ${componentFile.path}'));
+      return 1;
+    }
+
+    componentFile.writeAsStringSync(_componentTemplate(className));
+    print(Ansi.success('Created component: ${componentFile.path}'));
+
+    final testDir = Directory(p.join(project.rootDir.path, 'test'));
+    if (!testDir.existsSync()) {
+      testDir.createSync(recursive: true);
+    }
+    final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
+    if (!testFile.existsSync()) {
+      testFile.writeAsStringSync(_componentTestTemplate(className, fileBaseName));
+      print(Ansi.success('Created test: ${testFile.path}'));
+    }
+
+    return 0;
+  }
+
+  String _pascalCase(String input) {
+    if (input.isEmpty) return input;
+    return input[0].toUpperCase() + input.substring(1);
+  }
+
+  String _snakeCase(String input) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < input.length; i++) {
+      final ch = input[i];
+      if (ch.toUpperCase() == ch && ch.toLowerCase() != ch && i > 0) {
+        buffer.write('_');
+      }
+      buffer.write(ch.toLowerCase());
+    }
+    return buffer.toString();
+  }
+
+  String _componentTemplate(String className) => '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+/// $className component.
+BloomNode $className() {
+  return Div(
+    className: '$className',
+    children: [
+      Text('$className'),
+    ],
+  );
+}
+''';
+
+  String _componentTestTemplate(String className, String fileBaseName) => '''
+import 'package:test/test.dart';
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// TODO: adjust this relative import to match your project's package name.
+// import 'package:your_app/components/$fileBaseName.dart';
+
+void main() {
+  test('$className renders', () {
+    // final renderer = renderForTest($className());
+    // expect(renderer.getByText('$className'), isNotNull);
+  });
+}
+''';
 }
