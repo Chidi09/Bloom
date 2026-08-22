@@ -389,6 +389,29 @@ void main() {
           reason: 'stale handlers must not fire, and the live one exactly once');
     });
 
+    test('a typed Suspense<T> resolves in the browser', () async {
+      final node = Suspense<String>(
+        resource: () async => 'loaded',
+        builder: (data) => Div(attrs: {'data-loaded': '1'}, text: data),
+        fallback: Div(attrs: {'data-spinner': '1'}, text: 'loading'),
+      );
+
+      final handle = mountToElement(node, container);
+      addTearDown(handle.dispose);
+
+      expect(container.querySelectorAll('[data-spinner]').length, 1);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Regression: reading `resource`/`builder` off a `case SuspenseNode():`
+      // match casts them to `Function(dynamic)`, which throws for any concrete
+      // `T` — function parameters are contravariant. This threw a TypeError
+      // for every typed Suspense before the erased-view accessors landed.
+      final loaded = container.querySelectorAll('[data-loaded]');
+      expect(loaded.length, 1);
+      expect((loaded.item(0)! as web.Element).textContent, 'loaded');
+    });
+
     test('an event dropped from the descriptor stops firing after a patch', () {
       final withHandler = signal(true);
       final fired = <String>[];
