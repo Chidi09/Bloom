@@ -23,6 +23,20 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  bloom_server:
+    dependency: transitive
+    description:
+      path: "../../../packages/bloom_server"
+      relative: true
+    source: path
+    version: "0.1.0"
+  bloom_validate:
+    dependency: "direct main"
+    description:
+      path: "../../../packages/bloom_validate"
+      relative: true
+    source: path
+    version: "0.1.0"
   characters:
     dependency: transitive
     description:
@@ -45,7 +59,7 @@ packages:
     source: sdk
     version: "0.0.0"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"

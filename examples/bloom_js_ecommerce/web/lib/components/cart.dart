@@ -115,7 +115,7 @@ class CartComponent {
         Live(() {
           final err = mutation.error.value;
           if (err == null) return const Fragment(children: []);
-          return P(className: 'text-red-400 text-sm mb-2', text: 'Checkout failed: $err');
+          return P(className: 'text-red-400 text-sm mb-2', text: 'Checkout failed: ${describeApiError(err)}');
         }),
         Button(
           text: mutation.isPending ? 'Placing order...' : 'Checkout',
