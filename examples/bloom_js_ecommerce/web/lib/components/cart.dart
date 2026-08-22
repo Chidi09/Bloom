@@ -1,5 +1,7 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
+import '../plugins/confetti.dart';
+import '../plugins/lucide_icons.dart';
 import '../state/store.dart';
 
 class CartComponent {
@@ -55,9 +57,12 @@ class CartComponent {
                 onClick: (_) => store.setQuantity(entry.key, quantity + 1),
               ),
               Button(
-                text: 'Remove',
-                className: 'ml-3 text-sm text-red-400 hover:text-red-300',
+                className: 'ml-3 text-sm text-red-400 hover:text-red-300 flex items-center gap-1',
                 onClick: (_) => store.removeFromCart(entry.key),
+                children: [
+                  Raw(LucideIcons.svg(LucideIconName.trash2, className: 'w-3.5 h-3.5')),
+                  Span(text: 'Remove'),
+                ],
               ),
             ],
           ),
@@ -122,6 +127,7 @@ class CartComponent {
                   if (items.isEmpty) return;
                   final result = await mutation.mutate(items);
                   if (result != null) {
+                    Confetti.burst();
                     store.clearCart();
                     router.navigate('/');
                   }

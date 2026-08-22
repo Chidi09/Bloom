@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import '../plugins/lucide_icons.dart';
 import '../state/store.dart';
 
 class ProductGridComponent {
@@ -51,11 +52,14 @@ class ProductGridComponent {
                     ],
                   ),
                   Button(
-                    text: 'Add to cart',
                     className: stock > 0
-                        ? 'mt-3 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium'
-                        : 'mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-500 text-sm font-medium cursor-not-allowed',
+                        ? 'mt-3 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium flex items-center justify-center gap-1.5'
+                        : 'mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-500 text-sm font-medium cursor-not-allowed flex items-center justify-center gap-1.5',
                     onClick: stock > 0 ? (_) => store.addToCart(id) : null,
+                    children: [
+                      Raw(LucideIcons.svg(LucideIconName.shoppingCart, className: 'w-4 h-4')),
+                      Span(text: 'Add to cart'),
+                    ],
                   ),
                 ],
               );
