@@ -6,11 +6,6 @@ npm_packages:
     esm_url: https://esm.sh/@tailwindcss/browser@4.3.3?bundle
     vendor_file: web/vendor/tailwindcss-browser.min.js
     dart_binding: lib/src/plugins/tailwindcss_browser.dart
-  "@hugeicons\/core-free-icons":
-    version: 4.3.0
-    esm_url: https://esm.sh/@hugeicons/core-free-icons@4.3.0?bundle
-    vendor_file: web/vendor/hugeicons-core-free-icons.min.js
-    dart_binding: lib/src/plugins/hugeicons_core_free_icons.dart
   "@floating-ui\/dom":
     version: 1.8.0
     esm_url: https://esm.sh/@floating-ui/dom@1.8.0?bundle
