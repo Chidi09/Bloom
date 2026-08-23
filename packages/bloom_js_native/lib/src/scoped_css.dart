@@ -7,13 +7,28 @@ import 'framework.dart';
 
 /// Computes a deterministic 32-bit FNV-1a hash over [input].
 ///
-/// Operates strictly within 32-bit unsigned integer arithmetic using bitwise operations
-/// and additions to guarantee identical hash outputs across both the Dart VM (SSR, tests)
-/// and Web compilers (dart2js, dart2wasm, DDC).
+/// FNV-1a (Fowler–Noll–Vo 1a) is a lightweight, non-cryptographic hash algorithm
+/// optimized for fast execution and high dispersion over arbitrary strings.
+///
+/// ### Determinism across SSR and Web Platforms
+/// In Bloom JS Native, [fnv1a32] is the mathematical foundation for Scoped CSS.
+/// Server-Side Rendering (running on the Dart VM) and browser client DOM mounting
+/// (compiled to JavaScript via `dart2js` or WebAssembly via `dart2wasm`) MUST compute
+/// bit-for-bit identical hashes for identical stylesheet inputs. If hashing diverged
+/// between 64-bit VM integers and JavaScript 32-bit bitwise semantics, class names
+/// emitted during SSR (`renderToHtml`) would not match those generated during client
+/// hydration (`mount`), causing broken CSS styling and hydration mismatches.
+///
+/// This implementation guarantees identical output across all runtimes by explicitly
+/// masking all bitwise shifts, additions, and XOR operations with `0xFFFFFFFF` across
+/// both the low and high bytes of each character code unit.
+///
+/// Used internally by [ScopedCss.compile] and [scopedCss] to derive 7-character hex suffixes.
 ///
 /// ```dart
-/// final hash = fnv1a32('.card { color: red; }');
-/// print(hash.toRadixString(16));
+/// final hash = fnv1a32('.card { color: #6366f1; }');
+/// final hex = hash.toRadixString(16).padLeft(8, '0').substring(0, 7);
+/// print('Scoped hash: $hex');
 /// ```
 int fnv1a32(String input) {
   var hash = 0x811c9dc5;
@@ -44,27 +59,47 @@ int fnv1a32(String input) {
   return hash & 0xFFFFFFFF;
 }
 
-/// A scoped CSS stylesheet bundle providing deterministic class name isolation.
+/// A compiled scoped CSS stylesheet bundle providing deterministic class name isolation.
 ///
-/// Generated via [scopedCss] or [ScopedCss.compile]. Re-writes author CSS selectors
-/// so that all local class selectors are suffixed with a unique, deterministic hash
-/// derived from the stylesheet content and optional component [name].
+/// Generated via [scopedCss] or [ScopedCss.compile]. Parses author CSS and rewrites every
+/// local class selector so that it is suffixed with a unique, deterministic hash derived
+/// from the stylesheet source and an optional component [name] prefix (e.g. `.card` becomes
+/// `.card__a1b2c3d` or `.btn_card__a1b2c3d`).
 ///
-/// ### Determinism across SSR and Browser
-/// The scoping transformation is a pure function over strings without any DOM or
-/// browser dependencies. The exact same [ScopedCss] instance or identical input string
-/// produces bit-for-bit identical class names and CSS output on both the server
-/// (SSR via `renderToHtml`) and the client (browser DOM via `mount`).
+/// ### Determinism across SSR and Browser Backends
+/// The scoping transformation is a pure function over strings with zero browser DOM or
+/// Flutter dependencies. The exact same [ScopedCss] instance or identical input string
+/// produces bit-for-bit identical class names, class maps, and CSS text on both the
+/// server (SSR via `renderToHtml`) and the client (browser DOM mounting via `mount`),
+/// guaranteeing zero hydration mismatch or style flashing.
+///
+/// Embedding [node] (or [style]) in a component tree injects a `<style>` element into the
+/// DOM in the browser or emits `<style>...</style>` directly into the SSR HTML stream.
 ///
 /// ### Selector Scoping Rules
-/// - **Class Selectors**: All local class selectors (`.title`, `.btn-primary`) are scoped.
-/// - **Escape Hatch (`:global`)**: Class names wrapped in `:global(...)` (e.g. `:global(.dark) .card`
-///   or `.btn:global(.active)`) are preserved verbatim without scoping.
-/// - **Preserved Selectors**: Element selectors (`div`, `p`), ID selectors (`#header`), `:root`,
-///   and universal selectors (`*`) are left untouched.
-/// - **At-Rules**: Nested rules inside `@media`, `@supports`, `@container`, and `@layer` blocks
-///   are scoped recursively. Keyframe selectors (`from`, `to`, `0%`, `100%`) inside `@keyframes`
-///   blocks are preserved verbatim.
+/// - **Scoped Local Classes**: All local class selectors (`.title`, `.btn-primary`, `.item:hover`,
+///   `.nav > .item`) are automatically rewritten with the scoped suffix.
+/// - **Global Escape Hatch (`:global`)**: Class selectors wrapped inside `:global(...)`
+///   (e.g. `:global(.theme-dark) .card` or `.button:global(.active)`) are unwrapped and
+///   preserved verbatim without scoping. Use this to style against ambient theme classes,
+///   body attributes, or external third-party classes.
+/// - **Preserved Selectors**: Element/type selectors (`div`, `p`, `span`, `h1`), ID selectors
+///   (`#header`, `#app`), root selectors (`:root`), and universal selectors (`*`) are
+///   deliberately left untouched.
+/// - **Nested At-Rules**: Rules inside `@media`, `@supports`, `@container`, and `@layer` blocks
+///   are parsed and scoped recursively.
+/// - **Keyframe Preservation**: Animation stops (`from`, `to`, and percentages like `0%`, `50%`,
+///   `100%`) inside `@keyframes` and `@-webkit-keyframes` blocks are intentionally **not**
+///   rewritten, preserving standard CSS animation definitions.
+/// - **At-Rule Declarations**: Declaration blocks inside `@font-face`, `@page`, and `@property`
+///   are preserved verbatim without selector rewriting.
+///
+/// ### Pragmatic Parser Capabilities & Limitations
+/// [ScopedCss] is a pragmatic, high-performance selector rewriter rather than a full CSS AST
+/// parser or CSS validator:
+/// - It assumes structurally valid CSS with balanced delimiters (`{}`, `()`, `[]`, `""`, `''`, `/* */`).
+/// - It does not validate CSS property names or values.
+/// - Exotic selectors with unquoted commas inside pseudo-functions may not split cleanly.
 ///
 /// ```dart
 /// final styles = scopedCss('''
@@ -72,9 +107,15 @@ int fnv1a32(String input) {
 ///     padding: 16px;
 ///     background: #14141a;
 ///     border: 1px solid #27272a;
+///     border-radius: 8px;
 ///   }
 ///   .card:hover {
 ///     border-color: #6366f1;
+///   }
+///   .title {
+///     font-size: 18px;
+///     font-weight: 600;
+///     color: #ffffff;
 ///   }
 ///   :global(.theme-dark) .card {
 ///     background: #09090b;
@@ -91,32 +132,120 @@ int fnv1a32(String input) {
 /// ```
 class ScopedCss {
   /// The raw, un-scoped CSS source provided by the author.
+  ///
+  /// Retains the exact original stylesheet string passed to [ScopedCss.compile]
+  /// prior to selector rewriting.
+  ///
+  /// ```dart
+  /// final styles = scopedCss('.card { color: red; }');
+  /// print(styles.rawCss); // '.card { color: red; }'
+  /// ```
   final String rawCss;
 
   /// The transformed CSS stylesheet with all local class selectors scoped.
+  ///
+  /// Contains the rewritten CSS rules where every local class selector has been
+  /// suffixed with the deterministic 7-character [hash]. This is the exact CSS
+  /// string embedded into [node] and injected into `<style>` elements.
+  ///
+  /// ```dart
+  /// final styles = scopedCss('.btn { color: white; }', name: 'btn');
+  /// print(styles.css); // '.btn_btn__a1b2c3d { color: white; }'
+  /// ```
   final String css;
 
   /// The deterministic 7-character hex hash derived from the CSS content and [name].
+  ///
+  /// Generated via [fnv1a32] on `'$name:$rawCss'` (or [rawCss] if [name] is omitted).
+  /// Appended to all scoped class names to prevent collisions.
+  ///
+  /// ```dart
+  /// final styles = scopedCss('.badge { padding: 4px; }', name: 'badge');
+  /// print(styles.hash); // e.g. 'a1b2c3d'
+  /// ```
   final String hash;
 
   /// The optional human-readable component name prefix (e.g. `'card'`, `'button'`).
+  ///
+  /// When non-null, generated class names take the form `'${name}_${className}__$hash'`
+  /// (e.g. `'card_title__a1b2c3d'`). When `null`, they take the form `'${className}__$hash'`.
+  /// Specifying a name makes elements easier to identify in browser DevTools.
+  ///
+  /// ```dart
+  /// final styles = scopedCss('.header { font-size: 16px; }', name: 'header');
+  /// print(styles.name); // 'header'
+  /// ```
   final String? name;
 
   /// Lookup map from author class names (e.g. `'title'`) to generated scoped class names
   /// (e.g. `'card_title__a1b2c3d'`).
+  ///
+  /// Populated during compilation for every local class selector found in [rawCss].
+  /// Author class names wrapped in `:global(...)` are excluded from this map.
+  /// This map is unmodifiable.
+  ///
+  /// ```dart
+  /// final styles = scopedCss('.title { font-size: 16px; }', name: 'card');
+  /// print(styles.classes['title']); // 'card_title__a1b2c3d'
+  /// ```
   final Map<String, String> classes;
 
   /// The [StyleNode] descriptor containing the transformed [css], ready to drop into
   /// a [BloomNode] tree.
+  ///
+  /// Place this node inside any component's children to inject the scoped stylesheet
+  /// during client-side DOM mounting ([mount]) or emit `<style>` tags during SSR ([renderToHtml]).
+  ///
+  /// ```dart
+  /// BloomNode profileCard() => Div(
+  ///   className: styles['card'],
+  ///   children: [
+  ///     styles.node,
+  ///     P(className: styles['bio'], text: 'Developer'),
+  ///   ],
+  /// );
+  /// ```
   final StyleNode node;
 
   /// Alias for [node] for convenient stylesheet embedding.
+  ///
+  /// Returns the exact same [StyleNode] instance as [node].
+  ///
+  /// ```dart
+  /// BloomNode profileCard() => Div(
+  ///   className: styles['card'],
+  ///   children: [
+  ///     styles.style,
+  ///     P(className: styles['bio'], text: 'Developer'),
+  ///   ],
+  /// );
+  /// ```
   StyleNode get style => node;
 
   /// Creates a [ScopedCss] instance by compiling [rawCss] with an optional component [name].
+  ///
+  /// Factory constructor forwarding directly to [ScopedCss.compile].
+  ///
+  /// ```dart
+  /// final styles = ScopedCss('.container { width: 100%; }', name: 'layout');
+  /// ```
   factory ScopedCss(String rawCss, {String? name}) = ScopedCss.compile;
 
   /// Compiles [rawCss] into a scoped stylesheet with class name mappings.
+  ///
+  /// Derives a deterministic 32-bit FNV-1a hash from [rawCss] and [name], rewrites
+  /// all local class selectors, creates the immutable [classes] map, and wraps the
+  /// output in a [StyleNode] [node].
+  ///
+  /// ```dart
+  /// final styles = ScopedCss.compile('''
+  ///   .badge {
+  ///     display: inline-flex;
+  ///     padding: 2px 8px;
+  ///     border-radius: 9999px;
+  ///   }
+  /// ''', name: 'badge');
+  /// ```
   factory ScopedCss.compile(String rawCss, {String? name}) {
     final seed = name != null && name.isNotEmpty ? '$name:$rawCss' : rawCss;
     final hashInt = fnv1a32(seed);
@@ -147,43 +276,58 @@ class ScopedCss {
 
   /// Looks up the generated scoped class name for author [className].
   ///
-  /// Returns the scoped class name if found in the stylesheet (e.g. `'button_title__a1b2c3d'`).
-  /// If [className] was not present in the scoped stylesheet, returns [className] unchanged
-  /// so that global utility classes or dynamic class names pass through safely.
+  /// Returns the scoped class name if defined in the stylesheet (e.g. `'card_title__a1b2c3d'`).
+  /// If [className] was not present in the scoped stylesheet (such as a global utility
+  /// class like `'flex'` or `'p-4'`), returns [className] unchanged so utility classes
+  /// pass through safely without throwing.
   ///
   /// ```dart
-  /// final cls = styles['card'];
+  /// final cls = styles['card'];      // Scoped: 'card_card__a1b2c3d'
+  /// final util = styles['flex'];     // Pass-through: 'flex'
   /// ```
   String operator [](String className) => classes[className] ?? className;
 
   /// Functional lookup shorthand — equivalent to `this[className]`.
   ///
+  /// Allows calling the [ScopedCss] instance directly as a function for cleaner markup syntax.
+  ///
   /// ```dart
   /// final cls = styles('card');
+  /// final titleCls = styles('title');
   /// ```
   String call(String className) => classes[className] ?? className;
 
   /// Looks up the generated scoped class name for author [className].
   ///
-  /// Returns the scoped class name if defined, or [className] if not found.
+  /// Named method equivalent to [operator []] and [call]. Returns the scoped class name
+  /// if defined in the stylesheet, or [className] unchanged if not found.
+  ///
+  /// ```dart
+  /// final cls = styles.get('card');
+  /// ```
   String get(String className) => classes[className] ?? className;
 
   /// Composes a class list resolving author class names to their scoped equivalents.
   ///
   /// Evaluates each part in [parts]:
-  /// - `null` and `false` values are ignored.
-  /// - String tokens present in [classes] are replaced with their scoped class name.
-  /// - Unmatched string tokens (e.g. utility classes like `'p-4'`, `'flex'`) are preserved as-is.
-  /// - Joins all resolved tokens with single spaces, identical to [cx].
+  /// - `null` and `false` values are ignored, enabling concise conditional classes.
+  /// - Space-separated strings (e.g. `'card active'`) are split into individual tokens.
+  /// - Tokens present in [classes] are replaced with their scoped class name.
+  /// - Unmatched string tokens (e.g. utility classes like `'p-4'`, `'flex'`, `'text-sm'`) are preserved as-is.
+  /// - Joins all resolved tokens with single spaces.
+  ///
+  /// Safe for both SSR and client-side DOM mounting.
   ///
   /// ```dart
   /// final isActive = true;
+  /// final isDisabled = false;
   /// final className = styles.cx([
   ///   'card',
   ///   isActive && 'active',
-  ///   'p-4 flex',
+  ///   isDisabled && 'disabled',
+  ///   'p-4 flex items-center',
   /// ]);
-  /// // => 'card_card__a1b2c3d card_active__a1b2c3d p-4 flex'
+  /// // => 'card_card__a1b2c3d card_active__a1b2c3d p-4 flex items-center'
   /// ```
   String cx(List<Object?> parts) {
     final out = StringBuffer();
@@ -208,6 +352,9 @@ class ScopedCss {
 ///
 /// Deterministically parses and rewrites all local class selectors in [css] to isolate
 /// them under a short content-derived hash.
+///
+/// Provides zero-runtime CSS Modules with bit-for-bit identical output between
+/// Server-Side Rendering (`renderToHtml`) and browser DOM mounting (`mount`).
 ///
 /// ```dart
 /// final buttonStyles = scopedCss('''
