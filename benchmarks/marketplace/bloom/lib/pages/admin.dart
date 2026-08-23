@@ -37,6 +37,14 @@ Product _productFromJson(Map<String, dynamic> json) {
   );
 }
 
+String slugify(String text) {
+  return text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+      .replaceAll(RegExp(r'[\s-]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+}
+
 BloomNode adminDashboard(Map<String, String> params) {
   Future<Map<String, int>> fetch() async {
     try {
@@ -50,36 +58,46 @@ BloomNode adminDashboard(Map<String, String> params) {
   return Suspense<Map<String, int>>(
     resource: fetch,
     fallback: adminShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading overview...'),
+      Div(className: 'animate-pulse', children: [
+        Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-36 mb-2'),
+        Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-64 mb-6'),
+        Div(className: 'grid sm:grid-cols-3 gap-4', children: [
+          Div(className: 'h-24 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]'),
+          Div(className: 'h-24 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]'),
+          Div(className: 'h-24 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]'),
+        ]),
+        Div(className: 'mt-8 h-32 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]'),
+      ]),
     ),
     builder: (counts) => adminShell(
       Div(children: [
         H1(className: 'text-h1', text: 'Overview'),
         P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Product counts by status — Stage 1 administration'),
         Div(className: 'grid sm:grid-cols-3 gap-4 mt-6', children: [
-          _metricCard('Published', counts['published'] ?? 0, 'check', 'var(--success)'),
-          _metricCard('Draft', counts['draft'] ?? 0, 'draft', 'var(--warning)'),
-          _metricCard('Archived', counts['archived'] ?? 0, 'archive', 'var(--n-500)'),
+          _metricCard('Published', counts['published'] ?? 0, 'check', 'bg-[#16A34A]/12', 'text-[#16A34A]', 'published'),
+          _metricCard('Draft', counts['draft'] ?? 0, 'draft', 'bg-[#D97706]/12', 'text-[#D97706]', 'draft'),
+          _metricCard('Archived', counts['archived'] ?? 0, 'archive', 'bg-[#78716C]/15', 'text-[var(--n-400)]', 'archived'),
         ]),
-        Div(className: 'mt-8 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4', children: [
-          H3(className: 'text-h3', text: 'Next steps'),
-          P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'List, create, and manage marketplace products with live API integration.'),
-          button(text: 'Go to products', href: '/admin/products', extraClassName: 'inline-flex mt-3'),
+        Div(className: 'mt-8 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)]', children: [
+          H3(className: 'text-h3', text: 'Catalog Overview'),
+          P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Manage product listings, inventory levels, and publication status across the marketplace catalog.'),
+          button(text: 'View all products', href: '/admin/products', extraClassName: 'inline-flex mt-3'),
         ]),
       ]),
     ),
   );
 }
 
-BloomNode _metricCard(String label, int value, String icon, String color) {
-  return Div(
-    className: 'rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm',
+BloomNode _metricCard(String label, int value, String icon, String colorBg, String colorFg, String statusKey) {
+  return Link(
+    href: '/admin/products?status=$statusKey',
+    className: 'block rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)] hover:border-[var(--brand-600)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
     children: [
       Div(className: 'flex items-center justify-between', children: [
-        Span(className: 'text-xs uppercase tracking-widest text-[var(--text-muted)]', text: label),
-        Span(className: 'w-8 h-8 rounded-md grid place-items-center', style: 'background: $color; color: white', children: [hugeIcon(icon, className: 'w-4 h-4')]),
+        Span(className: 'text-xs uppercase tracking-widest text-[var(--text-muted)] font-medium', text: label),
+        Span(className: 'w-8 h-8 rounded-md grid place-items-center $colorBg $colorFg', children: [hugeIcon(icon, className: 'w-4 h-4')]),
       ]),
-      Div(className: 'mt-3 text-3xl font-semibold tabular', style: 'font-family:var(--font-display); font-variant-numeric:tabular-nums', text: formatNumber(value)),
+      Div(className: 'mt-3 text-3xl font-semibold tabular text-[var(--text)]', style: 'font-family:var(--font-display); font-variant-numeric:tabular-nums', text: formatNumber(value)),
     ],
   );
 }
@@ -88,12 +106,14 @@ BloomNode adminProducts(Map<String, String> params) {
   final query = routerController.currentQuery.value;
   final cursor = query['cursor'];
   final sort = query['sort'] ?? 'newest';
+  final status = query['status'];
 
   Future<_PaginatedAdminData> fetch() async {
     final qp = <String, dynamic>{
       'limit': 24,
       if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
       if (sort != 'newest') 'sort': sort,
+      if (status != null && status.isNotEmpty) 'status': status,
     };
     final res = await httpClient.get<Map<String, dynamic>>('/api/admin/products', queryParameters: qp);
     final rawResults = (res['results'] as List<dynamic>?) ?? const [];
@@ -106,42 +126,73 @@ BloomNode adminProducts(Map<String, String> params) {
   return Suspense<_PaginatedAdminData>(
     resource: fetch,
     fallback: adminShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading products...'),
+      Div(children: [
+        Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-36 mb-4 animate-pulse'),
+        Div(className: 'h-6 bg-[var(--bg-muted)] rounded w-56 mb-4 animate-pulse'),
+        skeletonTable(),
+      ]),
     ),
     builder: (data) {
       final rows = data.items.map((p) => tableRow([
-            Div(children: [
-              P(className: 'font-medium line-clamp-1', text: p.title),
-              P(className: 'text-xs text-[var(--text-muted)]', text: p.slug),
-            ]),
-            priceText(p.priceCents),
-            Span(className: 'tabular', text: '${p.stock}'),
+            Div(
+              className: 'flex items-center gap-3',
+              children: [
+                bloomImage(
+                  src: 'https://picsum.photos/seed/${p.slug}-1/100/100',
+                  alt: p.title,
+                  widths: [100, 200],
+                  sizes: '36px',
+                  className: 'w-9 h-9 object-cover rounded-md border border-[var(--border)] shrink-0 bg-[var(--bg-muted)]',
+                ),
+                Div(
+                  className: 'min-w-0',
+                  children: [
+                    P(className: 'font-medium line-clamp-1', text: p.title),
+                    P(className: 'text-xs text-[var(--text-muted)] font-mono truncate', text: p.slug),
+                  ],
+                ),
+              ],
+            ),
+            Div(className: 'text-right tabular', children: [priceText(p.priceCents)]),
+            Div(className: 'text-right tabular', children: [Span(className: 'tabular', text: '${p.stock}')]),
             statusPill(p.status),
             Link(href: '/admin/products/${p.id}', className: 'text-sm text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Edit'),
           ])).toList();
 
       return adminShell(
         Div(children: [
-          Div(className: 'flex items-center justify-between gap-4', children: [
-            H1(className: 'text-h1', text: 'Products'),
-            button(text: 'New product', href: '/admin/products/new'),
-          ]),
-          Div(className: 'flex items-center gap-2 text-sm mt-3', children: [
+          H1(className: 'text-h1', text: 'Products'),
+          Div(className: 'flex items-center gap-2 text-sm mt-3 flex-wrap', children: [
+            if (status != null && status.isNotEmpty) ...[
+              Span(className: 'text-[var(--text-muted)]', text: 'Status:'),
+              Span(
+                className: 'px-2 py-1 rounded-md bg-[var(--brand-600)] text-white text-xs font-medium inline-flex items-center gap-1.5',
+                children: [
+                  Text(status),
+                  Link(
+                    href: '/admin/products${sort != 'newest' ? '?sort=$sort' : ''}',
+                    className: 'hover:text-black focus-visible:outline-none',
+                    children: [hugeIcon('x', className: 'w-3 h-3')],
+                  ),
+                ],
+              ),
+              Span(className: 'text-[var(--border)]', text: '•'),
+            ],
             Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
             Link(
-              href: '/admin/products?sort=newest',
+              href: '/admin/products?sort=newest${status != null && status.isNotEmpty ? '&status=$status' : ''}',
               attrs: sort == 'newest' ? const {'aria-current': 'page'} : const {},
               className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='newest'?'bg-[var(--brand-600)] text-white border-transparent':''}',
               text: 'Newest',
             ),
             Link(
-              href: '/admin/products?sort=price_asc',
+              href: '/admin/products?sort=price_asc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
               attrs: sort == 'price_asc' ? const {'aria-current': 'page'} : const {},
               className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_asc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
               text: 'Price ↑',
             ),
             Link(
-              href: '/admin/products?sort=price_desc',
+              href: '/admin/products?sort=price_desc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
               attrs: sort == 'price_desc' ? const {'aria-current': 'page'} : const {},
               className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_desc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
               text: 'Price ↓',
@@ -188,7 +239,22 @@ BloomNode adminProductForm(Map<String, String> params, {bool isNew = false}) {
   return Suspense<Product?>(
     resource: fetch,
     fallback: adminShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading product...'),
+      Div(className: 'animate-pulse flex flex-col gap-4 max-w-[640px]', children: [
+        Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-32 mb-2'),
+        Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-48'),
+        Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-64 mb-4'),
+        Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px] w-full'),
+        Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px] w-full'),
+        Div(className: 'h-24 bg-[var(--bg-muted)] rounded-[6px] w-full'),
+        Div(className: 'grid grid-cols-2 gap-4', children: [
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px]'),
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px]'),
+        ]),
+        Div(className: 'flex gap-3 mt-2', children: [
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px] w-24'),
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded-[6px] w-24'),
+        ]),
+      ]),
     ),
     builder: (prod) => _renderForm(prod, isNew: false, id: id),
   );
@@ -197,6 +263,7 @@ BloomNode adminProductForm(Map<String, String> params, {bool isNew = false}) {
 BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
   final idOrSlug = id ?? prod?.id ?? '';
   final isSubmitting = signal<bool>(false);
+  var slugManuallyEdited = false;
 
   return adminShell(
     Div(children: [
@@ -211,7 +278,7 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
           final titleEl = web.document.getElementById('f-title') as web.HTMLInputElement?;
           final slugEl = web.document.getElementById('f-slug') as web.HTMLInputElement?;
           final descEl = web.document.getElementById('f-description') as web.HTMLTextAreaElement?;
-          final priceEl = web.document.getElementById('f-price_cents') as web.HTMLInputElement?;
+          final priceEl = web.document.getElementById('f-price') as web.HTMLInputElement?;
           final stockEl = web.document.getElementById('f-stock') as web.HTMLInputElement?;
           final statusEl = web.document.getElementById('f-status') as web.HTMLSelectElement?;
           final currEl = web.document.getElementById('f-currency') as web.HTMLInputElement?;
@@ -219,7 +286,9 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
           final title = titleEl?.value.trim() ?? '';
           final slug = slugEl?.value.trim() ?? '';
           final description = descEl?.value.trim() ?? '';
-          final priceCents = int.tryParse(priceEl?.value.trim() ?? '');
+          final priceRaw = priceEl?.value.trim().replaceAll('\$', '') ?? '';
+          final priceDouble = double.tryParse(priceRaw);
+          final priceCents = priceDouble != null ? (priceDouble * 100).round() : null;
           final stock = int.tryParse(stockEl?.value.trim() ?? '');
           final status = statusEl?.value.trim() ?? 'draft';
           final currency = (currEl?.value.trim() ?? '').isNotEmpty ? currEl!.value.trim() : 'USD';
@@ -233,7 +302,7 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
             return;
           }
           if (priceCents == null || priceCents < 0) {
-            showToast('Price (cents) must be a non-negative integer', ToastVariant.error);
+            showToast('Price must be a non-negative number', ToastVariant.error);
             return;
           }
           if (stock == null || stock < 0) {
@@ -270,12 +339,44 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
         },
         className: 'mt-6 flex flex-col gap-4 max-w-[640px]',
         children: [
-          _field('Title', 'title', prod?.title ?? '', required: true),
-          _field('Slug', 'slug', prod?.slug ?? '', help: 'Stable, unique, used in URLs'),
+          _field(
+            'Title',
+            'title',
+            prod?.title ?? '',
+            required: true,
+            onInput: isNew
+                ? (BloomEvent e) {
+                    if (slugManuallyEdited) return;
+                    final val = e.value ?? (web.document.getElementById('f-title') as web.HTMLInputElement?)?.value ?? '';
+                    final slugInput = web.document.getElementById('f-slug') as web.HTMLInputElement?;
+                    if (slugInput != null) {
+                      slugInput.value = slugify(val);
+                    }
+                  }
+                : null,
+          ),
+          _field(
+            'Slug',
+            'slug',
+            prod?.slug ?? '',
+            help: 'Stable, unique, used in URLs',
+            onInput: isNew
+                ? (BloomEvent e) {
+                    slugManuallyEdited = true;
+                  }
+                : null,
+          ),
           _field('Description', 'description', prod?.description ?? '', textarea: true),
           Div(className: 'grid grid-cols-2 gap-4', children: [
-            _field('Price (cents)', 'price_cents', prod?.priceCents.toString() ?? '', help: 'Integer cents, e.g. 1999 = \$19.99'),
-            _field('Stock', 'stock', prod?.stock.toString() ?? ''),
+            _field(
+              'Price',
+              'price',
+              prod != null ? (prod.priceCents / 100).toStringAsFixed(2) : '',
+              prefix: '\$',
+              step: '0.01',
+              type: 'number',
+            ),
+            _field('Stock', 'stock', prod?.stock.toString() ?? '', type: 'number'),
           ]),
           Div(className: 'grid grid-cols-2 gap-4', children: [
             _select('Status', 'status', prod?.status ?? 'draft', ['draft', 'published', 'archived']),
@@ -297,14 +398,68 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
   );
 }
 
-BloomNode _field(String label, String name, String value, {bool required = false, bool textarea = false, String? help}) {
+BloomNode _field(
+  String label,
+  String name,
+  String value, {
+  bool required = false,
+  bool textarea = false,
+  String? help,
+  String? prefix,
+  String? step,
+  String? type,
+  BloomEventHandler? onInput,
+}) {
   final id = 'f-$name';
   return Div(className: 'flex flex-col gap-1.5', children: [
     El('label', attrs: {'for': id}, className: 'text-label', text: label),
     if (textarea)
-      El('textarea', attrs: {'id': id, 'name': name, if (required) 'required': '' , 'rows': '4', 'aria-describedby': help != null ? '$id-help' : ''}, className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]', text: value)
+      El('textarea',
+        attrs: {
+          'id': id,
+          'name': name,
+          if (required) 'required': '',
+          'rows': '4',
+          if (help != null) 'aria-describedby': '$id-help',
+        },
+        className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
+        on: onInput != null ? {'input': onInput} : const {},
+        text: value,
+      )
+    else if (prefix != null)
+      Div(
+        className: 'relative flex items-center',
+        children: [
+          Span(className: 'absolute left-3 text-sm text-[var(--text-muted)] pointer-events-none select-none', text: prefix),
+          El('input',
+            attrs: {
+              'id': id,
+              'name': name,
+              'value': value,
+              if (required) 'required': '',
+              if (step != null) 'step': step,
+              if (type != null) 'type': type,
+              if (help != null) 'aria-describedby': '$id-help',
+            },
+            className: 'w-full pl-7 pr-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
+            on: onInput != null ? {'input': onInput} : const {},
+          ),
+        ],
+      )
     else
-      El('input', attrs: {'id': id, 'name': name, 'value': value, if (required) 'required': '', 'aria-describedby': help != null ? '$id-help' : ''}, className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]'),
+      El('input',
+        attrs: {
+          'id': id,
+          'name': name,
+          'value': value,
+          if (required) 'required': '',
+          if (step != null) 'step': step,
+          if (type != null) 'type': type,
+          if (help != null) 'aria-describedby': '$id-help',
+        },
+        className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
+        on: onInput != null ? {'input': onInput} : const {},
+      ),
     if (help != null) P(attrs: {'id': '$id-help'}, className: 'text-xs text-[var(--text-muted)]', text: help),
   ]);
 }

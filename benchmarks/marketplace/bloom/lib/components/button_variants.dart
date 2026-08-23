@@ -12,7 +12,7 @@ enum ButtonVariant { primary, secondary, ghost, destructive }
 const _base =
     'inline-flex items-center justify-center gap-1.5 rounded-[10px] text-sm font-medium '
     'transition-shadow focus-visible:outline-none focus-visible:ring-2 '
-    'focus-visible:ring-[var(--brand-600)] focus-visible:ring-offset-2 '
+    'focus-visible:ring-[var(--brand-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] '
     'disabled:opacity-50 disabled:pointer-events-none px-4 py-2';
 
 final _variantConfig = <String, String>{
@@ -38,7 +38,7 @@ String buttonClasses(ButtonVariant variant) {
     'defaultVariants': {'variant': 'primary'},
   }.jsify();
 
-  final variantFn = cva_pkg.class_variance_authority(_base.toJS, config);
+  final variantFn = cva_pkg.class_variance_authority.cva(_base.toJS, config);
   if (variantFn == null) return _base;
 
   final result =
