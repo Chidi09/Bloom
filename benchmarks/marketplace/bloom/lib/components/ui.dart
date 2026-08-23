@@ -64,12 +64,13 @@ BloomNode button({
   String? href,
   String extraClassName = '',
   Map<String, String> attrs = const {},
+  BloomEventHandler? onClick,
 }) {
   final className = cn([buttonClasses(variant), extraClassName]);
   if (href != null) {
-    return Link(href: href, className: className, children: [Text(text)]);
+    return Link(href: href, className: className, children: [Text(text)], onClick: onClick);
   }
-  return El('button', attrs: attrs, className: className, children: [Text(text)]);
+  return El('button', attrs: attrs, className: className, children: [Text(text)], onClick: onClick);
 }
 
 BloomNode priceText(int cents) {

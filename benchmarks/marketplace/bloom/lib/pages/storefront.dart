@@ -1,9 +1,11 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import '../components/button_variants.dart';
 import '../components/layout.dart';
+import '../components/toast.dart';
 import '../components/ui.dart';
 import '../main.dart';
 import '../models/models.dart';
+import '../state/cart.dart';
 
 class _PaginatedData {
   final List<Product> items;
@@ -314,10 +316,25 @@ BloomNode productDetailPage(Map<String, String> params) {
             P(className: 'text-body leading-relaxed max-w-[68ch]', text: product.description),
             Div(className: 'flex gap-3 mt-2', children: [
               El('button',
-                attrs: {'type': 'button', 'disabled': product.stock == 0 ? 'true' : ''},
+                attrs: {
+                  'type': 'button',
+                  if (product.stock == 0) 'disabled': '',
+                },
                 className: product.stock == 0
                     ? 'px-6 py-3 rounded-md bg-[var(--bg-muted)] text-[var(--text-muted)] text-sm font-medium cursor-not-allowed'
                     : 'px-6 py-3 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                onClick: (BloomEvent e) {
+                  if (product.stock == 0) return;
+                  addToCart(
+                    product.id,
+                    title: product.title,
+                    slug: product.slug,
+                    priceCents: product.priceCents,
+                    currency: product.currency,
+                    imageUrl: images.isNotEmpty ? images.first.url : null,
+                  );
+                  showToast('Added to cart', ToastVariant.success);
+                },
                 children: [Span(text: product.stock == 0 ? 'Out of stock' : 'Add to cart')],
               ),
               Link(href: '/c/${product.categorySlug}', className: 'px-6 py-3 rounded-md border border-[var(--border)] text-sm font-medium hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'More in ${product.categoryName ?? 'category'}'),
