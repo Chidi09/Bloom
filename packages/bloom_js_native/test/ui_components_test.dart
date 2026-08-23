@@ -312,5 +312,282 @@ void main() {
       expect(igHtml, contains('placeholder="acme"'));
       expect(igHtml, contains('.bloom.dev'));
     });
+
+    test('accordion renders collapsible sections and initially open items', () {
+      final accHtml = renderToHtml(accordion(
+        items: [
+          (id: 'faq-1', title: 'What is Bloom?', content: Div(text: 'Bloom is a reactive framework.')),
+          (id: 'faq-2', title: 'Is it fast?', content: Div(text: 'Yes, sub-millisecond SSR.')),
+        ],
+        initialOpen: {'faq-1'},
+      ));
+      expect(accHtml, contains('data-slot="accordion"'));
+      expect(accHtml, contains('What is Bloom?'));
+      expect(accHtml, contains('Bloom is a reactive framework.'));
+      expect(accHtml, contains('Is it fast?'));
+      expect(accHtml, contains('aria-expanded="true"'));
+      expect(accHtml, contains('aria-expanded="false"'));
+    });
+
+    test('calendar renders month header, weekdays, and selected date', () {
+      final selectedDate = DateTime(2026, 9, 15);
+      final calHtml = renderToHtml(calendar(
+        month: DateTime(2026, 9, 1),
+        selected: selectedDate,
+        onSelect: (_) {},
+        onMonthChange: (_) {},
+      ));
+      expect(calHtml, contains('September 2026'));
+      expect(calHtml, contains('Su'));
+      expect(calHtml, contains('Mo'));
+      expect(calHtml, contains('data-selected="true"'));
+      expect(calHtml, contains('data-slot="calendar-day"'));
+    });
+
+    test('barChart and sparkline render pure-SVG data visualizations', () {
+      final barHtml = renderToHtml(barChart(
+        data: [
+          (label: 'Jan', value: 100),
+          (label: 'Feb', value: 200),
+          (label: 'Mar', value: 150),
+        ],
+      ));
+      expect(barHtml, contains('data-slot="bar-chart"'));
+      expect(barHtml, contains('<svg'));
+      expect(barHtml, contains('<rect'));
+      expect(barHtml, contains('Jan'));
+      expect(barHtml, contains('Feb'));
+
+      final sparkHtml = renderToHtml(sparkline(values: [10, 25, 15, 30, 45, 20]));
+      expect(sparkHtml, contains('data-slot="sparkline"'));
+      expect(sparkHtml, contains('<polyline'));
+      expect(sparkHtml, contains('points="'));
+    });
+
+    test('command palette works with openCommandPalette and commandViewport', () {
+      openCommandPalette([
+        (label: 'Open Settings', group: 'Navigation', onSelect: () {}),
+        (label: 'Create Project', group: 'Actions', onSelect: () {}),
+      ]);
+
+      final cmdHtml = renderToHtml(commandViewport());
+      expect(cmdHtml, contains('role="dialog"'));
+      expect(cmdHtml, contains('Open Settings'));
+      expect(cmdHtml, contains('Create Project'));
+      expect(cmdHtml, contains('Navigation'));
+      expect(cmdHtml, contains('Actions'));
+
+      closeCommandPalette();
+      final closedCmdHtml = renderToHtml(commandViewport());
+      expect(closedCmdHtml, isNot(contains('Open Settings')));
+    });
+
+    test('contextMenu renders trigger child and context menu markup', () {
+      final cmHtml = renderToHtml(contextMenu(
+        child: Div(text: 'Right click here'),
+        items: [
+          const MenuItemConfig(label: 'Copy'),
+          const MenuItemConfig(label: 'Delete', destructive: true),
+        ],
+      ));
+      expect(cmHtml, contains('Right click here'));
+    });
+
+    test('sheet and drawer work with openSheet, openDrawer and viewports', () {
+      openSheet(
+        title: 'Edit Profile',
+        description: 'Update your profile details below.',
+        side: 'right',
+        body: Div(text: 'Sheet body content'),
+      );
+
+      final sheetHtml = renderToHtml(sheetViewport());
+      expect(sheetHtml, contains('Edit Profile'));
+      expect(sheetHtml, contains('Update your profile details below.'));
+      expect(sheetHtml, contains('Sheet body content'));
+      expect(sheetHtml, contains('inset-y-0 right-0'));
+
+      closeSheet();
+      expect(renderToHtml(sheetViewport()), isNot(contains('Edit Profile')));
+
+      openDrawer(
+        title: 'Quick Actions',
+        description: 'Select an action from the drawer.',
+        body: Div(text: 'Drawer items'),
+      );
+
+      final drawerHtml = renderToHtml(drawerViewport());
+      expect(drawerHtml, contains('Quick Actions'));
+      expect(drawerHtml, contains('Drawer items'));
+      expect(drawerHtml, contains('inset-x-0 bottom-0'));
+
+      closeDrawer();
+    });
+
+    test('slider renders styled range input', () {
+      final slHtml = renderToHtml(slider(
+        value: 50,
+        min: 0,
+        max: 100,
+        step: 5,
+        onChange: (_) {},
+      ));
+      expect(slHtml, contains('type="range"'));
+      expect(slHtml, contains('min="0.0"'));
+      expect(slHtml, contains('max="100.0"'));
+      expect(slHtml, contains('value="50.0"'));
+      expect(slHtml, contains('step="5.0"'));
+    });
+
+    test('menubar renders horizontal row of menu triggers', () {
+      final mbHtml = renderToHtml(menubar(
+        menus: [
+          (label: 'File', items: [const MenuItemConfig(label: 'New Tab'), const MenuItemConfig(label: 'Close')]),
+          (label: 'Edit', items: [const MenuItemConfig(label: 'Undo'), const MenuItemConfig(label: 'Redo')]),
+        ],
+      ));
+      expect(mbHtml, contains('role="menubar"'));
+      expect(mbHtml, contains('File'));
+      expect(mbHtml, contains('Edit'));
+    });
+
+    test('navigationMenu renders horizontal nav with links and popovers', () {
+      final navHtml = renderToHtml(navigationMenu(
+        items: [
+          const NavMenuItem(label: 'Home', href: '/', active: true),
+          const NavMenuItem(label: 'Documentation', href: '/docs'),
+          NavMenuItem(label: 'Products', content: Div(text: 'Product Catalog')),
+        ],
+      ));
+      expect(navHtml, contains('data-slot="navigation-menu"'));
+      expect(navHtml, contains('href="/"'));
+      expect(navHtml, contains('href="/docs"'));
+      expect(navHtml, contains('Products'));
+    });
+
+    test('resizablePanels renders split panels and separator handle', () {
+      final resHtml = renderToHtml(resizablePanels(
+        first: Div(text: 'Left Pane'),
+        second: Div(text: 'Right Pane'),
+        initialSplit: 0.35,
+      ));
+      expect(resHtml, contains('data-slot="resizable-panel-group"'));
+      expect(resHtml, contains('data-slot="resizable-panel"'));
+      expect(resHtml, contains('data-slot="resizable-handle"'));
+      expect(resHtml, contains('35.00%'));
+      expect(resHtml, contains('Left Pane'));
+      expect(resHtml, contains('Right Pane'));
+    });
+
+    test('scrollArea renders custom scrollable container', () {
+      final saHtml = renderToHtml(scrollArea(
+        maxHeight: 300,
+        child: Div(text: 'Scrollable content list'),
+      ));
+      expect(saHtml, contains('data-slot="scroll-area"'));
+      expect(saHtml, contains('max-height: 300.0px'));
+      expect(saHtml, contains('overflow-y-auto'));
+      expect(saHtml, contains('Scrollable content list'));
+    });
+
+    test('toggle renders two-state toggle button with aria-pressed', () {
+      final pressedToggle = renderToHtml(toggle(
+        pressed: true,
+        onChange: (_) {},
+        child: Span(text: 'Bold'),
+      ));
+      expect(pressedToggle, contains('aria-pressed="true"'));
+      expect(pressedToggle, contains('data-state="on"'));
+      expect(pressedToggle, contains('Bold'));
+
+      final unpressedToggle = renderToHtml(toggle(
+        pressed: false,
+        onChange: (_) {},
+        variant: ToggleVariant.outline,
+        child: Span(text: 'Italic'),
+      ));
+      expect(unpressedToggle, contains('aria-pressed="false"'));
+      expect(unpressedToggle, contains('data-state="off"'));
+      expect(unpressedToggle, contains('border border-[var(--border)]'));
+    });
+
+    test('toggleGroup renders single and multi select button groups', () {
+      final singleGroup = renderToHtml(toggleGroupSingle<String>(
+        value: 'center',
+        onChange: (_) {},
+        items: [
+          (value: 'left', child: Span(text: 'Left'), ariaLabel: 'Left align'),
+          (value: 'center', child: Span(text: 'Center'), ariaLabel: 'Center align'),
+          (value: 'right', child: Span(text: 'Right'), ariaLabel: 'Right align'),
+        ],
+      ));
+      expect(singleGroup, contains('data-slot="toggle-group"'));
+      expect(singleGroup, contains('Center'));
+      expect(singleGroup, contains('data-state="on"'));
+
+      final multiGroup = renderToHtml(toggleGroupMultiple<String>(
+        value: {'bold', 'underline'},
+        onChange: (_) {},
+        items: [
+          (value: 'bold', child: Span(text: 'B'), ariaLabel: 'Bold'),
+          (value: 'italic', child: Span(text: 'I'), ariaLabel: 'Italic'),
+          (value: 'underline', child: Span(text: 'U'), ariaLabel: 'Underline'),
+        ],
+      ));
+      expect(multiGroup, contains('data-slot="toggle-group"'));
+      expect(multiGroup, contains('data-state="on"'));
+    });
+
+    test('hoverCard renders trigger and hidden preview card', () {
+      final hcHtml = renderToHtml(hoverCard(
+        trigger: Span(text: '@antigravity'),
+        content: Div(text: 'Antigravity Developer Profile'),
+      ));
+      expect(hcHtml, contains('data-slot="hover-card"'));
+      expect(hcHtml, contains('@antigravity'));
+      expect(hcHtml, contains('Antigravity Developer Profile'));
+      expect(hcHtml, contains('group/hc'));
+    });
+
+    test('inputOtp renders configured number of character slots', () {
+      final otpHtml = renderToHtml(inputOtp(
+        length: 6,
+        value: '123',
+        onChange: (_) {},
+      ));
+      expect(otpHtml, contains('data-slot="input-otp"'));
+      expect(otpHtml, contains('data-slot="input-otp-slot"'));
+      expect(otpHtml, contains('value="1"'));
+      expect(otpHtml, contains('value="2"'));
+      expect(otpHtml, contains('value="3"'));
+      expect(otpHtml, contains('value=""'));
+    });
+
+    test('aspectRatio constrains child container ratio', () {
+      final arHtml = renderToHtml(aspectRatio(
+        ratio: 16 / 9,
+        child: Div(text: 'Video player'),
+      ));
+      expect(arHtml, contains('data-slot="aspect-ratio"'));
+      expect(arHtml, contains('aspect-ratio: 1.777'));
+      expect(arHtml, contains('Video player'));
+    });
+
+    test('circularProgress computes circumference and dashoffset', () {
+      final cpHtml = renderToHtml(circularProgress(
+        value: 75,
+        max: 100,
+        size: 48,
+        showValue: true,
+        label: 'Loading tasks',
+      ));
+      expect(cpHtml, contains('role="progressbar"'));
+      expect(cpHtml, contains('aria-valuenow="75.0"'));
+      expect(cpHtml, contains('Loading tasks'));
+      expect(cpHtml, contains('75%'));
+      expect(cpHtml, contains('stroke-dasharray'));
+      expect(cpHtml, contains('stroke-dashoffset'));
+    });
   });
 }
+
