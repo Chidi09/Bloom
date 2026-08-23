@@ -3,101 +3,179 @@ import 'dart:async';
 import 'events.dart';
 import 'framework.dart';
 
-/// Guard evaluation result.
+/// Represents the result of evaluating a route navigation guard.
+///
+/// Returned by [BloomRouteGuard.canActivate]. A guard result determines whether
+/// navigation to a target route is permitted to proceed ([isAllowed] is `true`)
+/// or must be redirected to an alternate path ([redirectPath]).
+///
+/// When a guard returns a redirect, client routers halt navigation to the requested
+/// path and instead navigate to [redirectPath].
+///
+/// ```dart
+/// class AuthGuard extends BloomRouteGuard {
+///   final bool isLoggedIn;
+///   const AuthGuard(this.isLoggedIn);
+///
+///   @override
+///   GuardResult canActivate(String location, Map<String, String> params) {
+///     if (!isLoggedIn) {
+///       return GuardResult.redirect('/login');
+///     }
+///     return GuardResult.allow();
+///   }
+/// }
+/// ```
 class GuardResult {
+  /// Whether navigation to the target route is permitted to proceed.
   final bool isAllowed;
+
+  /// Target path to redirect to when navigation is disallowed.
+  ///
+  /// Null when [isAllowed] is `true`.
   final String? redirectPath;
 
   const GuardResult._({required this.isAllowed, this.redirectPath});
 
+  /// Creates a guard result permitting navigation to proceed.
   factory GuardResult.allow() => const GuardResult._(isAllowed: true);
 
+  /// Creates a guard result that cancels the current navigation and redirects to [path].
   factory GuardResult.redirect(String path) =>
       GuardResult._(isAllowed: false, redirectPath: path);
 }
 
-/// Prefetch strategy for [Link] navigation targets.
+/// Speculative prefetching strategies for [Link] navigation targets.
+///
+/// Configures how aggressively [Link] elements preload route data and
+/// lazy components before the user clicks the link.
+///
+/// Speculative prefetch requests are deduplicated per clean path for the duration
+/// of the session, and any network or evaluation errors during prefetch are caught
+/// and swallowed silently without affecting application execution.
+///
+/// ```dart
+/// // Prefetch when the link enters the viewport
+/// Link(href: '/dashboard', prefetch: PrefetchMode.visible, text: 'Dashboard');
+///
+/// // Prefetch on pointer hover
+/// Link(href: '/settings', prefetch: PrefetchMode.hover, text: 'Settings');
+///
+/// // Disable prefetching
+/// Link(href: '/logout', prefetch: PrefetchMode.off, text: 'Log Out');
+/// ```
 enum PrefetchMode {
-  /// Never prefetch route assets or data ahead of click.
+  /// Never prefetch route assets or data ahead of a click.
   off,
 
-  /// Begin prefetching on pointerenter/mouseenter.
+  /// Triggers route prefetching when the user hovers over or points at the link (`pointerenter` / `mouseenter`).
   hover,
 
-  /// Begin prefetching when the link scrolls into the viewport via IntersectionObserver.
+  /// Triggers route prefetching when the link scrolls into the viewport via `IntersectionObserver`.
   visible,
 }
 
-/// Alias for [PrefetchMode].
+/// Convenience alias for [PrefetchMode].
 typedef LinkPrefetch = PrefetchMode;
 
 /// Module-level set of already-prefetched clean paths for session idempotency.
 final Set<String> _prefetchedPaths = <String>{};
 
 /// Abstract contract for route navigation guards.
+///
+/// Guards intercept route transitions before a route match is rendered. If any
+/// guard attached to a [BloomRoute] returns a [GuardResult] where [GuardResult.isAllowed]
+/// is `false`, the navigation sequence is halted and the router redirects to
+/// [GuardResult.redirectPath] if one was specified.
+///
+/// Guards can be synchronous or asynchronous.
+///
+/// ```dart
+/// class AdminGuard extends BloomRouteGuard {
+///   final Future<bool> Function() checkAdmin;
+///   const AdminGuard(this.checkAdmin);
+///
+///   @override
+///   Future<GuardResult> canActivate(String location, Map<String, String> params) async {
+///     final isAdmin = await checkAdmin();
+///     return isAdmin ? GuardResult.allow() : GuardResult.redirect('/unauthorized');
+///   }
+/// }
+/// ```
 abstract class BloomRouteGuard {
+  /// Base const constructor for route guards.
   const BloomRouteGuard();
 
+  /// Evaluates whether navigation to [location] with extracted route [params] is allowed.
   FutureOr<GuardResult> canActivate(String location, Map<String, String> params);
 }
 
-/// Route definition — pairs a path pattern with a builder, optional layout, and guards.
+/// Route definition that pairs a URL path pattern with view builders, loaders, and guards.
+///
+/// Represents a single route or route subtree in a [BloomRouter].
+///
+/// ### Path Pattern Syntax
+/// - **Static segments**: `/users/list` matches `/users/list` exactly.
+/// - **Dynamic parameters**: `/users/:id` matches `/users/42` and extracts `{'id': '42'}`
+///   into the `params` map. Parameter values are automatically URI-decoded.
+/// - **Wildcards**: `/docs/*` matches `/docs/guide/start` and extracts the remaining path
+///   under the `'wildcard'` key (`{'wildcard': 'guide/start'}`).
+/// - **Root route**: `''` or `'/'` matches the root path.
+///
+/// ### Data Loaders and Suspense
+/// When [loader] is provided, entering this route automatically wraps the route content
+/// in a [Suspense] boundary. While [loader] is executing, [loadingFallback] (or an empty
+/// fragment if omitted) is rendered. Once resolved, [dataBuilder] is called with both
+/// the route `params` and the loaded data. If [dataBuilder] is omitted, [builder] is
+/// called with `params` alone.
+///
+/// ```dart
+/// final userRoute = BloomRoute(
+///   '/users/:id',
+///   null,
+///   loader: (params) => fetchUserProfile(params['id']!),
+///   loadingFallback: () => const Div(text: 'Loading user...'),
+///   dataBuilder: (params, user) => Div(
+///     children: [
+///       H1(text: 'User: ${(user as User).name}'),
+///     ],
+///   ),
+/// );
+/// ```
+///
+/// ### Persistent Shell Routes
+/// Use [BloomRoute.shell] to wrap nested sub-routes in persistent layout chrome
+/// (such as navigation sidebars and headers) without affecting URL hierarchy.
 class BloomRoute {
-  /// Path pattern, e.g. "/", "/users/:id", "/docs/*".
+  /// Path pattern to match against, e.g. `'/'`, `'/users/:id'`, or `'/docs/*'`.
   final String path;
 
-  /// Builder that receives extracted params and returns a [BloomNode] tree.
+  /// Builder that receives extracted [params] and returns a [BloomNode] tree.
   final BloomNode Function(Map<String, String> params)? builder;
 
-  /// Optional layout shell that wraps child route nodes.
+  /// Layout wrapper function that encloses child route content within a shell.
   final BloomNode Function(BloomNode child, Map<String, String> params)? layout;
 
-  /// List of navigation guards for this route.
+  /// Navigation guards evaluated before this route is activated.
   final List<BloomRouteGuard> guards;
 
-  /// Nested sub-routes.
+  /// Nested child routes matched within this route's hierarchy.
   final List<BloomRoute> children;
 
-  /// Optional data loader, run before [dataBuilder] (or [builder], if
-  /// [dataBuilder] is not given) renders. When present, this route's
-  /// content is automatically wrapped in a [Suspense] boundary — no
-  /// manual composition needed. Analogous to React Router's `loader`.
+  /// Async data loader executed upon navigation before this route renders.
   ///
-  /// For React Router's `action` + revalidation-on-mutation loop: this
-  /// [loader] itself is a one-shot fetch run once per navigation, but a
-  /// component *inside* the loaded page can instead read a `BloomQuery`
-  /// (from `data.dart`) for the same data — `BloomQuery` subscribes to
-  /// `BloomData.invalidateQueries` and refetches/reactively updates
-  /// automatically. Give a `BloomMutation` (from `mutation.dart`) the
-  /// same cache key in `invalidateKeys` so a form submission ("action")
-  /// invalidates the page's data without any router changes:
-  ///
-  ///   // Inside the loaded page component:
-  ///   final todoQuery = BloomQuery&lt;Todo&gt;(
-  ///     key: ['todo', todoId],
-  ///     fetch: () => api.fetchTodo(todoId),
-  ///   );
-  ///
-  ///   // The "action" — submitting this invalidates todoQuery above,
-  ///   // which then refetches on its own:
-  ///   final updateTodo = BloomMutation&lt;Todo, Todo&gt;(
-  ///     mutateFn: api.updateTodo,
-  ///     invalidateKeys: [['todo', todoId]],
-  ///   );
+  /// When defined, this route's view is automatically wrapped in a [Suspense] boundary.
+  /// The returned future resolves before [dataBuilder] (or [builder]) is displayed.
   final Future<dynamic> Function(Map<String, String> params)? loader;
 
-  /// Builder invoked with both [params] and the resolved [loader] result,
-  /// used instead of [builder] when [loader] is present. If [loader] is
-  /// present but [dataBuilder] is not given, [builder] is used instead,
-  /// receiving only [params] (the loaded data is simply discarded in that
-  /// case — useful when you only want the loading gate, not the data).
+  /// Builder invoked with extracted [params] and resolved [loader] data.
   final BloomNode Function(Map<String, String> params, dynamic data)?
       dataBuilder;
 
-  /// Fallback node shown while [loader] is pending. Defaults to an empty
-  /// fragment if not provided.
+  /// Fallback descriptor displayed within [Suspense] while [loader] is pending.
   final BloomNode Function()? loadingFallback;
 
+  /// Creates a route definition matching [path].
   const BloomRoute(
     this.path,
     this.builder, {
@@ -109,7 +187,26 @@ class BloomRoute {
     this.loadingFallback,
   });
 
-  /// Factory for persistent shell layouts (sidebars, navbars).
+  /// Factory constructor for persistent shell layouts enclosing nested [routes].
+  ///
+  /// Allows persistent UI chrome (such as top navigation bars, sidebars, and footers)
+  /// to surround child routes without altering the URL path hierarchy.
+  ///
+  /// ```dart
+  /// final shellRoute = BloomRoute.shell(
+  ///   layout: (child, params) => Div(
+  ///     className: 'app-container',
+  ///     children: [
+  ///       const Nav(text: 'Header'),
+  ///       child,
+  ///     ],
+  ///   ),
+  ///   routes: [
+  ///     BloomRoute('/home', (params) => const Div(text: 'Home')),
+  ///     BloomRoute('/profile', (params) => const Div(text: 'Profile')),
+  ///   ],
+  /// );
+  /// ```
   factory BloomRoute.shell({
     required BloomNode Function(BloomNode child, Map<String, String> params) layout,
     required List<BloomRoute> routes,
@@ -125,18 +222,29 @@ class BloomRoute {
   }
 }
 
-/// Match result containing route, params, and node builder.
+/// Result of a successful route match containing the matched route and extracted parameters.
+///
+/// Created by [BloomRouter.match] when a URL path successfully satisfies a [BloomRoute] pattern.
 class BloomRouteMatch {
+  /// The [BloomRoute] that matched the requested path.
   final BloomRoute route;
+
+  /// Extracted route parameters, keyed by parameter name with URI-decoded string values.
   final Map<String, String> params;
   final BloomNode Function()? _buildNode;
 
+  /// Creates a route match result.
   const BloomRouteMatch({
     required this.route,
     required this.params,
     BloomNode Function()? buildNode,
   }) : _buildNode = buildNode;
 
+  /// Builds and returns the [BloomNode] descriptor tree for this route match.
+  ///
+  /// If the matched route defines a [BloomRoute.loader], this method returns a
+  /// [Suspense] node wrapping the loader resource, rendering [BloomRoute.loadingFallback]
+  /// while pending and [BloomRoute.dataBuilder] once resolved.
   BloomNode build() {
     if (_buildNode != null) return _buildNode();
     final loader = route.loader;
@@ -156,26 +264,48 @@ class BloomRouteMatch {
   }
 }
 
-/// Simple path matcher extracted for VM-testability.
+/// Pure Dart route matching and navigation guard evaluation engine.
+///
+/// Operates without DOM dependencies, making it usable across VM unit tests,
+/// server-side rendering (SSR), and browser-side client routers.
+///
+/// Matches URL paths against a tree of [BloomRoute] definitions, parses parameters,
+/// evaluates [BloomRouteGuard] instances, and coordinates speculative route prefetching.
+///
+/// ```dart
+/// final router = BloomRouter([
+///   BloomRoute('/', (params) => const Div(text: 'Home')),
+///   BloomRoute('/users/:id', (params) => Div(text: 'User ${params['id']}')),
+/// ], notFound: BloomRoute('*', (params) => const Div(text: '404 Not Found')));
+///
+/// final match = router.match('/users/42');
+/// if (match != null) {
+///   final node = match.build();
+/// }
+/// ```
 class BloomRouter {
   static final List<BloomRouter> _activeRouters = [];
 
+  /// Registered route hierarchy.
   final List<BloomRoute> routes;
 
-  /// Fallback route when no pattern matches.
+  /// Fallback route definition rendered when no registered pattern matches.
   final BloomRoute? notFound;
 
-  /// When true, trailing slashes are stripped before matching.
+  /// Whether trailing slashes are stripped from paths before matching.
   final bool trailing;
 
+  /// Creates a [BloomRouter] with the given [routes] hierarchy and options.
   BloomRouter(this.routes, {this.notFound, this.trailing = false}) {
     if (!_activeRouters.contains(this)) {
       _activeRouters.add(this);
     }
   }
 
-  /// Prefetch route data and lazily-loaded components for [path] across active routers.
-  /// Idempotent across a session; swallowed silently on failure.
+  /// Prefetches route data and lazy components for [path] across all active router instances.
+  ///
+  /// Clean paths (excluding query strings and hashes) are prefetched at most once per session.
+  /// Any errors during prefetching are swallowed silently to avoid interrupting execution.
   static Future<void> prefetch(String path) async {
     final clean = path.split('?').first.split('#').first;
     if (_prefetchedPaths.contains(clean)) return;
@@ -189,12 +319,12 @@ class BloomRouter {
     }
   }
 
-  /// Clears the module-level prefetch cache.
+  /// Clears the session-level cache of prefetched paths.
   static void clearPrefetchCache() {
     _prefetchedPaths.clear();
   }
 
-  /// Prefetch route data and lazily-loaded components for [path] using this router.
+  /// Prefetches route data and lazily-loaded components for [path] using this router instance.
   Future<void> prefetchRoute(String path) async {
     final clean = path.split('?').first.split('#').first;
     if (_prefetchedPaths.contains(clean)) return;
@@ -256,7 +386,11 @@ class BloomRouter {
     }
   }
 
-  /// Match [path] against registered routes.
+  /// Matches [path] against registered routes.
+  ///
+  /// Strips query parameters and hash fragments before matching. If [trailing] is `true`,
+  /// trailing slashes are removed before evaluation. Returns a [BloomRouteMatch] if a route
+  /// matches or if [notFound] is configured; returns `null` otherwise.
   BloomRouteMatch? match(String path) {
     var clean = path.split('?').first.split('#').first;
     if (trailing && clean.length > 1 && clean.endsWith('/')) {
@@ -294,7 +428,10 @@ class BloomRouter {
     return null;
   }
 
-  /// Evaluates all guards attached to [route].
+  /// Evaluates all navigation guards attached to [route] in sequential order.
+  ///
+  /// Returns the first failing [GuardResult] if any guard disallows navigation,
+  /// or [GuardResult.allow] if all guards pass.
   Future<GuardResult> evaluateGuards(
     BloomRoute route,
     String location,
@@ -333,9 +470,41 @@ class BloomRouter {
   }
 }
 
+/// Hyperlink element (`<a>`) with built-in client-side routing and prefetch capabilities.
+///
+/// Wraps standard HTML anchor attributes and adds integration with [PrefetchMode]
+/// and [BloomRouter.prefetch].
+///
+/// ### Prefetching Behavior
+/// - [PrefetchMode.off]: No prefetching is performed.
+/// - [PrefetchMode.hover]: Preloads route loaders and components on `pointerenter` / `mouseenter`.
+/// - [PrefetchMode.visible]: Marks the element with `data-bloom-prefetch="visible"` for
+///   viewport intersection prefetching via `BloomRouterController`.
+///
+/// Prefetching is opt-in, session-idempotent per clean path, and ignores network or evaluation errors.
+///
+/// ```dart
+/// // Basic link
+/// Link(href: '/about', text: 'About Us')
+///
+/// // Hover-based prefetching
+/// Link(href: '/dashboard', prefetch: PrefetchMode.hover, text: 'Dashboard')
+///
+/// // Viewport visibility prefetching with child nodes
+/// Link(
+///   href: '/pricing',
+///   prefetch: PrefetchMode.visible,
+///   children: [
+///     const Span(className: 'icon', text: 'tag'),
+///     const Span(text: 'View Pricing'),
+///   ],
+/// )
+/// ```
 class Link extends ElNode {
+  /// Speculative prefetching strategy for this link's destination URL.
   final PrefetchMode prefetch;
 
+  /// Creates a hyperlink element targeting [href] with optional [prefetch] behavior.
   Link({
     required String href,
     this.prefetch = PrefetchMode.off,
@@ -362,6 +531,7 @@ class Link extends ElNode {
           ),
         );
 
+  /// Creates a const [Link] descriptor without dynamic event bindings.
   const Link.raw({
     super.text,
     super.className,

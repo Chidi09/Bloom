@@ -25,30 +25,64 @@
 // components that are merely expensive to *construct*, not to *load*).
 import 'framework.dart';
 
-/// Wraps an async component [loader], caching its result so the component
-/// is loaded at most once even across multiple renders/re-subscriptions.
+/// Caches an asynchronous component [loader], ensuring the loader executes at most once across renders.
+///
+/// Wraps an async component factory `Future<BloomNode> Function()` and memoizes its resulting
+/// `Future`. Subsequent calls to [load] return the cached future immediately without repeating
+/// network operations or deferred chunk downloads. To discard the cached result and force a reload,
+/// call [reset].
+///
+/// ```dart
+/// final lazySettings = BloomLazyComponent(() async {
+///   return const Div(
+///     className: 'settings-panel',
+///     text: 'Account Settings',
+///   );
+/// });
+/// final node = await lazySettings.load();
+/// ```
 class BloomLazyComponent {
+  /// The asynchronous component factory that produces the [BloomNode].
   final Future<BloomNode> Function() loader;
   Future<BloomNode>? _cached;
 
+  /// Creates a [BloomLazyComponent] wrapping the provided asynchronous [loader].
   BloomLazyComponent(this.loader);
 
-  /// Returns the cached load [Future], invoking [loader] on first call only.
+  /// Returns the cached load [Future], invoking [loader] on the first call only.
   Future<BloomNode> load() => _cached ??= loader();
 
-  /// Resets the cache, forcing the next [load] call to invoke [loader] again.
+  /// Clears the cached [Future], forcing the next [load] call to re-execute [loader].
   void reset() {
     _cached = null;
   }
 }
 
-/// Creates a lazily-loaded [BloomNode]. Renders [fallback] until [loader]
-/// resolves, then renders the loaded node — implemented as a [Suspense]
-/// over a cached [BloomLazyComponent].
+/// Creates a lazily loaded [BloomNode] descriptor that displays [fallback] until [loader] resolves.
 ///
-/// Calling [lazy] itself does not start loading; loading begins the first
-/// time the returned node is rendered (SSR) or mounted (browser), matching
-/// `SuspenseNode`'s existing resource-triggering semantics.
+/// Under the hood, this wraps [loader] in a [BloomLazyComponent] and returns a [Suspense] node.
+/// Calling [lazy] itself does not initiate loading; loading starts automatically when the node is
+/// mounted into the browser DOM or evaluated during streaming SSR ([renderToStreamWithSuspense]).
+///
+/// In browser applications, combine [lazy] with Dart's `deferred as` imports to split heavy
+/// feature bundles into separate JavaScript chunks that load on demand.
+///
+/// ```dart
+/// // Top-level deferred import:
+/// // import 'editor_view.dart' deferred as editor;
+///
+/// BloomNode lazyEditor() => lazy(
+///   () async {
+///     // await editor.loadLibrary();
+///     // return editor.EditorView();
+///     return const Div(className: 'editor', text: 'Editor Ready');
+///   },
+///   fallback: const Div(
+///     className: 'skeleton-placeholder',
+///     text: 'Loading editor...',
+///   ),
+/// );
+/// ```
 BloomNode lazy(
   Future<BloomNode> Function() loader, {
   required BloomNode fallback,
@@ -60,3 +94,4 @@ BloomNode lazy(
     fallback: fallback,
   );
 }
+

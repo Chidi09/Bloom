@@ -3,23 +3,44 @@ import 'dart:collection';
 
 import 'package:signals/signals.dart';
 
-/// Execution status of a [BloomQuery].
+/// Execution status lifecycle of a [BloomQuery].
 enum QueryStatus {
+  /// Query is initialized but has not commenced fetching (or [BloomQuery.enabled] is `false`).
   idle,
+
+  /// Initial network fetch is in progress with no cached data available.
   loading,
+
+  /// Query resolved successfully and valid data is accessible in [BloomQuery.data].
   success,
+
+  /// Query execution encountered an unhandled exception, accessible in [BloomQuery.error].
   error,
 }
 
 /// A cached record containing fetched data, timestamps, and TTL settings.
+///
+/// Tracks the freshness and eviction lifecycle of cached query results managed by [BloomData].
 class QueryCacheEntry<T> {
+  /// The structured query cache key identifying this record.
   final List<dynamic> key;
+
+  /// The cached data payload, or `null` if uninitialized.
   T? data;
+
+  /// The timestamp when this record was last successfully fetched or updated.
   DateTime updatedAt;
+
+  /// Duration after [updatedAt] during which data is considered fresh before revalidation is needed.
   Duration staleTime;
+
+  /// Duration after [updatedAt] after which data is completely expired and evicted from use.
   Duration cacheTime;
+
+  /// Whether this entry has been explicitly marked as stale via invalidation.
   bool isStale;
 
+  /// Creates a [QueryCacheEntry] recording [key], [data], and freshness parameters.
   QueryCacheEntry({
     required this.key,
     this.data,
@@ -29,12 +50,40 @@ class QueryCacheEntry<T> {
     this.isStale = false,
   });
 
+  /// Whether the entry has exceeded its [cacheTime] TTL relative to `DateTime.now()`.
   bool get isExpired => DateTime.now().difference(updatedAt) > cacheTime;
+
+  /// Whether this entry is flagged as [isStale] or has exceeded its [staleTime] duration.
   bool get shouldRevalidate =>
       isStale || DateTime.now().difference(updatedAt) > staleTime;
 }
 
-/// Global query cache manager for Bloom JS Native.
+/// Global query cache manager and request deduplicator for Bloom JS Native applications.
+///
+/// [BloomData] provides a centralized, pure-Dart memory cache for asynchronous queries:
+/// - **Key Normalization**: Deterministically serializes complex structured keys (Strings, Lists, Maps)
+///   via [normalizeKey].
+/// - **Request Deduplication**: Collapses concurrent identical requests into a single in-flight `Future`
+///   via [deduplicate].
+/// - **Cache Invalidation**: Notifies active [BloomQuery] instances via [invalidateQueries] using prefix matching.
+/// - **Direct Manipulation**: Allows optimistic cache writing via [setQueryData] and direct inspection via [getQueryData].
+///
+/// ### SSR & Browser Compatibility
+/// Pure Dart with zero Flutter or DOM dependencies. In SSR environments, [BloomData] can be pre-populated
+/// with server data before rendering or cleared between requests via [clear].
+///
+/// ### Example
+/// ```dart
+/// // Manually prime or update the cache
+/// BloomData.setQueryData<User>(['user', 123], (old) => updatedUser);
+///
+/// // Invalidate all queries under the 'user' prefix
+/// BloomData.invalidateQueries(['user']);
+/// ```
+///
+/// See also:
+/// - [BloomQuery], the reactive query coordinator that reads from and populates [BloomData].
+/// - [BloomMutation], for executing mutations that invalidate or optimistically update [BloomData].
 class BloomData {
   BloomData._();
 
@@ -45,7 +94,15 @@ class BloomData {
   static final Map<String, Completer<dynamic>> _inFlightRequests =
       HashMap<String, Completer<dynamic>>();
 
-  /// Converts a key list to a normalized string key.
+  /// Converts a structured key list into a normalized, canonical string key.
+  ///
+  /// Maps and Iterables within the key are recursively normalized and sorted to guarantee
+  /// identical canonical string representations regardless of map key insertion order.
+  ///
+  /// ```dart
+  /// final keyStr = BloomData.normalizeKey(['tasks', {'status': 'done', 'page': 1}]);
+  /// // Produces: "tasks:{page: 1, status: done}"
+  /// ```
   static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
 
   static String _canonical(dynamic e) {
@@ -57,7 +114,20 @@ class BloomData {
     return e.toString();
   }
 
-  /// Invalidate queries matching [keyPrefix].
+  /// Invalidates all cached queries matching [keyPrefix] and notifies active [BloomQuery] subscribers.
+  ///
+  /// Sets `isStale = true` on matching cache entries and triggers invalidation streams, causing
+  /// active enabled [BloomQuery] instances to automatically refetch in the background.
+  ///
+  /// An empty prefix `[]` matches and invalidates all queries in the cache.
+  ///
+  /// ```dart
+  /// // Invalidate all tasks
+  /// BloomData.invalidateQueries(['tasks']);
+  ///
+  /// // Invalidate a specific task
+  /// BloomData.invalidateQueries(['tasks', 42]);
+  /// ```
   static void invalidateQueries(List<dynamic> keyPrefix) {
     final prefixStr = normalizeKey(keyPrefix);
     final matchingKeys = <String>{};
@@ -86,7 +156,14 @@ class BloomData {
     return true;
   }
 
-  /// Set cache data directly.
+  /// Directly updates cached query data for [key] using a transformation [updater] callback.
+  ///
+  /// Creates a new [QueryCacheEntry] or updates an existing one, marks it fresh (`isStale = false`),
+  /// and notifies invalidation listeners.
+  ///
+  /// ```dart
+  /// BloomData.setQueryData<List<Task>>(['tasks'], (oldTasks) => [...?oldTasks, newTask]);
+  /// ```
   static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) {
     final keyStr = normalizeKey(key);
     final existing = _cache[keyStr] as QueryCacheEntry<T>?;
@@ -104,7 +181,11 @@ class BloomData {
     _invalidationControllers[keyStr]?.add(null);
   }
 
-  /// Get cached query data if available.
+  /// Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
+  ///
+  /// ```dart
+  /// final cachedUser = BloomData.getQueryData<User>(['user', 'current']);
+  /// ```
   static T? getQueryData<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     final entry = _cache[keyStr];
@@ -114,7 +195,14 @@ class BloomData {
     return null;
   }
 
-  /// Request deduplication.
+  /// Deduplicates concurrent asynchronous requests sharing the same cache [key].
+  ///
+  /// If a request for [key] is already in-flight, returns the existing active `Future`.
+  /// Otherwise, executes [fetcher], broadcasts the result to all callers, and cleans up upon completion.
+  ///
+  /// ```dart
+  /// final result = await BloomData.deduplicate(['items'], () => client.get('/items'));
+  /// ```
   static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) {
     final keyStr = normalizeKey(key);
     if (_inFlightRequests.containsKey(keyStr)) {
@@ -135,7 +223,9 @@ class BloomData {
     return completer.future;
   }
 
-  /// Listen for invalidations.
+  /// Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
+  ///
+  /// Subscribed to by [BloomQuery] to trigger background re-fetching.
   static Stream<void> onInvalidated(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     return _invalidationControllers
@@ -143,19 +233,26 @@ class BloomData {
         .stream;
   }
 
-  /// Store entry.
+  /// Directly inserts or overwrites a [QueryCacheEntry] in the cache.
   static void putEntry<T>(QueryCacheEntry<T> entry) {
     _cache[normalizeKey(entry.key)] = entry;
   }
 
-  /// Get raw entry.
+  /// Retrieves the raw [QueryCacheEntry] for [key], returning `null` if missing or expired.
   static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
     final entry = _cache[normalizeKey(key)];
     if (entry != null && !entry.isExpired) return entry as QueryCacheEntry<T>?;
     return null;
   }
 
-  /// Clear all cache state.
+  /// Clears all cached query entries, active in-flight request deduplication trackers,
+  /// and invalidation controllers.
+  ///
+  /// Recommended in test `tearDown()` or between SSR requests.
+  ///
+  /// ```dart
+  /// BloomData.clear();
+  /// ```
   static void clear() {
     _cache.clear();
     for (final ctrl in _invalidationControllers.values) {
@@ -166,12 +263,63 @@ class BloomData {
   }
 }
 
-/// A reactive asynchronous query with automatic caching and deduplication.
+/// A reactive asynchronous query manager with automatic caching, request deduplication,
+/// background revalidation, and invalidation listening.
+///
+/// [BloomQuery] integrates asynchronous data fetching into Bloom's signal-based reactivity:
+/// - **Stale-While-Revalidate**: If cached data exists in [BloomData], it is returned immediately
+///   with [status] set to [QueryStatus.success], while an asynchronous background revalidation
+///   runs if the entry [QueryCacheEntry.shouldRevalidate].
+/// - **Reactive Signals**: Exposes [data], [status], [error], [isFetching], and [isStale] as
+///   [ReadonlySignal] instances that automatically trigger re-renders in `Live` or `Show` widgets.
+/// - **Deduplication**: Automatically deduplicates concurrent calls to the same [key] via [BloomData.deduplicate].
+/// - **Auto Invalidation**: Listens to [BloomData.invalidateQueries] events matching [key] to automatically refetch.
+///
+/// ### Backend Behavior
+/// - **Browser (`mount`)**: Initiates network fetching on creation (if [enabled]), listens for invalidations,
+///   and updates reactive signals as results arrive.
+/// - **SSR (`renderToHtml`)**: Synchronously evaluates current signal values. If data was preloaded
+///   into [BloomData] before rendering, SSR renders the success state immediately.
+///
+/// ### Example
+/// ```dart
+/// final userQuery = query<User>(
+///   key: ['users', 123],
+///   fetch: () => httpClient.get<User>('/users/123'),
+///   staleTime: Duration(minutes: 2),
+/// );
+///
+/// BloomNode buildUserProfile() {
+///   return Live(() => switch (userQuery.status.value) {
+///     QueryStatus.loading => P(text: 'Loading user...'),
+///     QueryStatus.error => P(text: 'Error: ${userQuery.error.value}'),
+///     QueryStatus.success => Div(children: [
+///         H1(text: userQuery.data.value?.name ?? 'Unknown'),
+///         if (userQuery.isFetching.value) Span(text: 'Updating...'),
+///       ]),
+///     QueryStatus.idle => P(text: 'Idle'),
+///   });
+/// }
+/// ```
+///
+/// See also:
+/// - [query], the convenience factory function for creating queries.
+/// - [BloomData], the underlying cache manager.
+/// - [BloomMutation], for performing mutations and invalidating query keys.
 class BloomQuery<T> {
+  /// The structured query cache key identifying this query.
   final List<dynamic> key;
+
+  /// The asynchronous fetch function executed to retrieve data.
   final Future<T> Function() fetch;
+
+  /// Duration after a successful fetch during which data is considered fresh before revalidation.
   final Duration staleTime;
+
+  /// Duration after a fetch after which cached data is evicted from the cache.
   final Duration cacheTime;
+
+  /// Whether this query should automatically fetch on instantiation and upon invalidation.
   final bool enabled;
 
   late final Signal<T?> _data;
@@ -183,6 +331,7 @@ class BloomQuery<T> {
   StreamSubscription<void>? _invalidationSub;
   bool _isDisposed = false;
 
+  /// Creates a [BloomQuery] and immediately checks cache freshness or initiates a fetch if [enabled].
   BloomQuery({
     required this.key,
     required this.fetch,
@@ -216,19 +365,49 @@ class BloomQuery<T> {
     }
   }
 
+  /// Reactive signal holding the resolved query data, or `null` if uninitialized/loading.
+  ///
+  /// Reading `.value` in a `Live` widget creates a reactive dependency.
   ReadonlySignal<T?> get data => _data.readonly();
+
+  /// Reactive signal holding the current lifecycle [QueryStatus] (`idle`, `loading`, `success`, `error`).
   ReadonlySignal<QueryStatus> get status => _status.readonly();
+
+  /// Reactive signal holding any unhandled exception thrown during [fetch], or `null` on success.
   ReadonlySignal<Object?> get error => _error.readonly();
+
+  /// Reactive signal indicating whether a network fetch is actively in-flight (including background revalidations).
   ReadonlySignal<bool> get isFetching => _isFetching.readonly();
+
+  /// Reactive signal indicating whether the current data is stale and awaiting background revalidation.
   ReadonlySignal<bool> get isStale => _isStale.readonly();
 
+  /// Whether the query is currently performing its initial fetch with no data available.
   bool get isLoading => _status.value == QueryStatus.loading;
+
+  /// Whether the query resolved successfully and contains valid [data].
   bool get isSuccess => _status.value == QueryStatus.success;
+
+  /// Whether the query failed with an [error].
   bool get isError => _status.value == QueryStatus.error;
+
+  /// Whether the query has non-null [data] available (either fresh or stale).
   bool get hasData => _data.value != null;
 
+  /// Manually triggers a network re-fetch for this query, returning the resolved result.
+  ///
+  /// ```dart
+  /// await userQuery.refetch();
+  /// ```
   Future<T?> refetch() async => _executeFetch();
 
+  /// Manually updates the cached and signal data for this query without triggering a network fetch.
+  ///
+  /// Resets [status] to [QueryStatus.success], clears [error], and marks data as fresh (`isStale = false`).
+  ///
+  /// ```dart
+  /// userQuery.setData(updatedUser);
+  /// ```
   void setData(T newData) {
     BloomData.setQueryData<T>(key, (_) => newData);
     _data.value = newData;
@@ -274,13 +453,30 @@ class BloomQuery<T> {
     }
   }
 
+  /// Cancels the query's invalidation stream subscription and prevents future state updates.
+  ///
+  /// Call when the enclosing controller or component unmounts.
+  ///
+  /// ```dart
+  /// userQuery.dispose();
+  /// ```
   void dispose() {
     _isDisposed = true;
     _invalidationSub?.cancel();
   }
 }
 
-/// Helper function to create a [BloomQuery].
+/// Creates a reactive [BloomQuery] configured with [key], [fetch], and caching durations.
+///
+/// Convenience factory function for [BloomQuery].
+///
+/// ```dart
+/// final todosQuery = query<List<Todo>>(
+///   key: ['todos'],
+///   fetch: () => api.getTodoList(),
+///   staleTime: Duration(minutes: 5),
+/// );
+/// ```
 BloomQuery<T> query<T>({
   required List<dynamic> key,
   required Future<T> Function() fetch,

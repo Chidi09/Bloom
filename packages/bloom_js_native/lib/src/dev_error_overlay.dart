@@ -7,14 +7,28 @@
 // response, a CLI reporter, etc.).
 import 'dart:convert';
 
-/// Renders a self-contained, inline-styled HTML fragment describing
-/// [error]/[stackTrace] for display during development. The returned
-/// string has no external CSS/JS dependencies and is safe to inject
-/// directly into a page (e.g. appended to `document.body`).
+/// Generates a standalone HTML fragment displaying an unhandled exception for development diagnostics.
 ///
-/// [componentName] optionally names the component/route where the error
-/// originated, shown as a subtitle. [sourceHint] optionally shows a
-/// file/line reference (e.g. `'lib/pages/home.dart:42'`).
+/// **Note**: This is a development-only diagnostic surface. In browser applications,
+/// it is automatically displayed upon uncaught mounting or rendering exceptions when
+/// `bloomDevErrorOverlayEnabled` is set to `true`.
+///
+/// Produces a self-contained, inline-styled overlay (`data-bloom-dev-error-overlay="true"`)
+/// with dark red backdrop, monospace font stack, error details, and escaped stack trace.
+/// Because it generates pure HTML with zero DOM or browser dependencies, it can be tested
+/// on the VM or injected by dev server middleware.
+///
+/// [componentName] optionally specifies the component or route identifier where the error occurred.
+/// [sourceHint] optionally provides a file and line number reference (e.g. `'lib/views/home.dart:42'`).
+///
+/// ```dart
+/// final html = renderDevErrorOverlay(
+///   StateError('User not authenticated'),
+///   StackTrace.current,
+///   componentName: 'UserProfile',
+///   sourceHint: 'lib/components/user_profile.dart:18',
+/// );
+/// ```
 String renderDevErrorOverlay(
   Object error,
   StackTrace stackTrace, {
@@ -41,9 +55,22 @@ String renderDevErrorOverlay(
 ''';
 }
 
-/// Renders [renderDevErrorOverlay]'s content as a JSON payload instead of
-/// HTML — useful for a dev server to push over a WebSocket/SSE channel to
-/// a client-side overlay renderer rather than injecting HTML directly.
+/// Generates a JSON payload representation of a development error overlay.
+///
+/// **Note**: This is a development-only utility. Used by dev servers and hot-reload middleware
+/// to stream structured diagnostic payloads over WebSockets or Server-Sent Events (SSE) to
+/// connected browser clients.
+///
+/// Returns a JSON-encoded string with `type: 'bloom-dev-error'`, `message`, `stack`,
+/// and optional `componentName` and `sourceHint`.
+///
+/// ```dart
+/// final jsonString = renderDevErrorOverlayJson(
+///   FormatException('Invalid JSON'),
+///   StackTrace.current,
+///   componentName: 'DataLoader',
+/// );
+/// ```
 String renderDevErrorOverlayJson(
   Object error,
   StackTrace stackTrace, {
