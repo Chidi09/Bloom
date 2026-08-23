@@ -3,6 +3,7 @@ import 'package:bloom_js_native/browser.dart';
 import 'package:web/web.dart' as web;
 import 'components/toast.dart';
 import 'pages/admin.dart';
+import 'pages/cart.dart';
 import 'pages/storefront.dart';
 
 String _resolveApiBaseUrl() {
@@ -19,6 +20,7 @@ final BloomHttpClient httpClient = BloomHttpClient(baseUrl: _resolveApiBaseUrl()
 
 late final BloomRouterController routerController = BloomRouterController(BloomRouter([
   BloomRoute('/', (params) => homePage(params)),
+  BloomRoute('/cart', (params) => cartPage(params)),
   BloomRoute('/p/:slug', (params) => productDetailPage(params)),
   BloomRoute('/c/:slug', (params) => categoryPage(params)),
   BloomRoute('/admin', (params) => adminDashboard(params)),
