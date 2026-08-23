@@ -20,20 +20,12 @@ BloomNode cartPage(Map<String, String> params) {
 BloomNode _cartContent() {
   final items = cart.value.values.toList();
   if (items.isEmpty) {
-    return Div(
-      className: 'py-20 text-center flex flex-col items-center justify-center rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-8',
-      children: [
-        Div(
-          className: 'w-16 h-16 rounded-full bg-[var(--bg-muted)] grid place-items-center text-[var(--text-muted)] mb-4',
-          children: [hugeIcon('shopping', className: 'w-8 h-8')],
-        ),
-        H2(className: 'text-h2 mb-2', text: 'Your cart is empty'),
-        P(
-          className: 'text-[var(--text-muted)] max-w-md mb-6 text-sm',
-          text: 'Looks like you haven\'t added anything to your cart yet. Explore our curated goods and find something you love.',
-        ),
-        button(text: 'Explore collection', variant: ButtonVariant.primary, href: '/'),
-      ],
+    return emptyState(
+      icon: 'shopping',
+      title: 'Your cart is empty',
+      description:
+          'Looks like you haven\'t added anything to your cart yet. Explore our curated goods and find something you love.',
+      action: button(text: 'Explore collection', variant: ButtonVariant.primary, href: '/'),
     );
   }
 
