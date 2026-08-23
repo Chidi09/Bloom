@@ -70,8 +70,17 @@ const designTokensCss = r'''
 * { box-sizing: border-box; }
 html { font-family: var(--font-body); background: var(--bg); color: var(--text); }
 h1,h2,h3,h4 { font-family: var(--font-display); }
-a { color: var(--brand-600); }
-a:hover { color: var(--brand-700); }
+/* Layered as `base` so Tailwind's utilities (generated inside its own
+   `@layer utilities`) can override the default link color, e.g. text-white
+   on a colored button rendered as an <a>. Cascade layers rank by layer
+   order first, specificity second within a layer — an unlayered rule here
+   would unconditionally beat every Tailwind utility on an <a> regardless of
+   specificity, silently making text invisible on any colored-background
+   link button. */
+@layer base {
+  a { color: var(--brand-600); }
+  a:hover { color: var(--brand-700); }
+}
 
 /* Type scale */
 .text-display { font-size: 2.25rem; line-height: 1.15; font-weight: 600; font-family: var(--font-display); }
