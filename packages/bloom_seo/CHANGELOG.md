@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-08-23
+
+- Widened the `bloom_js_native` constraint to `^0.2.0`. No functional changes;
+  this release exists so that `bloom_seo` can be used alongside
+  `bloom_js_native` 0.2.0.
+
 ## 0.1.0 - 2026-08-21
 
 * Initial release of `bloom_seo`.

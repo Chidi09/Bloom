@@ -1,9 +1,8 @@
 name: bloom_validate
 description: Declarative, strictly-typed request and DTO schema validation for Bloom API routes.
-version: 0.1.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+version: 0.2.0
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - validation
@@ -12,9 +11,19 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server:
-    path: ../bloom_server
+  bloom_server: ^0.1.0
 
 dev_dependencies:
   lints: ^4.0.0
   test: ^1.25.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraint above is
+# what ships; this keeps an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_server:
+    path: ../bloom_server
+  bloom_seo:
+    path: ../bloom_seo
+  bloom_js_native:
+    path: ../bloom_js_native

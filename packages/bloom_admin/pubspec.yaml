@@ -1,9 +1,8 @@
 name: bloom_admin
 description: Automatic server-rendered HTML administration interface for Bloom web applications.
-version: 0.1.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+version: 0.2.0
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - admin
@@ -15,10 +14,22 @@ environment:
 dependencies:
   meta: ^1.15.0
   crypto: ^3.0.3
-  bloom_server:
-    path: ../bloom_server
+  bloom_server: ^0.1.0
   bloom_db: ^0.1.0
 
 dev_dependencies:
   test: ^1.25.0
   lints: ^4.0.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraints above are
+# what ship; these keep an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_server:
+    path: ../bloom_server
+  bloom_db:
+    path: ../bloom_db
+  bloom_seo:
+    path: ../bloom_seo
+  bloom_js_native:
+    path: ../bloom_js_native

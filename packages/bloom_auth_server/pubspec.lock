@@ -42,19 +42,19 @@ packages:
     source: hosted
     version: "1.2.0"
   bloom_js_native:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../bloom_js_native"
       relative: true
     source: path
-    version: "0.1.0"
+    version: "0.2.0"
   bloom_seo:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../bloom_seo"
       relative: true
     source: path
-    version: "0.1.0"
+    version: "0.1.1"
   bloom_server:
     dependency: "direct main"
     description:

@@ -1,9 +1,8 @@
 name: bloom_storage
 description: Flexible, swappable file storage abstraction for Bloom server applications (Local Disk and S3-compatible backends like AWS S3, Cloudflare R2, MinIO, and Supabase Storage).
-version: 0.1.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+version: 0.2.0
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - storage
@@ -13,8 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server:
-    path: ../bloom_server
+  bloom_server: ^0.1.0
   crypto: ^3.0.3
   http: ^1.2.0
   path: ^1.9.0
@@ -22,3 +20,14 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^5.0.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraint above is
+# what ships; this keeps an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_server:
+    path: ../bloom_server
+  bloom_seo:
+    path: ../bloom_seo
+  bloom_js_native:
+    path: ../bloom_js_native

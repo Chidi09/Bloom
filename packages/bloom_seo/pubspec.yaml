@@ -1,9 +1,8 @@
 name: bloom_seo
 description: Reactive document metadata, JSON-LD structured data, XML sitemaps, and SSG prerendering for Bloom JS Native and server.
-version: 0.1.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+version: 0.1.1
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - seo
@@ -16,9 +15,15 @@ environment:
 
 dependencies:
   signals: ^5.5.0
-  bloom_js_native:
-    path: ../bloom_js_native
+  bloom_js_native: ^0.2.0
 
 dev_dependencies:
   lints: ^5.0.0
   test: ^1.25.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraints above are
+# what ship; these keep an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_js_native:
+    path: ../bloom_js_native

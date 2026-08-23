@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-08-23
+
+- Bun vendoring, SSR router endpoint, and SSG prerendering delivered end to end.
+- Module authoring/scaffolding improvements.
+- Scaffolded projects now resolve `bloom_js_native` and `bloom_seo` from pub.dev
+  rather than from sibling paths.
+
 ## 0.3.1
 
 ### Added
