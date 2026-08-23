@@ -53,7 +53,15 @@ If `bloom_server` depended on `bloom_framework`, every pure-Dart backend would r
 - **Prerequisite: the streaming-responses work must be committed first.** That plan edits `api_router.dart` and `bloom_response.dart` in *both* packages. Running this plan concurrently would clobber it. Verify with `git status --short` that the tree is clean before starting.
 - **`bloom_server` must not gain a Flutter dependency.** Not directly, not transitively. Task 4 enforces this with a test.
 - **The public API of both packages must not change.** Consumers import `package:bloom_framework/bloom_server.dart` and `package:bloom_framework/bloom.dart`; those barrels must continue to export exactly the same names. 11 packages depend on `bloom_server` and 5 examples depend on `bloom_framework` — none of them may need an edit.
-- **Only barrels reference the duplicated files.** Verified: no file under `bloom_framework/lib/` outside `src/server/` and the barrels imports them by relative path. If you find one, STOP and report it.
+- **CORRECTED DURING EXECUTION — 29 files import these by relative path.** An earlier claim here said only barrels referenced the duplicated files. That was wrong: it came from a grep for `src/core/logger` and similar, which never matches a relative import like `'../core/logger.dart'`. Deleting the nine files outright produced **209 analyzer errors**.
+
+  The design changed accordingly. The nine paths in `bloom_framework` are **not deleted**; each is replaced by a one-line **re-export shim**:
+
+  ```dart
+  export 'package:bloom_server/src/core/logger.dart';
+  ```
+
+  This keeps every relative import resolving while leaving exactly one implementation, so there is still nothing that can drift. Rewriting all 29 importers was the alternative and was rejected as pure churn for no benefit.
 - Dart SDK `>=3.0.0 <4.0.0`; `test: ^1.25.0`.
 - The monorepo uses `dependency_overrides` for in-tree wiring; hosted constraints in `dependencies:` are what ship.
 
@@ -65,9 +73,9 @@ If `bloom_server` depended on `bloom_framework`, every pure-Dart backend would r
 | `packages/bloom_framework/lib/bloom_server.dart` | Re-export the server core from `package:bloom_server` instead of local `src/`. |
 | `packages/bloom_framework/lib/bloom_core.dart` | Re-export core primitives from `package:bloom_server`. |
 | `packages/bloom_framework/lib/bloom.dart` | Update its four core exports to the re-exported source. |
-| `packages/bloom_framework/lib/src/server/*.dart` | **Deleted** (4 files). |
-| `packages/bloom_framework/lib/src/core/*.dart`, `src/di/*.dart`, `src/config/env_schema.dart` | **Deleted** (5 files). |
-| `packages/bloom_framework/test/no_duplication_test.dart` | New. Regression guard against drift and against a Flutter dependency creeping into `bloom_server`. |
+| `packages/bloom_framework/lib/src/server/*.dart` | Replaced by re-export shims (4 files). |
+| `packages/bloom_framework/lib/src/core/*.dart`, `src/di/*.dart`, `src/config/env_schema.dart` | Replaced by re-export shims (5 files). |
+| `packages/bloom_server/test/no_duplication_test.dart` | New. Regression guard against drift and against a Flutter dependency creeping into `bloom_server`. Lives in `bloom_server`, not `bloom_framework`: the latter's tests run under `flutter_test` and need the Flutter SDK, and a guard protecting a Flutter-free invariant must itself run without Flutter. |
 
 ---
 
