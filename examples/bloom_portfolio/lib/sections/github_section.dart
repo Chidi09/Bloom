@@ -102,7 +102,7 @@ class GitHubSectionComponent {
                   Raw(LucideIcons.svg(LucideIconName.alertCircle, className: 'w-3.5 h-3.5 text-zinc-400 shrink-0')),
                   Span(
                     text:
-                        'Sample open-source telemetry data for demonstration visualization. Live data rendered via github-calendar NPM package.',
+                        'Live contribution data for @${PortfolioPersona.githubActivityUser}, fetched from github.com through the Bloom dev proxy and rendered via the github-calendar NPM package.',
                   ),
                 ],
               ),
@@ -117,6 +117,8 @@ class GitHubSectionComponent {
             PortfolioPersona.githubActivityUser,
             responsive: true,
             summaryText: 'Summary of pull requests, issues, and commits',
+            // Matches the `/gh` rule in bloom.yaml.
+            proxyPathPrefix: '/gh',
           );
         }
       },
