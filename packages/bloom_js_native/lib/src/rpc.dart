@@ -1763,6 +1763,17 @@ class BloomRpcBinding<TInput, TOutput> {
           body: e.responseBody,
         );
       }
+      // A handler that throws BloomRpcValidationErrors is reporting bad INPUT,
+      // not a server fault, so it must surface as 422 rather than being folded
+      // into the generic 500 below. The shape emitted here is the same one
+      // BloomRpcValidationErrors.fromResponse parses on the client, so a thrown
+      // error round-trips back into a typed BloomRpcValidationErrors.
+      if (e is BloomRpcValidationErrors) {
+        return BloomRpcServerResponse.validationError({
+          'errors': e.fieldErrors,
+          if (e.nonFieldErrors.isNotEmpty) 'non_field_errors': e.nonFieldErrors,
+        });
+      }
       return BloomRpcServerResponse.serverError(e.toString());
     }
   }

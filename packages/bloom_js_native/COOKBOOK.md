@@ -1661,3 +1661,209 @@ BloomNode riskySubtree() => Div();
 ```
 
 Watch out: Error boundaries in Bloom JS Native catch exceptions during initial mounting, reactive effect rebuilds, and `Suspense` failures. Once tripped, an error boundary has no automatic retry or reset mechanism; the subtree displays the fallback until the parent component or application remounts.
+
+---
+
+## 17. Backend-for-Frontend (BFF)
+
+### How do I proxy /api to a co-located Bloom server in dev?
+When developing full-stack applications with `bloom js dev`, the dev server automatically supervises `bin/server.dart` on port `8090` and configures a same-origin dev proxy route for `/api`.
+
+Calls from your browser application to `/api/...` are made directly against the same origin as your web page (e.g. `http://localhost:8080/api/tasks`), eliminating CORS preflights and cross-origin blocking entirely.
+
+You can also customize or declare explicit proxy rules in `bloom.yaml`:
+
+```yaml
+# bloom.yaml
+name: my_bloom_app
+version: 1.0.0
+
+proxy:
+  "/api":
+    target: "http://127.0.0.1:8090"
+```
+
+When `bloom js dev` runs, it prints all active proxy routes at startup:
+```text
+› Proxy: /api ➔ http://127.0.0.1:8090
+```
+
+---
+
+### How do I proxy a third-party API to defeat CORS?
+Cross-Origin Resource Sharing (CORS) is a security mechanism enforced exclusively by web browsers to restrict client scripts from making requests to a different domain unless the destination server explicitly returns permissive CORS headers (`Access-Control-Allow-Origin`).
+
+Server-to-server HTTP requests are **not** subject to browser CORS policies. Therefore, the architectural solution for consuming third-party APIs from a browser frontend is to proxy the request through your Backend-for-Frontend (BFF) layer.
+
+Declare the third-party upstream route in `bloom.yaml` with `strip_prefix: true`:
+
+```yaml
+# bloom.yaml
+proxy:
+  "/gh":
+    target: "https://github-contributions-api.jogruber.de"
+    strip_prefix: true
+```
+
+In your client application, call the local same-origin path:
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final client = BloomHttpClient();
+
+Future<Map<String, dynamic>> fetchUserContributions(String username) async {
+  // Browser fetches from same-origin /gh/v4/...
+  // Dev server strips '/gh' and forwards to https://github-contributions-api.jogruber.de/v4/...
+  return client.get<Map<String, dynamic>>('/gh/v4/$username');
+}
+```
+
+---
+
+### How do I call a typed RPC endpoint end-to-end?
+Declare a shared `BloomRpcContract` across client and server packages, implement the contract handler with `BloomRpcRouter` on the backend, mount it to `BloomApiRouter`, and execute it with type safety on the client using `BloomRpcClient` or `rpcQuery`.
+
+#### 1. Define the Shared Contract (`lib/contracts/task_contract.dart`)
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+class Task {
+  final String id;
+  final String title;
+  final bool completed;
+
+  Task({required this.id, required this.title, this.completed = false});
+
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'completed': completed};
+
+  factory Task.fromJson(dynamic json) {
+    final map = json as Map<String, dynamic>;
+    return Task(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      completed: map['completed'] as bool? ?? false,
+    );
+  }
+}
+
+class CreateTaskInput {
+  final String title;
+  CreateTaskInput({required this.title});
+  Map<String, dynamic> toJson() => {'title': title};
+  factory CreateTaskInput.fromJson(dynamic json) =>
+      CreateTaskInput(title: (json as Map)['title'] as String? ?? '');
+}
+
+const getTaskContract = BloomRpcContract<void, Task>.get(
+  '/tasks/:id',
+  decodeOutput: Task.fromJson,
+);
+
+const createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
+  '/tasks',
+  encodeInput: (input) => input.toJson(),
+  decodeInput: CreateTaskInput.fromJson,
+  encodeOutput: (task) => task.toJson(),
+  decodeOutput: Task.fromJson,
+);
+```
+
+#### 2. Implement and Mount on Server (`bin/server.dart`)
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_server/bloom_server.dart';
+
+void main() async {
+  final rpcRouter = BloomRpcRouter();
+
+  // Bind server implementation
+  rpcRouter.bind(getTaskContract, (ctx, _) async {
+    final id = ctx.pathParams['id']!;
+    return Task(id: id, title: 'Server-rendered task', completed: true);
+  });
+
+  rpcRouter.bind(createTaskContract, (ctx, input) async {
+    if (input.title.trim().isEmpty) {
+      throw const BloomRpcValidationErrors(
+        fieldErrors: {'title': ['Title is required']},
+      );
+    }
+    return Task(id: 'task-101', title: input.title);
+  });
+
+  final apiRouter = BloomApiRouter();
+  apiRouter.mountRpc(rpcRouter, basePath: '/api/rpc');
+
+  await apiRouter.serve(port: 8090);
+}
+```
+
+#### 3. Call from Client UI (`lib/main.dart`)
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final rpcClient = BloomRpcClient(baseUrl: '/api/rpc');
+
+// Reactive query binding
+final taskQuery = rpcQuery<void, Task>(
+  rpcClient,
+  getTaskContract,
+  null,
+  pathParams: {'id': 'task-101'},
+);
+
+BloomNode taskWidget() {
+  return Div(
+    className: 'task-card',
+    children: [
+      Live(() => switch (taskQuery.status.value) {
+        QueryStatus.loading => P(text: 'Loading task...'),
+        QueryStatus.error => P(text: 'Error loading task'),
+        QueryStatus.success => H2(text: taskQuery.data.value?.title ?? ''),
+        QueryStatus.idle => P(text: 'Idle'),
+      }),
+    ],
+  );
+}
+```
+
+---
+
+### How do I safely use environment variables without leaking secrets?
+Client-side web bundles (`main.js` / WebAssembly) are downloaded to the user's browser, meaning **any variable compiled into the client bundle is completely public and visible to anyone who inspects the network or source code**.
+
+To prevent accidental exposure of private secrets (database passwords, private API keys, payment gateway secret tokens):
+
+1. **The `BLOOM_PUBLIC_` Rule**: Only variables with the prefix `BLOOM_PUBLIC_` can be accessed in browser client code or injected during `bloom build web`.
+2. **Build-Time Security Gate**: The Bloom compiler scans all injected environment files during `bloom build web`. If any variable lacks the `BLOOM_PUBLIC_` prefix, the build **fails immediately with an error** naming the offending key.
+3. **Server Secrets**: Keep non-public variables in your server environment or `.env` files read exclusively by `bin/server.dart`.
+
+```ini
+# .env.production
+
+# Client-public variables injected into web bundle
+BLOOM_PUBLIC_API_URL=https://api.example.com
+BLOOM_PUBLIC_APP_TITLE="Bloom Production"
+
+# Server-only secrets: Used only in bin/server.dart; never injected into browser bundle
+DATABASE_URL=postgres://user:password@db.internal:5432/app
+STRIPE_SECRET_KEY=sk_live_secret12345
+```
+
+Reading public variables in Dart:
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+void main() {
+  // Read public variables safely
+  final apiUrl = BloomEnv.get('BLOOM_PUBLIC_API_URL', defaultValue: '/api');
+
+  // Check if a key is public
+  final isPublic = BloomEnv.isPublic('BLOOM_PUBLIC_API_URL'); // true
+
+  // Get all public variables as an unmodifiable map
+  final publicMap = BloomEnv.publicVariables;
+}
+```

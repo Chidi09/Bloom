@@ -84,6 +84,34 @@ void main() {
       BloomEnv.clear();
       expect(BloomEnv.contains('K'), isFalse);
     });
+
+    test('isPublic returns true only for exact BLOOM_PUBLIC_ prefix', () {
+      expect(BloomEnv.isPublic('BLOOM_PUBLIC_API_URL'), isTrue);
+      expect(BloomEnv.isPublic('BLOOM_PUBLIC_THEME'), isTrue);
+      expect(BloomEnv.isPublic('DATABASE_URL'), isFalse);
+      expect(BloomEnv.isPublic('SECRET_KEY'), isFalse);
+      expect(BloomEnv.isPublic('MY_BLOOM_PUBLIC_API'), isFalse);
+      expect(BloomEnv.isPublic('BLOOM_PUBLIC'), isFalse);
+      expect(BloomEnv.isPublic('BLOOM_PUBLICITY'), isFalse);
+    });
+
+    test('publicVariables returns only keys starting with BLOOM_PUBLIC_', () {
+      BloomEnv.loadMap({
+        'BLOOM_PUBLIC_API_URL': 'https://api.example.com',
+        'BLOOM_PUBLIC_FEATURE_FLAG': 'true',
+        'DATABASE_PASSWORD': 'super_secret_db_password',
+        'STRIPE_SECRET_KEY': 'sk_test_123',
+        'NOT_BLOOM_PUBLIC_TOKEN': 'secret_token',
+      });
+
+      final publicVars = BloomEnv.publicVariables;
+      expect(publicVars.length, 2);
+      expect(publicVars['BLOOM_PUBLIC_API_URL'], 'https://api.example.com');
+      expect(publicVars['BLOOM_PUBLIC_FEATURE_FLAG'], 'true');
+      expect(publicVars.containsKey('DATABASE_PASSWORD'), isFalse);
+      expect(publicVars.containsKey('STRIPE_SECRET_KEY'), isFalse);
+      expect(publicVars.containsKey('NOT_BLOOM_PUBLIC_TOKEN'), isFalse);
+    });
   });
 
   group('BloomEnvironmentSchema', () {

@@ -573,6 +573,46 @@ class BloomEnv {
   /// ```
   static void clear() => _env.clear();
 
+  /// The prefix designating environment variables that are safe for client-side web exposure.
+  ///
+  /// Variables starting with `BLOOM_PUBLIC_` are considered public and safe to embed into
+  /// browser JavaScript / WebAssembly bundles. All variables lacking this prefix are
+  /// strictly server-only secrets (e.g. database credentials, API secrets, private keys)
+  /// and will be rejected by the Bloom build system if targeted for client compilation.
+  static const String publicPrefix = 'BLOOM_PUBLIC_';
+
+  /// Checks whether [key] is designated as client-public.
+  ///
+  /// The check is an exact prefix match: [key] must begin with [publicPrefix] (`'BLOOM_PUBLIC_'`).
+  /// Variables that merely contain this substring elsewhere in their name are not public.
+  ///
+  /// ```dart
+  /// BloomEnv.isPublic('BLOOM_PUBLIC_API_URL'); // true
+  /// BloomEnv.isPublic('DATABASE_PASSWORD');    // false
+  /// BloomEnv.isPublic('NOT_BLOOM_PUBLIC_KEY'); // false
+  /// ```
+  static bool isPublic(String key) => key.startsWith(publicPrefix);
+
+  /// Returns an unmodifiable snapshot map of only the client-public environment variables.
+  ///
+  /// Filters the loaded environment map to include only keys starting with [publicPrefix].
+  /// Non-public variables are omitted to ensure server secrets are never bundled into
+  /// browser client artifacts.
+  ///
+  /// ```dart
+  /// final publicConfig = BloomEnv.publicVariables;
+  /// print('Public vars: ${publicConfig.keys}');
+  /// ```
+  static Map<String, String> get publicVariables {
+    final filtered = <String, String>{};
+    for (final entry in _env.entries) {
+      if (isPublic(entry.key)) {
+        filtered[entry.key] = entry.value;
+      }
+    }
+    return UnmodifiableMapView(filtered);
+  }
+
   /// Returns an unmodifiable snapshot map of all currently loaded environment variables.
   ///
   /// ```dart

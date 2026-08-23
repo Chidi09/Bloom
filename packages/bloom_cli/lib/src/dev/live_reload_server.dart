@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'dev_proxy.dart';
 
 /// Zero-configuration HTTP dev server with Server-Sent Events (SSE) live reload.
 class BloomLiveReloadServer {
@@ -9,9 +10,12 @@ class BloomLiveReloadServer {
   final String host;
   final int port;
   final bool autoInjectScript;
+  final List<BloomDevProxyRule> proxyRules;
 
   HttpServer? _server;
   final List<HttpResponse> _sseClients = [];
+  final BloomDevProxy _proxy = BloomDevProxy();
+  late final List<BloomDevProxyRule> _sortedProxyRules;
 
   static const String liveReloadScript = r'''
 <script>
@@ -1243,7 +1247,11 @@ class BloomLiveReloadServer {
     this.host = '0.0.0.0',
     this.port = 8080,
     this.autoInjectScript = true,
-  });
+    this.proxyRules = const [],
+  }) {
+    _sortedProxyRules = List<BloomDevProxyRule>.from(proxyRules)
+      ..sort((a, b) => b.pathPrefix.length.compareTo(a.pathPrefix.length));
+  }
 
   HttpServer? get server => _server;
   int get activeClientCount => _sseClients.length;
@@ -1305,6 +1313,7 @@ class BloomLiveReloadServer {
       } catch (_) {}
     }
     _sseClients.clear();
+    await _proxy.close(force: true);
     await _server?.close(force: true);
     _server = null;
   }
@@ -1331,6 +1340,14 @@ class BloomLiveReloadServer {
 
       _sseClients.add(req.response);
       return;
+    }
+
+    // 2. Dev Proxy Rules (Longest prefix matched first)
+    for (final rule in _sortedProxyRules) {
+      if (rule.matches(path)) {
+        await _proxy.forward(req, rule);
+        return;
+      }
     }
 
     try {
