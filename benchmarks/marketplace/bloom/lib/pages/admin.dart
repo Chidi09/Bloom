@@ -1,6 +1,8 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:web/web.dart' as web;
 import '../components/button_variants.dart';
 import '../components/layout.dart';
+import '../components/toast.dart';
 import '../components/ui.dart';
 import '../main.dart';
 import '../models/models.dart';
@@ -53,7 +55,7 @@ BloomNode adminDashboard(Map<String, String> params) {
     builder: (counts) => adminShell(
       Div(children: [
         H1(className: 'text-h1', text: 'Overview'),
-        P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Product counts by status — TODO: Auth (Stage 2)'),
+        P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Product counts by status — Stage 1 administration'),
         Div(className: 'grid sm:grid-cols-3 gap-4 mt-6', children: [
           _metricCard('Published', counts['published'] ?? 0, 'check', 'var(--success)'),
           _metricCard('Draft', counts['draft'] ?? 0, 'draft', 'var(--warning)'),
@@ -61,7 +63,7 @@ BloomNode adminDashboard(Map<String, String> params) {
         ]),
         Div(className: 'mt-8 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4', children: [
           H3(className: 'text-h3', text: 'Next steps'),
-          P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Stage 1: list and manage products. Stage 2 will add auth, audit log, and destructive-action guards.'),
+          P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'List, create, and manage marketplace products with live API integration.'),
           button(text: 'Go to products', href: '/admin/products', extraClassName: 'inline-flex mt-3'),
         ]),
       ]),
@@ -77,7 +79,7 @@ BloomNode _metricCard(String label, int value, String icon, String color) {
         Span(className: 'text-xs uppercase tracking-widest text-[var(--text-muted)]', text: label),
         Span(className: 'w-8 h-8 rounded-md grid place-items-center', style: 'background: $color; color: white', children: [hugeIcon(icon, className: 'w-4 h-4')]),
       ]),
-      Div(className: 'mt-3 text-3xl font-semibold tabular', style: 'font-family:var(--font-display); font-variant-numeric:tabular-nums', text: '$value'),
+      Div(className: 'mt-3 text-3xl font-semibold tabular', style: 'font-family:var(--font-display); font-variant-numeric:tabular-nums', text: formatNumber(value)),
     ],
   );
 }
@@ -126,9 +128,24 @@ BloomNode adminProducts(Map<String, String> params) {
           ]),
           Div(className: 'flex items-center gap-2 text-sm mt-3', children: [
             Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
-            Link(href: '/admin/products?sort=newest', className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='newest'?'bg-[var(--brand-600)] text-white border-transparent':''}', text: 'Newest'),
-            Link(href: '/admin/products?sort=price_asc', className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_asc'?'bg-[var(--brand-600)] text-white border-transparent':''}', text: 'Price ↑'),
-            Link(href: '/admin/products?sort=price_desc', className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_desc'?'bg-[var(--brand-600)] text-white border-transparent':''}', text: 'Price ↓'),
+            Link(
+              href: '/admin/products?sort=newest',
+              attrs: sort == 'newest' ? const {'aria-current': 'page'} : const {},
+              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='newest'?'bg-[var(--brand-600)] text-white border-transparent':''}',
+              text: 'Newest',
+            ),
+            Link(
+              href: '/admin/products?sort=price_asc',
+              attrs: sort == 'price_asc' ? const {'aria-current': 'page'} : const {},
+              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_asc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
+              text: 'Price ↑',
+            ),
+            Link(
+              href: '/admin/products?sort=price_desc',
+              attrs: sort == 'price_desc' ? const {'aria-current': 'page'} : const {},
+              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_desc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
+              text: 'Price ↓',
+            ),
           ]),
           Div(className: 'mt-4', children: [
             adminTable(
@@ -137,12 +154,17 @@ BloomNode adminProducts(Map<String, String> params) {
               empty: Div(className: 'py-12 text-center text-[var(--text-muted)]', text: 'No products'),
             ),
           ]),
-          if (data.nextCursor != null)
-            Div(className: 'mt-4 flex justify-end', children: [
-              Link(href: '/admin/products?cursor=${Uri.encodeComponent(data.nextCursor!)}&sort=$sort', className: 'px-4 py-2 rounded-md bg-[var(--brand-600)] text-white text-sm', text: 'Next'),
-            ])
+          if (data.items.isEmpty)
+            Div(className: 'py-12 text-center text-[var(--text-muted)]', text: 'No products available')
           else
-            Div(className: 'mt-4 text-sm text-[var(--text-muted)] text-right', text: 'End of results'),
+            paginationBar(
+              currentPath: routerController.currentPath.value,
+              currentQuery: routerController.currentQuery.value,
+              total: data.total,
+              itemCount: data.items.length,
+              nextCursor: data.nextCursor,
+              pageSize: 24,
+            ),
         ]),
       );
     },
@@ -174,13 +196,78 @@ BloomNode adminProductForm(Map<String, String> params, {bool isNew = false}) {
 
 BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
   final idOrSlug = id ?? prod?.id ?? '';
+  final isSubmitting = signal<bool>(false);
+
   return adminShell(
     Div(children: [
       Link(href: '/admin/products', className: 'text-sm text-[var(--brand-600)] hover:underline', text: '← Back to products'),
       H1(className: 'text-h1 mt-2', text: isNew ? 'New product' : 'Edit product'),
-      P(className: 'text-sm text-[var(--text-muted)]', text: isNew ? 'Create a new product — TODO: server mutation (Stage 2)' : 'Editing ${prod?.title ?? idOrSlug} — TODO: auth'),
-      El('form',
-        attrs: {'method': 'post', 'action': isNew ? '/admin/products' : '/admin/products/$idOrSlug'},
+      P(className: 'text-sm text-[var(--text-muted)]', text: isNew ? 'Create a new marketplace product' : 'Editing ${prod?.title ?? idOrSlug}'),
+      Form(
+        onSubmit: (BloomEvent e) async {
+          e.preventDefault();
+          if (isSubmitting.value) return;
+
+          final titleEl = web.document.getElementById('f-title') as web.HTMLInputElement?;
+          final slugEl = web.document.getElementById('f-slug') as web.HTMLInputElement?;
+          final descEl = web.document.getElementById('f-description') as web.HTMLTextAreaElement?;
+          final priceEl = web.document.getElementById('f-price_cents') as web.HTMLInputElement?;
+          final stockEl = web.document.getElementById('f-stock') as web.HTMLInputElement?;
+          final statusEl = web.document.getElementById('f-status') as web.HTMLSelectElement?;
+          final currEl = web.document.getElementById('f-currency') as web.HTMLInputElement?;
+
+          final title = titleEl?.value.trim() ?? '';
+          final slug = slugEl?.value.trim() ?? '';
+          final description = descEl?.value.trim() ?? '';
+          final priceCents = int.tryParse(priceEl?.value.trim() ?? '');
+          final stock = int.tryParse(stockEl?.value.trim() ?? '');
+          final status = statusEl?.value.trim() ?? 'draft';
+          final currency = (currEl?.value.trim() ?? '').isNotEmpty ? currEl!.value.trim() : 'USD';
+
+          if (title.isEmpty) {
+            showToast('Title is required', ToastVariant.error);
+            return;
+          }
+          if (slug.isEmpty) {
+            showToast('Slug is required', ToastVariant.error);
+            return;
+          }
+          if (priceCents == null || priceCents < 0) {
+            showToast('Price (cents) must be a non-negative integer', ToastVariant.error);
+            return;
+          }
+          if (stock == null || stock < 0) {
+            showToast('Stock must be a non-negative integer', ToastVariant.error);
+            return;
+          }
+
+          final payload = {
+            'title': title,
+            'slug': slug,
+            'description': description,
+            'price_cents': priceCents,
+            'stock': stock,
+            'status': status,
+            'currency': currency,
+          };
+
+          isSubmitting.value = true;
+          try {
+            if (isNew) {
+              await httpClient.post<Map<String, dynamic>>('/api/admin/products', body: payload);
+              showToast('Product created successfully', ToastVariant.success);
+            } else {
+              await httpClient.put<Map<String, dynamic>>('/api/admin/products/$idOrSlug', body: payload);
+              showToast('Product updated successfully', ToastVariant.success);
+            }
+            await routerController.navigate('/admin/products');
+          } catch (err) {
+            final msg = err.toString().replaceFirst('ClientException: ', '').replaceFirst('HTTP ', '');
+            showToast('Failed to save product: $msg', ToastVariant.error);
+          } finally {
+            isSubmitting.value = false;
+          }
+        },
         className: 'mt-6 flex flex-col gap-4 max-w-[640px]',
         children: [
           _field('Title', 'title', prod?.title ?? '', required: true),
@@ -195,7 +282,13 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
             _field('Currency', 'currency', prod?.currency ?? 'USD'),
           ]),
           Div(className: 'flex gap-3 mt-2', children: [
-            button(text: isNew ? 'Create' : 'Save', attrs: const {'type': 'submit'}),
+            Live(() => button(
+              text: isSubmitting.value ? 'Saving…' : (isNew ? 'Create' : 'Save'),
+              attrs: {
+                'type': 'submit',
+                if (isSubmitting.value) 'disabled': '',
+              },
+            )),
             button(text: 'Cancel', variant: ButtonVariant.secondary, href: '/admin/products'),
           ]),
         ],
@@ -223,5 +316,6 @@ BloomNode _select(String label, String name, String value, List<String> opts) {
     El('select', attrs: {'id': id, 'name': name}, className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]', children: opts.map((o) => El('option', attrs: {'value': o, if (o==value) 'selected': ''}, text: o)).toList()),
   ]);
 }
+
 
 

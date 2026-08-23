@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import '../components/button_variants.dart';
 import '../components/layout.dart';
 import '../components/ui.dart';
 import '../main.dart';
@@ -56,17 +57,22 @@ Category _categoryFromJson(Map<String, dynamic> json) {
 
 BloomNode _sortBar(String? current) {
   final opts = {'newest': 'Newest', 'oldest': 'Oldest', 'price_asc': 'Price ↑', 'price_desc': 'Price ↓'};
+  final activeKey = current ?? 'newest';
   return Div(
     className: 'flex items-center gap-2 text-sm',
     children: [
       Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
-      ...opts.entries.map((e) => Link(
-            href: '?sort=${e.key}',
-            className: e.key == (current ?? 'newest')
-                ? 'px-2 py-1 rounded-md bg-[var(--brand-600)] text-white'
-                : 'px-2 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
-            text: e.value,
-          )),
+      ...opts.entries.map((e) {
+        final isActive = e.key == activeKey;
+        return Link(
+          href: '?sort=${e.key}',
+          attrs: isActive ? {'aria-current': 'page'} : const {},
+          className: isActive
+              ? 'px-2 py-1 rounded-md bg-[var(--brand-600)] text-white'
+              : 'px-2 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+          text: e.value,
+        );
+      }),
     ],
   );
 }
@@ -98,42 +104,66 @@ BloomNode homePage(Map<String, String> params) {
     ),
     builder: (data) => appShell(
       Div(children: [
-        Div(className: 'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6', children: [
-          Div(children: [
-            H1(className: 'text-h1', text: 'Marketplace'),
-            P(className: 'text-sm text-[var(--text-muted)] mt-1', text: '${data.total} products • Cursor-paginated • 24 per page'),
-          ]),
-          _sortBar(sort),
-        ]),
-        productGrid(data.items),
-        if (data.items.isEmpty)
-          Div(className: 'py-16 text-center', children: [
-            P(className: 'text-display', text: 'No products found'),
-            P(className: 'text-[var(--text-muted)] mt-2', text: 'Try a different filter or check back soon.'),
-          ])
-        else
-          Div(className: 'flex items-center justify-between gap-4 mt-8', children: [
-            Span(className: 'text-sm text-[var(--text-muted)]', text: data.nextCursor == null ? 'End of results' : 'More results available'),
-            if (data.nextCursor != null)
-              Link(
-                href: _withCursor(data.nextCursor!),
-                className: 'inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
-                children: [Span(text: 'Next'), hugeIcon('chevron-right')],
-              )
+        // Landing hero section above catalog
+        Div(
+          className: 'py-12 sm:py-16 border-b border-[var(--border)] mb-8',
+          children: [
+            H1(
+              className: 'text-display tracking-tight',
+              text: 'Curated goods for modern living',
+            ),
+            P(
+              className: 'text-body text-[var(--text-muted)] max-w-[56ch] mt-2.5',
+              text: 'Discover handcrafted objects, timeless apparel, and functional design pieces from independent makers worldwide.',
+            ),
+            Div(
+              className: 'flex flex-wrap items-center gap-4 mt-6',
+              children: [
+                button(
+                  text: 'Explore collection',
+                  variant: ButtonVariant.primary,
+                  href: '#catalog',
+                ),
+              ],
+            ),
+            P(
+              className: 'text-label text-[var(--text-muted)] mt-5',
+              text: '${formatNumber(data.total)} verified items in catalog',
+            ),
+          ],
+        ),
+        // Product catalog section
+        Div(
+          attrs: const {'id': 'catalog'},
+          className: 'scroll-mt-20',
+          children: [
+            Div(className: 'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6', children: [
+              Div(children: [
+                H2(className: 'text-h2', text: 'Marketplace'),
+                P(className: 'text-sm text-[var(--text-muted)] mt-1', text: '${formatNumber(data.total)} products • 24 per page'),
+              ]),
+              _sortBar(sort),
+            ]),
+            productGrid(data.items),
+            if (data.items.isEmpty)
+              Div(className: 'py-16 text-center', children: [
+                P(className: 'text-display', text: 'No products found'),
+                P(className: 'text-[var(--text-muted)] mt-2', text: 'Try a different filter or check back soon.'),
+              ])
             else
-              Span(className: 'px-4 py-2 rounded-md bg-[var(--bg-muted)] text-[var(--text-muted)] text-sm', text: 'No more pages'),
-          ]),
+              paginationBar(
+                currentPath: routerController.currentPath.value,
+                currentQuery: routerController.currentQuery.value,
+                total: data.total,
+                itemCount: data.items.length,
+                nextCursor: data.nextCursor,
+                pageSize: 24,
+              ),
+          ],
+        ),
       ]),
     ),
   );
-}
-
-String _withCursor(String cursor) {
-  final currentPath = routerController.currentPath.value;
-  final qp = Map<String, String>.from(routerController.currentQuery.value);
-  qp['cursor'] = cursor;
-  final qs = qp.entries.map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}').join('&');
-  return '$currentPath?$qs';
 }
 
 BloomNode categoryPage(Map<String, String> params) {
@@ -186,14 +216,24 @@ BloomNode categoryPage(Map<String, String> params) {
             Span(className: 'text-[var(--text)] font-medium', text: cat.name),
           ]),
           H1(className: 'text-h1 mt-2', text: cat.name),
-          P(className: 'text-sm text-[var(--text-muted)]', text: '${data.total} products in this category'),
+          P(className: 'text-sm text-[var(--text-muted)]', text: '${formatNumber(data.total)} products in this category'),
         ]),
         _sortBar(sort),
         Div(className: 'mt-4', children: [productGrid(data.items)]),
-        if (data.nextCursor != null)
-          Div(className: 'mt-8 flex justify-end', children: [
-            Link(href: _withCursor(data.nextCursor!), className: 'px-4 py-2 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)]', text: 'Next'),
-          ]),
+        if (data.items.isEmpty)
+          Div(className: 'py-16 text-center', children: [
+            P(className: 'text-display', text: 'No products found'),
+            P(className: 'text-[var(--text-muted)] mt-2', text: 'No items currently in this category.'),
+          ])
+        else
+          paginationBar(
+            currentPath: routerController.currentPath.value,
+            currentQuery: routerController.currentQuery.value,
+            total: data.total,
+            itemCount: data.items.length,
+            nextCursor: data.nextCursor,
+            pageSize: 24,
+          ),
       ]));
     },
   );
