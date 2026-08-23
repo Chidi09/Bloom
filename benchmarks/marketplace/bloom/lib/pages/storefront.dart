@@ -64,17 +64,13 @@ BloomNode _sortBar(String? current) {
     className: 'flex items-center gap-2 text-sm',
     children: [
       Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
-      ...opts.entries.map((e) {
-        final isActive = e.key == activeKey;
-        return Link(
+      segmentedControl(
+        options: opts.entries.map((e) => (
+          label: e.value,
           href: '?sort=${e.key}',
-          attrs: isActive ? {'aria-current': 'page'} : const {},
-          className: isActive
-              ? 'px-2 py-1 rounded-md bg-[var(--brand-600)] text-white'
-              : 'px-2 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
-          text: e.value,
-        );
-      }),
+          active: e.key == activeKey,
+        )).toList(),
+      ),
     ],
   );
 }
@@ -325,6 +321,7 @@ BloomNode productDetailPage(Map<String, String> params) {
       final images = result.images;
       final stockLabel = product.stock == 0 ? 'Out of stock' : product.stock < 5 ? 'Low stock • ${product.stock} left' : 'In stock';
       final stockColor = product.stock == 0 ? 'text-[var(--danger)]' : product.stock < 5 ? 'text-[var(--warning)]' : 'text-[var(--success)]';
+      final qty = signal<int>(1);
       return appShell(Div(children: [
         Div(className: 'mb-4', children: [
           breadcrumb([
@@ -349,7 +346,13 @@ BloomNode productDetailPage(Map<String, String> params) {
               Span(className: 'text-sm text-[var(--text-muted)]', text: product.currency),
             ]),
             P(className: 'text-body leading-relaxed max-w-[68ch]', text: product.description),
-            Div(className: 'flex gap-3 mt-2', children: [
+            Div(className: 'flex items-center gap-3 mt-2 flex-wrap', children: [
+              if (product.stock > 0)
+                Live(() => quantityStepper(
+                  quantity: qty.value,
+                  min: 1,
+                  onChange: (q) => qty.value = q,
+                )),
               El('button',
                 attrs: {
                   'type': 'button',
@@ -360,6 +363,7 @@ BloomNode productDetailPage(Map<String, String> params) {
                     : 'px-6 py-3 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
                 onClick: (BloomEvent e) {
                   if (product.stock == 0) return;
+                  final addedQty = qty.value;
                   addToCart(
                     product.id,
                     title: product.title,
@@ -367,8 +371,13 @@ BloomNode productDetailPage(Map<String, String> params) {
                     priceCents: product.priceCents,
                     currency: product.currency,
                     imageUrl: images.isNotEmpty ? images.first.url : null,
+                    qty: addedQty,
                   );
-                  showToast('Added to cart', ToastVariant.success);
+                  qty.value = 1;
+                  showToast(
+                    addedQty > 1 ? 'Added $addedQty to cart' : 'Added to cart',
+                    ToastVariant.success,
+                  );
                 },
                 children: [Span(text: product.stock == 0 ? 'Out of stock' : 'Add to cart')],
               ),
