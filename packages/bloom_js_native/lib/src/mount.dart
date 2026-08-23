@@ -86,7 +86,7 @@ class _ErrorBoundaryHandler {
     }
     isFailed = true;
 
-    inner.disposeAll();
+    inner.reset();
     sentinel.clear();
 
     try {
@@ -97,7 +97,7 @@ class _ErrorBoundaryHandler {
       );
       sentinel.appendAll(fallbackNodes);
     } catch (fallbackErr, fallbackStack) {
-      inner.disposeAll();
+      inner.reset();
       sentinel.clear();
       if (parentBoundary != null) {
         parentBoundary!.handleError(fallbackErr, fallbackStack);
@@ -288,6 +288,32 @@ class _Region {
     }
     disposers.clear();
   }
+
+  /// Tears down everything registered so far, same as [disposeAll], but
+  /// leaves the region usable afterward: [isDisposed] stays `false` and
+  /// [add] keeps accepting new disposers.
+  ///
+  /// Reactive rebuild sites (`Live`, `Show`, `ForEach`, `Suspense` error
+  /// recovery, `ErrorBoundary` fallback mounting, `Memo`) reuse a single
+  /// long-lived `_Region` across many renders and need to clear the
+  /// *previous* render's registrations before mounting the next one. Calling
+  /// [disposeAll] for that "soft reset" permanently marks the region
+  /// disposed, so anything mounted into it afterward — including the very
+  /// content this reset was clearing the way for — finds [isDisposed] true
+  /// from the moment it exists. Async work (e.g. a `Suspense` `resource`
+  /// future) that checks `region.isDisposed` before applying its result then
+  /// silently no-ops forever, even though the region was never actually torn
+  /// down. Use [reset] for this in-place-rebuild case and reserve
+  /// [disposeAll] for genuine final teardown.
+  void reset() {
+    if (_isDisposed) return;
+    for (final d in disposers) {
+      try {
+        d();
+      } catch (_) {}
+    }
+    disposers.clear();
+  }
 }
 
 /// Mount a single [BloomNode] and return the created DOM nodes.
@@ -458,7 +484,7 @@ List<web.Node> _mountNode(
         );
       } catch (err, stack) {
         handler.isFailed = true;
-        inner.disposeAll();
+        inner.reset();
         try {
           final fallbackNode = fallback(err, stack);
           initial = runZoned(
@@ -466,7 +492,7 @@ List<web.Node> _mountNode(
             zoneValues: {_errorBoundaryZoneKey: parentBoundary},
           );
         } catch (fallbackErr, fallbackStack) {
-          inner.disposeAll();
+          inner.reset();
           initial = const [];
           if (parentBoundary != null) {
             parentBoundary.handleError(fallbackErr, fallbackStack);
@@ -496,7 +522,7 @@ List<web.Node> _mountNode(
 
       void handleSuspenseError(Object error, StackTrace stackTrace) {
         if (region.isDisposed) return;
-        inner.disposeAll();
+        inner.reset();
         sentinel.clear();
         if (errorBuilder != null) {
           try {
@@ -507,7 +533,7 @@ List<web.Node> _mountNode(
             );
             sentinel.appendAll(errorNodes);
           } catch (ebErr, ebStack) {
-            inner.disposeAll();
+            inner.reset();
             sentinel.clear();
             if (boundary != null) {
               boundary.handleError(ebErr, ebStack);
@@ -531,7 +557,7 @@ List<web.Node> _mountNode(
         node.resourceErased().then((data) {
           if (!region.isDisposed) {
             try {
-              inner.disposeAll();
+              inner.reset();
               sentinel.clear();
               final loadedNode = node.builderErased(data);
               final loadedNodes = runZoned(
@@ -1067,7 +1093,7 @@ List<web.Node> _bindMemoRegion(
         }
       }
 
-      inner.disposeAll();
+      inner.reset();
       final nodes = runZoned(
         () => _mountNode(newDescriptor, inner),
         zoneValues: {_errorBoundaryZoneKey: boundary},
@@ -1083,7 +1109,7 @@ List<web.Node> _bindMemoRegion(
       prevValue = value;
       hasPrevValue = true;
     } catch (err, stack) {
-      inner.disposeAll();
+      inner.reset();
       if (isFirstRun) {
         rethrow;
       }
@@ -1155,7 +1181,7 @@ List<web.Node> _bindSentinelRegion<T>(
         }
       }
 
-      inner.disposeAll();
+      inner.reset();
       final value = build();
       final node = wrap == null ? value as BloomNode : wrap(value);
       final nodes = runZoned(
@@ -1185,7 +1211,7 @@ List<web.Node> _bindSentinelRegion<T>(
         }
       }
     } catch (err, stack) {
-      inner.disposeAll();
+      inner.reset();
       if (isFirstRun) {
         rethrow;
       }
