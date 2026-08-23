@@ -1,0 +1,20 @@
+name: bloom_portfolio
+description: Developer portfolio and landing showcase built with Bloom JS Native.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+# Deliberately depends on the PUBLISHED packages from pub.dev rather than on the
+# sibling paths the other in-repo examples use. This is the example a newcomer
+# copies, so it should show exactly what they would write in their own project —
+# and resolving it doubles as a real check that what we published actually works
+# for an outside consumer.
+dependencies:
+  web: ^1.1.0
+  bloom_js_native: ^0.2.0
+  bloom_seo: ^0.1.1
+
+dev_dependencies:
+  lints: ^4.0.0

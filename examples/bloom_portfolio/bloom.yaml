@@ -1,0 +1,27 @@
+name: bloom_portfolio
+npm_packages:
+  "@tailwindcss/browser":
+    version: 4.3.3
+    esm_url: https://esm.sh/@tailwindcss/browser@4.3.3?bundle
+  gsap:
+    version: 3.15.0
+    esm_url: https://esm.sh/gsap@3.15.0?bundle
+  lucide:
+    version: 1.33.0
+    esm_url: https://esm.sh/lucide@1.33.0?bundle
+  typed.js:
+    version: 3.0.0
+    esm_url: https://esm.sh/typed.js@3.0.0?bundle
+  lenis:
+    version: 1.3.26
+    esm_url: https://esm.sh/lenis@1.3.26?bundle
+  github-calendar:
+    version: 2.3.4
+    esm_url: https://esm.sh/github-calendar@2.3.4?bundle
+  "@emailjs/browser":
+    version: 4.4.1
+    esm_url: https://esm.sh/@emailjs/browser@4.4.1?bundle
+  canvas-confetti:
+    version: 1.9.4
+    esm_url: https://esm.sh/canvas-confetti@1.9.4?bundle
+target: web_dom
