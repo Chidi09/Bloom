@@ -26,4 +26,9 @@ export 'src/lazy.dart';
 export 'src/dev_error_overlay.dart';
 export 'src/reducer.dart';
 export 'src/a11y.dart';
+export 'src/scoped_css.dart';
+export 'src/island_node.dart';
+export 'src/rpc.dart';
+export 'src/i18n.dart';
+export 'src/image.dart';
 

@@ -21,3 +21,5 @@ export 'src/mount.dart';
 export 'src/router_browser.dart';
 export 'src/hydrate.dart';
 export 'src/virtual.dart';
+export 'src/islands.dart';
+export 'src/web_components.dart';
