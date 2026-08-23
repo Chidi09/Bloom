@@ -20,6 +20,27 @@ const _voidElements = {
   'wbr',
 };
 
+final _tagNameRegex = RegExp(r'^[a-zA-Z][a-zA-Z0-9_.:-]*$');
+final _attrNameRegex = RegExp(r'^[a-zA-Z0-9_.:-]+$');
+
+void _validateTagName(String tag) {
+  if (!_tagNameRegex.hasMatch(tag)) {
+    throw ArgumentError(
+      'Invalid tag name "$tag" in SSR rendering. '
+      'Tag names must not be empty and may only contain ASCII letters, digits, hyphen, underscore, colon, and period, starting with a letter.',
+    );
+  }
+}
+
+void _validateAttributeName(String name) {
+  if (!_attrNameRegex.hasMatch(name)) {
+    throw ArgumentError(
+      'Invalid attribute name "$name" in SSR rendering. '
+      'Attribute names must not be empty and may only contain ASCII letters, digits, hyphen, underscore, colon, and period.',
+    );
+  }
+}
+
 /// Escape HTML text content and attribute values.
 ///
 /// Covers &, <, >, ", ' — the minimal set needed to prevent XSS via
@@ -74,6 +95,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         :final attrs,
         :final children
       ):
+      _validateTagName(tag);
       buf.write('<$tag');
       if (className != null && className.isNotEmpty) {
         buf.write(' class="${escapeHtml(className)}"');
@@ -83,6 +105,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       }
       if (attrs != null) {
         for (final entry in attrs.entries) {
+          _validateAttributeName(entry.key);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
         }
       }
@@ -101,6 +124,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         :final attrs,
         :final children
       ):
+      _validateTagName(tag);
       buf.write('<$tag');
 
       if (className != null && className.isNotEmpty) {
@@ -111,6 +135,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       }
       if (attrs != null) {
         for (final entry in attrs.entries) {
+          _validateAttributeName(entry.key);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
         }
       }
@@ -354,9 +379,24 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
             'if(e){e.outerHTML=$safeJson;}})();</script>',
           );
         }
-      } catch (_) {
-        // Resource rejected — the fallback already flushed in the shell
-        // stands as the final content for this boundary.
+      } catch (err, stack) {
+        if (boundary.errorBuilder != null) {
+          try {
+            final errorNode = boundary.errorBuilder!(err, stack);
+            final innerBuf = StringBuffer();
+            _render(errorNode, innerBuf, onSuspense);
+            final safeJson = jsonEncode(innerBuf.toString())
+                .replaceAll('</script', '<\\/script');
+            if (!controller.isClosed) {
+              controller.add(
+                '<script>(function(){var e=document.getElementById("$id");'
+                'if(e){e.outerHTML=$safeJson;}})();</script>',
+              );
+            }
+          } catch (_) {}
+        }
+        // Resource rejected — if no errorBuilder was supplied (or if it threw),
+        // the fallback already flushed in the shell stands as the final content.
       } finally {
         outstanding--;
         maybeClose();
