@@ -1,0 +1,796 @@
+# bloom_js_native - public API index (compact)
+
+One line per public symbol. For full docs and examples see
+reference/llms-full.txt. If a symbol is not listed here, it
+does not exist.
+
+## a11y.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum AriaRole
+      WAI-ARIA landmark, widget, and structure roles.
+  enum AriaLive
+      Allowed values for `aria-live`.
+  enum AriaCurrent
+      Allowed values for `aria-current`.
+  enum AriaHasPopup
+      Allowed values for `aria-haspopup`.
+  enum AriaPressed
+      Allowed values for `aria-pressed`.
+  enum AriaChecked
+      Allowed values for `aria-checked`.
+  enum AriaInvalid
+      Allowed values for `aria-invalid`.
+  enum AriaOrientation
+      Allowed values for `aria-orientation`.
+  enum AriaAutocomplete
+      Allowed values for `aria-autocomplete`.
+  enum AriaSort
+      Allowed values for `aria-sort`.
+  enum AriaRelevant
+      Allowed values for `aria-relevant`.
+  Map<String, String> aria({ AriaRole? role, String? label, String? labelledBy, String? labelledby, String? describedBy, String? describedby, String? details, String? errorMessage, String? errormessage, String? flowTo, String? flowto, String? controls, String? owns, bool? hidden, bool? expanded, bool? selected, bool? checked, AriaChecked? checkedState, bool? pressed, AriaPressed? pressedState, bool? disabled, bool? required, bool? readOnly, bool? readonly, bool? modal, bool? multiselectable, bool? multiLine, bool? multiline, bool? busy, bool? atomic, bool? invalid, AriaInvalid? invalidState, AriaLive? live, AriaCurrent? current, AriaHasPopup? hasPopup, AriaHasPopup? haspopup, AriaOrientation? orientation, AriaAutocomplete? autocomplete, AriaSort? sort,
+      Generates a map of WAI-ARIA and accessibility attributes.
+  Map<String, String> ariaAttr(String name, String value)
+      Helper for constructing a single ARIA attribute map entry.
+  extension BloomAriaAttributesExtension on Map<String, String>?
+      Extension on [Map<String, String>] to ergonomically chain and merge ARIA attributes.
+  const String visuallyHiddenClass = 'bloom-sr-only'
+      Standard CSS class name for visually-hidden screen-reader elements.
+  const String srOnlyClass = 'sr-only'
+      Standard alias CSS class name for screen-reader elements (`sr-only`).
+  const String visuallyHiddenStyle = 'position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; ' 'overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;'
+      Standard inline CSS rule implementing the clip-rect technique.
+  const String visuallyHiddenCss = '.$visuallyHiddenClass, .$srOnlyClass
+      Complete CSS stylesheet rules for `bloom-sr-only` and `sr-only` classes.
+  StyleNode visuallyHiddenStyleNode() => StyleNode(visuallyHiddenCss)
+      Emits a `<style>` block declaring the `.bloom-sr-only` and `.sr-only` CSS utility classes.
+  class VisuallyHiddenStyle extends StyleNode
+      Style descriptor for embedding screen-reader utility CSS rules.
+  class VisuallyHidden extends Span
+      Renders a `<span>` element visually hidden from sighted users but fully
+  class BloomAnnouncer
+      Pure-Dart reactive state controller for broadcasting live screen-reader announcements.
+  class LiveRegion extends ElNode
+      Declarative live region descriptor that exposes announcements to assistive technologies.
+  class AriaLiveRegion extends ElNode
+      A standalone single live region descriptor bound to a specific message signal.
+
+## animate.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomKeyframe
+      A single keyframe stop in a CSS animation at a normalized offset (0.0 to 1.0).
+  class BloomAnimation
+      Immutable CSS animation descriptor defining `@keyframes` rules and timing properties.
+  class Animated extends AnimatedNode
+      DSL widget that wraps [child] with the CSS keyframe animation described by [animation].
+  class BloomAnimationPresets
+      Ready-to-use [BloomAnimation] presets for common UI transitions.
+
+## bloom_test.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomTestRenderer
+      Test harness wrapping a [BloomNode] AST tree for querying and assertion in VM tests.
+  BloomTestRenderer renderForTest(BloomNode node) => BloomTestRenderer(node)
+      Creates a [BloomTestRenderer] wrapping [node] for headless VM unit testing.
+  class BloomFireEvent
+      Synthetic event dispatcher for simulating DOM events in headless VM unit tests.
+  const fireEvent = BloomFireEvent._()
+      Global synthetic event dispatcher for headless VM unit tests.
+
+## controller.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  abstract class BloomController
+      Base class for stateful controllers and view-models in Bloom JS Native applications.
+
+## data.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum QueryStatus
+      Execution status lifecycle of a [BloomQuery].
+  class QueryCacheEntry<T>
+      A cached record containing fetched data, timestamps, and TTL settings.
+  class BloomData
+      Global query cache manager and request deduplicator for Bloom JS Native applications.
+  class BloomQuery<T>
+      A reactive asynchronous query manager with automatic caching, request deduplication,
+  BloomQuery<T> query<T>({ required List<dynamic> key, required Future<T> Function() fetch, Duration staleTime = const Duration(minutes: 5), Duration cacheTime = const Duration(minutes: 30), bool enabled = true, T? initialData, })
+      Creates a reactive [BloomQuery] configured with [key], [fetch], and caching durations.
+  typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function(TParam pageParam)
+      Function signature for fetching a single page of type [TPage] using page parameter [TParam].
+  typedef GetNextPageParamFn<TPage, TParam> = TParam? Function( TPage lastPage, List<TPage> allPages, )
+      Function signature for deriving the next page parameter from the [lastPage] and [allPages].
+  class BloomInfiniteQuery<TPage, TParam>
+      A reactive asynchronous paginated/infinite query coordinator with caching,
+  BloomInfiniteQuery<TPage, TParam> infiniteQuery<TPage, TParam>({ required List<dynamic> key, required Future<TPage> Function(TParam pageParam) fetch, required TParam initialPageParam, required TParam? Function(TPage lastPage, List<TPage> allPages) getNextPageParam, Duration staleTime = const Duration(minutes: 5), Duration cacheTime = const Duration(minutes: 30), bool enabled = true, List<dynamic> Function(TPage page)? getItems, List<TPage>? initialData, })
+      Creates a reactive [BloomInfiniteQuery] configured with pagination parameters.
+  typedef BloomPaginatedQuery<TPage, TParam> = BloomInfiniteQuery<TPage, TParam>
+      Alias for [BloomInfiniteQuery].
+  BloomInfiniteQuery<TPage, TParam> paginatedQuery<TPage, TParam>({ required List<dynamic> key, required Future<TPage> Function(TParam pageParam) fetch, required TParam initialPageParam, required TParam? Function(TPage lastPage, List<TPage> allPages) getNextPageParam, Duration staleTime = const Duration(minutes: 5), Duration cacheTime = const Duration(minutes: 30), bool enabled = true, List<dynamic> Function(TPage page)? getItems, List<TPage>? initialData, }) =>
+      Alias for [infiniteQuery].
+
+## dev_error_overlay.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  String renderDevErrorOverlay( Object error, StackTrace stackTrace,
+      Generates a standalone HTML fragment displaying an unhandled exception for development diagnostics.
+  String renderDevErrorOverlayJson( Object error, StackTrace stackTrace,
+      Generates a JSON payload representation of a development error overlay.
+
+## devtools.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomJsDevTools
+      Runtime diagnostics and inspection interface for development-time tooling.
+  class BloomDevToolsEvent
+      A recorded diagnostic event emitted by [BloomJsDevTools.notify].
+
+## di.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  typedef FactoryFunc<T> = T Function()
+      Factory function callback that instantiates a dependency of type [T].
+  class BloomContainer
+      Lightweight, hierarchical Dependency Injection (DI) container for Bloom JS Native applications.
+  BloomContainer get globalContainer => _activeContainer
+      Returns the ambient global [BloomContainer] instance.
+  void setActiveContainer(BloomContainer container)
+      Replaces the ambient global container with [container].
+  void resetActiveContainer()
+      Resets the ambient global container to a fresh, empty [BloomContainer].
+  T inject<T>() => globalContainer.inject<T>()
+      Resolves a dependency of type [T] from the [globalContainer].
+  T? injectOrNull<T>() => globalContainer.injectOrNull<T>()
+      Resolves a dependency of type [T] from the [globalContainer], or returns `null` if unregistered.
+  void provide<T>(FactoryFunc<T> factory) => globalContainer.provide<T>(factory)
+      Registers a transient factory on the [globalContainer].
+  void provideSingleton<T>(FactoryFunc<T> factory,
+      Registers a singleton factory on the [globalContainer].
+  void provideValue<T>(T value) => globalContainer.provideValue<T>(value)
+      Registers an existing instance [value] on the [globalContainer].
+
+## env.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomEnvironmentException implements Exception
+      Exception thrown when environment schema validation or variable parsing fails.
+  abstract class BloomEnvironmentSchema
+      Abstract base class for defining strictly typed and validated environment variable schemas.
+  class BloomEnv
+      Environment configuration store, parser, and type-safe reader for Bloom JS Native applications.
+
+## events.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomEvent
+      Typed DOM event abstraction that decouples event handlers from the browser runtime.
+  typedef BloomEventHandler = void Function(BloomEvent event)
+      Callback handler signature for Bloom DOM events.
+
+## features.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomFeatureFlags
+      Dynamic, signal-backed feature flags engine for runtime gating and progressive rollout.
+
+## form.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  typedef BloomAsyncValidator<T> = Future<String?> Function(T value)
+      Signature for an asynchronous validator callback on a single value of type [T].
+  typedef BloomGroupAsyncValidator = Future<String?> Function( Map<String, dynamic> values)
+      Signature for an asynchronous validator callback on a [BloomFormGroup].
+  typedef BloomArrayAsyncValidator<T extends BloomFormControl> = Future<String?> Function(List<T> controls)
+      Signature for an asynchronous validator callback on a [BloomFieldArray].
+  String? Function(String) required([String? message]) =>
+      Creates a validator that fails when a string value is empty or consists solely of whitespace.
+  String? Function(String) minLength(int n, [String? message]) =>
+      Creates a validator that fails when a string value has fewer than [n] characters.
+  String? Function(String) maxLength(int n, [String? message]) =>
+      Creates a validator that fails when a string value exceeds [n] characters.
+  String? Function(String) email([String? message])
+      Creates a validator that fails when a string value is not a valid email address.
+  String? Function(String) pattern(RegExp re, [String? message]) =>
+      Creates a validator that fails when a string value does not match regular expression [re].
+  String? Function(T?) requiredValue<T>([String? message]) => (v)
+      Creates a generic validator that fails when a value is `null`, an empty string, or an empty collection.
+  String? Function(T?) typedRequired<T>([String? message]) =>
+      Alias for [requiredValue] validator.
+  String? Function(bool) requiredTrue([String? message]) =>
+      Creates a validator for boolean fields that fails when the value is `false`.
+  String? Function(T) min<T extends num>(T minValue, [String? message]) =>
+      Creates a validator that fails when a numeric value is less than [minValue].
+  String? Function(T) max<T extends num>(T maxValue, [String? message]) =>
+      Creates a validator that fails when a numeric value exceeds [maxValue].
+  String? Function(T) range<T extends num>(T minValue, T maxValue, [String? message]) =>
+      Creates a validator that fails when a numeric value falls outside the inclusive range [[minValue], [maxValue]].
+  String? Function(T) minItems<T extends Iterable<Object?>>(int n, [String? message]) =>
+      Creates a validator that fails when an [Iterable] collection has fewer than [n] items.
+  String? Function(T) maxItems<T extends Iterable<Object?>>(int n, [String? message]) =>
+      Creates a validator that fails when an [Iterable] collection has more than [n] items.
+  String? Function(T) rangeItems<T extends Iterable<Object?>>(int minN, int maxN, [String? message]) =>
+      Creates a validator that fails when an [Iterable] collection item count is outside [[minN], [maxN]].
+  String? Function(List<BloomFile>) fileRequired([String? message]) =>
+      Creates a validator for [BloomFileField] that fails when no file is selected.
+  String? Function(List<BloomFile>) maxFileSize(int maxBytes, [String? message]) =>
+      Creates a validator for [BloomFileField] that fails when any file exceeds [maxBytes].
+  String? Function(List<BloomFile>) maxTotalFileSize(int maxBytes, [String? message]) =>
+      Creates a validator for [BloomFileField] that fails when the combined size of all files exceeds [maxBytes].
+  String? Function(List<BloomFile>) minFiles(int count, [String? message]) =>
+      Creates a validator for [BloomFileField] that fails when fewer than [count] files are selected.
+  String? Function(List<BloomFile>) maxFiles(int count, [String? message]) =>
+      Creates a validator for [BloomFileField] that fails when more than [count] files are selected.
+  String? Function(List<BloomFile>) allowedExtensions(List<String> extensions, [String? message])
+      Creates a validator for [BloomFileField] that fails when a file's extension is not in [extensions].
+  String? Function(List<BloomFile>) allowedMimeTypes(List<String> mimeTypes, [String? message])
+      Creates a validator for [BloomFileField] that fails when a file's MIME type does not match [mimeTypes].
+  abstract class BloomFormControl
+      Abstract base contract for all reactive Bloom form controls.
+  class BloomFormField implements BloomFormControl
+      Reactive state controller for an individual string form input field.
+  class BloomTypedFormField<T> implements BloomFormControl
+      Reactive state controller for an individual strongly-typed form input field.
+  typedef BloomField<T> = BloomTypedFormField<T>
+      Generic shorthand alias for [BloomTypedFormField].
+  class BloomFile
+      Platform-neutral file descriptor for file inputs and attachments.
+  class BloomFileField implements BloomFormControl
+      Reactive controller for `<input type="file">` file selection fields.
+  class BloomFieldArray<T extends BloomFormControl> implements BloomFormControl
+      Reactive controller for a repeating collection of child form controls or sub-forms.
+  typedef BloomFormArray<T extends BloomFormControl> = BloomFieldArray<T>
+      Alias for [BloomFieldArray] representing a repeating list of form controls.
+  class BloomFormGroup implements BloomFormControl
+      Reactive controller for a nested group of named form controls.
+  typedef BloomSubForm = BloomFormGroup
+      Alias for [BloomFormGroup] representing a nested sub-form.
+  typedef BloomNestedForm = BloomFormGroup
+      Alias for [BloomFormGroup] representing a nested sub-form.
+  class BloomForm
+      Reactive controller for a collection of named form controls.
+
+## framework.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomContext<T>
+      Token representing an ambient context value of type [T].
+  BloomContext<T> createContext<T>(T defaultValue) => BloomContext<T>(defaultValue)
+      Creates a typed ambient [BloomContext] with [defaultValue].
+  T useContext<T>(BloomContext<T> context)
+      Reads the current ambient value for [context] from the surrounding [Zone].
+  class ContextProviderNode<T> extends BloomNode
+      AST node that injects context [value] into its descendant [child] tree.
+  sealed class BloomNode
+      The core descriptor tree root — pure Dart, zero DOM dependency.
+  class TextNode extends BloomNode
+      Plain text leaf descriptor.
+  class ElNode extends BloomNode
+      HTML element descriptor.
+  class FragmentNode extends BloomNode
+      Fragment — groups multiple child nodes without introducing a wrapper DOM element.
+  class LiveNode extends BloomNode
+      Reactive boundary — re-evaluates [builder] inside a signal effect
+  class MemoNode<T> extends BloomNode
+      Memoization boundary — only re-evaluates [builder] when [dependency] produces
+  class ShowNode extends BloomNode
+      Conditional rendering primitive.
+  class ForEachNode<T> extends BloomNode
+      List rendering primitive. Re-reads [items] reactively; each item is
+  class StyleNode extends BloomNode
+      Style element helper — emits `<style>css</style>`.
+  class RawHtmlNode extends BloomNode
+      Trusted raw HTML passthrough — rendered verbatim by both backends.
+  class AnimatedNode extends BloomNode
+      AST node that wraps [child] with a CSS animation described by [animation].
+  class Text extends TextNode
+      Plain text node sugar.
+  class Fragment extends FragmentNode
+      Fragment grouping sugar.
+  class Live extends LiveNode
+      Reactive text / subtree — the JSX `{expr}` equivalent.
+  class Memo<T> extends MemoNode<T>
+      Memoization sugar.
+  class Show extends ShowNode
+      Conditional rendering sugar.
+  class ForEach<T> extends ForEachNode<T>
+      Reactive list rendering sugar.
+  class Style extends StyleNode
+      Inline stylesheet sugar.
+  class Raw extends RawHtmlNode
+      Trusted raw HTML passthrough sugar.
+  class Ref<T extends Object>
+      Reference holder for imperative access to mounted DOM elements.
+  class MountNode extends BloomNode
+      Lifecycle boundary node that triggers callbacks on mount and unmount.
+  class Mount extends MountNode
+      DSL sugar for [MountNode].
+  class RefNode extends BloomNode
+      Attaches a [Ref] to the first `web.Element` created by [child].
+  class ErrorBoundaryNode extends BloomNode
+      Catches exceptions during subtree rendering or reactive rebuilds
+  class ErrorBoundary extends ErrorBoundaryNode
+      DSL sugar for [ErrorBoundaryNode].
+  class PortalNode extends BloomNode
+      Renders [child] into a target DOM node outside the parent hierarchy
+  class Portal extends PortalNode
+      DSL sugar for [PortalNode].
+  class SuspenseNode<T> extends BloomNode
+      Declarative async boundary that renders [fallback] while [resource] resolves.
+  class Suspense<T> extends SuspenseNode<T>
+      DSL sugar for [SuspenseNode].
+  String cx(List<Object?> parts)
+      Conditional className builder — clsx-style utility.
+  class El extends ElNode
+      Generic HTML / custom element constructor.
+  class Div extends ElNode
+      `<div>` — generic division / block layout container.
+  class Span extends ElNode
+      `<span>` — generic inline phrasing content container.
+  class P extends ElNode
+      `<p>` — paragraph block element.
+  class H1 extends ElNode
+      `<h1>` — highest-level section heading element.
+  class H2 extends ElNode
+      `<h2>` — second-level section heading element.
+  class H3 extends ElNode
+      `<h3>` — third-level section heading element.
+  class H4 extends ElNode
+      `<h4>` — fourth-level section heading element.
+  class H5 extends ElNode
+      `<h5>` — fifth-level section heading element.
+  class H6 extends ElNode
+      `<h6>` — sixth-level section heading element.
+  class Button extends ElNode
+      `<button>` — interactive clickable button element.
+  class Input extends ElNode
+      `<input>` — interactive form input control element.
+  class Textarea extends ElNode
+      `<textarea>` — multi-line plain text editing control element.
+  class A extends ElNode
+      `<a>` — anchor / hyperlink element.
+  class Img extends ElNode
+      `<img>` — embedded image element.
+  class Ul extends ElNode
+      `<ul>` — unordered list element.
+  class Ol extends ElNode
+      `<ol>` — ordered list element.
+  class Li extends ElNode
+      `<li>` — list item element.
+  class Form extends ElNode
+      `<form>` — interactive form submission container.
+  class Label extends ElNode
+      `<label>` — caption for a form control element.
+  class Header extends ElNode
+      `<header>` — introductory or navigational container for a page or section.
+  class Footer extends ElNode
+      `<footer>` — footer container for a page or section.
+  class Main extends ElNode
+      `<main>` — dominant central content container of a document.
+  class Nav extends ElNode
+      `<nav>` — section of navigation links.
+  class Section extends ElNode
+      `<section>` — standalone generic thematic section of a document.
+  class Article extends ElNode
+      `<article>` — self-contained, independently distributable composition.
+  class Aside extends ElNode
+      `<aside>` — sidebar or tangentially related content container.
+  class Strong extends ElNode
+      `<strong>` — content of strong importance, seriousness, or urgency.
+  class Em extends ElNode
+      `<em>` — text with emphatic stress.
+  class Code extends ElNode
+      `<code>` — inline code fragment or computer code snippet.
+  class Pre extends ElNode
+      `<pre>` — preformatted text block preserving whitespace and formatting.
+  class Br extends ElNode
+      `<br>` — line break (void element).
+  class Hr extends ElNode
+      `<hr>` — thematic break / horizontal rule (void element).
+  class Blockquote extends ElNode
+      `<blockquote>` — section quoted from another source.
+  class Cite extends ElNode
+      `<cite>` — title of a creative work or citation reference.
+  class TimeEl extends ElNode
+      `<time>` — machine-readable date/time representation.
+  class Mark extends ElNode
+      `<mark>` — text highlighted for reference or relevance purposes.
+  class Small extends ElNode
+      `<small>` — side-comments, small print, and legal disclaimers.
+  class Sub extends ElNode
+      `<sub>` — subscript text.
+  class Sup extends ElNode
+      `<sup>` — superscript text.
+  class Abbr extends ElNode
+      `<abbr>` — abbreviation or acronym.
+  class KbdEl extends ElNode
+      `<kbd>` — keyboard input or key combination.
+  class Figure extends ElNode
+      `<figure>` — self-contained figure content (images, charts, code blocks).
+  class Figcaption extends ElNode
+      `<figcaption>` — caption or legend for a parent `<figure>`.
+  class Details extends ElNode
+      `<details>` — interactive disclosure widget.
+  class Summary extends ElNode
+      `<summary>` — disclosure summary or caption heading for a parent `<details>`.
+  class Dialog extends ElNode
+      `<dialog>` — interactive modal or non-modal dialog window.
+  class Canvas extends ElNode
+      `<canvas>` — 2D and WebGL bitmap graphics surface.
+  class IFrame extends ElNode
+      `<iframe>` — inline frame embedding an external browsing context.
+  class Table extends ElNode
+      `<table>` — tabular data container element.
+  class Caption extends ElNode
+      `<caption>` — title or accessibility description for a parent `<table>`.
+  class Thead extends ElNode
+      `<thead>` — group of header rows in a `<table>`.
+  class Tbody extends ElNode
+      `<tbody>` — group of body data rows in a `<table>`.
+  class Tfoot extends ElNode
+      `<tfoot>` — group of summary footer rows in a `<table>`.
+  class Tr extends ElNode
+      `<tr>` — row of cells in a `<table>`.
+  class Th extends ElNode
+      `<th>` — header cell in a `<table>`.
+  class Td extends ElNode
+      `<td>` — standard data cell in a `<table>`.
+  class Select extends ElNode
+      `<select>` — control that provides a menu of options.
+  class Option extends ElNode
+      `<option>` — selectable item in a `<select>` control.
+  class Optgroup extends ElNode
+      `<optgroup>` — group of related `<option>` items within a `<select>` control.
+  class SvgNode extends ElNode
+      SVG element node base class.
+  class Svg extends SvgNode
+      `<svg>` — root SVG graphics viewport container element.
+  class SvgG extends SvgNode
+      `<g>` — SVG grouping container element.
+  class SvgPath extends SvgNode
+      `<path>` — SVG vector shape path element.
+  class SvgCircle extends SvgNode
+      `<circle>` — SVG circle shape element.
+  class SvgRect extends SvgNode
+      `<rect>` — SVG rectangle shape element.
+  class SvgLine extends SvgNode
+      `<line>` — SVG straight line element.
+  class SvgText extends SvgNode
+      `<text>` — SVG graphical text element.
+  class SvgUse extends SvgNode
+      `<use>` — SVG element instance reuse element.
+
+## html.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  String escapeHtml(String input)
+      Escapes special HTML characters in text content and attribute values to prevent XSS.
+  String renderToHtml(BloomNode node)
+      Renders a [BloomNode] descriptor tree synchronously to an HTML string.
+  String renderToHtmlAll(List<BloomNode> nodes)
+      Renders multiple [BloomNode] root fragments sequentially into a single HTML string.
+  String renderToDocument( BloomNode body,
+      Renders a complete HTML5 document wrapping [body] with standard boilerplate.
+  Stream<String> renderToStream(BloomNode node) async*
+      Synchronously renders [node] to an HTML string and streams the output in fixed 4KB chunks.
+  Stream<String> renderToStreamWithSuspense(BloomNode node) async*
+      Progressively streams HTML with out-of-order resolution for asynchronous [Suspense] boundaries.
+
+## http.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  typedef RequestInterceptor = FutureOr<http.BaseRequest> Function( http.BaseRequest request)
+      Interceptor callback that transforms or inspects an outgoing [http.BaseRequest] before transmission.
+  typedef ResponseInterceptor = FutureOr<http.Response> Function( http.Response response)
+      Interceptor callback that transforms or inspects an incoming [http.Response] before returning to callers.
+  class BloomHttpClient
+      High-level HTTP client with base URL resolution, JSON encoding/decoding, Bearer auth token injection,
+
+## hydrate.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  BloomMountHandle hydrate(BloomNode root, String selector)
+      Hydrates a server-rendered DOM tree matching [selector] with event listeners in place.
+  BloomMountHandle hydrateElement(BloomNode root, web.Element element)
+      Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
+
+## i18n.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomCatalog
+      A localized message catalog storing translated templates for a single BCP-47 locale.
+  enum DateFormatStyle
+      Formatting styles for localized date presentations.
+  String formatNumber( num value,
+      Formats a [num] value with locale-aware grouping and decimal separators in pure Dart.
+  String formatPercent( num value,
+      Formats a percentage value for [locale] in pure Dart.
+  String formatCurrency( num value,
+      Formats a currency amount with currency code or symbol and locale positioning in pure Dart.
+  String formatDate( DateTime date,
+      Formats a [DateTime] date according to locale conventions in pure Dart.
+  String formatDateTime( DateTime dateTime,
+      Formats a [DateTime] date and time according to locale conventions in pure Dart.
+  String formatRelativeTime( DateTime date,
+      Formats relative time intervals (e.g. "just now", "5 minutes ago", "in 2 hours", "yesterday") in pure Dart.
+  extension BloomDateTimeClientI18n on DateTime
+      Convenience internationalization extension on [DateTime] for localized formatting.
+  enum BloomTextDirection
+      Text direction representation for bidirectional script layout.
+  bool isRtl([String? locale])
+      Returns `true` if [locale] represents a right-to-left (RTL) script.
+  BloomTextDirection getTextDirection([String? locale])
+      Resolves the [BloomTextDirection] for the specified [locale].
+  Map<String, String> dirAttribute([String? locale])
+      Generates a `{ 'dir': 'rtl' }` or `{ 'dir': 'ltr' }` attribute map for [locale].
+  class ResolvedLocale
+      Immutable wrapper carrying a resolved BCP-47 language tag.
+  class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry>
+      A parsed entry from an HTTP `Accept-Language` header or browser preferences with quality weighting.
+  String? firstLocaleTag(String? header)
+      Parses the first valid BCP-47 language tag from an `Accept-Language` header string.
+  List<AcceptLanguageEntry> parseAcceptLanguage(String? header)
+      Parses an entire `Accept-Language` header string into a list of entries sorted by quality.
+  String resolveLocale( List<String> preferences,
+      Resolves an active locale from an ordered list of preferences (e.g. `navigator.languages`).
+  abstract class LocaleStorage
+      Contract for persisting user locale selection across browser sessions.
+  class InMemoryLocaleStorage implements LocaleStorage
+      In-memory implementation of [LocaleStorage] suitable for testing and SSR.
+  class BloomI18n
+      Reactive internationalization controller and multi-catalog store for Bloom applications.
+  String t( String messageId,
+      Translates [messageId] for the current active locale, automatically tracking reactivity.
+  String tr( String messageId, [ Map<String, Object>? args, ]) =>
+      Shorthand translation alias accepting positional [args].
+  Signal<String> get currentLocaleSignal => BloomI18n.instance.locale
+      Returns the global reactive locale signal from [BloomI18n.instance].
+  void setLocale(String locale) => BloomI18n.instance.setLocale(locale)
+      Changes the active locale globally on [BloomI18n.instance].
+  Future<bool> loadLocale(String locale) =>
+      Asynchronously loads a catalog bundle for [locale] via [BloomI18n.instance].
+  String localizedDate(DateTime date, [String? locale, String? pattern]) =>
+      Formats a localized date for the active locale on [BloomI18n.instance].
+  String localizedDateTime(DateTime dateTime, [String? locale, String? pattern]) =>
+      Formats a localized date and time for the active locale on [BloomI18n.instance].
+  String localizedRelativeTime(DateTime date, [DateTime? relativeTo, String? locale]) =>
+      Formats a localized relative time string for the active locale on [BloomI18n.instance].
+  String localizedNumber(num value, [String? locale, int? decimalDigits]) =>
+      Formats a localized number for the active locale on [BloomI18n.instance].
+  String localizedCurrency(num value, [String currency = 'USD', String? locale]) =>
+      Formats a localized currency string for the active locale on [BloomI18n.instance].
+
+## image.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum ImageLoading
+      Loading strategies determining when the browser initiates image network fetching.
+  enum ImageDecoding
+      Image decoding hints guiding the browser's rendering engine.
+  enum FetchPriority
+      Priority hints for browser resource scheduling via the `fetchpriority` attribute.
+  enum ImageFit
+      CSS `object-fit` sizing behaviors for responsive image scaling.
+  typedef ImageUrlBuilder = String Function(String src, int width)
+      Function signature for generating width-specific image URLs for responsive `srcset` sets.
+  String defaultImageUrlBuilder(String src, int width)
+      Default image URL builder appending target width as a query parameter.
+  String buildSrcSet( String src, List<int> widths,
+      Builds a standard HTML5 `srcset` attribute string from a base [src] and a list of target [widths].
+  class PictureSource
+      Specification for a single `<source>` element within a `<picture>` container.
+  BloomNode bloomImage({ required String src, String? alt, bool decorative = false, int? width, int? height, String? aspectRatio, List<int>? widths, String? sizes, ImageUrlBuilder? urlBuilder, ImageLoading loading = ImageLoading.lazy, ImageDecoding decoding = ImageDecoding.async, FetchPriority? fetchPriority, bool priority = false, String? placeholder, String? fallbackSrc, ImageFit? fit, String? className, String? style, Map<String, String>? attrs, BloomEventHandler? onClick, BloomEventHandler? onLoad, BloomEventHandler? onError, Ref<Object>? ref, })
+      High-performance responsive image descriptor helper for Bloom JS Native.
+  class BloomImage extends ElNode
+      An optimized, responsive `<img>` element descriptor.
+  BloomNode bloomPicture({ required List<PictureSource> sources, required String fallbackSrc, String? alt, bool decorative = false, int? width, int? height, String? aspectRatio, List<int>? fallbackWidths, String? sizes, ImageUrlBuilder? urlBuilder, ImageLoading loading = ImageLoading.lazy, ImageDecoding decoding = ImageDecoding.async, FetchPriority? fetchPriority, bool priority = false, String? placeholder, String? fallbackOnErrorSrc, ImageFit? fit, String? className, String? style, Map<String, String>? attrs, BloomEventHandler? onClick, BloomEventHandler? onLoad, BloomEventHandler? onError, Ref<Object>? ref, })
+      Art-directed, multi-format `<picture>` element descriptor helper.
+  class BloomPicture extends ElNode
+      `<picture>` element descriptor subclassing [ElNode].
+
+## island_node.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  const String bloomIslandAttribute = 'data-bloom-island'
+      DOM attribute name used to identify an island placeholder and specify its registered name.
+  const String bloomStrategyAttribute = 'data-bloom-strategy'
+      DOM attribute name specifying the [HydrationStrategy] for an island placeholder.
+  const String bloomPropsAttribute = 'data-bloom-props'
+      DOM attribute name containing JSON-encoded props passed to the island's [BloomIslandBuilder].
+  const String bloomRootMarginAttribute = 'data-bloom-root-margin'
+      DOM attribute name specifying the `rootMargin` CSS string for the [HydrationStrategy.visible] observer.
+  const String bloomMediaAttribute = 'data-bloom-media'
+      DOM attribute name specifying the CSS media query string for [HydrationStrategy.media].
+  const String bloomHydratedAttribute = 'data-bloom-hydrated'
+      DOM attribute name added to an island placeholder element once hydration is complete.
+  enum HydrationStrategy
+      Hydration trigger strategies for Bloom islands.
+  class BloomIsland extends ElNode
+      Emits a server-rendered island placeholder element configured with the given hydration strategy and props.
+  BloomIsland bloomIsland({ required String name, BloomNode? child, List<BloomNode>? children, HydrationStrategy strategy = HydrationStrategy.immediate, Map<String, dynamic>? props, String? rootMargin, String? media, String tag = 'div', String? className, String? style, Map<String, String>? attrs, }) =>
+      Helper function to construct a [BloomIsland] placeholder descriptor.
+
+## islands.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  enum IslandStatus
+      Lifecycle status of an island instance managed by [BloomIslandOrchestrator].
+  typedef BloomIslandBuilder = BloomNode Function(Map<String, dynamic> props)
+      Builder function that instantiates a [BloomNode] tree for an island, given its decoded [props].
+  class BloomIslandDefinition
+      Specification of a registered island component definition.
+  class BloomIslandRegistry
+      Registry storing client-side island builders keyed by name.
+  void registerIsland( String name, BloomIslandBuilder builder,
+      Registers an island builder in the default global [BloomIslandRegistry.instance].
+  bool unregisterIsland(String name) =>
+      Removes an island definition by [name] from the global [BloomIslandRegistry.instance].
+  Map<String, dynamic> extractIslandProps(web.Element element)
+      Extracts decoded props from an island placeholder [element].
+  class BloomIslandInstance
+      Represents an individual island placeholder element discovered in the browser DOM.
+  class BloomIslandOrchestrator
+      Orchestrates discovery, hydration strategy evaluation, and lifecycle management for Bloom islands.
+  BloomIslandOrchestrator orchestrateIslands({ BloomIslandRegistry? registry, web.Element? rootElement, String defaultRootMargin = '200px', })
+      Boots and starts an island orchestrator managing client-side island hydration.
+
+## lazy.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class BloomLazyComponent
+      Caches an asynchronous component [loader], ensuring the loader executes at most once across renders.
+  BloomNode lazy( Future<BloomNode> Function() loader,
+      Creates a lazily loaded [BloomNode] descriptor that displays [fallback] until [loader] resolves.
+
+## mount.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  bool bloomDevErrorOverlayEnabled = false
+      When `true`, uncaught errors thrown while mounting or rendering a tree display
+  String? bloomStyleNonce
+      Optional Content-Security-Policy (CSP) nonce applied to `<style>` elements
+  class BloomMountHandle
+      Handle representing an active Bloom application mounted in the browser DOM.
+  BloomMountHandle mount(BloomNode node, String selector)
+      Mounts a [BloomNode] descriptor tree into the DOM element matching [selector].
+  BloomMountHandle mountToElement(BloomNode node, web.Element root)
+      Mounts a [BloomNode] descriptor tree directly into the provided DOM [root] element.
+  void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
+      Attaches a synthetic [BloomEvent] listener of the given [type] to DOM element [el].
+
+## mutation.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum MutationStatus
+      Lifecycle execution status of a [BloomMutation].
+  typedef MutationFn<T, P> = Future<T> Function(P params)
+      The asynchronous execution function that performs a mutation operation.
+  typedef OnMutateCallback<P> = FutureOr<dynamic> Function(P params)
+      Lifecycle hook called immediately prior to executing a mutation.
+  typedef OnSuccessCallback<T, P> = FutureOr<void> Function( T data, P params, dynamic context)
+      Lifecycle hook invoked upon successful completion of a mutation.
+  typedef OnErrorCallback<P> = FutureOr<void> Function( Object error, P params, dynamic context)
+      Lifecycle hook invoked when a mutation throws an error.
+  typedef OnSettledCallback<T, P> = FutureOr<void> Function( T? data, Object? error, P params, dynamic context)
+      Lifecycle hook invoked when a mutation settles (either resolved successfully or failed with an error).
+  typedef OptimisticUpdater<T, P> = T? Function(P params, T? oldData)
+      Optimistic update transformation function updating cached data in [BloomData] prior to network response.
+  class BloomMutation<T, P>
+      Asynchronous mutation manager with automated optimistic updates, automatic rollback,
+  BloomMutation<T, P> mutation<T, P>({ required MutationFn<T, P> mutate, List<dynamic>? optimisticKey, OptimisticUpdater<T, P>? optimisticData, List<List<dynamic>> invalidateKeys = const [], OnMutateCallback<P>? onMutate, OnSuccessCallback<T, P>? onSuccess, OnErrorCallback<P>? onError, OnSettledCallback<T, P>? onSettled, })
+      Creates a declarative [BloomMutation] with optional optimistic rollback and automatic cache invalidation.
+
+## npm.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class NpmDependency
+      Declaration of an npm package dependency resolved via browser ESM import maps.
+  class NpmRegistry
+      In-memory registry collecting [NpmDependency] declarations and generating ESM import maps.
+
+## realtime.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class RealtimeMessage
+      Wire message envelope for Bloom Realtime channel, broadcast, and presence communication.
+  enum RealtimeConnectionState
+      Connection states for a [BloomRealtimeChannelClient].
+  abstract class BloomRealtimeChannelClient
+      Minimal realtime client contract that [BloomRealtimeBinding] wraps.
+  class BloomRealtimeBinding
+      Reactive signal-backed adapter wrapping a [BloomRealtimeChannelClient].
+  BloomRealtimeBinding realtimeBinding(BloomRealtimeChannelClient client) =>
+      Creates a [BloomRealtimeBinding] wrapping [client].
+
+## reducer.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  typedef BloomReducerFn<S, A> = S Function(S state, A action)
+      A pure state-transition function that computes the next state from the current [state] and an [action].
+  class BloomReducer<S, A>
+      A signal-backed state container managing complex state transitions via a pure reducer function.
+  BloomReducer<S, A> useReducer<S, A>( BloomReducerFn<S, A> reducerFn, S initialState, )
+      Creates a [BloomReducer] with the given [reducerFn] and [initialState].
+
+## router.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  class GuardResult
+      Represents the result of evaluating a route navigation guard.
+  enum PrefetchMode
+      Speculative prefetching strategies for [Link] navigation targets.
+  typedef LinkPrefetch = PrefetchMode
+      Convenience alias for [PrefetchMode].
+  abstract class BloomRouteGuard
+      Abstract contract for route navigation guards.
+  Map<String, String> parseQueryString(String location)
+      Parses a URL or query string into a single-value map of query parameters.
+  Map<String, List<String>> parseQueryStringAll(String location)
+      Parses a URL or query string into a multi-value map preserving repeated keys.
+  String parseFragment(String location)
+      Extracts the hash fragment from a URL or location string without the leading `#`.
+  String buildQueryString(Map<String, dynamic> query)
+      Serializes a map of query parameters into a URL query string prefixed with `?`.
+  class BloomRoute
+      Route definition that pairs a URL path pattern with view builders, loaders, and guards.
+  class BloomRouteMatch
+      Result of a successful route match containing the matched route and extracted parameters.
+  class BloomRouter
+      Pure Dart route matching and navigation guard evaluation engine.
+  class Link extends ElNode
+      Hyperlink element (`<a>`) with built-in client-side routing and prefetch capabilities.
+
+## router_browser.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  class BloomRouterController
+      Client-side router controller using the HTML5 History API.
+
+## rpc.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum BloomHttpMethod
+      HTTP request method enum for [BloomRpcContract] definitions.
+  class BloomRpcContract<TInput, TOutput>
+      Strongly-typed specification of an RPC network endpoint.
+  BloomRpcContract<TInput, TOutput> rpcContract<TInput, TOutput>({ required BloomHttpMethod method, required String pathTemplate, dynamic Function(TInput input)? encodeInput, TInput Function(dynamic json)? decodeInput, dynamic Function(TOutput output)? encodeOutput, TOutput Function(dynamic json)? decodeOutput, String? summary, String? description, List<dynamic> Function(TInput input)? customCacheKey, })
+      Convenience factory function for declaring a [BloomRpcContract].
+  class BloomRpcCancelToken
+      Cancellation token used to abort in-flight RPC requests.
+  class BloomRpcValidationErrors
+      Structured field-level and general validation errors from an RPC error response.
+  abstract class BloomRpcException implements Exception
+      Abstract base exception class for all RPC errors.
+  class BloomRpcHttpException implements BloomRpcException
+      Exception thrown when the server returns a non-2xx HTTP error status code.
+  class BloomRpcTransportException implements BloomRpcException
+      Exception thrown when an RPC call fails due to low-level transport, DNS, or socket errors.
+  class BloomRpcDecodeException implements BloomRpcException
+      Exception thrown when a 2xx response payload fails to decode into the expected output type [TOutput].
+  class BloomRpcEncodeException implements BloomRpcException
+      Exception thrown when serializing input data into a request payload fails before transmission.
+  class BloomRpcTimeoutException implements BloomRpcException
+      Exception thrown when an RPC request exceeds the configured network timeout duration.
+  class BloomRpcCancelledException implements BloomRpcException
+      Exception thrown when an in-flight RPC request is aborted via [BloomRpcCancelToken].
+  class BloomRpcPathParameterException implements BloomRpcException
+      Exception thrown when a required path parameter in a contract path template is missing.
+  class BloomRpcClient
+      High-level typed RPC client that executes [BloomRpcContract] endpoints over HTTP.
+  BloomQuery<TOutput> rpcQuery<TInput, TOutput>( BloomRpcClient client, BloomRpcContract<TInput, TOutput> contract, TInput input,
+      Creates a reactive [BloomQuery] bound to an RPC [contract] and [input].
+  BloomMutation<TOutput, TInput> rpcMutation<TInput, TOutput>( BloomRpcClient client, BloomRpcContract<TInput, TOutput> contract,
+      Creates a declarative [BloomMutation] bound to an RPC [contract].
+  class BloomRpcServerRequest
+      Pure-Dart abstraction representing an incoming HTTP server request for RPC routing.
+  class BloomRpcServerResponse
+      Pure-Dart abstraction representing an outgoing HTTP server response for RPC routing.
+  class BloomRpcServerContext
+      Request execution context passed to server-side [BloomRpcHandler] implementations.
+  typedef BloomRpcHandler<TInput, TOutput> = FutureOr<TOutput> Function( BloomRpcServerContext context, TInput input, )
+      Server-side handler callback signature that implements a [BloomRpcContract].
+  class BloomRpcBinding<TInput, TOutput>
+      Associates a [BloomRpcContract] with its server-side [BloomRpcHandler] implementation.
+  class BloomRpcRouter
+      Server-side RPC router and registry mapping [BloomRpcContract] endpoints to [BloomRpcHandler] callbacks.
+
+## scoped_css.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  int fnv1a32(String input)
+      Computes a deterministic 32-bit FNV-1a hash over [input].
+  class ScopedCss
+      A compiled scoped CSS stylesheet bundle providing deterministic class name isolation.
+  ScopedCss scopedCss(String css,
+      Creates a new [ScopedCss] module from [css] with an optional component [name].
+
+## signals.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  s.ReadonlySignal<T> readonly<T>(s.Signal<T> signal)
+      Creates a read-only view of [signal] to prevent external mutation.
+
+## transition.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum TaskPriority
+      Priority levels for tasks scheduled with [BloomScheduler].
+  abstract class SchedulerTask<T>
+      Represents a unit of work scheduled in the [BloomScheduler] queue.
+  abstract class SchedulerHost
+      Platform host interface providing cooperative macrotask yielding and scheduling.
+  class DefaultSchedulerHost implements SchedulerHost
+      Default pure-Dart implementation of [SchedulerHost] using [Timer] macrotasks.
+  class SyncSchedulerHost implements SchedulerHost
+      Synchronous scheduler host that immediately runs scheduled tasks without time-slicing.
+  class BloomScheduler
+      Cooperative priority-based time-slicing scheduler for Bloom JS Native.
+  ReadonlySignal<bool> get isTransitionPending => _isTransitionPending.readonly()
+      Reactive read-only signal indicating whether a non-urgent transition update is pending.
+  void startTransition(FutureOr<void> Function() update)
+      Defers a non-urgent state update to a low-priority scheduled task while tracking transition status via [isTransitionPending].
+  SchedulerTask<T> scheduleTransition<T>(FutureOr<T> Function() update)
+      Schedules a non-urgent transition task returning a [SchedulerTask] handle.
+
+## virtual.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  class BloomVirtualItem
+      Represents a single visible row or item calculated by [BloomVirtualizer].
+  class BloomVirtualizer
+      Reactive list virtualization engine wrapping vendored `@tanstack/virtual-core`.
+
+## web_components.dart  [browser-only (package:bloom_js_native/browser.dart)]
+  JSAny? dartToJsValue(Object? value)
+      Converts a Dart value into its corresponding JavaScript interop representation ([JSAny]).
+  Object? jsToDartValue(JSAny? jsVal)
+      Converts a JavaScript interop value ([JSAny]) into its corresponding idiomatic Dart representation.
+  class CustomElementEvent<T>
+      A strongly-typed event wrapper for custom element DOM events carrying a deserialized [detail] payload.
+  typedef CustomElementEventHandler<T> = void Function( CustomElementEvent<T> event)
+      Handler callback signature for custom element events carrying a deserialized [detail] payload.
+  Future<void> whenCustomElementDefined( String tag,
+      Asynchronously waits for a custom element tag to be registered and upgraded in the browser's `CustomElementRegistry`.
+  BloomNode customElement( String tag,
+      Creates a [BloomNode] representing a browser Custom Element / Web Component with reactive property bindings, custom event listeners, and SSR attribute support.
+  class CustomElementContext
+      Context provided to the component [builder] inside [defineCustomElement].
+  void defineCustomElement( String tagName, BloomNode Function(CustomElementContext context) builder,
+      Registers a native browser Custom Element with [tagName] backed by a Bloom descriptor tree.
+
