@@ -9,16 +9,35 @@ import 'devtools.dart';
 import 'events.dart';
 import 'framework.dart';
 
-/// When `true`, an uncaught error thrown while mounting a tree is rendered
-/// as a full-screen [renderDevErrorOverlay] instead of propagating past
-/// [mount]/[mountToElement]. Intended to be set by a dev server bootstrap
-/// (e.g. `bloom js dev`), not enabled by default in production builds.
+/// When `true`, uncaught errors thrown while mounting or rendering a tree display
+/// a full-screen visual error overlay ([renderDevErrorOverlay]) in the browser DOM
+/// instead of propagating and throwing.
+///
+/// Intended to be enabled in development environments (e.g. by `bloom js dev` or dev
+/// bootstrap scripts) to provide immediate in-browser diagnostics. Defaults to `false`
+/// in production builds.
+///
+/// ```dart
+/// void main() {
+///   bloomDevErrorOverlayEnabled = true;
+///   mount(App(), '#app');
+/// }
+/// ```
 bool bloomDevErrorOverlayEnabled = false;
 
 /// Optional Content-Security-Policy (CSP) nonce applied to `<style>` elements
-/// created and injected by the framework (such as [StyleNode] stylesheets or
-/// [AnimatedNode] `@keyframes` rules). When `null` (the default), no `nonce`
-/// attribute is added.
+/// created and injected by the framework.
+///
+/// When non-null, every `<style>` element injected into `document.head` (such as
+/// [StyleNode] stylesheets or [AnimatedNode] `@keyframes` rules) receives a
+/// `nonce="$bloomStyleNonce"` attribute. Defaults to `null`.
+///
+/// ```dart
+/// void main() {
+///   bloomStyleNonce = 'rAnd0mN0nc3';
+///   mount(App(), '#app');
+/// }
+/// ```
 String? bloomStyleNonce;
 
 /// Tracks animation names whose `@keyframes` `<style>` element has already
@@ -91,19 +110,38 @@ class _ErrorBoundaryHandler {
 
 // ── Public API ──────────────────────────────────────────────────────────
 
-/// Handle returned by [mount]. Call [unmount] / [dispose] to detach the
-/// tree and dispose all reactive effects created during mount.
+/// Handle representing an active Bloom application mounted in the browser DOM.
+///
+/// Returned by [mount], [mountToElement], [hydrate], and [hydrateElement].
+/// The caller owns this handle and is responsible for calling [unmount] or [dispose]
+/// when the mounted subtree is no longer needed (e.g. during page unload or route change).
+///
+/// Disposing the handle detaches all child DOM elements from the host container, cancels
+/// all reactive signals effects and listeners created during mount, and marks [isDisposed]
+/// as `true`.
+///
+/// ```dart
+/// final handle = mount(App(), '#app');
+///
+/// // Later, when tearing down:
+/// handle.unmount();
+/// ```
 class BloomMountHandle {
   final web.Element _root;
   final List<void Function()> _disposers;
   bool _disposed = false;
 
+  /// Creates a [BloomMountHandle] for [_root] holding the given [_disposers] cleanup functions.
   BloomMountHandle(this._root, this._disposers);
 
-  /// Remove all children from the root and dispose effects.
+  /// Removes all child DOM elements from the host container and disposes all reactive effects.
+  ///
+  /// Convenience alias for [dispose].
   void unmount() => dispose();
 
-  /// Alias for [unmount].
+  /// Disposes all reactive effects and empties the container DOM element (`root.textContent = ''`).
+  ///
+  /// Safe to call multiple times; subsequent calls on a disposed handle are no-ops.
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -116,15 +154,31 @@ class BloomMountHandle {
     _root.textContent = '';
   }
 
+  /// Whether this handle has already been disposed.
   bool get isDisposed => _disposed;
 }
 
-/// Mount a descriptor tree into the DOM element matching [selector].
+/// Mounts a [BloomNode] descriptor tree into the DOM element matching [selector].
+///
+/// Looks up the host element via `web.document.querySelector(selector)` and delegates
+/// to [mountToElement]. Throws a [StateError] if [selector] matches no element in the document.
+///
+/// The caller owns the returned [BloomMountHandle] and should call [BloomMountHandle.unmount]
+/// when the application is detached.
 ///
 /// ```dart
-/// final handle = mount(app, '#app');
-/// // later
-/// handle.unmount();
+/// void main() {
+///   final handle = mount(
+///     Div(
+///       className: 'container',
+///       children: [
+///         const H1(text: 'Bloom Web App'),
+///         Live(() => P(text: 'Current count: ${count.value}')),
+///       ],
+///     ),
+///     '#app',
+///   );
+/// }
 /// ```
 BloomMountHandle mount(BloomNode node, String selector) {
   final root = web.document.querySelector(selector);
@@ -134,7 +188,26 @@ BloomMountHandle mount(BloomNode node, String selector) {
   return mountToElement(node, root);
 }
 
-/// Mount into a specific [Element] (useful for tests / manual roots).
+/// Mounts a [BloomNode] descriptor tree directly into the provided DOM [root] element.
+///
+/// Instantiates real DOM elements, sets up event handlers, and establishes reactive
+/// signal subscriptions managed by an internal cleanup scope (`_Region`). Appends the
+/// resulting DOM nodes to [root].
+///
+/// Returns a [BloomMountHandle] holding cleanup disposers. If mounting fails with an
+/// uncaught exception and [bloomDevErrorOverlayEnabled] is active, renders an in-browser
+/// error overlay into [root].
+///
+/// ```dart
+/// final container = web.document.getElementById('my-widget')!;
+/// final handle = mountToElement(
+///   Button(
+///     text: 'Click Me',
+///     on: {'click': (e) => print('Clicked')},
+///   ),
+///   container,
+/// );
+/// ```
 BloomMountHandle mountToElement(BloomNode node, web.Element root) {
   final region = _Region();
   try {
@@ -164,10 +237,20 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
   }
 }
 
-/// Attaches a Bloom event listener to an existing [el] for [type], invoking
-/// [handler] with a synthesized [BloomEvent]. Exposed (not private) so
-/// [hydrateElement] in `hydrate.dart` can wire listeners onto reused DOM
-/// nodes without duplicating this file's JS-interop event-wrapping logic.
+/// Attaches a synthetic [BloomEvent] listener of the given [type] to DOM element [el].
+///
+/// Bridges native browser events into strongly typed [BloomEvent]s received by [handler].
+/// Used internally by element mounting and exposed so that [hydrateElement] in `hydrate.dart`
+/// can attach event handlers to pre-existing server-rendered DOM elements without duplicating
+/// JS event-wrapping logic.
+///
+/// ```dart
+/// final button = web.document.querySelector('button.submit')!;
+/// attachBloomListener(button, 'click', (event) {
+///   event.preventDefault();
+///   print('Button clicked with type: ${event.type}');
+/// });
+/// ```
 void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
     _attachListener(el, type, handler);
 

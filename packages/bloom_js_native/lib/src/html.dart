@@ -41,10 +41,16 @@ void _validateAttributeName(String name) {
   }
 }
 
-/// Escape HTML text content and attribute values.
+/// Escapes special HTML characters in text content and attribute values to prevent XSS.
 ///
-/// Covers &, <, >, ", ' — the minimal set needed to prevent XSS via
-/// interpolation. Mirrors the sanitize fix from phase12.
+/// Encodes `&` (`&amp;`), `<` (`&lt;`), `>` (`&gt;`), `"` (`&quot;`), and `'` (`&#x27;`).
+/// This function is applied automatically during SSR rendering for all element text nodes,
+/// class names, style strings, and attribute values.
+///
+/// ```dart
+/// final safe = escapeHtml('<script>alert("xss")</script>');
+/// // Returns: '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
+/// ```
 String escapeHtml(String input) {
   return input
       .replaceAll('&', '&amp;')
@@ -54,15 +60,45 @@ String escapeHtml(String input) {
       .replaceAll("'", '&#x27;');
 }
 
-/// Render a [BloomNode] descriptor tree to an HTML string.
+/// Renders a [BloomNode] descriptor tree synchronously to an HTML string.
 ///
-/// - Evaluates [Live], [Show], and [ForEach] closures exactly once (no
-///   reactivity on the server).
-/// - Escapes all text and attribute interpolations.
-/// - Void elements are emitted without a closing tag.
+/// This is the primary server-side rendering (SSR) and static site generation (SSG) entry point.
+/// It executes entirely in pure Dart and requires no browser DOM, Flutter runtime, or JS interop.
 ///
-/// This is the SSR / SSG / SEO backend. The same tree can also be mounted
-/// to the real DOM via `mount()`.
+/// ### Reactive Node Degradation during SSR
+/// - **[LiveNode] / [Live]**: Evaluates its builder closure exactly once during the render pass.
+///   No signal subscriptions or reactive effect listeners are retained on the server.
+/// - **[ShowNode] / [Show]**: Evaluates its `when()` predicate closure once. Renders `child` if
+///   true or `fallback` if false.
+/// - **[ForEachNode] / [ForEach]**: Evaluates its `items()` collection closure once and renders
+///   each item via `builder` to static HTML.
+/// - **[MountNode] / [Mount]**: Renders its `child` directly; lifecycle callbacks (`onMount`,
+///   `onUnmount`) are ignored during SSR.
+/// - **[RefNode]**: Renders its `child`; DOM references are not attached during SSR.
+/// - **[ContextProviderNode]**: Provides ambient context values down the subtree using Dart Zones.
+/// - **[ErrorBoundaryNode]**: Renders `builder()`; if an exception is thrown, synchronously renders
+///   `fallback(error, stack)`.
+/// - **[PortalNode]**: Emits `<template data-bloom-portal="...">` enclosing the portal subtree.
+/// - **[SuspenseNode]**: In synchronous [renderToHtml], renders the `fallback` node only.
+///   For asynchronous out-of-order streaming of Suspense boundaries, use [renderToStreamWithSuspense].
+///
+/// ### Tag and Attribute Validation & Security
+/// - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
+///   and will throw an [ArgumentError] if an invalid name is encountered.
+/// - Text content, class names, styles, and attribute values are automatically escaped via [escapeHtml].
+/// - Void elements (e.g. `<img>`, `<input>`, `<br>`, `<meta>`, `<link>`) are emitted without closing tags.
+///
+/// ```dart
+/// final html = renderToHtml(
+///   Div(
+///     className: 'user-profile',
+///     children: [
+///       const H1(text: 'Account Details'),
+///       P(text: 'Welcome, Alice'),
+///     ],
+///   ),
+/// );
+/// ```
 String renderToHtml(BloomNode node) {
   _emittedKeyframeNames.clear();
   final buf = StringBuffer();
@@ -235,7 +271,18 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
   }
 }
 
-/// Convenience: render multiple roots (e.g. head + body fragments).
+/// Renders multiple [BloomNode] root fragments sequentially into a single HTML string.
+///
+/// Useful for concatenating document fragments (such as `<head>` metadata nodes and body content)
+/// in a single SSR pass. Clears animation keyframe deduplication state prior to rendering.
+///
+/// ```dart
+/// final html = renderToHtmlAll([
+///   const StyleNode('body { margin: 0; }'),
+///   const Header(text: 'Bloom Header'),
+///   const Main(text: 'Main content'),
+/// ]);
+/// ```
 String renderToHtmlAll(List<BloomNode> nodes) {
   _emittedKeyframeNames.clear();
   final buf = StringBuffer();
@@ -245,18 +292,28 @@ String renderToHtmlAll(List<BloomNode> nodes) {
   return buf.toString();
 }
 
-/// Render a complete HTML5 document.
+/// Renders a complete HTML5 document wrapping [body] with standard boilerplate.
 ///
-/// Wraps [body] in `<!DOCTYPE html><html><head>...</head><body>...</body></html>`.
-/// All head elements are rendered before the body fragment.
+/// Produces a complete `<!DOCTYPE html><html lang="...">...</html>` string with
+/// metadata tags, stylesheets, custom [head] elements, [body] content, and [scripts].
 ///
-/// - [lang]: `<html lang="...">` attribute. Default `'en'`.
-/// - [charset]: charset meta tag. Default `'UTF-8'`.
-/// - [title]: `<title>` content. Omitted if null.
-/// - [head]: additional `BloomNode` trees rendered inside `<head>`.
-/// - [importMapJson]: if non-null, emits `<script type="importmap">` in head.
-/// - [stylesheets]: list of CSS URLs; emitted as `<link rel="stylesheet">` tags.
-/// - [scripts]: list of JS URLs; emitted as `<script src="...">` tags before `</body>`.
+/// - [body]: The main content [BloomNode] placed inside the `<body>` element.
+/// - [lang]: Value for the `<html lang="...">` attribute. Defaults to `'en'`.
+/// - [charset]: Charset meta tag value (`<meta charset="...">`). Defaults to `'UTF-8'`.
+/// - [title]: Page title placed in `<title>`. Omitted if `null`.
+/// - [head]: Additional [BloomNode] descriptors rendered directly inside `<head>`.
+/// - [importMapJson]: Optional JSON string emitted inside `<script type="importmap">` in `<head>`.
+/// - [stylesheets]: List of CSS stylesheet URLs emitted as `<link rel="stylesheet">` tags in `<head>`.
+/// - [scripts]: List of JavaScript URLs emitted as `<script src="...">` tags at the bottom of `<body>`.
+///
+/// ```dart
+/// final html = renderToDocument(
+///   Div(className: 'app', text: 'Welcome to Bloom'),
+///   title: 'Bloom App',
+///   stylesheets: ['/styles/app.css'],
+///   scripts: ['/main.dart.js'],
+/// );
+/// ```
 String renderToDocument(
   BloomNode body, {
   String lang = 'en',
@@ -295,11 +352,18 @@ String renderToDocument(
   return buf.toString();
 }
 
-/// Streaming SSR — yields HTML string chunks as the node tree is walked.
+/// Synchronously renders [node] to an HTML string and streams the output in fixed 4KB chunks.
 ///
-/// On most servers this allows early flushing of head/shell content while
-/// slower parts (data-driven sections) are still being built. The sum of
-/// all chunks equals [renderToHtml] on the same node.
+/// Allows HTTP servers to begin flushing initial bytes to the network early. The concatenation
+/// of all emitted chunks is identical to calling [renderToHtml] directly on [node].
+///
+/// For asynchronous streaming with out-of-order [Suspense] resolution, use [renderToStreamWithSuspense].
+///
+/// ```dart
+/// await for (final chunk in renderToStream(App())) {
+///   httpResponse.write(chunk);
+/// }
+/// ```
 Stream<String> renderToStream(BloomNode node) async* {
   _emittedKeyframeNames.clear();
   final buf = StringBuffer();
@@ -312,25 +376,36 @@ Stream<String> renderToStream(BloomNode node) async* {
   }
 }
 
-/// True out-of-order streaming SSR, analogous to React's
-/// `renderToPipeableStream`/`renderToReadableStream`.
+/// Progressively streams HTML with out-of-order resolution for asynchronous [Suspense] boundaries.
 ///
-/// Unlike [renderToStream] (which fully renders the tree synchronously
-/// before chunking the finished string), this function flushes the shell
-/// — including each top-level [SuspenseNode]'s `fallback` — as its first
-/// chunk, then streams a `<script>` replacement snippet for each Suspense
-/// boundary as its `resource` resolves, in resolution order (not
-/// necessarily source order). This lets the initial paint reach the
-/// client before slow data-dependent sections are ready.
+/// Flushes the initial document shell immediately as its first stream chunk, emitting
+/// fallback placeholder elements (`<div id="bloom-suspense-N">...</div>`) for every [SuspenseNode]
+/// located anywhere in the tree (including deeply nested children).
 ///
-/// Progressive support: every [SuspenseNode] in the tree gets a streamed
-/// replacement chunk — the root itself, a direct child of a root
-/// [FragmentNode], or one nested arbitrarily deep inside [ElNode]/
-/// [FragmentNode] (and other passthrough wrapper) children. Boundaries are
-/// discovered via a hook threaded through [_render]'s normal recursive
-/// walk, so no rendering logic is duplicated. Content resolved by a
-/// boundary's `builder` is itself walked with the same hook, so a
-/// [SuspenseNode] nested inside resolved async content also streams.
+/// As each boundary's async `resource` future resolves, this function streams an inline `<script>`
+/// snippet that replaces the placeholder `<div>` with the resolved HTML content in the client DOM
+/// via `outerHTML`. Boundaries stream in whatever order they resolve, rather than source order.
+///
+/// If an async resource fails and [SuspenseNode.errorBuilder] is provided, the error subtree is
+/// rendered and streamed; if no error builder is configured, the initial fallback element remains.
+///
+/// ```dart
+/// final stream = renderToStreamWithSuspense(
+///   Div(
+///     children: [
+///       const H1(text: 'Live Dashboard'),
+///       Suspense<UserProfile>(
+///         resource: fetchUserProfile,
+///         fallback: const Div(text: 'Loading profile...'),
+///         builder: (profile) => Div(text: 'Hello, ${profile.name}'),
+///       ),
+///     ],
+///   ),
+/// );
+/// await for (final chunk in stream) {
+///   httpResponse.write(chunk);
+/// }
+/// ```
 Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
   _emittedKeyframeNames.clear();
 

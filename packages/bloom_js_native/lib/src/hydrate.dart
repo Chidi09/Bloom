@@ -4,10 +4,28 @@ import 'events.dart';
 import 'framework.dart';
 import 'mount.dart';
 
-/// Hydrates a server-rendered DOM tree with reactive listeners in-place.
+/// Hydrates a server-rendered DOM tree matching [selector] with event listeners in place.
 ///
-/// Walks the existing DOM children of the element matched by [selector]
-/// without re-creating or replacing existing HTML elements.
+/// Looks up the target DOM element via `web.document.querySelector(selector)` and
+/// delegates to [hydrateElement]. Throws a [StateError] if [selector] matches no element.
+///
+/// ```dart
+/// void main() {
+///   final handle = hydrate(
+///     Div(
+///       className: 'interactive-card',
+///       children: [
+///         const H1(text: 'Server Rendered Title'),
+///         Button(
+///           text: 'Activate',
+///           on: {'click': (e) => print('Activated')},
+///         ),
+///       ],
+///     ),
+///     '#app',
+///   );
+/// }
+/// ```
 BloomMountHandle hydrate(BloomNode root, String selector) {
   final el = web.document.querySelector(selector);
   if (el == null) {
@@ -16,29 +34,47 @@ BloomMountHandle hydrate(BloomNode root, String selector) {
   return hydrateElement(root, el);
 }
 
-/// Hydrates into a specific pre-rendered [Element].
+/// Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
 ///
-/// When [root]'s entire descriptor tree is purely static — built only from
-/// [TextNode], [ElNode], [SvgNode], [FragmentNode], [RawHtmlNode], and
-/// [StyleNode], with no reactive/sentinel-backed node anywhere in it (no
-/// [LiveNode], [ShowNode], [ForEachNode], [MountNode], [RefNode],
-/// [AnimatedNode], [ContextProviderNode], [ErrorBoundaryNode], [PortalNode],
-/// or [SuspenseNode]) — this performs true node-reuse hydration, matching
-/// React's `hydrateRoot`: it walks the server-rendered DOM in lockstep with
-/// the descriptor tree, reusing each existing text/element node in place
-/// (attaching event listeners without recreating any node) instead of
-/// tearing the tree down and rebuilding it.
+/// Walks the existing DOM children in lockstep with the [root] descriptor tree, attaching
+/// event listeners and syncing attributes without destroying and recreating existing DOM nodes.
 ///
-/// A tree containing any reactive node isn't safely partially-reusable:
-/// [renderToHtml] emits a reactive node's *current* content directly with no
-/// marker correlating it back to the sentinel-comment-bracketed region
-/// [mountToElement] creates for the same node, so splicing a live region in
-/// at an arbitrary DOM position risks corrupting or duplicating sibling
-/// content. For that case — and if the static walk ever finds a structural
-/// mismatch against the actual DOM (e.g. hand-edited markup, a different
-/// build than the one that rendered it) — this makes no partial changes and
-/// falls back to the same safe full remount used before: clear [element]
-/// and mount fresh via [mountToElement].
+/// ### Hydration Eligibility
+/// True in-place hydration is performed when [root] consists exclusively of static nodes:
+/// - **Supported static nodes**: [TextNode] (or [Text]), [ElNode] (e.g. `Div`, `Button`, `Span`),
+///   [SvgNode], [FragmentNode] (or [Fragment]), [RawHtmlNode], and [StyleNode].
+/// - **Unsupported reactive/sentinel nodes**: [LiveNode] (or [Live]), [ShowNode] (or [Show]),
+///   [ForEachNode] (or [ForEach]), [MountNode] (or [Mount]), [RefNode], [AnimatedNode]
+///   (or [Animated]), [ContextProviderNode], [ErrorBoundaryNode], [PortalNode], and
+///   [SuspenseNode] (or [Suspense]).
+///
+/// ### Mismatch Handling & Fallback
+/// A hydration mismatch occurs when:
+/// 1. The descriptor tree contains any non-static/reactive node.
+/// 2. A DOM node's tag name does not match the descriptor's tag (e.g. `<p>` vs `<div>`).
+/// 3. A DOM node type differs from the expected descriptor (e.g. Element vs Text node).
+/// 4. Child counts differ between the descriptor tree and the actual DOM.
+///
+/// When a mismatch occurs, [hydrateElement] performs no destructive partial updates. Instead,
+/// it safely clears [element] (`element.textContent = ''`) and falls back to a clean full mount
+/// via [mountToElement].
+///
+/// ```dart
+/// final container = web.document.getElementById('content')!;
+/// final handle = hydrateElement(
+///   Div(
+///     className: 'container',
+///     children: [
+///       const H1(text: 'Welcome'),
+///       Button(
+///         text: 'Submit',
+///         on: {'click': (e) => submitForm()},
+///       ),
+///     ],
+///   ),
+///   container,
+/// );
+/// ```
 BloomMountHandle hydrateElement(BloomNode root, web.Element element) {
   if (_isStaticallyHydratable(root)) {
     final disposers = <void Function()>[];

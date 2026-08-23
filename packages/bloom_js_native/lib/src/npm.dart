@@ -1,33 +1,52 @@
 import 'dart:convert';
 
-/// Registry entry for an npm dependency consumed via ESM import maps.
+/// Declaration of an npm package dependency resolved via browser ESM import maps.
 ///
-/// Example:
+/// Encapsulates metadata required to generate standard W3C `<script type="importmap">`
+/// entries so that browser JavaScript or JS interop can import npm packages directly.
+///
+/// Packages are resolved from an ESM CDN (defaulting to [cdn] = `'https://esm.sh'`)
+/// or local vendored bundles. If [subPath] is specified (e.g. `'icons'` on `'lucide'`),
+/// the import map will emit an ESM `scopes` block targeting the package base URL.
+///
 /// ```dart
+/// // Declare and register an npm package
 /// const zod = NpmDependency('zod', '^3.23.0');
 /// NpmRegistry.register(zod);
-/// // build step emits <script type="importmap"> with esm.sh URL
+///
+/// // Custom alias and CDN subpath
+/// const lucideIcons = NpmDependency(
+///   'lucide',
+///   '0.344.0',
+///   importAs: 'lucide-icons',
+///   subPath: 'icons',
+/// );
+/// NpmRegistry.register(lucideIcons);
 /// ```
 class NpmDependency {
-  /// Package name, e.g. "zod", "date-fns", "lucide".
+  /// Package name in the npm registry, e.g. `'zod'`, `'date-fns'`, or `'lucide'`.
   final String name;
 
-  /// Semver range, e.g. "^3.23.0", "4.1.0".
+  /// Semver range or exact version string, e.g. `'^3.23.0'` or `'4.1.0'`.
   final String version;
 
-  /// Optional import specifier override (defaults to [name]).
+  /// Custom import specifier alias override.
+  ///
+  /// When null, [specifier] defaults to [name].
   final String? importAs;
 
-  /// CDN provider. Defaults to esm.sh.
+  /// CDN base URL provider. Defaults to `'https://esm.sh'`.
   final String cdn;
 
-  /// SRI integrity hash, e.g. `sha384-abc...`. Included in the import-map
-  /// tag as an `integrity` field when provided.
+  /// Sub-Resource Integrity (SRI) hash, e.g. `'sha384-abc...'`.
+  ///
+  /// Included in the serialized JSON output when specified.
   final String? integrity;
 
-  /// Sub-path specifier, e.g. `'icons'` → `lucide/icons` scope entry.
+  /// Optional package sub-path specifier, e.g. `'icons'` for a `lucide/icons` scoped import.
   final String? subPath;
 
+  /// Creates an [NpmDependency] descriptor.
   const NpmDependency(
     this.name,
     this.version, {
@@ -37,12 +56,15 @@ class NpmDependency {
     this.subPath,
   });
 
-  /// Resolved import specifier key in the import map.
+  /// The resolved import specifier key used in import statements and import maps.
+  ///
+  /// Returns [importAs] if specified; otherwise returns [name].
   String get specifier => importAs ?? name;
 
-  /// Resolved ESM URL, e.g. https://esm.sh/zod@^3.23.0
+  /// The fully resolved ESM CDN URL, e.g. `'https://esm.sh/zod@^3.23.0'`.
   String get url => '$cdn/$name@$version${subPath != null ? '/$subPath' : ''}';
 
+  /// Serializes dependency metadata to a JSON-encodable map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'version': version,
@@ -53,40 +75,67 @@ class NpmDependency {
       };
 }
 
-/// In-memory registry that collects [NpmDependency] declarations at startup
-/// and generates an import-map JSON / HTML tag.
+/// In-memory registry collecting [NpmDependency] declarations and generating ESM import maps.
+///
+/// Collects dependencies declared during application initialization or build steps
+/// and generates standard W3C browser import maps as JSON or HTML tags.
+///
+/// ### Specifier Resolution
+/// When registering dependencies via [register] or [registerAll], if a specifier is
+/// registered more than once, the latest registration silently replaces earlier ones.
+///
+/// ```dart
+/// void main() {
+///   NpmRegistry.registerAll([
+///     const NpmDependency('canvas-confetti', '^1.9.2'),
+///     const NpmDependency('dayjs', '^1.11.10'),
+///   ]);
+///
+///   final importMapTag = NpmRegistry.generateImportMapTag(pretty: true);
+/// }
+/// ```
 class NpmRegistry {
   NpmRegistry._();
 
   static final Map<String, NpmDependency> _deps = {};
 
-  /// Register a dependency. Later registrations for the same specifier win.
+  /// Registers a single [dep].
+  ///
+  /// If a dependency with the same [NpmDependency.specifier] already exists in the
+  /// registry, the previous registration is replaced.
   static void register(NpmDependency dep) {
     _deps[dep.specifier] = dep;
   }
 
-  /// Register many at once.
+  /// Registers multiple dependencies sequentially via [register].
   static void registerAll(Iterable<NpmDependency> deps) {
     for (final d in deps) {
       register(d);
     }
   }
 
-  /// All currently registered dependencies (unmodifiable view).
+  /// Unmodifiable map view of all currently registered dependencies, keyed by specifier.
   static Map<String, NpmDependency> get all => Map.unmodifiable(_deps);
 
-  /// Clear the registry (useful in tests).
+  /// Clears all registered dependencies from the registry.
   static void clear() => _deps.clear();
 
   /// Returns specifiers that were registered with conflicting versions.
-  /// Since later registrations silently win, this is always empty unless
-  /// extended to track registration history. Reserved for future use.
+  ///
+  /// Since later registrations silently overwrite earlier ones, this returns an empty
+  /// list in the current implementation. Reserved for future conflict detection.
   static List<String> conflicts() => const [];
 
-  /// Generate the raw import-map JSON string.
+  /// Generates a standard W3C Import Map JSON string with `imports` and `scopes`.
+  ///
+  /// When [pretty] is `true`, the output JSON string is indented with 2 spaces.
   ///
   /// ```json
-  /// { "imports": { "zod": "https://esm.sh/zod@^3.23.0" } }
+  /// {
+  ///   "imports": {
+  ///     "zod": "https://esm.sh/zod@^3.23.0"
+  ///   }
+  /// }
   /// ```
   static String generateImportMapJson({bool pretty = false}) {
     final mainImports = <String, String>{};
@@ -112,13 +161,19 @@ class NpmRegistry {
         : jsonEncode(map);
   }
 
-  /// Generate the full `<script type="importmap">` HTML tag.
+  /// Generates an HTML `<script type="importmap">` tag containing the generated import map JSON.
+  ///
+  /// When [pretty] is `true`, formats the internal JSON with indentation.
+  ///
+  /// ```dart
+  /// final scriptTag = NpmRegistry.generateImportMapTag();
+  /// ```
   static String generateImportMapTag({bool pretty = false}) {
     final json = generateImportMapJson(pretty: pretty);
     return '<script type="importmap">$json</script>';
   }
 
-  /// Import-map as a Dart map (for programmatic use).
+  /// Returns the top-level import map as a Dart [Map] with an `'imports'` key.
   static Map<String, dynamic> toMap() => {
         'imports': {for (final e in _deps.entries) e.key: e.value.url},
       };

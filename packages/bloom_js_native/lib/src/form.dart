@@ -3,42 +3,140 @@ import 'package:signals/signals.dart';
 
 // ─── Validators ───────────────────────────────────────────────────────────────
 
-/// Fails for empty or whitespace-only strings.
+/// Creates a validator that fails when a string value is empty or consists solely of whitespace.
+///
+/// Returns [message] (or `'This field is required.'` by default) when invalid,
+/// and `null` when valid.
+///
+/// ```dart
+/// final nameField = BloomFormField(
+///   validators: [required('Full name is required.')],
+/// );
+/// ```
 String? Function(String) required([String? message]) =>
     (v) => v.trim().isEmpty ? (message ?? 'This field is required.') : null;
 
-/// Fails when the value is shorter than [n] characters.
+/// Creates a validator that fails when a string value has fewer than [n] characters.
+///
+/// Returns [message] (or `'Must be at least $n characters.'` by default) when invalid,
+/// and `null` when valid.
+///
+/// ```dart
+/// final passwordField = BloomFormField(
+///   validators: [minLength(8, 'Password must be at least 8 characters.')],
+/// );
+/// ```
 String? Function(String) minLength(int n, [String? message]) =>
     (v) => v.length < n ? (message ?? 'Must be at least $n characters.') : null;
 
-/// Fails when the value is longer than [n] characters.
+/// Creates a validator that fails when a string value exceeds [n] characters.
+///
+/// Returns [message] (or `'Must be at most $n characters.'` by default) when invalid,
+/// and `null` when valid.
+///
+/// ```dart
+/// final bioField = BloomFormField(
+///   validators: [maxLength(280, 'Bio cannot exceed 280 characters.')],
+/// );
+/// ```
 String? Function(String) maxLength(int n, [String? message]) =>
     (v) => v.length > n ? (message ?? 'Must be at most $n characters.') : null;
 
-/// Fails when the value is not a valid email address.
+/// Creates a validator that fails when a string value is not a valid email address.
+///
+/// Evaluates input against standard RFC 5322 compatible email regular expression.
+/// Returns [message] (or `'Enter a valid email address.'` by default) when invalid,
+/// and `null` when valid.
+///
+/// ```dart
+/// final emailField = BloomFormField(
+///   validators: [required(), email()],
+/// );
+/// ```
 String? Function(String) email([String? message]) {
   final re = RegExp(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$');
   return (v) =>
       re.hasMatch(v) ? null : (message ?? 'Enter a valid email address.');
 }
 
-/// Fails when the value does not match [re].
+/// Creates a validator that fails when a string value does not match regular expression [re].
+///
+/// Returns [message] (or `'Invalid format.'` by default) when invalid, and `null` when valid.
+///
+/// ```dart
+/// final zipField = BloomFormField(
+///   validators: [pattern(RegExp(r'^\d{5}$'), 'Zip code must be 5 digits.')],
+/// );
+/// ```
 String? Function(String) pattern(RegExp re, [String? message]) =>
     (v) => re.hasMatch(v) ? null : (message ?? 'Invalid format.');
 
 // ─── BloomFormField ───────────────────────────────────────────────────────────
 
-/// A single reactive form field.
+/// Reactive state controller for an individual form input field.
+///
+/// Tracks input state, error messages, dirty/touched flags, and validation status
+/// using fine-grained `signals` primitives.
+///
+/// ### Validation Timing
+/// Setting the field value via [setValue] updates [value] and marks [isDirty] as `true`,
+/// but does **not** run validators automatically. Validation runs synchronously when
+/// [validate] is explicitly invoked (for example during [BloomForm.submit] or on an
+/// input blur event via `on: {'blur': (_) => field.validate()}`).
+///
+/// ### Reactive State
+/// - [value]: Current string value as a `Signal<String>`.
+/// - [errors]: List of active validation error strings as a `Signal<List<String>>`.
+/// - [isDirty]: `true` if [setValue] has been called since instantiation or [reset].
+/// - [isTouched]: `true` after [touch] is called (e.g. on blur).
+/// - [isValid]: Computed `ReadonlySignal<bool>` that evaluates to `true` when [errors] is empty.
+///
+/// ```dart
+/// final username = BloomFormField(
+///   initialValue: '',
+///   validators: [required(), minLength(3)],
+/// );
+///
+/// BloomNode usernameInput() => Div(
+///   children: [
+///     Input(
+///       attrs: {'value': username.value.value, 'placeholder': 'Username'},
+///       on: {
+///         'input': (e) => username.setValue(e.value ?? ''),
+///         'blur': (_) {
+///           username.touch();
+///           username.validate();
+///         },
+///       },
+///     ),
+///     Live(() => username.errors.value.isNotEmpty
+///         ? Span(className: 'error', text: username.errors.value.first)
+///         : const Fragment([])),
+///   ],
+/// );
+/// ```
 class BloomFormField {
   final String _initialValue;
+
+  /// Ordered list of validator callbacks evaluated on [validate].
   final List<String? Function(String)> validators;
 
+  /// Reactive signal containing the current field value.
   late final Signal<String> value;
+
+  /// Reactive signal containing validation error messages generated by [validate].
   late final Signal<List<String>> errors;
+
+  /// Reactive signal indicating whether [setValue] has modified the initial value.
   late final Signal<bool> isDirty;
+
+  /// Reactive signal indicating whether the user has interacted with or blurred this field.
   late final Signal<bool> isTouched;
+
+  /// Computed signal that evaluates to `true` when [errors] is empty.
   late final ReadonlySignal<bool> isValid;
 
+  /// Creates a form field controller with optional [initialValue] and [validators].
   BloomFormField({
     String initialValue = '',
     this.validators = const [],
@@ -50,16 +148,21 @@ class BloomFormField {
     isValid = computed(() => errors.value.isEmpty);
   }
 
-  /// Updates the value and marks the field dirty.
+  /// Updates the field's [value] and marks [isDirty] as `true`.
+  ///
+  /// Note: Does not automatically trigger [validate]. Call [validate] explicitly
+  /// if immediate validation feedback is desired.
   void setValue(String newValue) {
     value.value = newValue;
     isDirty.value = true;
   }
 
-  /// Marks the field as touched (e.g. on blur).
+  /// Marks [isTouched] as `true` to indicate user interaction (e.g. on blur).
   void touch() => isTouched.value = true;
 
-  /// Runs all validators and updates [errors]. Returns `true` if valid.
+  /// Runs all [validators] against the current [value] and updates [errors].
+  ///
+  /// Returns `true` if all validators passed and [errors] is empty; `false` otherwise.
   bool validate() {
     final errs = <String>[];
     for (final v in validators) {
@@ -70,7 +173,7 @@ class BloomFormField {
     return errs.isEmpty;
   }
 
-  /// Resets to initial value and clears all state.
+  /// Resets [value] back to its initial value, clears [errors], and sets [isDirty] and [isTouched] to `false`.
   void reset() {
     value.value = _initialValue;
     errors.value = [];
@@ -81,20 +184,64 @@ class BloomFormField {
 
 // ─── BloomForm ────────────────────────────────────────────────────────────────
 
-/// Reactive controller for a collection of [BloomFormField]s.
+/// Reactive controller for a collection of named [BloomFormField] instances.
+///
+/// Coordinates cross-field validation, dirty tracking, submission lifecycle,
+/// and form reset operations.
+///
+/// ### Submission Lifecycle
+/// Calling [submit] executes the following sequence:
+/// 1. Calls [validate] across all registered fields.
+/// 2. If any field fails validation, submission halts immediately and [onSubmit] is not called.
+/// 3. If validation succeeds, [isSubmitting] is set to `true`.
+/// 4. Awaits the [onSubmit] callback with a snapshot of all current [values].
+/// 5. In a `finally` block, resets [isSubmitting] back to `false`.
+///
+/// ```dart
+/// final loginForm = BloomForm({
+///   'email': BloomFormField(validators: [required(), email()]),
+///   'password': BloomFormField(validators: [required(), minLength(6)]),
+/// });
+///
+/// BloomNode formComponent() => Form(
+///   on: {
+///     'submit': (e) {
+///       e.preventDefault();
+///       loginForm.submit((values) async {
+///         await api.login(values['email']!, values['password']!);
+///       });
+///     },
+///   },
+///   children: [
+///     // input fields...
+///     Live(() => Button(
+///       attrs: {'type': 'submit'},
+///       text: loginForm.isSubmitting.value ? 'Submitting...' : 'Log In',
+///     )),
+///   ],
+/// );
+/// ```
 class BloomForm {
   final Map<String, BloomFormField> _fields;
 
+  /// Computed signal returning `true` when every registered field's [BloomFormField.isValid] is `true`.
   late final ReadonlySignal<bool> isValid;
+
+  /// Computed signal returning `true` when at least one registered field's [BloomFormField.isDirty] is `true`.
   late final ReadonlySignal<bool> isDirty;
+
+  /// Reactive signal indicating whether an asynchronous [submit] handler is currently running.
   final Signal<bool> isSubmitting = signal(false);
 
+  /// Creates a [BloomForm] controller managing the provided map of named [fields].
   BloomForm(Map<String, BloomFormField> fields) : _fields = fields {
     isValid = computed(() => _fields.values.every((f) => f.isValid.value));
     isDirty = computed(() => _fields.values.any((f) => f.isDirty.value));
   }
 
-  /// Returns the [BloomFormField] registered under [name]. Throws [StateError] if absent.
+  /// Returns the [BloomFormField] registered under [name].
+  ///
+  /// Throws [StateError] if no field with [name] exists in this form.
   BloomFormField getField(String name) {
     final field = _fields[name];
     if (field == null) {
@@ -104,18 +251,24 @@ class BloomForm {
     return field;
   }
 
-  /// Returns the current string value of the field named [name].
+  /// Returns the current string value of the field registered under [name].
   String getValue(String name) => getField(name).value.value;
 
-  /// Snapshot map of all current field values.
+  /// Returns a snapshot map of all current field values keyed by field name.
   Map<String, String> get values =>
       {for (final entry in _fields.entries) entry.key: entry.value.value.value};
 
-  /// Validates all fields. Returns `true` if every field passes.
+  /// Runs [BloomFormField.validate] on every registered field.
+  ///
+  /// Returns `true` if all fields passed validation; `false` if one or more fields failed.
   bool validate() =>
       _fields.values.map((f) => f.validate()).every((r) => r);
 
-  /// If valid, calls [onSubmit] with current values and wraps it with [isSubmitting].
+  /// Validates all fields and executes [onSubmit] if validation succeeds.
+  ///
+  /// If validation fails, halts immediately. If validation passes, sets [isSubmitting]
+  /// to `true`, awaits [onSubmit] with current [values], and ensures [isSubmitting]
+  /// is reset to `false` upon completion.
   Future<void> submit(
       Future<void> Function(Map<String, String> values) onSubmit) async {
     if (!validate()) return;
@@ -127,7 +280,7 @@ class BloomForm {
     }
   }
 
-  /// Resets all fields to their initial state.
+  /// Resets all registered fields to their initial values and clears [isSubmitting].
   void reset() {
     for (final field in _fields.values) {
       field.reset();

@@ -1,59 +1,115 @@
-/// Typed event abstraction that decouples handlers from the browser.
-/// Handlers receive a [BloomEvent] so they remain VM-testable without a DOM.
+/// Typed DOM event abstraction that decouples event handlers from the browser runtime.
+///
+/// Handlers attached to [ElNode.on] receive a [BloomEvent] across both browser
+/// execution (populated from native DOM events via JS interop) and VM test
+/// environments (created via synthetic test factories like [BloomEvent.fakeClick]).
+///
+/// In the browser (`mount.dart`), event properties are extracted opportunistically
+/// from the underlying JavaScript event object. Depending on whether the event is an
+/// input, mouse, keyboard, or drag-and-drop event, many properties will be `null`.
+/// For example, [value] and [checked] are populated for `<input>`, `<textarea>`,
+/// and `<select>` elements, [key] and [code] for keyboard events, and [clientX]
+/// and [clientY] for mouse/pointer events.
+///
+/// ```dart
+/// Input(
+///   attrs: {'type': 'text', 'placeholder': 'Type and press Enter...'},
+///   on: {
+///     'input': (event) {
+///       final text = event.value ?? '';
+///       query.value = text;
+///     },
+///     'keydown': (event) {
+///       if (event.key == 'Enter' && !event.shiftKey) {
+///         event.preventDefault();
+///         submitQuery();
+///       }
+///     },
+///   },
+/// )
+/// ```
 class BloomEvent {
-  /// DOM event type, e.g. "click", "input", "change", "submit".
+  /// The DOM event type string (e.g. `'click'`, `'input'`, `'change'`, `'submit'`, `'keydown'`).
   final String type;
 
-  /// The `value` of the event target (for input/select/textarea).
+  /// The string value extracted from the event target (`target.value`).
+  ///
+  /// Populated for input-like elements (`<input>`, `<textarea>`, `<select>`).
+  /// Remains `null` for non-input elements or synthetic events without a value.
   final String? value;
 
-  /// The checked state (for checkbox/radio inputs).
+  /// The boolean checked state extracted from the event target (`target.checked`).
+  ///
+  /// Populated for checkbox and radio inputs (`<input type="checkbox">`, `<input type="radio">`).
+  /// Remains `null` for other element types.
   final bool? checked;
 
-  /// Raw target element if available (browser only; typed `Object?` so the
-  /// core library stays loadable on the VM).
+  /// The raw JavaScript DOM target element in browser execution.
+  ///
+  /// Typed as [Object]? (underlying `JSAny?`) so that the core framework
+  /// remains VM-compatible without requiring `package:web` imports in pure Dart
+  /// environments. Evaluates to `null` in VM test fixtures unless explicitly provided.
   final Object? rawTarget;
 
   // ── Keyboard ────────────────────────────────────────────────────────
-  /// The value of the key pressed, e.g. "Enter", "Escape", "a".
+  /// The printable key value of the pressed key (e.g. `'Enter'`, `'Escape'`, `'a'`, `'ArrowDown'`).
+  ///
+  /// Populated for keyboard events (`keydown`, `keyup`, `keypress`). Remains `null` for non-keyboard events.
   final String? key;
 
-  /// Physical key code on the keyboard, e.g. "KeyA", "Enter".
+  /// The physical key code identifier on the keyboard (e.g. `'KeyA'`, `'Enter'`, `'Space'`).
+  ///
+  /// Populated for keyboard events. Remains `null` for non-keyboard events.
   final String? code;
 
-  /// Whether the Shift key was active during the event.
+  /// Whether the Shift modifier key was active during this event.
   final bool shiftKey;
 
-  /// Whether the Control key was active during the event.
+  /// Whether the Control modifier key was active during this event.
   final bool ctrlKey;
 
-  /// Whether the Alt/Option key was active during the event.
+  /// Whether the Alt / Option modifier key was active during this event.
   final bool altKey;
 
-  /// Whether the Meta/Command/Windows key was active during the event.
+  /// Whether the Meta / Command / Windows modifier key was active during this event.
   final bool metaKey;
 
   // ── Mouse / Pointer ─────────────────────────────────────────────────
-  /// Horizontal coordinate within the application's viewport.
+  /// Horizontal coordinate of the pointer within the application's viewport in pixels.
+  ///
+  /// Populated for mouse and pointer events (e.g. `click`, `mousemove`, `pointerdown`).
+  /// Remains `null` for other event types.
   final double? clientX;
 
-  /// Vertical coordinate within the application's viewport.
+  /// Vertical coordinate of the pointer within the application's viewport in pixels.
+  ///
+  /// Populated for mouse and pointer events. Remains `null` for other event types.
   final double? clientY;
 
-  /// Horizontal offset of the mouse pointer relative to the target element.
+  /// Horizontal offset of the mouse pointer relative to the target element's padding edge.
+  ///
+  /// Populated for mouse and pointer events. Remains `null` for other event types.
   final double? offsetX;
 
-  /// Vertical offset of the mouse pointer relative to the target element.
+  /// Vertical offset of the mouse pointer relative to the target element's padding edge.
+  ///
+  /// Populated for mouse and pointer events. Remains `null` for other event types.
   final double? offsetY;
 
-  /// Mouse button pressed: 0 for main/left, 1 for auxiliary/middle, 2 for secondary/right.
+  /// The mouse button that triggered the event: `0` for primary/left, `1` for auxiliary/middle, `2` for secondary/right.
+  ///
+  /// Populated for mouse and pointer events. Remains `null` for other event types.
   final int? button;
 
   // ── File / Drag ─────────────────────────────────────────────────────
-  /// File names for file input changes or drops.
+  /// File names for file input changes (`<input type="file">`) or drag-and-drop drops.
+  ///
+  /// Populated when file selection occurs in the browser. Remains `null` otherwise.
   final List<String>? files;
 
-  /// Text data for drag-and-drop events.
+  /// Text data payload associated with HTML5 drag-and-drop events.
+  ///
+  /// Populated during drag-and-drop operations (`dragover`, `drop`). Remains `null` otherwise.
   final String? dataTransfer;
 
   final void Function()? _preventDefaultFn;
@@ -62,6 +118,7 @@ class BloomEvent {
   bool _defaultPrevented = false;
   bool _propagationStopped = false;
 
+  /// Creates a new [BloomEvent] descriptor with the given properties and lifecycle callbacks.
   BloomEvent({
     required this.type,
     this.value,
@@ -85,47 +142,97 @@ class BloomEvent {
   })  : _preventDefaultFn = preventDefaultFn,
         _stopPropagationFn = stopPropagationFn;
 
-  /// Prevent the browser default action.
+  /// Prevents the browser's default action for this event.
+  ///
+  /// Sets [defaultPrevented] to `true` and invokes the underlying DOM event's
+  /// `preventDefault()` when running in a browser environment.
   void preventDefault() {
     _defaultPrevented = true;
     _preventDefaultFn?.call();
   }
 
-  /// Stop event bubbling.
+  /// Stops propagation (bubbling) of this event up the DOM tree.
+  ///
+  /// Sets [propagationStopped] to `true` and invokes the underlying DOM event's
+  /// `stopPropagation()` when running in a browser environment.
   void stopPropagation() {
     _propagationStopped = true;
     _stopPropagationFn?.call();
   }
 
-  /// Whether [preventDefault] has been called.
+  /// Whether [preventDefault] has been called on this event.
   bool get defaultPrevented => _defaultPrevented;
 
-  /// Whether [stopPropagation] has been called.
+  /// Whether [stopPropagation] has been called on this event.
   bool get propagationStopped => _propagationStopped;
 
-  /// Test helper — creates a fake click event.
+  /// Creates a synthetic click [BloomEvent] for VM unit testing without a browser DOM.
+  ///
+  /// ```dart
+  /// final button = Button(
+  ///   text: 'Increment',
+  ///   on: {'click': (e) => count.value++},
+  /// );
+  /// button.on?['click']?.call(BloomEvent.fakeClick());
+  /// ```
   factory BloomEvent.fakeClick() => BloomEvent(type: 'click');
 
-  /// Test helper — creates a fake input event with [value].
+  /// Creates a synthetic input [BloomEvent] carrying [value] for VM unit testing.
+  ///
+  /// ```dart
+  /// final input = Input(
+  ///   on: {'input': (e) => username.value = e.value ?? ''},
+  /// );
+  /// input.on?['input']?.call(BloomEvent.fakeInput('antigravity'));
+  /// ```
   factory BloomEvent.fakeInput(String value) =>
       BloomEvent(type: 'input', value: value);
 
-  /// Test helper — creates a fake change event.
+  /// Creates a synthetic change [BloomEvent] carrying [value] or [checked] for VM unit testing.
+  ///
+  /// ```dart
+  /// final checkbox = Input(
+  ///   attrs: {'type': 'checkbox'},
+  ///   on: {'change': (e) => agree.value = e.checked ?? false},
+  /// );
+  /// checkbox.on?['change']?.call(BloomEvent.fakeChange(checked: true));
+  /// ```
   factory BloomEvent.fakeChange({String? value, bool? checked}) =>
       BloomEvent(type: 'change', value: value, checked: checked);
 
-  /// Test helper — creates any fake event.
+  /// Creates a generic synthetic [BloomEvent] with [type] and optional [value] for VM unit testing.
+  ///
+  /// ```dart
+  /// final form = Form(
+  ///   on: {'submit': (e) => e.preventDefault()},
+  /// );
+  /// form.on?['submit']?.call(BloomEvent.fake('submit'));
+  /// ```
   factory BloomEvent.fake(String type, {String? value}) =>
       BloomEvent(type: type, value: value);
 
-  /// Test helper — creates a fake keydown event.
+  /// Creates a synthetic keyboard [BloomEvent] with [key] and optional [code] for VM unit testing.
+  ///
+  /// ```dart
+  /// final handler = (BloomEvent e) {
+  ///   if (e.key == 'Escape') isOpen.value = false;
+  /// };
+  /// handler(BloomEvent.fakeKeyDown('Escape'));
+  /// ```
   factory BloomEvent.fakeKeyDown(String key, {String? code}) =>
       BloomEvent(type: 'keydown', key: key, code: code ?? key);
 
-  /// Test helper — creates a fake mousemove event.
+  /// Creates a synthetic mouse [BloomEvent] with [x] and [y] viewport coordinates for VM unit testing.
+  ///
+  /// ```dart
+  /// final handler = (BloomEvent e) => lastPos.value = '${e.clientX},${e.clientY}';
+  /// handler(BloomEvent.fakeMouseMove(120, 80));
+  /// ```
   factory BloomEvent.fakeMouseMove(double x, double y) =>
       BloomEvent(type: 'mousemove', clientX: x, clientY: y);
 }
 
-/// Handler signature for Bloom events.
+/// Callback handler signature for Bloom DOM events.
+///
+/// Handlers receive a [BloomEvent] wrapping the dispatched user event.
 typedef BloomEventHandler = void Function(BloomEvent event);
