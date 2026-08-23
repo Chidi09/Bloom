@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alex Rivera — Senior Full-Stack & Systems Engineer</title>
+  <meta name="description" content="Portfolio of Alex Rivera, Senior Full-Stack & Systems Engineer building reactive web apps and distributed systems. Built with Bloom JS Native.">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- github-calendar styling for the contribution graph -->
+  <link rel="stylesheet" href="https://unpkg.com/github-calendar@2.3.4/dist/github-calendar-responsive.css">
+
+  <!-- Import map MUST come before any <script type="module"> that uses
+       bare specifiers ("gsap", "@tailwindcss/browser", ...) — a module
+       script earlier in the document than the import map fails to resolve
+       those specifiers entirely. -->
+  <script type="importmap">
+{
+  "imports": {
+    "@tailwindcss/browser": "https://esm.sh/@tailwindcss/browser@4.3.3?bundle",
+    "gsap": "https://esm.sh/gsap@3.15.0?bundle",
+    "lucide": "https://esm.sh/lucide@1.33.0?bundle",
+    "typed.js": "https://esm.sh/typed.js@3.0.0?bundle",
+    "lenis": "https://esm.sh/lenis@1.3.26?bundle",
+    "github-calendar": "https://esm.sh/github-calendar@2.3.4?bundle",
+    "@emailjs/browser": "https://esm.sh/@emailjs/browser@4.4.1?bundle",
+    "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4?bundle"
+  }
+}
+</script>
+
+  <!-- Real Tailwind, loaded via @tailwindcss/browser from esm.sh.
+       Tailwind's in-browser compiler scans class="..." attributes on the DOM
+       and dynamically injects the compiled stylesheet. -->
+  <script type="module">
+    import "@tailwindcss/browser";
+  </script>
+
+  <!-- Prevent Flash of Incorrect Theme (FOIT) before Dart hydrates:
+       reads localStorage or checks user's system prefers-color-scheme -->
+  <script>
+    (function() {
+      try {
+        var stored = localStorage.getItem('bloom_portfolio_theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (stored === 'light' || (!stored && !prefersDark)) {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    html.dark {
+      color-scheme: dark;
+    }
+    html:not(.dark) {
+      color-scheme: light;
+    }
+
+    /* Light theme.
+     *
+     * This page is authored dark-first: every component hardcodes a literal
+     * zinc step (bg-zinc-950, text-zinc-100, border-zinc-800) rather than a
+     * semantic token, across ~68 distinct colour utilities in ten files.
+     * Adding a `dark:` counterpart to each one would mean touching all of them
+     * and would be easy to get subtly wrong.
+     *
+     * Tailwind v4 compiles `bg-zinc-950` to
+     * `background-color: var(--color-zinc-950)`, so the whole page can be
+     * re-themed by redefining the scale itself. Inverting zinc end-for-end
+     * (950<->50, 900<->100, ...) turns every dark surface light and every light
+     * text colour dark, in one place, with no component edits.
+     *
+     * `html:not(.dark)` (specificity 0,1,1) outranks Tailwind's `:root`
+     * (0,1,0), so this wins regardless of stylesheet order — which matters
+     * because Tailwind's browser JIT injects its stylesheet at runtime.
+     *
+     * Note this cannot use `dark:` variants: under the browser build those
+     * follow `prefers-color-scheme`, not the `.dark` class the toggle sets, so
+     * they would ignore the button entirely. */
+    html:not(.dark) {
+      --color-zinc-950: oklch(98.5% 0.001 286.375);
+      --color-zinc-900: oklch(96.7% 0.001 286.375);
+      --color-zinc-800: oklch(92% 0.004 286.32);
+      --color-zinc-700: oklch(87.1% 0.006 286.286);
+      --color-zinc-600: oklch(70.5% 0.015 286.067);
+      --color-zinc-500: oklch(55.2% 0.016 285.938);
+      --color-zinc-400: oklch(44.2% 0.017 285.786);
+      --color-zinc-300: oklch(37% 0.013 285.805);
+      --color-zinc-200: oklch(27.4% 0.006 286.033);
+      --color-zinc-100: oklch(21% 0.006 285.885);
+      --color-zinc-50: oklch(14.1% 0.005 285.823);
+
+      /* Accents used as TEXT need to darken on a light background — indigo-400
+       * on near-white fails contrast. The 500/600 steps are left alone because
+       * they are used as button fills behind white text, where they already
+       * pass. */
+      --color-indigo-400: oklch(51.1% 0.262 276.966);
+      --color-indigo-300: oklch(45% 0.24 276.9);
+      --color-indigo-200: oklch(40% 0.2 276.9);
+      --color-indigo-950: oklch(90% 0.05 281.288);
+      --color-sky-300: oklch(50% 0.13 230.318);
+      --color-emerald-400: oklch(52% 0.13 163.223);
+      --color-amber-400: oklch(60% 0.15 80);
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    code, kbd, samp, pre {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+    /* Accessibility: smooth scroll reduced-motion fallback */
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto !important;
+      }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+
+  <!-- Bootstrap: these packages are real ES modules (loaded through the
+       import map above, not UMD <script> tags), so nothing registers a
+       window global automatically. This module assigns each one to the
+       exact global name the matching Dart @JS(...) binding in
+       lib/plugins/ expects, before main.js runs. -->
+  <script type="module">
+    import { gsap } from "gsap";
+    import * as lucide from "lucide";
+    import Typed from "typed.js";
+    import Lenis from "lenis";
+    import GitHubCalendar from "github-calendar";
+    import emailjs from "@emailjs/browser";
+    import confettiFn from "canvas-confetti";
+
+    window.gsap = gsap;
+    window.lucide = lucide;
+    window.Typed = Typed;
+    window.Lenis = Lenis;
+    window.GitHubCalendar = GitHubCalendar;
+    window.emailjs = emailjs;
+    window.canvas_confetti = confettiFn;
+  </script>
+</head>
+<body class="min-h-screen bg-zinc-950 text-zinc-100 transition-colors duration-200 antialiased selection:bg-indigo-500 selection:text-white">
+  <div id="app"></div>
+  <script defer src="main.js"></script>
+</body>
+</html>

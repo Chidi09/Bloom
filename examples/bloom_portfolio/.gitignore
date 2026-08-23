@@ -1,0 +1,13 @@
+# Dart / Bloom artifacts
+.dart_tool/
+.packages
+build/
+
+# Compiled JS outputs
+web/main.js
+web/main.js.deps
+web/main.js.map
+
+# Operating System Files
+.DS_Store
+Thumbs.db
