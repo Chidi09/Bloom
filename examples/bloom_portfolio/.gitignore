@@ -8,6 +8,13 @@ web/main.js
 web/main.js.deps
 web/main.js.map
 
+# NPM packages vendored by `bloom js dev` / `bloom js vendor` from the
+# npm_packages block in bloom.yaml. Generated, so not committed -- the
+# committed index.html importmap points at the esm.sh CDN URLs so the example
+# also works when served by any plain static server, and the CLI rewrites
+# those to /vendor/* locally when it assembles them.
+web/vendor/
+
 # Operating System Files
 .DS_Store
 Thumbs.db
