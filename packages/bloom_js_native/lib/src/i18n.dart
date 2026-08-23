@@ -9,13 +9,27 @@ import 'package:signals/signals.dart';
 
 // ─── ICU Message Formatter & Catalog ────────────────────────────────────────
 
-/// A message catalog storing translated templates for a single locale.
+/// A localized message catalog storing translated templates for a single BCP-47 locale.
 ///
-/// Stores translation message strings indexed by message ID and evaluates them
-/// using ICU MessageFormat-style patterns (interpolated arguments, plurals with `#`
-/// substitution, select/gender cases, and nested sub-patterns).
+/// Stores translation message templates indexed by message ID and evaluates them
+/// using ICU MessageFormat syntax in pure Dart. Supports variable interpolation,
+/// pluralization with `#` count replacement, select/gender branching, nested sub-patterns,
+/// number formatting, and date formatting.
 ///
-/// Fully source- and format-compatible with `packages/bloom_i18n` on the server.
+/// Fully source- and syntax-compatible with server-side `packages/bloom_i18n`.
+///
+/// ### Supported ICU MessageFormat Syntax
+/// - **Variable Interpolation**: `{name}` substitutes `args['name']`.
+/// - **Escaped Characters**: Two consecutive single quotes `''` emit a single quote `'`.
+///   Quoted brace blocks such as `'{escaped}'` prevent interpolation and emit `{escaped}`.
+/// - **Plurals**: `{count, plural, =0 {No items} =1 {One item} other {# items}}`.
+///   Exact numeric matches (`=0`, `=1`, `=2`, etc.) take precedence over keyword
+///   branches (`zero`, `one`, `two`, `other`). The `#` character within a plural branch
+///   is automatically replaced by the localized number representation via [formatNumber].
+/// - **Select & Gender**: `{gender, select, female {She liked} male {He liked} other {They liked}}`.
+/// - **Number Formatting**: `{amount, number, currency}` or `{rate, number, percent}`.
+/// - **Date Formatting**: `{date, date, short}`, `{date, date, medium}`, `{date, date, long}`,
+///   `{date, date, full}`, or custom token patterns like `{date, date, yyyy-MM-dd}`.
 ///
 /// ```dart
 /// final catalog = BloomCatalog('en-US', {
@@ -25,18 +39,36 @@ import 'package:signals/signals.dart';
 ///
 /// final text = catalog.get('cart_items', args: {'count': 3}); // "3 items"
 /// ```
+///
+/// See also:
+/// - [BloomI18n], the reactive multi-catalog translation store.
+/// - [formatNumber], [formatCurrency], and [formatDate] for standalone formatting.
 class BloomCatalog {
-  /// The BCP-47 locale tag identifier for this catalog (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
+  /// The BCP-47 language tag identifying the locale of this catalog (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
   final String locale;
 
   /// Internal message key-value store.
   final Map<String, String> _messages;
 
   /// Creates a [BloomCatalog] from a map of message IDs to ICU-formatted message templates.
+  ///
+  /// ```dart
+  /// final catalog = BloomCatalog('en-US', {
+  ///   'welcome': 'Welcome, {user}!',
+  ///   'status': 'Status: {status, select, active {Online} other {Offline}}',
+  /// });
+  /// ```
   BloomCatalog(this.locale, Map<String, String> messages)
       : _messages = Map<String, String>.from(messages);
 
-  /// Creates a [BloomCatalog] from a dynamic map (e.g. decoded JSON).
+  /// Creates a [BloomCatalog] from a dynamic map, converting values to strings.
+  ///
+  /// Useful when parsing translation bundles loaded from JSON assets or network endpoints.
+  ///
+  /// ```dart
+  /// final rawJson = {'home.title': 'Dashboard', 'home.unread': '{count, plural, =0 {None} other {# unread}}'};
+  /// final catalog = BloomCatalog.fromJson('en-US', rawJson);
+  /// ```
   factory BloomCatalog.fromJson(String locale, Map<String, dynamic> json) {
     final messages = <String, String>{};
     json.forEach((key, value) {
@@ -47,7 +79,14 @@ class BloomCatalog {
     return BloomCatalog(locale, messages);
   }
 
-  /// Creates a [BloomCatalog] by decoding a JSON string.
+  /// Creates a [BloomCatalog] by decoding a JSON-encoded string.
+  ///
+  /// Throws a [FormatException] if [jsonString] does not decode to a valid JSON object map.
+  ///
+  /// ```dart
+  /// const json = '{"welcome": "Hello!", "notifications": "{count} new"}';
+  /// final catalog = BloomCatalog.fromJsonString('en-US', json);
+  /// ```
   factory BloomCatalog.fromJsonString(String locale, String jsonString) {
     final dynamic decoded = jsonDecode(jsonString);
     if (decoded is Map<String, dynamic>) {
@@ -62,16 +101,30 @@ class BloomCatalog {
         'Invalid JSON for BloomCatalog: expected a JSON object.');
   }
 
-  /// Returns a read-only view of the registered message templates.
+  /// Returns an unmodifiable view of all registered message template strings.
   Map<String, String> get messages => Map.unmodifiable(_messages);
 
-  /// Checks if a message ID is defined in this catalog.
+  /// Returns `true` if this catalog contains a template defined for [messageId].
+  ///
+  /// ```dart
+  /// if (catalog.has('auth.login')) {
+  ///   print('Login key is available.');
+  /// }
+  /// ```
   bool has(String messageId) => _messages.containsKey(messageId);
 
-  /// Looks up and formats a translated message by ID, substituting arguments
-  /// and evaluating ICU MessageFormat plural/select patterns.
+  /// Looks up and evaluates an ICU MessageFormat template by [messageId].
   ///
-  /// Returns `null` if the message ID is not found in this catalog.
+  /// Substitutes [args] into the message pattern according to ICU rules (plurals,
+  /// select, numbers, dates). Returns `null` if [messageId] is not found in this catalog.
+  ///
+  /// ```dart
+  /// final msg = catalog.get('unread_messages', args: {'count': 4});
+  /// ```
+  ///
+  /// See also:
+  /// - [BloomI18n.translate], which evaluates catalogs with fallback chains.
+  /// - [formatMessage], the underlying static message evaluation method.
   String? get(String messageId, {Map<String, Object>? args}) {
     final template = _messages[messageId];
     if (template == null) return null;
@@ -80,9 +133,9 @@ class BloomCatalog {
 
   /// Evaluates an ICU MessageFormat [template] string with [args] for the specified [locale].
   ///
-  /// Supports variable interpolation `{name}`, plurals `{count, plural, ...}` with `#` replacement,
+  /// Supports argument interpolation `{name}`, plurals `{count, plural, ...}` with `#` replacement,
   /// select `{gender, select, ...}`, number formatting `{amount, number, currency}`, and date
-  /// formatting `{date, date, short}` in pure Dart without `package:intl`.
+  /// formatting `{date, date, short}` in pure Dart without dependencies on `package:intl`.
   ///
   /// ```dart
   /// final result = BloomCatalog.formatMessage(
@@ -92,6 +145,9 @@ class BloomCatalog {
   /// );
   /// // result: "You have 5 messages"
   /// ```
+  ///
+  /// See also:
+  /// - [get], which looks up a template by key before formatting.
   static String formatMessage(
     String template, {
     Map<String, Object>? args,
@@ -392,34 +448,56 @@ class _IcuMessageFormatter {
 
 // ─── Pure Dart Number, Currency, Date & Relative Time Formatting ───────────
 
-/// Formatting styles for localized dates.
+/// Formatting styles for localized date presentations.
+///
+/// Used with [formatDate] and [BloomDateTimeClientI18n.toLocalizedDate] to select
+/// standard formatting presets.
+///
+/// ```dart
+/// final date = DateTime(2026, 8, 23);
+/// formatDate(date, style: DateFormatStyle.medium, locale: 'en-US'); // "Aug 23, 2026"
+/// ```
+///
+/// See also:
+/// - [formatDate], which formats dates according to these styles.
+/// - [formatDateTime], which combines date styles with localized time strings.
 enum DateFormatStyle {
-  /// Short compact date (e.g. "8/23/2026", "23/08/2026", "23.08.2026").
+  /// Short compact date representation (e.g. `"8/23/2026"`, `"23/08/2026"`, `"23.08.2026"`).
   short,
 
-  /// Medium abbreviated date (e.g. "Aug 23, 2026", "23 août 2026").
+  /// Medium abbreviated date representation (e.g. `"Aug 23, 2026"`, `"23 août 2026"`, `"23. Aug. 2026"`).
   medium,
 
-  /// Long full month date (e.g. "August 23, 2026", "23 August 2026").
+  /// Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`).
   long,
 
-  /// Complete date with weekday (e.g. "Sunday, August 23, 2026").
+  /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`).
   full,
 }
 
 /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart.
 ///
+/// Formats integers and floating point numbers according to language conventions,
+/// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal
+/// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active
+/// [BloomI18n.instance.locale] signal value.
+///
 /// ### Limitations vs Full CLDR
 /// This is a lightweight, pure-Dart implementation covering major language families
 /// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese,
-/// Arabic, etc.). For comprehensive CLDR locale data with numbering systems, use
-/// server-side `package:bloom_i18n` with `package:intl`.
+/// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering
+/// systems (e.g. eastern Arabic-Indic numerals).
 ///
 /// ```dart
 /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89"
 /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89"
 /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89"
 /// ```
+///
+/// See also:
+/// - [formatPercent], for formatting percentage values.
+/// - [formatCurrency], for currency formatting.
+/// - [localizedNumber], convenience top-level shorthand.
 String formatNumber(
   num value, {
   String? locale,
@@ -482,12 +560,22 @@ String formatNumber(
   return integerPart;
 }
 
-/// Formats a percentage value (e.g. `0.25` or `25`) for [locale] in pure Dart.
+/// Formats a percentage value for [locale] in pure Dart.
+///
+/// Accepts ratio fractions between `-1.0` and `1.0` (e.g. `0.42` becomes `42%`) as well
+/// as whole percentage numbers (e.g. `42` becomes `42%`). Includes appropriate locale spacing
+/// before the `%` symbol for languages such as French, German, Russian, and Swedish.
+///
+/// When [locale] is omitted, defaults to the active [BloomI18n.instance.locale] value.
 ///
 /// ```dart
 /// formatPercent(0.42, locale: 'en-US'); // "42%"
 /// formatPercent(0.42, locale: 'fr-FR'); // "42 %"
 /// ```
+///
+/// See also:
+/// - [formatNumber], the underlying number formatter.
+/// - [formatCurrency], for currency formatting.
 String formatPercent(
   num value, {
   String? locale,
@@ -504,13 +592,23 @@ String formatPercent(
   return '$numStr%';
 }
 
-/// Formats a currency amount with currency code/symbol and locale positioning in pure Dart.
+/// Formats a currency amount with currency code or symbol and locale positioning in pure Dart.
+///
+/// Maps common ISO 4217 currency codes (`USD`, `EUR`, `GBP`, `JPY`, `CAD`, `AUD`, `CHF`, `CNY`,
+/// `INR`, `BRL`, `KRW`, `RUB`) to symbols, applies zero decimal places for zero-fraction currencies
+/// (`JPY`, `KRW`), and places symbols before or after the number according to locale conventions.
+///
+/// When [locale] is omitted, defaults to the active [BloomI18n.instance.locale] value.
 ///
 /// ```dart
 /// formatCurrency(49.99, currency: 'USD', locale: 'en-US'); // "$49.99"
 /// formatCurrency(49.99, currency: 'EUR', locale: 'fr-FR'); // "49,99 €"
 /// formatCurrency(1500, currency: 'JPY', locale: 'ja-JP');   // "¥1,500"
 /// ```
+///
+/// See also:
+/// - [formatNumber], the underlying number formatting helper.
+/// - [localizedCurrency], top-level convenience shorthand.
 String formatCurrency(
   num value, {
   String currency = 'USD',
@@ -602,7 +700,12 @@ const _dayNamesEs = [
 /// Formats a [DateTime] date according to locale conventions in pure Dart.
 ///
 /// Supports named [style] presets ([DateFormatStyle.short], [DateFormatStyle.medium],
-/// [DateFormatStyle.long], [DateFormatStyle.full]) or custom [pattern] tokens (`yyyy`, `MM`, `dd`, etc.).
+/// [DateFormatStyle.long], [DateFormatStyle.full]) or custom [pattern] tokens (`yyyy`, `yy`,
+/// `MMMM`, `MMM`, `MM`, `M`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `ss`, `a`).
+///
+/// ### Limitations vs Full CLDR
+/// Includes hand-rolled month and day translations for English, French, German, and Spanish.
+/// For unsupported languages, month and weekday names fallback to English.
 ///
 /// ```dart
 /// final date = DateTime(2026, 8, 23);
@@ -611,6 +714,11 @@ const _dayNamesEs = [
 /// formatDate(date, locale: 'de-DE'); // "23.08.2026"
 /// formatDate(date, style: DateFormatStyle.long, locale: 'en-US'); // "August 23, 2026"
 /// ```
+///
+/// See also:
+/// - [formatDateTime], for formatting combined dates and timestamps.
+/// - [formatRelativeTime], for relative time expressions ("5 minutes ago").
+/// - [DateFormatStyle], the style enumeration.
 String formatDate(
   DateTime date, {
   String? locale,
@@ -751,11 +859,21 @@ String _formatDateWithPattern(DateTime date, String pattern, String lang) {
 
 /// Formats a [DateTime] date and time according to locale conventions in pure Dart.
 ///
+/// Combines localized date formatting with appropriate 12-hour (AM/PM) or 24-hour time
+/// formatting based on locale rules.
+///
+/// When [locale] is omitted, defaults to the active [BloomI18n.instance.locale] value.
+///
 /// ```dart
 /// final dt = DateTime(2026, 8, 23, 14, 30);
 /// formatDateTime(dt, locale: 'en-US'); // "8/23/2026, 2:30 PM"
 /// formatDateTime(dt, locale: 'fr-FR'); // "23/08/2026 14:30"
 /// ```
+///
+/// See also:
+/// - [formatDate], for date-only formatting.
+/// - [formatRelativeTime], for relative time formatting ("5 minutes ago").
+/// - [localizedDateTime], top-level convenience shorthand.
 String formatDateTime(
   DateTime dateTime, {
   String? locale,
@@ -785,15 +903,22 @@ String formatDateTime(
   return '$datePart $h24:$min';
 }
 
-/// Formats relative time (e.g. "just now", "5 minutes ago", "in 2 hours", "yesterday") in pure Dart.
+/// Formats relative time intervals (e.g. "just now", "5 minutes ago", "in 2 hours", "yesterday") in pure Dart.
 ///
-/// Evaluates [date] relative to [relativeTo] (defaults to `DateTime.now()`).
+/// Evaluates [date] relative to [relativeTo] (which defaults to `DateTime.now()`).
+/// If [numeric] is `true`, produces numeric representations like `"1 day ago"` instead of `"yesterday"`.
+///
+/// Supports translations for English, French, German, Spanish, Japanese, and Chinese, falling back to English.
 ///
 /// ```dart
 /// final fiveMinAgo = DateTime.now().subtract(const Duration(minutes: 5));
 /// formatRelativeTime(fiveMinAgo, locale: 'en-US'); // "5 minutes ago"
 /// formatRelativeTime(fiveMinAgo, locale: 'fr-FR'); // "il y a 5 minutes"
 /// ```
+///
+/// See also:
+/// - [BloomDateTimeClientI18n.toLocalizedRelativeTime], extension method on [DateTime].
+/// - [localizedRelativeTime], top-level convenience shorthand.
 String formatRelativeTime(
   DateTime date, {
   DateTime? relativeTo,
@@ -916,32 +1041,52 @@ String _formatRelativeUnit(int count, String unit, bool isPast, String lang) {
   return isPast ? '$count $unitEn ago' : 'in $count $unitEn';
 }
 
-/// Convenience extension on [DateTime] for localized formatting.
+/// Convenience internationalization extension on [DateTime] for localized formatting.
 extension BloomDateTimeClientI18n on DateTime {
   /// Formats this date as a localized date string.
+  ///
+  /// ```dart
+  /// final formatted = DateTime(2026, 8, 23).toLocalizedDate(locale: 'en-US'); // "8/23/2026"
+  /// ```
   String toLocalizedDate({String? locale, String? pattern, DateFormatStyle? style}) =>
       formatDate(this, locale: locale, pattern: pattern, style: style);
 
   /// Formats this date as a localized date and time string.
+  ///
+  /// ```dart
+  /// final formatted = DateTime.now().toLocalizedDateTime(locale: 'fr-FR');
+  /// ```
   String toLocalizedDateTime({String? locale, String? pattern, DateFormatStyle? style}) =>
       formatDateTime(this, locale: locale, pattern: pattern, style: style);
 
   /// Formats this date as a relative time string (e.g. "5 minutes ago").
+  ///
+  /// ```dart
+  /// final rel = DateTime.now().subtract(const Duration(minutes: 10)).toLocalizedRelativeTime();
+  /// ```
   String toLocalizedRelativeTime({DateTime? relativeTo, String? locale}) =>
       formatRelativeTime(this, relativeTo: relativeTo, locale: locale);
 }
 
 // ─── Text Direction & RTL Support ──────────────────────────────────────────
 
-/// Text direction representation.
+/// Text direction representation for bidirectional script layout.
+///
+/// Encapsulates left-to-right ([BloomTextDirection.ltr]) and right-to-left
+/// ([BloomTextDirection.rtl]) scripts and their corresponding HTML `dir` attribute values.
+///
+/// See also:
+/// - [isRtl], tests whether a locale uses RTL script.
+/// - [getTextDirection], resolves text direction for a locale.
+/// - [dirAttribute], helper generating a `{ 'dir': '...' }` attribute map.
 enum BloomTextDirection {
-  /// Left-to-right (default for Latin, Cyrillic, Han, etc.).
+  /// Left-to-right text layout direction (used by Latin, Cyrillic, Greek, Han, etc.).
   ltr('ltr'),
 
-  /// Right-to-left (Arabic, Hebrew, Persian, Urdu, etc.).
+  /// Right-to-left text layout direction (used by Arabic, Hebrew, Persian, Urdu, etc.).
   rtl('rtl');
 
-  /// The HTML `dir` attribute value (`"ltr"` or `"rtl"`).
+  /// The raw HTML `dir` attribute string value (`"ltr"` or `"rtl"`).
   final String value;
 
   const BloomTextDirection(this.value);
@@ -969,31 +1114,43 @@ const _rtlLanguages = {
 
 /// Returns `true` if [locale] represents a right-to-left (RTL) script.
 ///
-/// Defaults to testing the active [BloomI18n.instance.locale] signal when [locale] is omitted.
+/// Tests language subtags against known RTL scripts (Arabic, Hebrew, Persian, Urdu, etc.).
+/// When [locale] is omitted, defaults to testing the active [BloomI18n.instance.locale] signal.
 ///
 /// ```dart
 /// isRtl('ar-EG'); // true
 /// isRtl('en-US'); // false
 /// ```
+///
+/// See also:
+/// - [getTextDirection], which returns a [BloomTextDirection] enum.
+/// - [dirAttribute], which produces an attribute map for element descriptors.
 bool isRtl([String? locale]) {
   final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
   final lang = loc.split('-').first;
   return _rtlLanguages.contains(lang);
 }
 
-/// Returns the [BloomTextDirection] ([BloomTextDirection.rtl] or [BloomTextDirection.ltr]) for [locale].
+/// Resolves the [BloomTextDirection] for the specified [locale].
+///
+/// Returns [BloomTextDirection.rtl] for right-to-left language tags and [BloomTextDirection.ltr]
+/// for all others. Defaults to evaluating the active [BloomI18n.instance.locale] signal when omitted.
 ///
 /// ```dart
 /// getTextDirection('ar-SA'); // BloomTextDirection.rtl
 /// getTextDirection('en-US'); // BloomTextDirection.ltr
 /// ```
+///
+/// See also:
+/// - [isRtl], returning a boolean check.
+/// - [dirAttribute], returning an attribute map.
 BloomTextDirection getTextDirection([String? locale]) {
   return isRtl(locale) ? BloomTextDirection.rtl : BloomTextDirection.ltr;
 }
 
-/// Helper returning a `{ 'dir': 'rtl' }` or `{ 'dir': 'ltr' }` attribute map.
+/// Generates a `{ 'dir': 'rtl' }` or `{ 'dir': 'ltr' }` attribute map for [locale].
 ///
-/// Useful for spreading directly into element attributes:
+/// Convenient for spreading directly into element attributes:
 ///
 /// ```dart
 /// Div(
@@ -1004,17 +1161,34 @@ BloomTextDirection getTextDirection([String? locale]) {
 ///   children: [...],
 /// )
 /// ```
+///
+/// See also:
+/// - [getTextDirection], resolving the [BloomTextDirection] enum.
+/// - [isRtl], checking if a locale is right-to-left.
 Map<String, String> dirAttribute([String? locale]) {
   return {'dir': getTextDirection(locale).value};
 }
 
 // ─── Locale Resolution & Accept-Language ────────────────────────────────────
 
-/// Request wrapper carrying the resolved BCP-47 locale string.
+/// Immutable wrapper carrying a resolved BCP-47 language tag.
+///
+/// Used in request pipelines and client routers to represent normalized locale identifiers
+/// (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
+///
+/// ```dart
+/// const resolved = ResolvedLocale('en-US');
+/// print(resolved.languageTag); // "en-US"
+/// ```
+///
+/// See also:
+/// - [resolveLocale], which resolves preferences against supported tags.
+/// - [parseAcceptLanguage], which parses HTTP headers into weighted entries.
 class ResolvedLocale {
   /// The resolved BCP-47 language tag (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
   final String languageTag;
 
+  /// Creates a [ResolvedLocale] containing [languageTag].
   const ResolvedLocale(this.languageTag);
 
   @override
@@ -1031,7 +1205,20 @@ class ResolvedLocale {
   int get hashCode => languageTag.toLowerCase().hashCode;
 }
 
-/// A parsed entry from language preferences or `Accept-Language` headers with quality weighting.
+/// A parsed entry from an HTTP `Accept-Language` header or browser preferences with quality weighting.
+///
+/// Implements [Comparable] to sort entries in descending order of quality weight ([quality]),
+/// from highest preference (`q=1.0`) to lowest.
+///
+/// ```dart
+/// const entry = AcceptLanguageEntry('fr-FR', 0.9);
+/// print(entry.tag); // "fr-FR"
+/// print(entry.quality); // 0.9
+/// ```
+///
+/// See also:
+/// - [parseAcceptLanguage], which parses an entire header string into sorted entries.
+/// - [firstLocaleTag], extracting only the top priority tag.
 class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
   /// The BCP-47 language tag or subtag (e.g. `'fr'`, `'en-US'`).
   final String tag;
@@ -1039,7 +1226,7 @@ class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
   /// Quality value weight (`q=`) ranging between `0.0` and `1.0`.
   final double quality;
 
-  /// Creates an [AcceptLanguageEntry] with [tag] and optional [quality] weighting.
+  /// Creates an [AcceptLanguageEntry] with [tag] and optional [quality] weighting (defaults to `1.0`).
   const AcceptLanguageEntry(this.tag, [this.quality = 1.0]);
 
   @override
@@ -1054,6 +1241,19 @@ class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
 }
 
 /// Parses the first valid BCP-47 language tag from an `Accept-Language` header string.
+///
+/// Extracts the leading entry from [header], ignoring wildcard tokens (`"*"`) and
+/// discarding quality weighting parameters (`";q=..."`). Returns `null` if [header] is
+/// empty or contains no valid language tag.
+///
+/// ```dart
+/// final tag = firstLocaleTag('fr-CH, fr;q=0.9, en;q=0.8');
+/// // tag: "fr-CH"
+/// ```
+///
+/// See also:
+/// - [parseAcceptLanguage], for parsing and sorting all entries in a header.
+/// - [resolveLocale], for matching candidate tags against supported catalogs.
 String? firstLocaleTag(String? header) {
   if (header == null) return null;
   final firstPart = header.split(',').firstOrNull;
@@ -1067,7 +1267,20 @@ String? firstLocaleTag(String? header) {
   return _isValidLanguageTag(tag) ? tag : null;
 }
 
-/// Parses an entire `Accept-Language` header string, sorting entries by quality weight (`q=`).
+/// Parses an entire `Accept-Language` header string into a list of entries sorted by quality.
+///
+/// Splits comma-separated language tags, extracts explicit `q=` quality parameters
+/// (clamping values between `0.0` and `1.0`, defaulting to `1.0`), filters out invalid
+/// tokens and wildcards, and sorts results in descending preference order.
+///
+/// ```dart
+/// final entries = parseAcceptLanguage('en-US,en;q=0.8,fr;q=0.9');
+/// // entries: [en-US;q=1.0, fr;q=0.9, en;q=0.8]
+/// ```
+///
+/// See also:
+/// - [firstLocaleTag], for extracting only the first valid tag.
+/// - [resolveLocale], for matching preference lists against supported locales.
 List<AcceptLanguageEntry> parseAcceptLanguage(String? header) {
   if (header == null || header.trim().isEmpty) return const [];
 
@@ -1111,8 +1324,11 @@ bool _isValidLanguageTag(String tag) {
 
 /// Resolves an active locale from an ordered list of preferences (e.g. `navigator.languages`).
 ///
-/// Matches against [supported] locale tags using exact matching first, then base language subtags,
-/// falling back to [fallback] if no candidate matches.
+/// Matches candidate tags in [preferences] against [supported] locale tags using:
+/// 1. **Exact match**: Case-insensitive and hyphen/underscore normalized (e.g. `'en-us'` matches `'en-US'`).
+/// 2. **Base language prefix match**: Evaluates the primary language subtag (e.g. `'fr-CA'` matches `'fr-FR'`
+///    if only `'fr-FR'` is supported).
+/// 3. **Fallback**: If no match is found, returns [fallback] (defaults to `'en-US'`).
 ///
 /// ```dart
 /// final chosen = resolveLocale(
@@ -1122,6 +1338,10 @@ bool _isValidLanguageTag(String tag) {
 /// );
 /// // chosen: "fr-FR"
 /// ```
+///
+/// See also:
+/// - [BloomI18n], which uses locale tags for translation routing.
+/// - [parseAcceptLanguage], for extracting preference lists from HTTP headers.
 String resolveLocale(
   List<String> preferences, {
   List<String>? supported,
@@ -1154,28 +1374,45 @@ String resolveLocale(
   return fallback;
 }
 
-/// Contract for persisting user locale selection across sessions.
+/// Contract for persisting user locale selection across browser sessions.
 ///
 /// Pure-Dart interface. In browser environments, adapters can implement this using
 /// `window.localStorage` without introducing browser dependencies into core logic.
+/// In SSR or test environments, [InMemoryLocaleStorage] provides an in-memory fallback.
+///
+/// See also:
+/// - [InMemoryLocaleStorage], the default memory-based adapter.
+/// - [BloomI18n], which delegates locale persistence to [LocaleStorage].
 abstract class LocaleStorage {
   /// Loads the persisted locale identifier, or `null` if none saved.
   Future<String?> load();
 
-  /// Persists [locale].
+  /// Persists [locale] for future application sessions.
   Future<void> save(String locale);
 }
 
 /// In-memory implementation of [LocaleStorage] suitable for testing and SSR.
+///
+/// Stores the active locale in an in-memory string field without accessing browser storage APIs.
+///
+/// ```dart
+/// final storage = InMemoryLocaleStorage('en-US');
+/// final i18n = BloomI18n(storage: storage);
+/// ```
+///
+/// See also:
+/// - [LocaleStorage], the abstract persistence contract.
 class InMemoryLocaleStorage implements LocaleStorage {
   String? _saved;
 
   /// Creates an in-memory storage optionally initialized with [initial].
   InMemoryLocaleStorage([this._saved]);
 
+  /// Loads the stored locale string.
   @override
   Future<String?> load() async => _saved;
 
+  /// Saves [locale] to memory.
   @override
   Future<void> save(String locale) async {
     _saved = locale;
@@ -1184,52 +1421,96 @@ class InMemoryLocaleStorage implements LocaleStorage {
 
 // ─── Reactive i18n Store ───────────────────────────────────────────────────
 
-/// Reactive internationalization controller and catalog store for Bloom applications.
+/// Reactive internationalization controller and multi-catalog store for Bloom applications.
 ///
-/// Manages registered message catalogs, dynamic catalog loading, fallback resolution,
+/// Manages registered message catalogs, dynamic on-demand catalog loading, fallback resolution,
 /// and provides reactive signal state ([locale], [isLoading]) that triggers fine-grained
-/// UI re-renders inside [Live] blocks when the locale updates.
+/// UI re-renders inside [Live] blocks when the active locale updates.
+///
+/// ### Reactivity Model
+/// Calling [translate] or [t] without an explicit `locale` argument reads the reactive signal
+/// [BloomI18n.locale]. When evaluated inside a [Live] component, signals automatically record
+/// a dependency on the active locale. When [setLocale] is called, only components observing
+/// the locale update in-place without reloading the page or re-mounting unaffected DOM branches.
+///
+/// ### Singleton vs Standalone Instances
+/// [BloomI18n.instance] is the global ambient singleton used by top-level convenience functions
+/// ([t], [setLocale], [loadLocale]). You can also instantiate standalone `BloomI18n(...)` instances
+/// for isolated sub-applications, headless server rendering, or unit tests.
+///
+/// ### Fallback Resolution Chain
+/// When a translation key is looked up via [translate], [BloomI18n] resolves templates through:
+/// 1. Exact requested locale catalog (e.g. `'fr-CA'`)
+/// 2. Base language subtag of requested locale (e.g. `'fr'`)
+/// 3. Configured [defaultLocale] catalog (e.g. `'en-US'`)
+/// 4. Base language subtag of [defaultLocale] (e.g. `'en'`)
+/// 5. The raw [messageId] itself as fallback, triggering the [onMissingKey] callback if configured.
+///
+/// ### Lazy Catalog Loading
+/// Translation catalogs can be split and loaded on demand using [registerLoader] and [loadLocale].
+/// While a catalog is loading over the network, [isLoading] is set to `true`, allowing UI components
+/// to render loading indicators or skeletons.
 ///
 /// ```dart
-/// // Setup catalogs
+/// // Register catalogs
 /// BloomI18n.instance.addCatalog(BloomCatalog('en-US', {
-///   'welcome': 'Welcome to Bloom!',
+///   'welcome': 'Welcome to Bloom, {name}!',
 /// }));
 /// BloomI18n.instance.addCatalog(BloomCatalog('fr-FR', {
-///   'welcome': 'Bienvenue sur Bloom !',
+///   'welcome': 'Bienvenue sur Bloom, {name} !',
 /// }));
 ///
-/// // In a reactive component:
+/// // Use in a reactive UI component:
 /// BloomNode greeting() => Live(() => Div(
-///   text: t('welcome'),
+///   text: t('welcome', args: {'name': 'Alice'}),
 /// ));
 ///
-/// // Change locale seamlessly:
+/// // Update locale dynamically:
 /// BloomI18n.instance.setLocale('fr-FR'); // Re-renders greeting() automatically
 /// ```
+///
+/// See also:
+/// - [BloomCatalog], storing ICU message templates for a single locale.
+/// - [t], global shorthand for reactive translations.
+/// - [setLocale], global shorthand for updating the active locale.
 class BloomI18n {
   /// Reactive signal containing the current active locale tag (e.g. `'en-US'`).
+  ///
+  /// Reading `.value` inside a [Live] builder registers an automatic reactive dependency.
   final Signal<String> locale;
 
-  /// Fallback locale used when a message is missing in the active locale.
+  /// Fallback locale signal used when a message template is missing in the active locale catalog.
   final Signal<String> defaultLocale;
 
-  /// Reactive signal indicating whether an asynchronous catalog is currently loading.
+  /// Reactive signal indicating whether an asynchronous catalog is currently loading via [loadLocale].
   final Signal<bool> isLoading = signal(false);
 
   final Map<String, BloomCatalog> _catalogs = {};
   final Map<String, Future<BloomCatalog> Function()> _loaders = {};
 
-  /// Optional handler called whenever a requested translation key is missing.
+  /// Optional callback invoked whenever a translation key is missing across all fallback catalogs.
   void Function(String key, String locale)? onMissingKey;
 
-  /// Optional storage adapter for persisting locale choices.
+  /// Optional storage adapter for persisting user locale choices across sessions.
   final LocaleStorage? storage;
 
   /// Global singleton instance of [BloomI18n].
   static final BloomI18n instance = BloomI18n();
 
   /// Creates a new [BloomI18n] store instance.
+  ///
+  /// Initializes [locale] to [initialLocale] and [defaultLocale] to [defaultLocale].
+  /// Optionally pre-populates the store with [catalogs] and configures [storage].
+  ///
+  /// ```dart
+  /// final i18n = BloomI18n(
+  ///   initialLocale: 'en-US',
+  ///   defaultLocale: 'en-US',
+  ///   catalogs: {
+  ///     'en-US': BloomCatalog('en-US', {'app.title': 'My App'}),
+  ///   },
+  /// );
+  /// ```
   BloomI18n({
     String initialLocale = 'en-US',
     String defaultLocale = 'en-US',
@@ -1246,39 +1527,62 @@ class BloomI18n {
   /// The active locale string value.
   String get currentLocale => locale.value;
 
-  /// Sets the active locale string value.
+  /// Sets the active locale string value, updating the reactive [locale] signal and persisting to [storage].
   set currentLocale(String val) => setLocale(val);
 
   /// Whether the currently active locale uses a right-to-left (RTL) script.
   bool get isCurrentRtl => isRtl(locale.value);
 
-  /// The text direction of the currently active locale.
+  /// The text direction of the currently active locale ([BloomTextDirection.rtl] or [BloomTextDirection.ltr]).
   BloomTextDirection get currentDirection => getTextDirection(locale.value);
 
-  /// Changes the active locale to [newLocale] and persists it if [storage] is configured.
+  /// Changes the active locale to [newLocale], updates the reactive [locale] signal, and persists to [storage].
+  ///
+  /// ```dart
+  /// BloomI18n.instance.setLocale('es-ES');
+  /// ```
   void setLocale(String newLocale) {
     locale.value = newLocale;
     storage?.save(newLocale);
   }
 
-  /// Adds an already-constructed [BloomCatalog] to the store.
+  /// Registers a pre-constructed [BloomCatalog] in this store.
+  ///
+  /// ```dart
+  /// i18n.addCatalog(BloomCatalog('de-DE', {'hello': 'Hallo!'}));
+  /// ```
   void addCatalog(BloomCatalog catalog) {
     _catalogs[catalog.locale] = catalog;
   }
 
   /// Adds a map of ICU message templates for [locale].
+  ///
+  /// ```dart
+  /// i18n.addMessages('fr-FR', {'login': 'Connexion', 'logout': 'Déconnexion'});
+  /// ```
   void addMessages(String locale, Map<String, String> messages) {
     _catalogs[locale] = BloomCatalog(locale, messages);
   }
 
-  /// Adds messages from a dynamic/JSON map for [locale].
+  /// Adds message templates from a dynamic JSON-compatible map for [locale].
+  ///
+  /// ```dart
+  /// i18n.addJson('en-US', {'items_count': '{count, plural, =0 {None} other {# items}}'});
+  /// ```
   void addJson(String locale, Map<String, dynamic> json) {
     _catalogs[locale] = BloomCatalog.fromJson(locale, json);
   }
 
   /// Registers an asynchronous catalog loader function for [locale].
   ///
-  /// Enables code-splitting and on-demand loading of translation bundles.
+  /// Enables code splitting and on-demand downloading of translation bundles.
+  ///
+  /// ```dart
+  /// i18n.registerLoader('ja-JP', () async {
+  ///   final jsonStr = await httpGet('/i18n/ja-JP.json');
+  ///   return BloomCatalog.fromJsonString('ja-JP', jsonStr);
+  /// });
+  /// ```
   void registerLoader(
     String locale,
     Future<BloomCatalog> Function() loader,
@@ -1286,9 +1590,17 @@ class BloomI18n {
     _loaders[locale] = loader;
   }
 
-  /// Asynchronously loads the catalog for [targetLocale] if a loader is registered.
+  /// Asynchronously loads the catalog for [targetLocale] using a registered loader.
   ///
-  /// Returns `true` if a catalog is loaded or already present.
+  /// Sets [isLoading] to `true` while the loader future is resolving.
+  /// Returns `true` if a catalog was loaded successfully or was already present.
+  ///
+  /// ```dart
+  /// final success = await BloomI18n.instance.loadLocale('ja-JP');
+  /// if (success) {
+  ///   BloomI18n.instance.setLocale('ja-JP');
+  /// }
+  /// ```
   Future<bool> loadLocale(String targetLocale) async {
     if (_catalogs.containsKey(targetLocale)) return true;
 
@@ -1306,23 +1618,36 @@ class BloomI18n {
   }
 
   /// Returns the registered [BloomCatalog] for [targetLocale], or `null` if not loaded.
+  ///
+  /// Performs case-insensitive and hyphen/underscore normalized matching.
   BloomCatalog? getCatalog(String targetLocale) =>
       _catalogs[targetLocale] ?? _findCatalogNormalized(targetLocale);
 
-  /// Checks if a catalog is registered or currently loaded for [targetLocale].
+  /// Returns `true` if a catalog is registered or currently loaded for [targetLocale].
   bool hasLocale(String targetLocale) => getCatalog(targetLocale) != null;
 
-  /// Returns a list of all registered/loaded locale tags.
+  /// Returns an unmodifiable list of all currently loaded locale tags.
   List<String> get supportedLocales => List.unmodifiable(_catalogs.keys);
 
-  /// Translates [messageId] for [targetLocale] (or active [locale] if null), substituting [args].
+  /// Translates [messageId] for [targetLocale] (or active [locale] if omitted), substituting [args].
   ///
-  /// Fallback resolution order:
-  /// 1. Exact requested locale catalog (e.g. `'en-US'`)
-  /// 2. Language-only subtag of requested locale (e.g. `'en'`)
+  /// When [locale] is omitted, reads the reactive [this.locale] signal so that enclosing
+  /// [Live] components automatically re-render when the active locale changes.
+  ///
+  /// Follows the 5-step fallback chain:
+  /// 1. Exact requested locale catalog (e.g. `'fr-CA'`)
+  /// 2. Base language subtag of requested locale (e.g. `'fr'`)
   /// 3. Configured [defaultLocale] catalog (e.g. `'en-US'`)
-  /// 4. Language-only subtag of [defaultLocale] (e.g. `'en'`)
-  /// 5. The raw [messageId] itself (and calls [onMissingKey] if configured).
+  /// 4. Base language subtag of [defaultLocale] (e.g. `'en'`)
+  /// 5. Raw [messageId] string (and calls [onMissingKey] callback if configured).
+  ///
+  /// ```dart
+  /// final text = i18n.translate('cart.total', args: {'count': 3});
+  /// ```
+  ///
+  /// See also:
+  /// - [t], shorthand alias.
+  /// - [BloomCatalog.get], single catalog evaluation.
   String translate(
     String messageId, {
     Map<String, Object>? args,
@@ -1374,6 +1699,10 @@ class BloomI18n {
   }
 
   /// Shorthand alias for [translate].
+  ///
+  /// ```dart
+  /// final title = i18n.t('nav.home');
+  /// ```
   String t(
     String messageId, {
     Map<String, Object>? args,
@@ -1423,13 +1752,19 @@ class BloomI18n {
 /// Translates [messageId] for the current active locale, automatically tracking reactivity.
 ///
 /// When called inside a [Live] builder without an explicit [locale], reads
-/// [BloomI18n.instance.locale] so that updates to the current locale trigger a re-render.
+/// [BloomI18n.instance.locale] so that updates to the current locale trigger a fine-grained
+/// re-render of the component.
 ///
 /// ```dart
 /// BloomNode greeting() => Live(() => Div(
 ///   text: t('greeting', args: {'name': 'Alice'}),
 /// ));
 /// ```
+///
+/// See also:
+/// - [BloomI18n.translate], the full translation method on the store instance.
+/// - [tr], shorthand with positional arguments.
+/// - [setLocale], changes the active locale globally.
 String t(
   String messageId, {
   Map<String, Object>? args,
@@ -1437,39 +1772,108 @@ String t(
 }) =>
     BloomI18n.instance.t(messageId, args: args, locale: locale);
 
-/// Shorthand alias for [t].
+/// Shorthand translation alias accepting positional [args].
+///
+/// Evaluates [messageId] on the global [BloomI18n.instance].
+///
+/// ```dart
+/// final text = tr('welcome_banner', {'user': 'Bob'});
+/// ```
+///
+/// See also:
+/// - [t], the named-parameter translation function.
 String tr(
   String messageId, [
   Map<String, Object>? args,
 ]) =>
     BloomI18n.instance.t(messageId, args: args);
 
-/// Returns the global reactive locale signal.
+/// Returns the global reactive locale signal from [BloomI18n.instance].
+///
+/// ```dart
+/// print('Current locale: ${currentLocaleSignal.value}');
+/// ```
 Signal<String> get currentLocaleSignal => BloomI18n.instance.locale;
 
 /// Changes the active locale globally on [BloomI18n.instance].
+///
+/// Updates the reactive signal, triggering automatic re-renders in observing [Live] components.
+///
+/// ```dart
+/// setLocale('fr-FR');
+/// ```
+///
+/// See also:
+/// - [BloomI18n.setLocale], instance method.
+/// - [loadLocale], for asynchronous catalog loading.
 void setLocale(String locale) => BloomI18n.instance.setLocale(locale);
 
 /// Asynchronously loads a catalog bundle for [locale] via [BloomI18n.instance].
+///
+/// ```dart
+/// await loadLocale('de-DE');
+/// setLocale('de-DE');
+/// ```
+///
+/// See also:
+/// - [BloomI18n.loadLocale], instance method.
+/// - [BloomI18n.registerLoader], registers the loader callback.
 Future<bool> loadLocale(String locale) =>
     BloomI18n.instance.loadLocale(locale);
 
-/// Formats a localized date for the active locale.
+/// Formats a localized date for the active locale on [BloomI18n.instance].
+///
+/// ```dart
+/// final str = localizedDate(DateTime.now());
+/// ```
+///
+/// See also:
+/// - [formatDate], standalone date formatting function.
 String localizedDate(DateTime date, [String? locale, String? pattern]) =>
     formatDate(date, locale: locale, pattern: pattern);
 
-/// Formats a localized date and time for the active locale.
+/// Formats a localized date and time for the active locale on [BloomI18n.instance].
+///
+/// ```dart
+/// final str = localizedDateTime(DateTime.now());
+/// ```
+///
+/// See also:
+/// - [formatDateTime], standalone date-time formatting function.
 String localizedDateTime(DateTime dateTime, [String? locale, String? pattern]) =>
     formatDateTime(dateTime, locale: locale, pattern: pattern);
 
-/// Formats a localized relative time string for the active locale.
+/// Formats a localized relative time string for the active locale on [BloomI18n.instance].
+///
+/// ```dart
+/// final str = localizedRelativeTime(DateTime.now().subtract(const Duration(minutes: 5)));
+/// // Returns: "5 minutes ago"
+/// ```
+///
+/// See also:
+/// - [formatRelativeTime], standalone relative time formatting function.
 String localizedRelativeTime(DateTime date, [DateTime? relativeTo, String? locale]) =>
     formatRelativeTime(date, relativeTo: relativeTo, locale: locale);
 
-/// Formats a localized number for the active locale.
+/// Formats a localized number for the active locale on [BloomI18n.instance].
+///
+/// ```dart
+/// final str = localizedNumber(1234567.89); // "1,234,567.89"
+/// ```
+///
+/// See also:
+/// - [formatNumber], standalone number formatting function.
 String localizedNumber(num value, [String? locale, int? decimalDigits]) =>
     formatNumber(value, locale: locale, decimalDigits: decimalDigits);
 
-/// Formats a localized currency string for the active locale.
+/// Formats a localized currency string for the active locale on [BloomI18n.instance].
+///
+/// ```dart
+/// final str = localizedCurrency(19.99, 'USD'); // "$19.99"
+/// ```
+///
+/// See also:
+/// - [formatCurrency], standalone currency formatting function.
 String localizedCurrency(num value, [String currency = 'USD', String? locale]) =>
     formatCurrency(value, currency: currency, locale: locale);
+
