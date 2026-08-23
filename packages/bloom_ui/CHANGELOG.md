@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 - 2026-08-23
+
+- Substantial expansion of the component set and token system across 70 files.
+  See the repository history for the full component-by-component detail.
+
 ## 0.1.0
 
 ### Initial Release — 100% shadcn/ui Primitives for Flutter

@@ -1,3 +1,7 @@
+# 0.1.1 - 2026-08-23
+
+- Migrated to an unnamed `library;` declaration. No public API changes.
+
 # 0.1.0
 
 - Initial release of `bloom_jobs`.

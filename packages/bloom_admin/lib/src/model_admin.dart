@@ -476,7 +476,10 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
       return (null, errors);
     }
 
-    final newPk = await QuerySet.insertRaw(db, _meta, values);
+    // insertRaw is declared `Future<dynamic>` because a primary key may be an
+    // int or a string depending on the model; this admin path only supports
+    // integer pks, so narrow it here rather than widening the return type.
+    final int? newPk = await QuerySet.insertRaw(db, _meta, values) as int?;
     return (newPk, null);
   }
 

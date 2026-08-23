@@ -1,9 +1,8 @@
 name: bloom_realtime
 description: Real-time pub/sub layer for Bloom server + client apps (channels, broadcast, presence, query invalidation bridge).
 version: 0.2.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - realtime
@@ -13,20 +12,25 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_js_native:
-    path: ../bloom_js_native
-  bloom_security: ^0.1.0
+  bloom_js_native: ^0.2.0
+  bloom_security: ^0.2.0
 
 dev_dependencies:
   lints: ^4.0.0
 
-# bloom_security's hosted 0.1.0 release still depends on the Flutter-requiring
-# bloom_framework (this repo's local bloom_security was ported off it in a
-# separate change, but that fix isn't published yet). Override to the local
-# copy so dart pub get/analyze/test reflect the real, current dependency
-# graph instead of silently re-acquiring Flutter transitively. Remove this
-# once a Flutter-free bloom_security is published and the version constraint
-# above is bumped to match.
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraints above are
+# what ship; these keep an in-tree checkout building against sibling sources.
+#
+# The bloom_security constraint above is ^0.2.0 because 0.2.0 is the first
+# release ported off the Flutter-requiring bloom_framework and onto
+# bloom_server; ^0.1.0 would have silently re-acquired Flutter transitively.
 dependency_overrides:
+  bloom_js_native:
+    path: ../bloom_js_native
   bloom_security:
     path: ../bloom_security
+  bloom_server:
+    path: ../bloom_server
+  bloom_seo:
+    path: ../bloom_seo

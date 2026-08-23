@@ -2,9 +2,8 @@ name: bloom_framework
 description: An opinionated application framework and developer platform built on Dart and Flutter.
 version: 0.3.1
 publish_to: none
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - framework
   - state-management
@@ -36,10 +35,20 @@ dependencies:
   shorebird_code_push: ^2.0.7
   supabase_flutter: ^2.17.1
   web: ^1.1.0
+  bloom_js_native: ^0.2.0
+  bloom_seo: ^0.1.1
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+
+# Local monorepo wiring. bloom_framework itself is `publish_to: none`, but its
+# dependencies must still be declared as HOSTED: projects scaffolded by
+# `bloom create-module --framework-path` depend on this package by path, and pub
+# refuses to resolve one package (bloom_js_native) from two different sources.
+# Since sibling bloom_seo now declares a hosted bloom_js_native, declaring a path
+# one here would make every scaffolded module unresolvable.
+dependency_overrides:
   bloom_js_native:
     path: ../bloom_js_native
   bloom_seo:
     path: ../bloom_seo
-
-dev_dependencies:
-  flutter_lints: ^5.0.0

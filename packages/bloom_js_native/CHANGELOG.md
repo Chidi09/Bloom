@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.2.0 - 2026-08-23
+
+### Added
+- **Typed RPC** (`rpc.dart`): `BloomRpcContract` with path parameters, typed
+  input/output codecs, and stable cache keys.
+- **i18n** (`i18n.dart`): ICU message formatting (plural, select, nested
+  sub-patterns), locale resolution, and reactive locale switching. Number/date
+  formatting is hand-rolled and is not full CLDR.
+- **Images** (`image.dart`): responsive `srcset`/`sizes`, `priority` for LCP,
+  and decorative-image handling.
+- **Scoped CSS** (`scoped_css.dart`): deterministic scoped class generation,
+  including `@media` and `@keyframes`.
+- **Islands** (`island_node.dart`, `islands.dart`): server-emitted island
+  placeholders plus a browser orchestrator with per-island failure isolation.
+  The SSR half is pure Dart and safe to import from a server.
+- **Web components** (`web_components.dart`): consume custom elements with rich
+  JS properties and decoded `CustomEvent` payloads.
+- **Cooperative scheduler** (`transition.dart`): real priority-based time
+  slicing replacing the previous microtask stub.
+- Async form validators, typed form fields, and field arrays.
+- Router query strings, fragments, and focus/aria-live route announcements.
+- SSR cache dehydration/hydration and infinite queries.
+
+### Fixed
+- Route announcements now render into a real `aria-live` region; previously they
+  only wrote to a signal that nothing displayed.
+- Error boundaries now cover reactive rebuild paths.
+
+### Known limitations
+- `defineCustomElement` uses `eval()` to construct the custom-element class and
+  therefore does not work under a Content-Security-Policy without `unsafe-eval`.
+  Consuming custom elements via `customElement()` is unaffected.
+
 ## 0.1.0 - 2026-08-21
 
 * Initial release of `bloom_js_native`.

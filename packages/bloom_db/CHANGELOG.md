@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-08-23
+
+- Internal query-builder fixes. No public API changes.
+
 ## 0.1.0
 
 Initial release.

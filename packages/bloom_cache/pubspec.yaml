@@ -1,9 +1,8 @@
 name: bloom_cache
 description: Server-side caching abstraction and backends (In-Memory LRU, Database, Redis) with HTTP response caching middleware for Bloom applications.
-version: 0.1.0
-homepage: https://bloom.dev
-repository: https://github.com/bloom-framework/bloom
-issue_tracker: https://github.com/bloom-framework/bloom/issues
+version: 0.2.0
+repository: https://github.com/Chidi09/Bloom
+issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
   - bloom
   - cache
@@ -15,10 +14,22 @@ environment:
 dependencies:
   meta: ^1.15.0
   redis: ^4.1.0
-  bloom_server:
-    path: ../bloom_server
+  bloom_server: ^0.1.0
   bloom_db: ^0.1.0
 
 dev_dependencies:
   test: ^1.25.0
   flutter_lints: ^5.0.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraints above are
+# what ship; these keep an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_server:
+    path: ../bloom_server
+  bloom_db:
+    path: ../bloom_db
+  bloom_seo:
+    path: ../bloom_seo
+  bloom_js_native:
+    path: ../bloom_js_native

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-08-23
+
+- Fixed `CREATE INDEX` statement generation for column lists.
+
 All notable changes to this project will be documented in this file.
 
 ## 0.1.0
