@@ -62,7 +62,7 @@ class NavbarComponent {
               children: [
                 // GitHub profile external link
                 A(
-                  href: 'https://github.com/alexrivera-dev',
+                  href: 'https://github.com/Chidi09',
                   target: '_blank',
                   rel: 'noopener noreferrer',
                   className:

@@ -117,7 +117,11 @@ class JsDevCommand extends Command<int> {
       watcher.onChange.listen((events) async {
         final changedName = p.basename(events.first.path);
         print(Ansi.info('\n🔄 File change detected: $changedName — Recompiling...'));
-        final success = await _compile(entryFile, outputFile);
+        // Tell the browser a rebuild started BEFORE compiling, not after: the
+        // compile takes seconds, and until this event existed the page gave no
+        // feedback at all in the meantime.
+        devServer.broadcastCompiling(reason: changedName);
+        final success = await _compile(entryFile, outputFile, devServer: devServer);
         if (success) {
           devServer.broadcastReload(reason: changedName);
           print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
@@ -166,7 +170,17 @@ class JsDevCommand extends Command<int> {
     return 0;
   }
 
-  Future<bool> _compile(File entryFile, File outputFile) async {
+  /// Compiles [entryFile] to [outputFile].
+  ///
+  /// When [devServer] is supplied, a failed compile is pushed to the browser as
+  /// a build error rather than only being printed to this terminal -- otherwise
+  /// the page keeps showing the last good build with no indication that the most
+  /// recent save never made it in.
+  Future<bool> _compile(
+    File entryFile,
+    File outputFile, {
+    BloomLiveReloadServer? devServer,
+  }) async {
     final sw = Stopwatch()..start();
     final compileRes = await Process.run('dart', [
       'compile',
@@ -180,6 +194,7 @@ class JsDevCommand extends Command<int> {
 
     if (compileRes.exitCode != 0) {
       print(Ansi.error('✖ Compilation failed:\n${compileRes.stderr}'));
+      devServer?.broadcastError('${compileRes.stderr}'.trim());
       return false;
     } else {
       final sizeKb = (outputFile.lengthSync() / 1024).toStringAsFixed(1);

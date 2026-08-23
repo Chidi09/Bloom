@@ -6,7 +6,7 @@ library;
 
 /// Fictional developer persona details for this showcase portfolio.
 class PortfolioPersona {
-  static const String name = 'Alex Rivera';
+  static const String name = 'Alex Rivera RELOADTEST';
   static const String role = 'Senior Full-Stack & Distributed Systems Engineer';
   static const String tagline =
       'Architecting resilient distributed backends and crafting high-performance, reactive user interfaces.';
@@ -14,7 +14,7 @@ class PortfolioPersona {
       'I specialize in building low-latency distributed systems, type-safe reactive web architectures, and high-craft user experiences. With over 8 years of engineering experience spanning cloud infrastructure, Dart/Flutter compilation toolchains, and real-time streaming pipelines, I bridge the gap between deep systems performance and delightful frontend craft.';
   static const String location = 'San Francisco, CA / Remote';
   static const String email = 'alex.rivera.engineering@example.com';
-  static const String github = 'https://github.com/alexrivera-dev';
+  static const String github = 'https://github.com/Chidi09';
   static const String linkedin = 'https://linkedin.com/in/alexrivera-eng';
   static const String twitter = 'https://x.com/alexrivera_dev';
 
@@ -27,7 +27,7 @@ class PortfolioPersona {
   ];
 
   /// The well-known GitHub account used to fetch sample contribution graph data.
-  static const String githubActivityUser = 'torvalds';
+  static const String githubActivityUser = 'Chidi09';
 
   /// Portrait image URL (Unsplash with explicit optimization query parameters).
   static const String portraitUrl =
