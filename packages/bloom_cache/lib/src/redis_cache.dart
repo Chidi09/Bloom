@@ -124,7 +124,7 @@ class RedisCache extends BloomCache {
   }
 
   @override
-  Future<void> set<T>(String key, T value, {Duration? ttl}) async {
+  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
     final cmd = await _getCommand();
     final raw = jsonEncode(value);
     final k = _prefixed(key);
@@ -134,12 +134,77 @@ class RedisCache extends BloomCache {
     } else {
       await cmd.send_object(['SET', k, raw]);
     }
+
+    // Drop the key from any tag set it previously belonged to before adding
+    // the new ones, so narrowing a key's tags on overwrite cannot leave it
+    // reachable from a tag it no longer carries.
+    await _removeKeyFromAllTagSets(cmd, k);
+
+    if (tags != null && tags.isNotEmpty) {
+      for (final tag in tags.toSet()) {
+        await cmd.send_object(['SADD', _tagSetKey(tag), k]);
+      }
+    }
   }
 
   @override
   Future<void> delete(String key) async {
     final cmd = await _getCommand();
-    await cmd.send_object(['DEL', _prefixed(key)]);
+    final k = _prefixed(key);
+    await cmd.send_object(['DEL', k]);
+    await _removeKeyFromAllTagSets(cmd, k);
+  }
+
+  /// Namespaced key of the Redis SET holding every cache key carrying [tag].
+  ///
+  /// The `__tags` segment keeps tag sets in a namespace of their own so a tag
+  /// can never collide with a cache key of the same name.
+  String _tagSetKey(String tag) =>
+      prefix.isEmpty ? '__tags:$tag' : '$prefix:__tags:$tag';
+
+  /// Pattern matching every tag set in this cache's namespace.
+  String get _tagSetPattern => prefix.isEmpty ? '__tags:*' : '$prefix:__tags:*';
+
+  /// Removes an already-prefixed [prefixedKey] from every tag set it appears in.
+  Future<void> _removeKeyFromAllTagSets(Command cmd, String prefixedKey) async {
+    final sets = await cmd.send_object(['KEYS', _tagSetPattern]);
+    if (sets is List) {
+      for (final setKey in sets) {
+        await cmd.send_object(['SREM', setKey.toString(), prefixedKey]);
+      }
+    }
+  }
+
+  @override
+  Future<void> invalidateTag(String tag) => invalidateTags([tag]);
+
+  @override
+  Future<void> invalidateTags(List<String> tags) async {
+    if (tags.isEmpty) return;
+    final cmd = await _getCommand();
+
+    final keys = <String>{};
+    final tagSetKeys = <String>[];
+    for (final tag in tags.toSet()) {
+      final setKey = _tagSetKey(tag);
+      tagSetKeys.add(setKey);
+      final members = await cmd.send_object(['SMEMBERS', setKey]);
+      if (members is List) {
+        for (final m in members) {
+          keys.add(m.toString());
+        }
+      }
+    }
+
+    // A key that expired via its Redis TTL leaves a dangling member behind in
+    // its tag set, because Redis expiry does not notify the set. That is
+    // harmless rather than a bug: DEL on an already-absent key is a no-op, so
+    // invalidation simply deletes some keys that were already gone. The
+    // dangling member itself disappears when the tag set is deleted below.
+    if (keys.isNotEmpty) {
+      await cmd.send_object(['DEL', ...keys]);
+    }
+    await cmd.send_object(['DEL', ...tagSetKeys]);
   }
 
   @override
@@ -147,12 +212,12 @@ class RedisCache extends BloomCache {
     final cmd = await _getCommand();
     if (prefix.isEmpty) {
       await cmd.send_object(['FLUSHDB']);
-    } else {
-      final keysResult = await cmd.send_object(['KEYS', '$prefix:*']);
-      if (keysResult is List && keysResult.isNotEmpty) {
-        final keys = keysResult.map((k) => k.toString()).toList();
-        await cmd.send_object(['DEL', ...keys]);
-      }
+      return;
+    }
+    final keysResult = await cmd.send_object(['KEYS', '$prefix:*']);
+    if (keysResult is List && keysResult.isNotEmpty) {
+      final keys = keysResult.map((k) => k.toString()).toList();
+      await cmd.send_object(['DEL', ...keys]);
     }
   }
 
