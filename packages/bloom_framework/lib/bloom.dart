@@ -3,8 +3,8 @@ library bloom;
 
 // Core
 export 'src/core/boot.dart';
-export 'src/core/env.dart';
-export 'src/core/logger.dart';
+export 'package:bloom_server/src/core/env.dart';
+export 'package:bloom_server/src/core/logger.dart';
 
 // Config & Environment
 export 'src/config/config.dart';
@@ -14,8 +14,8 @@ export 'src/features/feature_flags.dart';
 export 'bloom_config.dart';
 
 // Dependency Injection
-export 'src/di/container.dart';
-export 'src/di/scope.dart';
+export 'package:bloom_server/src/di/container.dart';
+export 'package:bloom_server/src/di/scope.dart';
 
 // Lifecycle
 export 'src/lifecycle/lifecycle.dart';

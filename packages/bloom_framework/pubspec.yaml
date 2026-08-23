@@ -37,6 +37,7 @@ dependencies:
   web: ^1.1.0
   bloom_js_native: ^0.2.0
   bloom_seo: ^0.1.1
+  bloom_server: ^0.1.0
 
 dev_dependencies:
   flutter_lints: ^5.0.0
@@ -52,3 +53,5 @@ dependency_overrides:
     path: ../bloom_js_native
   bloom_seo:
     path: ../bloom_seo
+  bloom_server:
+    path: ../bloom_server

@@ -55,6 +55,30 @@ packages:
       path: "../../packages/bloom_framework"
       relative: true
     source: path
+    version: "0.3.1"
+  bloom_js_native:
+    dependency: transitive
+    description:
+      name: bloom_js_native
+      sha256: adb1b313808a80e946311187d9da7aec31f41c3eebd1d45bea54cb4a10b12f33
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
+  bloom_seo:
+    dependency: transitive
+    description:
+      name: bloom_seo
+      sha256: a275b4980b018757e1eb7a617583bdbdd51e7a0e2fca2bf7da5f14216d1c31e1
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
+  bloom_server:
+    dependency: transitive
+    description:
+      name: bloom_server
+      sha256: df1c6aa3f7dce396a35a9c043d96fb88a211bec047fb844f8d79c7aefe492215
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   boolean_selector:
     dependency: transitive
