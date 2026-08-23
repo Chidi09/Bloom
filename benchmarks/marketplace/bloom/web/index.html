@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marketplace — Bloom Benchmark</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/hugeicons@1.0.0/fonts/hugeicons.css" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "@tailwindcss/browser": "/vendor/tailwindcss-browser.min.js",
+    "@hugeicons/core-free-icons": "/vendor/hugeicons-core-free-icons.min.js",
+    "@floating-ui/dom": "/vendor/floating-ui-dom.min.js",
+    "embla-carousel": "/vendor/embla-carousel.min.js",
+    "motion": "/vendor/motion.min.js",
+    "clsx": "/vendor/clsx.min.js",
+    "tailwind-merge": "/vendor/tailwind-merge.min.js",
+    "class-variance-authority": "/vendor/class-variance-authority.min.js"
+  }
+}
+</script>
+  <script type="module">import "@tailwindcss/browser";</script>
+  <style>
+    :root{--brand-50:#F0FDFA;--brand-100:#CCFBF1;--brand-200:#99F6E4;--brand-500:#14B8A6;--brand-600:#0D9488;--brand-700:#0F766E;--brand-900:#134E4A;--accent-500:#F59E0B;--accent-600:#D97706;--success:#16A34A;--warning:#D97706;--danger:#DC2626;--info:#0EA5E9;--n-0:#FFF;--n-50:#FAFAF9;--n-100:#F5F5F4;--n-200:#E7E5E4;--n-400:#A8A29E;--n-500:#78716C;--n-700:#44403C;--n-900:#1C1917;--n-950:#0C0A09;--bg:var(--n-0);--bg-soft:var(--n-50);--bg-muted:var(--n-100);--border:var(--n-200);--text:var(--n-900);--text-muted:var(--n-500);--card:var(--n-0);--font-display:'Plus Jakarta Sans',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;color-scheme:light}
+    @media(prefers-color-scheme:dark){:root{--bg:var(--n-950);--bg-soft:#1a1918;--bg-muted:#292524;--border:#2a2a29;--text:var(--n-50);--text-muted:var(--n-400);--card:#1c1b1a;color-scheme:dark}}
+    [data-theme="dark"]{--bg:var(--n-950);--bg-soft:#1a1918;--bg-muted:#292524;--border:#2a2a29;--text:var(--n-50);--text-muted:var(--n-400);--card:#1c1b1a;color-scheme:dark}
+    *{box-sizing:border-box}html{font-family:var(--font-body);background:var(--bg);color:var(--text)}
+    h1,h2,h3{font-family:var(--font-display)}
+    .price{font-variant-numeric:tabular-nums}
+    *:focus-visible{outline:2px solid var(--brand-600);outline-offset:2px}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script defer src="main.js"></script>
+</body>
+</html>
