@@ -100,7 +100,27 @@ class BuildCommand extends Command<int> {
     routerFile.createSync(recursive: true);
     routerFile.writeAsStringSync(routerCode);
 
-    // 2. Handle Provenance, Web SSG, and SSR targets
+    // 2. Determine environment file injection
+    String? envToInject = explicitEnv;
+    if (envToInject == null && flavor != null) {
+      final config = project.loadBloomConfig();
+      if (config['flavors'] is Map && config['flavors'][flavor] is Map) {
+        final flavorConfig = config['flavors'][flavor] as Map;
+        envToInject = flavorConfig['env_file']?.toString() ?? flavorConfig['envFile']?.toString();
+      }
+      envToInject ??= '.env.$flavor';
+    }
+
+    // Validate client environment for web targets to prevent leaking secrets
+    if (target == 'web' || target == 'web_dom') {
+      if (envToInject != null) {
+        if (!_validateClientEnvironment(envToInject, project.rootDir)) {
+          return 1;
+        }
+      }
+    }
+
+    // 3. Handle Provenance, Web SSG, and SSR targets
     if (target == 'provenance') {
       final provenanceGen = ProvenanceGenerator(project);
       provenanceGen.generateProvenance();
@@ -150,17 +170,6 @@ class BuildCommand extends Command<int> {
       return 0;
     }
 
-    // 3. Determine environment file injection
-    String? envToInject = explicitEnv;
-    if (envToInject == null && flavor != null) {
-      final config = project.loadBloomConfig();
-      if (config['flavors'] is Map && config['flavors'][flavor] is Map) {
-        final flavorConfig = config['flavors'][flavor] as Map;
-        envToInject = flavorConfig['env_file']?.toString() ?? flavorConfig['envFile']?.toString();
-      }
-      envToInject ??= '.env.$flavor';
-    }
-
     // 4. Assemble flutter build arguments
     final buildArgs = ['build', target];
 
@@ -197,6 +206,38 @@ class BuildCommand extends Command<int> {
       print('\n${Ansi.error('Build failed with exit code $exitCode')}\n');
     }
     return exitCode;
+  }
+
+  /// Validates that an environment file contains only client-public variables (`BLOOM_PUBLIC_*`).
+  ///
+  /// Prevents private server credentials and secrets from being embedded into client web bundles.
+  ///
+  /// The prefix is duplicated here rather than read from `BloomEnv.publicPrefix`
+  /// because bloom_cli deliberately does not depend on bloom_js_native. If that
+  /// prefix ever changes, this literal must change with it.
+  bool _validateClientEnvironment(String envFilePath, Directory rootDir) {
+    final file = File(p.isAbsolute(envFilePath) ? envFilePath : p.join(rootDir.path, envFilePath));
+    if (!file.existsSync()) return true;
+
+    final content = file.readAsStringSync();
+    final lines = content.split('\n');
+    for (var line in lines) {
+      line = line.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      final eqIdx = line.indexOf('=');
+      if (eqIdx == -1) continue;
+      final key = line.substring(0, eqIdx).trim();
+      if (!key.startsWith('BLOOM_PUBLIC_')) {
+        print(Ansi.error(
+          '✖ Build Security Failure: Non-public environment variable "$key" in "$envFilePath" '
+          'cannot be injected into client web bundle.\n'
+          'Only variables prefixed with "BLOOM_PUBLIC_" are permitted in client builds.\n'
+          'Non-public variables are server-only secrets.',
+        ));
+        return false;
+      }
+    }
+    return true;
   }
 }
 

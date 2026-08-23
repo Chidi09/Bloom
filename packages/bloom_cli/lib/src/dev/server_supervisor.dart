@@ -12,6 +12,9 @@ class BloomServerSupervisor {
   /// Additional arguments forwarded to the subprocess.
   final List<String> args;
 
+  /// Port on which the supervised server should listen. Defaults to 8090.
+  final int port;
+
   /// Minimum time to wait after kill before re-spawning. Defaults to 80ms.
   final Duration restartDebounce;
 
@@ -23,6 +26,7 @@ class BloomServerSupervisor {
 
   BloomServerSupervisor({
     required this.entryFile,
+    this.port = 8090,
     this.args = const [],
     this.restartDebounce = const Duration(milliseconds: 80),
   });
@@ -39,9 +43,16 @@ class BloomServerSupervisor {
   /// Starts the supervised server process.
   Future<void> start() async {
     _stopped = false;
+    final processArgs = <String>[
+      'run',
+      entryFile.path,
+      if (!args.contains('--port') && !args.any((a) => a.startsWith('--port=')))
+        ...['--port', '$port'],
+      ...args,
+    ];
     _process = await Process.start(
       'dart',
-      ['run', entryFile.path, ...args],
+      processArgs,
       runInShell: false,
     );
     _outputSubs.add(_process!.stdout

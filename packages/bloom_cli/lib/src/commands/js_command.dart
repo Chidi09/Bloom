@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../dev/dev_proxy.dart';
 import '../dev/live_reload_server.dart';
 import '../dev/source_watcher.dart';
 import '../npm/npm_vendor_assembler.dart';
@@ -89,24 +90,96 @@ class JsDevCommand extends Command<int> {
 
     final outputFile = File(p.join(webDir.path, 'main.js'));
 
-    // 3. Initial Fast Compile (-O0 for development)
+    // 3. Parse dev proxy configuration from bloom.yaml
+    final config = project.loadBloomConfig();
+    final proxyRules = <BloomDevProxyRule>[];
+
+    if (config['proxy'] != null) {
+      final rawProxy = config['proxy'];
+      if (rawProxy is! Map) {
+        print(Ansi.error('Invalid "proxy" configuration in bloom.yaml: Expected a YAML map.'));
+        return 1;
+      }
+      for (final entry in rawProxy.entries) {
+        final key = entry.key.toString();
+        try {
+          final rule = BloomDevProxyRule.fromYaml(key, entry.value);
+          proxyRules.add(rule);
+        } catch (e) {
+          print(Ansi.error('Invalid proxy rule for "$key" in bloom.yaml:\n$e'));
+          return 1;
+        }
+      }
+    }
+
+    // 4. Optional: Supervise a co-located Bloom server if bin/server.dart exists
+    final serverEntry =
+        File(p.join(project.rootDir.path, 'bin', 'server.dart'));
+    BloomServerSupervisor? supervisor;
+    const defaultServerPort = 8090;
+
+    if (serverEntry.existsSync()) {
+      // Automatically register default /api proxy if not explicitly configured
+      final hasApiRule = proxyRules.any((r) => r.matches('/api'));
+      if (!hasApiRule) {
+        proxyRules.add(BloomDevProxyRule(
+          pathPrefix: '/api',
+          targetUri: Uri.parse('http://127.0.0.1:$defaultServerPort'),
+          stripPrefix: false,
+        ));
+      }
+
+      supervisor = BloomServerSupervisor(
+        entryFile: serverEntry,
+        port: defaultServerPort,
+      );
+      await supervisor.start();
+      supervisor.onOutput
+          .listen((line) => print(Ansi.dimText('[server] $line')));
+      print(Ansi.info('› Backend server supervisor active on http://127.0.0.1:$defaultServerPort (bin/server.dart)'));
+
+      final serverWatchDir =
+          Directory(p.join(project.rootDir.path, 'lib'));
+      if (serverWatchDir.existsSync()) {
+        final serverWatcher = BloomSourceWatcher(
+          directories: [serverWatchDir],
+          debounceDuration: const Duration(milliseconds: 200),
+        );
+        serverWatcher.onChange.listen((events) async {
+          final changed = p.basename(events.first.path);
+          print(
+              Ansi.info('\n🔄 Server source changed: $changed — Restarting...'));
+          await supervisor!.restart(reason: changed);
+          print(Ansi.success('⚡ Server restarted.'));
+        });
+      }
+    }
+
+    // 5. Initial Fast Compile (-O0 for development)
     await _compile(entryFile, outputFile);
 
-    // 4. Start Live Reload Dev Server with SSE and Auto-Injection
+    // 6. Start Live Reload Dev Server with SSE and Auto-Injection
     final devServer = BloomLiveReloadServer(
       webDir: webDir,
       host: host,
       port: port,
       autoInjectScript: true,
+      proxyRules: proxyRules,
     );
     await devServer.start();
 
     print(Ansi.step('\n⚡ Bloom JS Hot Live-Reload Server active on http://$host:$port'));
     print(Ansi.info('› Serving static assets from ${webDir.path}'));
     print(Ansi.info('› Live-Reload SSE channel listening on /_bloom_hr'));
+    if (proxyRules.isNotEmpty) {
+      for (final rule in proxyRules) {
+        final stripNote = rule.stripPrefix ? ' (strip prefix)' : '';
+        print(Ansi.info('› Proxy: ${rule.pathPrefix} ➔ ${rule.targetUri}$stripNote'));
+      }
+    }
     print(Ansi.boldText('› Watching for file changes in ${project.rootDir.path}/lib... (Ctrl+C to stop)\n'));
 
-    // 5. Watch for Dart file changes and auto-recompile + broadcast reload
+    // 7. Watch for Dart file changes and auto-recompile + broadcast reload
     final watchDir = Directory(p.join(project.rootDir.path, 'lib'));
     if (watchDir.existsSync()) {
       final watcher = BloomSourceWatcher(
@@ -127,34 +200,6 @@ class JsDevCommand extends Command<int> {
           print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
         }
       });
-    }
-
-    // 6. Optional: Supervise a co-located Bloom server if bin/server.dart exists
-    final serverEntry =
-        File(p.join(project.rootDir.path, 'bin', 'server.dart'));
-    BloomServerSupervisor? supervisor;
-    if (serverEntry.existsSync()) {
-      supervisor = BloomServerSupervisor(entryFile: serverEntry);
-      await supervisor.start();
-      supervisor.onOutput
-          .listen((line) => print(Ansi.dimText('[server] $line')));
-      print(Ansi.info('› Backend server supervisor active (bin/server.dart)'));
-
-      final serverWatchDir =
-          Directory(p.join(project.rootDir.path, 'lib'));
-      if (serverWatchDir.existsSync()) {
-        final serverWatcher = BloomSourceWatcher(
-          directories: [serverWatchDir],
-          debounceDuration: const Duration(milliseconds: 200),
-        );
-        serverWatcher.onChange.listen((events) async {
-          final changed = p.basename(events.first.path);
-          print(
-              Ansi.info('\n🔄 Server source changed: $changed — Restarting...'));
-          await supervisor!.restart(reason: changed);
-          print(Ansi.success('⚡ Server restarted.'));
-        });
-      }
     }
 
     // Keep process active
