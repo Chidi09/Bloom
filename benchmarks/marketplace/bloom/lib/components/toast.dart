@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'tooltip.dart';
 import 'ui.dart';
 
 enum ToastVariant { success, error, info }
@@ -110,21 +111,24 @@ BloomNode _toastCard(ToastItem item) {
           Span(className: 'text-sm font-medium leading-snug line-clamp-2', text: item.message),
         ],
       ),
-      El('button',
-        attrs: {
-          'type': 'button',
-          'aria-label': 'Dismiss alert',
-        },
-        className: 'shrink-0 p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] transition-colors',
-        on: {
-          'click': (BloomEvent e) {
-            e.preventDefault();
-            dismissToast(item.id);
+      tooltip(
+        label: 'Dismiss',
+        child: El('button',
+          attrs: {
+            'type': 'button',
+            'aria-label': 'Dismiss alert',
           },
-        },
-        children: [
-          hugeIcon('x', className: 'w-3.5 h-3.5'),
-        ],
+          className: 'shrink-0 p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] transition-colors',
+          on: {
+            'click': (BloomEvent e) {
+              e.preventDefault();
+              dismissToast(item.id);
+            },
+          },
+          children: [
+            hugeIcon('x', className: 'w-3.5 h-3.5'),
+          ],
+        ),
       ),
     ],
   );

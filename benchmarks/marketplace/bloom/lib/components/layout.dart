@@ -1,6 +1,7 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import '../design/tokens.dart';
 import '../state/cart.dart';
+import 'tooltip.dart';
 import 'ui.dart';
 
 BloomNode appShell(BloomNode content, {String title = 'Marketplace'}) {
@@ -44,23 +45,26 @@ BloomNode _header() {
             ],
           ),
           Div(className: 'flex items-center gap-2', children: [
-            Live(() {
-              final count = cartItemCount;
-              final ariaLabel = count > 0 ? 'Cart, $count ${count == 1 ? 'item' : 'items'}' : 'Cart, empty';
-              return Link(
-                href: '/cart',
-                attrs: {'aria-label': ariaLabel},
-                className: 'relative inline-flex items-center justify-center p-2 rounded-md border border-[var(--border)] text-[var(--text)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
-                children: [
-                  hugeIcon('shopping', className: 'w-4 h-4'),
-                  if (count > 0)
-                    Span(
-                      className: 'absolute -top-1.5 -right-1.5 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--brand-600)] text-white text-[10px] font-bold flex items-center justify-center leading-none tabular',
-                      text: '$count',
-                    ),
-                ],
-              );
-            }),
+            tooltip(
+              label: 'Cart',
+              child: Live(() {
+                final count = cartItemCount;
+                final ariaLabel = count > 0 ? 'Cart, $count ${count == 1 ? 'item' : 'items'}' : 'Cart, empty';
+                return Link(
+                  href: '/cart',
+                  attrs: {'aria-label': ariaLabel},
+                  className: 'relative inline-flex items-center justify-center p-2 rounded-md border border-[var(--border)] text-[var(--text)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                  children: [
+                    hugeIcon('shopping', className: 'w-4 h-4'),
+                    if (count > 0)
+                      Span(
+                        className: 'absolute -top-1.5 -right-1.5 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--brand-600)] text-white text-[10px] font-bold flex items-center justify-center leading-none tabular',
+                        text: '$count',
+                      ),
+                  ],
+                );
+              }),
+            ),
             Link(
               href: '/admin',
               className: 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--border)] text-sm font-medium hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',

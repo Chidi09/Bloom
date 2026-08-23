@@ -1,6 +1,7 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:web/web.dart' as web;
 import '../components/button_variants.dart';
+import '../components/dropdown.dart';
 import '../components/layout.dart';
 import '../components/toast.dart';
 import '../components/ui.dart';
@@ -156,7 +157,46 @@ BloomNode adminProducts(Map<String, String> params) {
             Div(className: 'text-right tabular', children: [priceText(p.priceCents)]),
             Div(className: 'text-right tabular', children: [Span(className: 'tabular', text: '${p.stock}')]),
             statusPill(p.status),
-            Link(href: '/admin/products/${p.id}', className: 'text-sm text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Edit'),
+            Div(
+              className: 'text-right',
+              children: [
+                dropdownMenu(
+                  trigger: El(
+                    'button',
+                    attrs: {
+                      'type': 'button',
+                      'aria-label': 'Actions for ${p.title}',
+                    },
+                    className:
+                        'p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] transition-colors inline-flex items-center justify-center',
+                    children: [
+                      hugeIcon('more', className: 'w-4 h-4'),
+                    ],
+                  ),
+                  items: [
+                    MenuItemConfig(
+                      label: 'Edit',
+                      href: '/admin/products/${p.id}',
+                    ),
+                    MenuItemConfig(
+                      label: 'View on storefront',
+                      href: '/p/${p.slug}',
+                    ),
+                    MenuItemConfig(
+                      label: 'Copy slug',
+                      onClick: () {
+                        try {
+                          web.window.navigator.clipboard.writeText(p.slug);
+                          showToast('Slug copied', ToastVariant.success);
+                        } catch (_) {
+                          showToast('Failed to copy slug', ToastVariant.error);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ])).toList();
 
       return adminShell(
@@ -202,12 +242,14 @@ BloomNode adminProducts(Map<String, String> params) {
             adminTable(
               headers: ['Product', 'Price', 'Stock', 'Status', ''],
               rows: rows,
-              empty: Div(className: 'py-12 text-center text-[var(--text-muted)]', text: 'No products'),
+              empty: emptyState(
+                title: 'No products found',
+                description: 'No products match the selected criteria.',
+                icon: 'package',
+              ),
             ),
           ]),
-          if (data.items.isEmpty)
-            Div(className: 'py-12 text-center text-[var(--text-muted)]', text: 'No products available')
-          else
+          if (data.items.isNotEmpty)
             paginationBar(
               currentPath: routerController.currentPath.value,
               currentQuery: routerController.currentQuery.value,

@@ -19,6 +19,7 @@ String _hugeIconSvg(String name, {String className = 'w-4 h-4'}) {
     'star': '<path d="M13.7276 3.44418L15.4874 6.99288C15.7274 7.48687 16.3673 7.9607 16.9073 8.05143L20.0969 8.58575C22.1367 8.92853 22.6167 10.4206 21.1468 11.8925L18.6671 14.3927C18.2471 14.8161 18.0172 15.6327 18.1471 16.2175L18.8571 19.3125C19.417 21.7623 18.1271 22.71 15.9774 21.4296L12.9877 19.6452C12.4478 19.3226 11.5579 19.3226 11.0079 19.6452L8.01827 21.4296C5.8785 22.71 4.57865 21.7522 5.13859 19.3125L5.84851 16.2175C5.97849 15.6327 5.74852 14.8161 5.32856 14.3927L2.84884 11.8925C1.389 10.4206 1.85895 8.92853 3.89872 8.58575L7.08837 8.05143C7.61831 7.9607 8.25824 7.48687 8.49821 6.99288L10.258 3.44418C11.2179 1.51861 12.7777 1.51861 13.7276 3.44418Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'shopping': '<path d="M10.5 20.25C10.5 20.6642 10.1642 21 9.75 21C9.33579 21 9 20.6642 9 20.25C9 19.8358 9.33579 19.5 9.75 19.5C10.1642 19.5 10.5 19.8358 10.5 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M19 20.25C19 20.6642 18.6642 21 18.25 21C17.8358 21 17.5 20.6642 17.5 20.25C17.5 19.8358 17.8358 19.5 18.25 19.5C18.6642 19.5 19 19.8358 19 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M2 3H2.20664C3.53124 3 4.19354 3 4.6255 3.40221C5.05746 3.80441 5.10464 4.46503 5.19902 5.78626L5.45035 9.30496C5.5924 11.2936 5.66342 12.2879 5.96476 13.0961C6.62531 14.8677 8.08229 16.2244 9.89648 16.757C10.7241 17 11.7267 17 13.7317 17C15.8373 17 16.89 17 17.7417 16.7416C19.6593 16.1599 21.1599 14.6593 21.7416 12.7417C22 11.89 22 10.8433 22 8.75C22 8.05222 22 7.70333 21.9139 7.41943C21.72 6.78023 21.2198 6.28002 20.5806 6.08612C20.2967 6 19.9478 6 19.25 6H5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M16 10V13M11 10V13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'x': '<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
+    'more': '<path d="M11.9959 12H12.0049M17.9959 12H18.0049M5.99591 12H6.00489" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   final d = paths[name] ?? paths['package']!;
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="$className" aria-hidden="true">$d</svg>';
@@ -54,6 +55,70 @@ BloomNode statusPill(String status) {
     children: [
       hugeIcon(icon, className: 'w-3.5 h-3.5'),
       Text(status),
+    ],
+  );
+}
+
+typedef VoidCallback = void Function();
+
+/// General badge component supporting multiple semantic color variants and optional dismiss action.
+BloomNode badge({
+  required String label,
+  String variant = 'default',
+  VoidCallback? onDismiss,
+}) {
+  String bg, fg, border;
+  switch (variant) {
+    case 'brand':
+      bg = 'bg-[var(--brand-600)]';
+      fg = 'text-white';
+      border = 'border-transparent';
+      break;
+    case 'success':
+      bg = 'bg-[var(--success)]/12';
+      fg = 'text-[var(--success)]';
+      border = 'border-transparent';
+      break;
+    case 'warning':
+      bg = 'bg-[var(--warning)]/12';
+      fg = 'text-[var(--warning)]';
+      border = 'border-transparent';
+      break;
+    case 'destructive':
+      bg = 'bg-[var(--danger)]/12';
+      fg = 'text-[var(--danger)]';
+      border = 'border-transparent';
+      break;
+    case 'default':
+    default:
+      bg = 'bg-[var(--bg-muted)]';
+      fg = 'text-[var(--text)]';
+      border = 'border-[var(--border)]';
+      break;
+  }
+
+  return Span(
+    className: cn([
+      'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border',
+      bg,
+      fg,
+      border,
+    ]),
+    children: [
+      Text(label),
+      if (onDismiss != null)
+        El(
+          'button',
+          attrs: {
+            'type': 'button',
+            'aria-label': 'Remove $label filter',
+          },
+          className: 'cursor-pointer hover:opacity-75 transition-opacity inline-flex items-center p-0.5 -mr-1',
+          onClick: (_) => onDismiss(),
+          children: [
+            hugeIcon('x', className: 'w-3 h-3'),
+          ],
+        ),
     ],
   );
 }
@@ -510,15 +575,15 @@ BloomNode filterBar({
     className: 'flex flex-col gap-3 mb-6',
     children: [
       Div(
-        className: 'flex flex-wrap items-center gap-2 text-sm',
+        className: 'flex items-center gap-2 text-sm overflow-x-auto scrollbar-thin whitespace-nowrap pb-1',
         children: [
-          Span(className: 'text-[var(--text-muted)] mr-1', text: 'Category:'),
+          Span(className: 'text-[var(--text-muted)] mr-1 shrink-0', text: 'Category:'),
           Link(
             href: categoryHref(null),
             attrs: isAllActive ? {'aria-current': 'page'} : const {},
             className: isAllActive
-                ? 'px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
-                : 'px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                ? 'shrink-0 px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                : 'shrink-0 px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
             text: 'All',
           ),
           ...categories.map((cat) {
@@ -527,18 +592,18 @@ BloomNode filterBar({
               href: categoryHref(cat.slug),
               attrs: isActive ? {'aria-current': 'page'} : const {},
               className: isActive
-                  ? 'px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
-                  : 'px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                  ? 'shrink-0 px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                  : 'shrink-0 px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
               text: cat.name,
             );
           }),
-          Span(className: 'text-[var(--text-faint)] mx-1 hidden sm:inline', text: '|'),
+          Span(className: 'text-[var(--text-faint)] mx-1 shrink-0', text: '|'),
           Link(
             href: inStockHref,
             attrs: isInStock ? {'aria-pressed': 'true'} : {'aria-pressed': 'false'},
             className: isInStock
-                ? 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
-                : 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                ? 'shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                : 'shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
             children: [
               if (isInStock) hugeIcon('check', className: 'w-3.5 h-3.5')
               else Span(className: 'w-2 h-2 rounded-full bg-[var(--text-muted)]'),
@@ -580,3 +645,70 @@ BloomNode filterBar({
     ],
   );
 }
+
+/// Empty state placeholder with optional icon, title, description, and action CTA.
+BloomNode emptyState({
+  required String title,
+  String? description,
+  String? icon,
+  BloomNode? action,
+}) {
+  return Div(
+    className:
+        'py-16 sm:py-20 text-center flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border)] p-8',
+    children: [
+      if (icon != null)
+        Div(
+          className:
+              'w-14 h-14 rounded-full bg-[var(--bg-muted)] text-[var(--text-muted)] grid place-items-center mb-4',
+          children: [hugeIcon(icon, className: 'w-7 h-7')],
+        ),
+      H2(className: 'text-h2 mb-2', text: title),
+      if (description != null)
+        P(
+          className: 'text-sm text-[var(--text-muted)] max-w-md mb-6',
+          text: description,
+        ),
+      if (action != null) action,
+    ],
+  );
+}
+
+/// Breadcrumb navigation displaying path hierarchy.
+BloomNode breadcrumb(List<({String label, String? href})> items) {
+  return El(
+    'nav',
+    attrs: const {'aria-label': 'Breadcrumb'},
+    children: [
+      El(
+        'ol',
+        className: 'flex items-center gap-2 text-sm text-[var(--text-muted)] flex-wrap',
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            El(
+              'li',
+              className: 'flex items-center gap-2',
+              children: [
+                if (items[i].href != null && i < items.length - 1)
+                  Link(
+                    href: items[i].href!,
+                    className:
+                        'hover:text-[var(--text)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] rounded',
+                    text: items[i].label,
+                  )
+                else
+                  Span(
+                    className: 'text-[var(--text)] font-medium truncate max-w-[240px]',
+                    text: items[i].label,
+                  ),
+              ],
+            ),
+            if (i < items.length - 1)
+              hugeIcon('chevron-right', className: 'w-3.5 h-3.5 text-[var(--text-faint)]'),
+          ],
+        ],
+      ),
+    ],
+  );
+}
+

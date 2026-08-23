@@ -177,10 +177,11 @@ BloomNode homePage(Map<String, String> params) {
               ),
               productGrid(data.items),
               if (data.items.isEmpty)
-                Div(className: 'py-16 text-center', children: [
-                  P(className: 'text-display', text: 'No products found'),
-                  P(className: 'text-[var(--text-muted)] mt-2', text: 'Try a different filter or check back soon.'),
-                ])
+                emptyState(
+                  title: 'No products found',
+                  description: 'Try a different filter or check back soon.',
+                  icon: 'search',
+                )
               else
                 paginationBar(
                   currentPath: routerController.currentPath.value,
@@ -260,10 +261,9 @@ BloomNode categoryPage(Map<String, String> params) {
       final categories = result.categories;
       return appShell(Div(children: [
         Div(className: 'mb-6', children: [
-          Div(className: 'flex items-center gap-2 text-sm text-[var(--text-muted)]', children: [
-            Link(href: '/', className: 'hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Catalog'),
-            Span(text: '/'),
-            Span(className: 'text-[var(--text)] font-medium', text: cat.name),
+          breadcrumb([
+            (label: 'Catalog', href: '/'),
+            (label: cat.name, href: null),
           ]),
           H1(className: 'text-h1 mt-2', text: cat.name),
           P(className: 'text-sm text-[var(--text-muted)]', text: '${formatNumber(data.total)} products in this category'),
@@ -280,10 +280,11 @@ BloomNode categoryPage(Map<String, String> params) {
         ),
         Div(className: 'mt-4', children: [productGrid(data.items)]),
         if (data.items.isEmpty)
-          Div(className: 'py-16 text-center', children: [
-            P(className: 'text-display', text: 'No products found'),
-            P(className: 'text-[var(--text-muted)] mt-2', text: 'No items currently in this category.'),
-          ])
+          emptyState(
+            title: 'No products found',
+            description: 'No items currently in this category.',
+            icon: 'search',
+          )
         else
           paginationBar(
             currentPath: routerController.currentPath.value,
@@ -325,12 +326,12 @@ BloomNode productDetailPage(Map<String, String> params) {
       final stockLabel = product.stock == 0 ? 'Out of stock' : product.stock < 5 ? 'Low stock • ${product.stock} left' : 'In stock';
       final stockColor = product.stock == 0 ? 'text-[var(--danger)]' : product.stock < 5 ? 'text-[var(--warning)]' : 'text-[var(--success)]';
       return appShell(Div(children: [
-        Div(className: 'flex items-center gap-2 text-sm text-[var(--text-muted)] mb-4', children: [
-          Link(href: '/', className: 'hover:underline', text: 'Catalog'),
-          Span(text: '/'),
-          Link(href: '/c/${product.categorySlug}', className: 'hover:underline', text: product.categoryName ?? 'Category'),
-          Span(text: '/'),
-          Span(className: 'text-[var(--text)] truncate', text: product.title),
+        Div(className: 'mb-4', children: [
+          breadcrumb([
+            (label: 'Catalog', href: '/'),
+            (label: product.categoryName ?? 'Category', href: '/c/${product.categorySlug}'),
+            (label: product.title, href: null),
+          ]),
         ]),
         Div(className: 'grid lg:grid-cols-2 gap-8', children: [
           // Images
