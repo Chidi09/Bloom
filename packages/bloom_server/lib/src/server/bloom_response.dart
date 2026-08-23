@@ -1,5 +1,6 @@
 // lib/src/server/bloom_response.dart
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 /// Represents an HTTP response returned from a Bloom API route or middleware.
@@ -11,7 +12,22 @@ class BloomResponse {
   final Map<String, String> headers;
 
   /// Response body binary payload.
+  ///
+  /// Always empty when [isStreaming] is true — a streaming response carries
+  /// its bytes in [bodyStream] instead.
   final Uint8List body;
+
+  /// Incremental response body, or null for a buffered response.
+  ///
+  /// Held unconsumed until the router writes it, which is what allows
+  /// middleware to keep mutating [headers] after the handler returns: no
+  /// byte reaches the socket until the whole middleware chain has unwound.
+  final Stream<List<int>>? _bodyStream;
+
+  bool _streamTaken = false;
+
+  /// Whether this response delivers its body incrementally.
+  bool get isStreaming => _bodyStream != null;
 
   /// Creates a [BloomResponse] with an optional [statusCode], [headers], and [body].
   BloomResponse({
@@ -19,7 +35,73 @@ class BloomResponse {
     Map<String, String>? headers,
     Uint8List? body,
   })  : headers = Map<String, String>.from(headers ?? {}),
-        body = body ?? Uint8List(0);
+        body = body ?? Uint8List(0),
+        _bodyStream = null;
+
+  /// Creates a response whose body is written incrementally from [body].
+  ///
+  /// Use for large payloads, proxied upstreams, and any response whose length
+  /// is not known in advance. No `content-length` is set, so the response is
+  /// sent with chunked transfer encoding.
+  BloomResponse.stream(
+    Stream<List<int>> body, {
+    this.statusCode = 200,
+    Map<String, String>? headers,
+    String? contentType,
+  })  : headers = {
+          if (contentType != null) 'content-type': contentType,
+          ...?headers,
+        },
+        body = Uint8List(0),
+        _bodyStream = body;
+
+  /// Streams [file] from disk without loading it into memory.
+  ///
+  /// Unlike [BloomResponse.stream], `content-length` is set: a file's size is
+  /// known ahead of time, which lets clients show real progress and avoids
+  /// chunked encoding. Throws [FileSystemException] if [file] does not exist.
+  factory BloomResponse.file(
+    File file, {
+    String? contentType,
+    int statusCode = 200,
+    Map<String, String>? headers,
+  }) {
+    if (!file.existsSync()) {
+      throw FileSystemException('File not found', file.path);
+    }
+    return BloomResponse.stream(
+      file.openRead(),
+      statusCode: statusCode,
+      contentType: contentType,
+      headers: {
+        'content-length': file.lengthSync().toString(),
+        ...?headers,
+      },
+    );
+  }
+
+  /// Returns the body stream, marking it consumed.
+  ///
+  /// Throws [StateError] if this is not a streaming response, or if the stream
+  /// was already taken — a single-subscription stream cannot be listened twice,
+  /// and this turns that into a clear error at the call site.
+  Stream<List<int>> takeBodyStream() {
+    final stream = _bodyStream;
+    if (stream == null) {
+      throw StateError(
+        'BloomResponse.takeBodyStream() called on a buffered response. '
+        'Check isStreaming before calling.',
+      );
+    }
+    if (_streamTaken) {
+      throw StateError(
+        'BloomResponse body stream has already been taken. A response body '
+        'may only be consumed once.',
+      );
+    }
+    _streamTaken = true;
+    return stream;
+  }
 
   /// Helper constructor for JSON payloads.
   factory BloomResponse.json(
