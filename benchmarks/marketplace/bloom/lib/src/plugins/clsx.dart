@@ -13,32 +13,38 @@ import 'package:web/web.dart' as web;
 /// This file was auto-generated from the package's TypeScript declarations
 /// fetched from esm.sh / DefinitelyTyped.
 ///
-/// Many npm packages (clsx, class-variance-authority, tailwind-merge, and
-/// most small utility libraries) export a *callable function* as their
-/// default export, not an object with named methods — there is no method
-/// name to hand [Clsx.callMethod], so that member alone cannot invoke
-/// them. [clsx] below binds the JS global directly as a callable
-/// Dart top-level function for exactly that case; pass only the leading
-/// arguments you need, the rest default to omitted (`undefined` in JS).
+/// The package namespace is bridged onto `window.clsx` via the bootstrap
+/// script in `web/index.html`. Access members through the top-level [clsx] getter.
 ///
 /// Usage:
-///   clsx(arg0.jsify(), arg1.jsify())   // package exports a function
-///   clsx.method(...)                       // package exports an object — via callMethod below
+///   clsx.<member>(...)
 @JS('clsx')
-external JSAny? clsx([
-  JSAny? a0,
-  JSAny? a1,
-  JSAny? a2,
-  JSAny? a3,
-  JSAny? a4,
-  JSAny? a5,
-]);
+external Clsx get clsx;
 
 @JS('clsx')
 extension type Clsx(JSObject _) implements JSObject {
-  /// Call a named method on the JS object form of this package (only
-  /// applicable if it exports an object rather than a bare function — see
-  /// [clsx] above for the function case).
-  /// For better type safety, extend this file with explicit external members.
+  @JS('clsx')
+  external JSAny? clsx([
+    JSAny? a0,
+    JSAny? a1,
+    JSAny? a2,
+    JSAny? a3,
+    JSAny? a4,
+    JSAny? a5,
+  ]);
+  @JS('default')
+  external JSAny? default_([
+    JSAny? a0,
+    JSAny? a1,
+    JSAny? a2,
+    JSAny? a3,
+    JSAny? a4,
+    JSAny? a5,
+  ]);
+  /// Call a named method on the JS object form of this package.
+  /// Note: this member maps to a literal JS property named `callMethod` on the
+  /// target object, not a dynamic-dispatch-by-name call. It only works if the
+  /// target object happens to define a method literally named `callMethod`.
   external JSAny? callMethod(String method, [JSArray<JSAny?>? args]);
 }
+

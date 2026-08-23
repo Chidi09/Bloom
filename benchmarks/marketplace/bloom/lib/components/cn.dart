@@ -15,10 +15,10 @@ import '../src/plugins/tailwind_merge.dart' as tw_pkg;
 /// plain string interpolation with a trailing override does not guarantee
 /// once class order gets shuffled by a conditional.
 String cn(List<Object?> classes) {
-  final merged = clsx_pkg.clsx(classes.jsify());
+  final merged = clsx_pkg.clsx.clsx(classes.jsify());
   if (merged == null) return '';
   final mergedStr = (merged as JSString).toDart;
-  final twResult = tw_pkg.tailwind_merge(mergedStr.toJS);
+  final twResult = tw_pkg.tailwind_merge.twMerge(mergedStr.toJS);
   if (twResult == null) return mergedStr;
   return (twResult as JSString).toDart;
 }
