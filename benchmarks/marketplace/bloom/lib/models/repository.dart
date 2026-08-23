@@ -1,7 +1,7 @@
 import 'dart:convert';
 import '../api/cursor.dart' as cur;
 import '../db.dart';
-import 'models.dart';
+import 'db_models.dart';
 
 class PaginatedProducts {
   final List<Product> items;
