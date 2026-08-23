@@ -12,6 +12,8 @@ BloomApiRouter buildRouter() {
   router.get('/api/categories/:slug', (req) async => singleCategoryHandler(req));
   router.get('/api/admin/products', (req) async => adminListProductsHandler(req));
   router.get('/api/admin/products/:id', (req) async => adminSingleProductHandler(req));
+  router.post('/api/admin/products', (req) async => adminCreateProductHandler(req));
+  router.put('/api/admin/products/:id', (req) async => adminUpdateProductHandler(req));
   router.get('/api/admin/stats', (req) async => adminStatsHandler(req));
 
   // Static asset fallback for client bundle (if present)

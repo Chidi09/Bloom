@@ -13,6 +13,7 @@ String _hugeIconSvg(String name, {String className = 'w-4 h-4'}) {
     'archive': '<path d="M10.0001 17V7C10.0001 5.11438 10.0001 4.17157 9.41427 3.58579C8.82849 3 7.88568 3 6.00005 3C4.11444 3 3.17163 3 2.58584 3.58578C2.00006 4.17157 2.00005 5.11437 2.00004 6.99998L2 17C1.99999 18.8856 1.99999 19.8284 2.58577 20.4142C3.17156 21 4.11438 21 6.00003 21C7.88567 21 8.82849 21 9.41427 20.4142C10.0001 19.8284 10.0001 18.8856 10.0001 17Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M21.4558 15.7091L19.0473 7.19224C18.572 5.51165 18.3343 4.67135 17.6838 4.2617C17.6312 4.22861 17.5772 4.19796 17.5218 4.16986C16.8358 3.82199 15.9877 4.04691 14.2916 4.49674C12.5529 4.95783 11.6836 5.18838 11.2632 5.84738C11.2293 5.90053 11.198 5.95524 11.1693 6.01134C10.8134 6.70684 11.057 7.5682 11.5442 9.2909L13.9527 17.8078C14.428 19.4884 14.6657 20.3287 15.3162 20.7383C15.3688 20.7714 15.4228 20.802 15.4782 20.8301C16.1642 21.178 17.0123 20.9531 18.7084 20.5033C20.4471 20.0422 21.3164 19.8116 21.7368 19.1526C21.7707 19.0995 21.802 19.0448 21.8307 18.9887C22.1866 18.2932 21.943 17.4318 21.4558 15.7091Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M2 7H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M12 9.00019L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M6.125 17H6M6.25 17C6.25 17.1381 6.13807 17.25 6 17.25C5.86193 17.25 5.75 17.1381 5.75 17C5.75 16.8619 5.86193 16.75 6 16.75C6.13807 16.75 6.25 16.8619 6.25 17Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M17.7307 16.75H17.6057M17.8557 16.75C17.8557 16.8881 17.7437 17 17.6057 17C17.4676 17 17.3557 16.8881 17.3557 16.75C17.3557 16.6119 17.4676 16.5 17.6057 16.5C17.7437 16.5 17.8557 16.6119 17.8557 16.75Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'draft': '<path d="M16.4249 4.60509L17.4149 3.6151C18.2351 2.79497 19.5648 2.79497 20.3849 3.6151C21.205 4.43524 21.205 5.76493 20.3849 6.58507L19.3949 7.57506M16.4249 4.60509L9.76558 11.2644C9.25807 11.772 8.89804 12.4078 8.72397 13.1041L8 16L10.8959 15.276C11.5922 15.102 12.228 14.7419 12.7356 14.2344L19.3949 7.57506M16.4249 4.60509L19.3949 7.57506" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5"/><path d="M18.9999 13.5C18.9999 16.7875 18.9999 18.4312 18.092 19.5376C17.9258 19.7401 17.7401 19.9258 17.5375 20.092C16.4312 21 14.7874 21 11.4999 21H11C7.22876 21 5.34316 21 4.17159 19.8284C3.00003 18.6569 3 16.7712 3 13V12.5C3 9.21252 3 7.56879 3.90794 6.46244C4.07417 6.2599 4.2599 6.07417 4.46244 5.90794C5.56879 5 7.21252 5 10.5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'search': '<path d="M17 17L21 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
+    'chevron-left': '<path d="M15 18C15 18 9.00005 13.5811 9.00005 12C9.00005 10.4188 15 6 15 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'chevron-right': '<path d="M9.00005 18C9.00005 18 15 13.5811 15 12C15 10.4188 9 6 9 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'star': '<path d="M13.7276 3.44418L15.4874 6.99288C15.7274 7.48687 16.3673 7.9607 16.9073 8.05143L20.0969 8.58575C22.1367 8.92853 22.6167 10.4206 21.1468 11.8925L18.6671 14.3927C18.2471 14.8161 18.0172 15.6327 18.1471 16.2175L18.8571 19.3125C19.417 21.7623 18.1271 22.71 15.9774 21.4296L12.9877 19.6452C12.4478 19.3226 11.5579 19.3226 11.0079 19.6452L8.01827 21.4296C5.8785 22.71 4.57865 21.7522 5.13859 19.3125L5.84851 16.2175C5.97849 15.6327 5.74852 14.8161 5.32856 14.3927L2.84884 11.8925C1.389 10.4206 1.85895 8.92853 3.89872 8.58575L7.08837 8.05143C7.61831 7.9607 8.25824 7.48687 8.49821 6.99288L10.258 3.44418C11.2179 1.51861 12.7777 1.51861 13.7276 3.44418Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'shopping': '<path d="M10.5 20.25C10.5 20.6642 10.1642 21 9.75 21C9.33579 21 9 20.6642 9 20.25C9 19.8358 9.33579 19.5 9.75 19.5C10.1642 19.5 10.5 19.8358 10.5 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M19 20.25C19 20.6642 18.6642 21 18.25 21C17.8358 21 17.5 20.6642 17.5 20.25C17.5 19.8358 17.8358 19.5 18.25 19.5C18.6642 19.5 19 19.8358 19 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M2 3H2.20664C3.53124 3 4.19354 3 4.6255 3.40221C5.05746 3.80441 5.10464 4.46503 5.19902 5.78626L5.45035 9.30496C5.5924 11.2936 5.66342 12.2879 5.96476 13.0961C6.62531 14.8677 8.08229 16.2244 9.89648 16.757C10.7241 17 11.7267 17 13.7317 17C15.8373 17 16.89 17 17.7417 16.7416C19.6593 16.1599 21.1599 14.6593 21.7416 12.7417C22 11.89 22 10.8433 22 8.75C22 8.05222 22 7.70333 21.9139 7.41943C21.72 6.78023 21.2198 6.28002 20.5806 6.08612C20.2967 6 19.9478 6 19.25 6H5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M16 10V13M11 10V13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
@@ -131,21 +132,120 @@ BloomNode productGrid(List<dynamic> products) {
   );
 }
 
-BloomNode paginationControls(String? nextCursor, String? prevInfo) {
-  // Cursor-based controls: disabled ends, never dead-end link
-  // Build next URL preserving query? Expect caller to pass full href
+// Marks "page 1" (no cursor) in the back-stack. Never emitted by the
+// base64url cursor encoder, so it can't collide with a real cursor value —
+// unlike an empty string, which is indistinguishable from "no entry" once
+// the stack is comma-joined and round-tripped through a query string.
+const _firstPageMarker = '~';
+
+String nextPageHref(String path, Map<String, String> currentQuery, String nextCursor) {
+  final qp = Map<String, String>.from(currentQuery);
+  final currentCur = (qp['cursor'] ?? '').isEmpty ? _firstPageMarker : qp['cursor']!;
+  final backRaw = qp['back'];
+  final backList = backRaw != null && backRaw.isNotEmpty ? backRaw.split(',') : <String>[];
+  backList.add(currentCur);
+  qp['cursor'] = nextCursor;
+  qp['back'] = backList.join(',');
+  return _buildUrlWithQuery(path, qp);
+}
+
+String prevPageHref(String path, Map<String, String> currentQuery) {
+  final qp = Map<String, String>.from(currentQuery);
+  final backRaw = qp['back'];
+  if (backRaw == null || backRaw.isEmpty) return _buildUrlWithQuery(path, qp);
+  final backList = backRaw.split(',');
+  final prevCur = backList.removeLast();
+  if (prevCur == _firstPageMarker) {
+    qp.remove('cursor');
+  } else {
+    qp['cursor'] = prevCur;
+  }
+  if (backList.isEmpty) {
+    qp.remove('back');
+  } else {
+    qp['back'] = backList.join(',');
+  }
+  return _buildUrlWithQuery(path, qp);
+}
+
+String _buildUrlWithQuery(String path, Map<String, String> query) {
+  if (query.isEmpty) return path;
+  final qs = query.entries.map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}').join('&');
+  return '$path?$qs';
+}
+
+BloomNode paginationBar({
+  required String currentPath,
+  required Map<String, String> currentQuery,
+  required int total,
+  required int itemCount,
+  String? nextCursor,
+  int pageSize = 24,
+}) {
+  final backRaw = currentQuery['back'];
+  final backList = backRaw != null && backRaw.isNotEmpty ? backRaw.split(',') : <String>[];
+  final hasPrevious = backList.isNotEmpty;
+  final hasNext = nextCursor != null && nextCursor.isNotEmpty;
+
+  final startItem = total == 0 ? 0 : (backList.length * pageSize) + 1;
+  final endItem = total == 0 ? 0 : (startItem + itemCount - 1).clamp(0, total);
+  final positionText = total == 0
+      ? 'No results'
+      : 'Showing ${formatNumber(startItem)}–${formatNumber(endItem)} of ${formatNumber(total)}';
+
   return Div(
-    className: 'flex items-center justify-between gap-4 mt-8',
+    attrs: aria(role: AriaRole.navigation, label: 'Pagination'),
+    className: 'flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-[var(--border)]',
     children: [
-      Div(className: 'text-sm text-[var(--text-muted)]', text: nextCursor == null ? 'End of results' : 'More results available'),
-      if (nextCursor != null)
-        Link(
-          href: '?cursor=${Uri.encodeComponent(nextCursor)}',
-          className: 'inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
-          children: [Span(text: 'Next'), hugeIcon('chevron-right', className: 'w-4 h-4')],
-        )
-      else
-        Span(className: 'inline-flex items-center px-4 py-2 rounded-md bg-[var(--bg-muted)] text-[var(--text-muted)] text-sm', text: 'No more pages'),
+      Div(
+        className: 'flex items-center gap-2',
+        children: [
+          if (hasPrevious)
+            Link(
+              href: prevPageHref(currentPath, currentQuery),
+              className: cn([buttonClasses(ButtonVariant.ghost), 'gap-1 px-3 py-1.5 text-sm border border-[var(--border)] hover:bg-[var(--bg-muted)]']),
+              children: [
+                hugeIcon('chevron-left', className: 'w-4 h-4'),
+                Span(text: 'Previous'),
+              ],
+            )
+          else
+            El('button',
+              attrs: {'type': 'button', 'disabled': 'true', 'aria-disabled': 'true'},
+              className: cn([buttonClasses(ButtonVariant.ghost), 'gap-1 px-3 py-1.5 text-sm border border-[var(--border)] opacity-50 pointer-events-none']),
+              children: [
+                hugeIcon('chevron-left', className: 'w-4 h-4'),
+                Span(text: 'Previous'),
+              ],
+            ),
+          if (hasNext)
+            Link(
+              href: nextPageHref(currentPath, currentQuery, nextCursor),
+              className: cn([buttonClasses(ButtonVariant.ghost), 'gap-1 px-3 py-1.5 text-sm border border-[var(--border)] hover:bg-[var(--bg-muted)]']),
+              children: [
+                Span(text: 'Next'),
+                hugeIcon('chevron-right', className: 'w-4 h-4'),
+              ],
+            )
+          else
+            El('button',
+              attrs: {'type': 'button', 'disabled': 'true', 'aria-disabled': 'true'},
+              className: cn([buttonClasses(ButtonVariant.ghost), 'gap-1 px-3 py-1.5 text-sm border border-[var(--border)] opacity-50 pointer-events-none']),
+              children: [
+                Span(text: 'Next'),
+                hugeIcon('chevron-right', className: 'w-4 h-4'),
+              ],
+            ),
+        ],
+      ),
+      Div(
+        className: 'text-sm text-[var(--text-muted)] flex items-center gap-2',
+        children: [
+          Span(text: positionText),
+          if (!hasNext && total > 0)
+            Span(className: 'text-xs text-[var(--text-faint)]', text: '• End of results'),
+        ],
+      ),
     ],
   );
 }
