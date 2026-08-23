@@ -25,3 +25,19 @@ npm_packages:
     version: 1.9.4
     esm_url: https://esm.sh/canvas-confetti@1.9.4?bundle
 target: web_dom
+
+# Route the GitHub contributions fetch through our own origin.
+#
+# github-calendar otherwise fetches api.bloggify.net straight from the browser,
+# which answers 403 with no Access-Control-Allow-Origin, so the graph fails for
+# every username. Pointing it at github.com directly does not help either --
+# github.com sends no CORS header of its own.
+#
+# CORS is a browser policy; a server-side hop is not subject to it. Proxying
+# through the dev server means the browser only ever talks to its own origin,
+# and the library receives exactly the HTML its parser expects, with no
+# JSON-to-HTML shim in between.
+proxy:
+  "/gh":
+    target: "https://github.com"
+    strip_prefix: true
