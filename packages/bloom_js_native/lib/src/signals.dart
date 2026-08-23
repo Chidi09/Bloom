@@ -22,10 +22,15 @@
 /// ```
 library;
 
-import 'package:signals/signals.dart' as s;
+// signals_core, not signals: `package:signals` depends on the Flutter SDK and
+// on signals_flutter, which would make this package -- and everything built on
+// it, including server-side rendering in bloom_server -- require Flutter.
+// signals_core is the same reactivity engine with zero dependencies, and none
+// of the Flutter-only bindings are used here.
+import 'package:signals_core/signals_core.dart' as s;
 
 // Re-export core signal types & utilities matching Bloom framework conventions
-export 'package:signals/signals.dart'
+export 'package:signals_core/signals_core.dart'
     show
         Signal,
         Computed,

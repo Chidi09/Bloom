@@ -5,7 +5,7 @@
 // framework's reactivity — dispatching an action updates a signal, so
 // existing `effect()`/component-rebuild machinery picks up the change
 // exactly like any other signal write.
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 /// A pure state-transition function that computes the next state from the current [state] and an [action].
 ///

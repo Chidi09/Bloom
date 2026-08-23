@@ -1,7 +1,7 @@
 // lib/src/mutation.dart
 import 'dart:async';
 
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 import 'data.dart';
 

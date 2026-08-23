@@ -1,7 +1,7 @@
 // lib/src/realtime.dart
 import 'dart:async';
 import 'dart:convert';
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 // ─── Wire protocol ──────────────────────────────────────────────────────────
 //

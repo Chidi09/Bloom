@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 /// Execution status lifecycle of a [BloomQuery].
 enum QueryStatus {

@@ -14,7 +14,8 @@ environment:
   sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
-  signals: ^5.5.0
+  # See the note in bloom_js_native/pubspec.yaml: signals pulls in the Flutter SDK.
+  signals_core: ^5.5.0
   bloom_js_native: ^0.2.0
 
 dev_dependencies:
