@@ -15,9 +15,79 @@ import 'framework.dart';
 /// (e.g. `bloom js dev`), not enabled by default in production builds.
 bool bloomDevErrorOverlayEnabled = false;
 
+/// Optional Content-Security-Policy (CSP) nonce applied to `<style>` elements
+/// created and injected by the framework (such as [StyleNode] stylesheets or
+/// [AnimatedNode] `@keyframes` rules). When `null` (the default), no `nonce`
+/// attribute is added.
+String? bloomStyleNonce;
+
 /// Tracks animation names whose `@keyframes` `<style>` element has already
 /// been injected into `document.head` for the lifetime of this page.
 final Set<String> _injectedAnimationNames = {};
+
+/// Key used in Zone values to propagate the current ambient [_ErrorBoundaryHandler].
+final Object _errorBoundaryZoneKey = Object();
+
+/// Reports an unhandled error to DevTools and optionally renders the dev error overlay.
+void _reportUnhandledError(Object error, StackTrace stackTrace) {
+  BloomJsDevTools.notify('mount-error', {
+    'error': error.toString(),
+    'stackTrace': stackTrace.toString(),
+  });
+  if (bloomDevErrorOverlayEnabled) {
+    final overlayHost = web.document.createElement('div');
+    overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
+    (web.document.body ?? web.document.documentElement)?.appendChild(overlayHost);
+  }
+}
+
+/// Handler for the nearest enclosing ErrorBoundary in scope.
+class _ErrorBoundaryHandler {
+  final _Sentinel sentinel;
+  final _Region inner;
+  final BloomNode Function(Object error, StackTrace stackTrace) fallback;
+  final _ErrorBoundaryHandler? parentBoundary;
+  bool isFailed = false;
+
+  _ErrorBoundaryHandler({
+    required this.sentinel,
+    required this.inner,
+    required this.fallback,
+    this.parentBoundary,
+  });
+
+  void handleError(Object error, StackTrace stackTrace) {
+    if (isFailed) {
+      if (parentBoundary != null) {
+        parentBoundary!.handleError(error, stackTrace);
+      } else {
+        _reportUnhandledError(error, stackTrace);
+      }
+      return;
+    }
+    isFailed = true;
+
+    inner.disposeAll();
+    sentinel.clear();
+
+    try {
+      final fallbackNode = fallback(error, stackTrace);
+      final fallbackNodes = runZoned(
+        () => _mountNode(fallbackNode, inner),
+        zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+      );
+      sentinel.appendAll(fallbackNodes);
+    } catch (fallbackErr, fallbackStack) {
+      inner.disposeAll();
+      sentinel.clear();
+      if (parentBoundary != null) {
+        parentBoundary!.handleError(fallbackErr, fallbackStack);
+      } else {
+        _reportUnhandledError(fallbackErr, fallbackStack);
+      }
+    }
+  }
+}
 
 // ── Public API ──────────────────────────────────────────────────────────
 
@@ -110,18 +180,24 @@ void attachBloomListener(web.Element el, String type, BloomEventHandler handler)
 /// accumulate zombie signal subscriptions on every update (leak).
 class _Region {
   final Set<void Function()> disposers = {};
+  bool _isDisposed = false;
+
+  bool get isDisposed => _isDisposed;
 
   _Region() {
     BloomJsDevTools.activeRegionCount++;
   }
 
-  void add(void Function() d) => disposers.add(d);
+  void add(void Function() d) {
+    if (_isDisposed) return;
+    disposers.add(d);
+  }
 
   void disposeAll() {
-    if (disposers.isNotEmpty) {
-      BloomJsDevTools.activeRegionCount =
-          (BloomJsDevTools.activeRegionCount - 1).clamp(0, 10000000);
-    }
+    if (_isDisposed) return;
+    _isDisposed = true;
+    BloomJsDevTools.activeRegionCount =
+        (BloomJsDevTools.activeRegionCount - 1).clamp(0, 10000000);
     for (final d in disposers) {
       try {
         d();
@@ -227,6 +303,9 @@ List<web.Node> _mountNode(
 
     case StyleNode(:final css):
       final el = web.document.createElement('style');
+      if (bloomStyleNonce != null) {
+        el.setAttribute('nonce', bloomStyleNonce!);
+      }
       el.textContent = css;
       return [el];
 
@@ -254,6 +333,9 @@ List<web.Node> _mountNode(
     case AnimatedNode(:final child, :final animation):
       if (_injectedAnimationNames.add(animation.name)) {
         final styleEl = web.document.createElement('style');
+        if (bloomStyleNonce != null) {
+          styleEl.setAttribute('nonce', bloomStyleNonce!);
+        }
         styleEl.textContent = animation.toKeyframesCSS();
         web.document.head?.appendChild(styleEl);
       }
@@ -274,14 +356,41 @@ List<web.Node> _mountNode(
     case ErrorBoundaryNode(:final builder, :final fallback):
       final sentinel = _Sentinel('error-boundary');
       final inner = _Region();
+      final parentBoundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+      final handler = _ErrorBoundaryHandler(
+        sentinel: sentinel,
+        inner: inner,
+        fallback: fallback,
+        parentBoundary: parentBoundary,
+      );
       List<web.Node> initial;
       try {
-        final node = builder();
-        initial = _mountNode(node, inner);
+        final node = runZoned(
+          builder,
+          zoneValues: {_errorBoundaryZoneKey: handler},
+        );
+        initial = runZoned(
+          () => _mountNode(node, inner),
+          zoneValues: {_errorBoundaryZoneKey: handler},
+        );
       } catch (err, stack) {
+        handler.isFailed = true;
         inner.disposeAll();
-        final fallbackNode = fallback(err, stack);
-        initial = _mountNode(fallbackNode, inner);
+        try {
+          final fallbackNode = fallback(err, stack);
+          initial = runZoned(
+            () => _mountNode(fallbackNode, inner),
+            zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+          );
+        } catch (fallbackErr, fallbackStack) {
+          inner.disposeAll();
+          initial = const [];
+          if (parentBoundary != null) {
+            parentBoundary.handleError(fallbackErr, fallbackStack);
+          } else {
+            _reportUnhandledError(fallbackErr, fallbackStack);
+          }
+        }
       }
       region.add(inner.disposeAll);
       return [sentinel.start, ...initial, sentinel.end];
@@ -296,23 +405,67 @@ List<web.Node> _mountNode(
       final comment = web.document.createComment(' portal:$targetSelector ');
       return [comment];
 
-    case SuspenseNode(:final fallback):
+    case SuspenseNode(:final fallback, :final errorBuilder):
       final sentinel = _Sentinel('suspense');
       final inner = _Region();
+      final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       final fallbackNodes = _mountNode(fallback, inner);
+
+      void handleSuspenseError(Object error, StackTrace stackTrace) {
+        if (region.isDisposed) return;
+        inner.disposeAll();
+        sentinel.clear();
+        if (errorBuilder != null) {
+          try {
+            final errorNode = errorBuilder(error, stackTrace);
+            final errorNodes = runZoned(
+              () => _mountNode(errorNode, inner),
+              zoneValues: {_errorBoundaryZoneKey: boundary},
+            );
+            sentinel.appendAll(errorNodes);
+          } catch (ebErr, ebStack) {
+            inner.disposeAll();
+            sentinel.clear();
+            if (boundary != null) {
+              boundary.handleError(ebErr, ebStack);
+            } else {
+              _reportUnhandledError(ebErr, ebStack);
+            }
+          }
+        } else {
+          if (boundary != null) {
+            boundary.handleError(error, stackTrace);
+          } else {
+            _reportUnhandledError(error, stackTrace);
+          }
+        }
+      }
 
       // Erased views: reading `resource`/`builder` straight off the pattern
       // match casts them to `Function(dynamic)`, which throws for any
       // `Suspense<T>` with a concrete `T`. See [SuspenseNode.builderErased].
-      node.resourceErased().then((data) {
-        if (region.disposers.isNotEmpty) {
-          inner.disposeAll();
-          sentinel.clear();
-          final loadedNode = node.builderErased(data);
-          final loadedNodes = _mountNode(loadedNode, inner);
-          sentinel.appendAll(loadedNodes);
-        }
-      });
+      try {
+        node.resourceErased().then((data) {
+          if (!region.isDisposed) {
+            try {
+              inner.disposeAll();
+              sentinel.clear();
+              final loadedNode = node.builderErased(data);
+              final loadedNodes = runZoned(
+                () => _mountNode(loadedNode, inner),
+                zoneValues: {_errorBoundaryZoneKey: boundary},
+              );
+              sentinel.appendAll(loadedNodes);
+            } catch (err, stack) {
+              handleSuspenseError(err, stack);
+            }
+          }
+        }, onError: (Object err, StackTrace stack) {
+          handleSuspenseError(err, stack);
+        });
+      } catch (err, stack) {
+        handleSuspenseError(err, stack);
+      }
 
       region.add(inner.disposeAll);
       return [sentinel.start, ...fallbackNodes, sentinel.end];
@@ -629,121 +782,147 @@ List<web.Node> _bindKeyedForEachSentinel(
   final Map<String, _KeyedEntry> activeEntries = {};
   var isFirstRun = true;
   final initialNodes = <web.Node>[];
+  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
 
   void reconcile() {
-    final items = itemsFn();
-    final newKeys = <String>{};
-    final newOrder = <_KeyedEntry>[];
+    try {
+      final items = itemsFn();
+      final newKeys = <String>{};
+      final newOrder = <_KeyedEntry>[];
 
-    // On the effect's synchronous initial run, the sentinel comments are not
-    // attached to the document yet (mounting is still building the node tree
-    // bottom-up), so sentinel.end.parentNode is null and any insertBefore
-    // would silently no-op. Collect nodes to hand back to the caller instead.
-    if (isFirstRun) {
+      // On the effect's synchronous initial run, the sentinel comments are not
+      // attached to the document yet (mounting is still building the node tree
+      // bottom-up), so sentinel.end.parentNode is null and any insertBefore
+      // would silently no-op. Collect nodes to hand back to the caller instead.
+      if (isFirstRun) {
+        for (final item in items) {
+          final key = keyFn(item);
+          newKeys.add(key);
+          final itemRegion = _Region();
+          final descriptor = builderFn(item);
+          final domNodes = runZoned(
+            () => _mountNode(descriptor, itemRegion),
+            zoneValues: {_errorBoundaryZoneKey: boundary},
+          );
+          final entry = _KeyedEntry(
+            key: key,
+            domNodes: domNodes,
+            region: itemRegion,
+            descriptor: descriptor,
+          );
+          activeEntries[key] = entry;
+          newOrder.add(entry);
+          initialNodes.addAll(domNodes);
+        }
+        return;
+      }
+
       for (final item in items) {
         final key = keyFn(item);
         newKeys.add(key);
-        final itemRegion = _Region();
-        final descriptor = builderFn(item);
-        final domNodes = _mountNode(descriptor, itemRegion);
-        final entry = _KeyedEntry(
-          key: key,
-          domNodes: domNodes,
-          region: itemRegion,
-          descriptor: descriptor,
-        );
-        activeEntries[key] = entry;
-        newOrder.add(entry);
-        initialNodes.addAll(domNodes);
-      }
-      return;
-    }
 
-    for (final item in items) {
-      final key = keyFn(item);
-      newKeys.add(key);
+        if (activeEntries.containsKey(key)) {
+          final existing = activeEntries[key]!;
+          final descriptor = builderFn(item);
 
-      if (activeEntries.containsKey(key)) {
-        final existing = activeEntries[key]!;
-        final descriptor = builderFn(item);
+          var patched = false;
+          if (existing.domNodes.length == 1) {
+            patched = _patchNode(
+              existing.domNodes.first,
+              existing.descriptor,
+              descriptor,
+              existing.region,
+            );
+          }
 
-        var patched = false;
-        if (existing.domNodes.length == 1) {
-          patched = _patchNode(
-            existing.domNodes.first,
-            existing.descriptor,
-            descriptor,
-            existing.region,
-          );
-        }
+          if (patched) {
+            existing.descriptor = descriptor;
+            newOrder.add(existing);
+          } else {
+            existing.region.disposeAll();
+            final newDomNodes = runZoned(
+              () => _mountNode(descriptor, existing.region),
+              zoneValues: {_errorBoundaryZoneKey: boundary},
+            );
 
-        if (patched) {
-          existing.descriptor = descriptor;
-          newOrder.add(existing);
+            final parent = sentinel.end.parentNode;
+            if (parent != null) {
+              for (final n in existing.domNodes) {
+                if (n.parentNode == parent) parent.removeChild(n);
+              }
+              for (final n in newDomNodes) {
+                parent.insertBefore(n, sentinel.end);
+              }
+            }
+
+            final updated = _KeyedEntry(
+              key: key,
+              domNodes: newDomNodes,
+              region: existing.region,
+              descriptor: descriptor,
+            );
+            activeEntries[key] = updated;
+            newOrder.add(updated);
+          }
         } else {
-          existing.region.disposeAll();
-          final newDomNodes = _mountNode(descriptor, existing.region);
-
+          final itemRegion = _Region();
+          final descriptor = builderFn(item);
+          final domNodes = runZoned(
+            () => _mountNode(descriptor, itemRegion),
+            zoneValues: {_errorBoundaryZoneKey: boundary},
+          );
+          final entry = _KeyedEntry(
+            key: key,
+            domNodes: domNodes,
+            region: itemRegion,
+            descriptor: descriptor,
+          );
+          activeEntries[key] = entry;
+          newOrder.add(entry);
           final parent = sentinel.end.parentNode;
           if (parent != null) {
-            for (final n in existing.domNodes) {
-              if (n.parentNode == parent) parent.removeChild(n);
-            }
-            for (final n in newDomNodes) {
+            for (final n in domNodes) {
               parent.insertBefore(n, sentinel.end);
             }
           }
-
-          final updated = _KeyedEntry(
-            key: key,
-            domNodes: newDomNodes,
-            region: existing.region,
-            descriptor: descriptor,
-          );
-          activeEntries[key] = updated;
-          newOrder.add(updated);
         }
-      } else {
-        final itemRegion = _Region();
-        final descriptor = builderFn(item);
-        final domNodes = _mountNode(descriptor, itemRegion);
-        final entry = _KeyedEntry(
-          key: key,
-          domNodes: domNodes,
-          region: itemRegion,
-          descriptor: descriptor,
-        );
-        activeEntries[key] = entry;
-        newOrder.add(entry);
+      }
+
+      // Remove deleted keys & dispose their regions
+      final toRemove = activeEntries.keys.where((k) => !newKeys.contains(k)).toList();
+      for (final k in toRemove) {
+        final entry = activeEntries.remove(k)!;
+        entry.region.disposeAll();
         final parent = sentinel.end.parentNode;
         if (parent != null) {
-          for (final n in domNodes) {
-            parent.insertBefore(n, sentinel.end);
+          for (final n in entry.domNodes) {
+            if (n.parentNode == parent) {
+              parent.removeChild(n);
+            }
           }
         }
       }
-    }
 
-    // Remove deleted keys & dispose their regions
-    final toRemove = activeEntries.keys.where((k) => !newKeys.contains(k)).toList();
-    for (final k in toRemove) {
-      final entry = activeEntries.remove(k)!;
-      entry.region.disposeAll();
-      final parent = sentinel.end.parentNode;
-      if (parent != null) {
+      // Reorder DOM nodes in container to match newOrder
+      for (var i = 0; i < newOrder.length; i++) {
+        final entry = newOrder[i];
         for (final n in entry.domNodes) {
-          if (n.parentNode == parent) {
-            parent.removeChild(n);
-          }
+          sentinel.end.parentNode?.insertBefore(n, sentinel.end);
         }
       }
-    }
-
-    // Reorder DOM nodes in container to match newOrder
-    for (var i = 0; i < newOrder.length; i++) {
-      final entry = newOrder[i];
-      for (final n in entry.domNodes) {
-        sentinel.end.parentNode?.insertBefore(n, sentinel.end);
+    } catch (err, stack) {
+      for (final entry in activeEntries.values) {
+        entry.region.disposeAll();
+      }
+      activeEntries.clear();
+      if (isFirstRun) {
+        rethrow;
+      }
+      sentinel.clear();
+      if (boundary != null) {
+        boundary.handleError(err, stack);
+      } else {
+        _reportUnhandledError(err, stack);
       }
     }
   }
@@ -779,42 +958,59 @@ List<web.Node> _bindMemoRegion(
   BloomNode? prevDescriptor;
   List<web.Node> currentNodes = const [];
   List<web.Node> initialNodes = const [];
+  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
 
   void renderRegion() {
-    final value = dependencyFn();
-    if (!isFirstRun && hasPrevValue && prevValue == value) {
-      return;
-    }
-
-    final newDescriptor = builderFn(value);
-
-    if (!isFirstRun && prevDescriptor != null && currentNodes.length == 1) {
-      final patched = _patchNode(
-        currentNodes.first,
-        prevDescriptor!,
-        newDescriptor,
-        inner,
-      );
-      if (patched) {
-        prevDescriptor = newDescriptor;
-        prevValue = value;
-        hasPrevValue = true;
+    try {
+      final value = dependencyFn();
+      if (!isFirstRun && hasPrevValue && prevValue == value) {
         return;
       }
-    }
 
-    inner.disposeAll();
-    final nodes = _mountNode(newDescriptor, inner);
-    if (isFirstRun) {
-      initialNodes = nodes;
-    } else {
+      final newDescriptor = builderFn(value);
+
+      if (!isFirstRun && prevDescriptor != null && currentNodes.length == 1) {
+        final patched = _patchNode(
+          currentNodes.first,
+          prevDescriptor!,
+          newDescriptor,
+          inner,
+        );
+        if (patched) {
+          prevDescriptor = newDescriptor;
+          prevValue = value;
+          hasPrevValue = true;
+          return;
+        }
+      }
+
+      inner.disposeAll();
+      final nodes = runZoned(
+        () => _mountNode(newDescriptor, inner),
+        zoneValues: {_errorBoundaryZoneKey: boundary},
+      );
+      if (isFirstRun) {
+        initialNodes = nodes;
+      } else {
+        sentinel.clear();
+        sentinel.appendAll(nodes);
+      }
+      currentNodes = nodes;
+      prevDescriptor = newDescriptor;
+      prevValue = value;
+      hasPrevValue = true;
+    } catch (err, stack) {
+      inner.disposeAll();
+      if (isFirstRun) {
+        rethrow;
+      }
       sentinel.clear();
-      sentinel.appendAll(nodes);
+      if (boundary != null) {
+        boundary.handleError(err, stack);
+      } else {
+        _reportUnhandledError(err, stack);
+      }
     }
-    currentNodes = nodes;
-    prevDescriptor = newDescriptor;
-    prevValue = value;
-    hasPrevValue = true;
   }
 
   final stop = effect(() {
@@ -841,63 +1037,80 @@ List<web.Node> _bindSentinelRegion<T>(
   final inner = _Region();
   var isFirstRun = true;
   List<web.Node> initialNodes = const [];
+  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
 
   void renderRegion() {
-    // Framework-level focus guard: this region replaces its whole DOM
-    // subtree on every rebuild (no diffing), so a form control that reads
-    // its own bound signal for rendering — and is focused when that same
-    // signal changes (typing into a controlled `<input>` is the common
-    // case) — gets destroyed and recreated on every keystroke, silently
-    // dropping focus. Capture the focused element's position (and text
-    // selection) within this region before the old nodes are torn down,
-    // then try to restore focus onto whatever sits at that same position
-    // in the freshly rebuilt tree. This is a best-effort structural-path
-    // match, not real reconciliation — if the shape of the rebuilt tree
-    // has changed (a different element there now), it just no-ops.
-    web.Element? focusedEl;
-    List<int>? focusPath;
-    int? selStart;
-    int? selEnd;
-    if (!isFirstRun) {
-      final active = web.document.activeElement;
-      if (active != null) {
-        final path = _pathToNode(sentinel.childNodes, active);
-        if (path != null) {
-          focusedEl = active;
-          focusPath = path;
-          final range = _selectionRange(active);
-          if (range != null) {
-            selStart = range.$1;
-            selEnd = range.$2;
+    try {
+      // Framework-level focus guard: this region replaces its whole DOM
+      // subtree on every rebuild (no diffing), so a form control that reads
+      // its own bound signal for rendering — and is focused when that same
+      // signal changes (typing into a controlled `<input>` is the common
+      // case) — gets destroyed and recreated on every keystroke, silently
+      // dropping focus. Capture the focused element's position (and text
+      // selection) within this region before the old nodes are torn down,
+      // then try to restore focus onto whatever sits at that same position
+      // in the freshly rebuilt tree. This is a best-effort structural-path
+      // match, not real reconciliation — if the shape of the rebuilt tree
+      // has changed (a different element there now), it just no-ops.
+      web.Element? focusedEl;
+      List<int>? focusPath;
+      int? selStart;
+      int? selEnd;
+      if (!isFirstRun) {
+        final active = web.document.activeElement;
+        if (active != null) {
+          final path = _pathToNode(sentinel.childNodes, active);
+          if (path != null) {
+            focusedEl = active;
+            focusPath = path;
+            final range = _selectionRange(active);
+            if (range != null) {
+              selStart = range.$1;
+              selEnd = range.$2;
+            }
           }
         }
       }
-    }
 
-    inner.disposeAll();
-    final value = build();
-    final node = wrap == null ? value as BloomNode : wrap(value);
-    final nodes = _mountNode(node, inner);
-    if (isFirstRun) {
-      // The sentinel comments are not attached to the document yet on the
-      // effect's synchronous initial run (mounting is still building the
-      // node tree bottom-up), so appendAll's insertBefore(..., sentinel.end)
-      // would silently no-op. Hand the initial nodes back to the caller to
-      // splice in alongside the sentinel comments instead.
-      initialNodes = nodes;
-    } else {
-      sentinel.clear();
-      sentinel.appendAll(nodes);
-      if (focusPath != null) {
-        final replacement = _nodeAtPath(nodes, focusPath);
-        if (replacement != null &&
-            replacement.isA<web.HTMLElement>() &&
-            (replacement as web.HTMLElement).tagName == focusedEl!.tagName) {
-          replacement.focus();
-          if (selStart != null && selEnd != null) {
-            _setSelectionRange(replacement, selStart, selEnd);
+      inner.disposeAll();
+      final value = build();
+      final node = wrap == null ? value as BloomNode : wrap(value);
+      final nodes = runZoned(
+        () => _mountNode(node, inner),
+        zoneValues: {_errorBoundaryZoneKey: boundary},
+      );
+      if (isFirstRun) {
+        // The sentinel comments are not attached to the document yet on the
+        // effect's synchronous initial run (mounting is still building the
+        // node tree bottom-up), so appendAll's insertBefore(..., sentinel.end)
+        // would silently no-op. Hand the initial nodes back to the caller to
+        // splice in alongside the sentinel comments instead.
+        initialNodes = nodes;
+      } else {
+        sentinel.clear();
+        sentinel.appendAll(nodes);
+        if (focusPath != null) {
+          final replacement = _nodeAtPath(nodes, focusPath);
+          if (replacement != null &&
+              replacement.isA<web.HTMLElement>() &&
+              (replacement as web.HTMLElement).tagName == focusedEl!.tagName) {
+            replacement.focus();
+            if (selStart != null && selEnd != null) {
+              _setSelectionRange(replacement, selStart, selEnd);
+            }
           }
         }
+      }
+    } catch (err, stack) {
+      inner.disposeAll();
+      if (isFirstRun) {
+        rethrow;
+      }
+      sentinel.clear();
+      if (boundary != null) {
+        boundary.handleError(err, stack);
+      } else {
+        _reportUnhandledError(err, stack);
       }
     }
   }

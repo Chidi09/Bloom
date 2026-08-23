@@ -16,6 +16,24 @@ class GuardResult {
       GuardResult._(isAllowed: false, redirectPath: path);
 }
 
+/// Prefetch strategy for [Link] navigation targets.
+enum PrefetchMode {
+  /// Never prefetch route assets or data ahead of click.
+  off,
+
+  /// Begin prefetching on pointerenter/mouseenter.
+  hover,
+
+  /// Begin prefetching when the link scrolls into the viewport via IntersectionObserver.
+  visible,
+}
+
+/// Alias for [PrefetchMode].
+typedef LinkPrefetch = PrefetchMode;
+
+/// Module-level set of already-prefetched clean paths for session idempotency.
+final Set<String> _prefetchedPaths = <String>{};
+
 /// Abstract contract for route navigation guards.
 abstract class BloomRouteGuard {
   const BloomRouteGuard();
@@ -140,6 +158,8 @@ class BloomRouteMatch {
 
 /// Simple path matcher extracted for VM-testability.
 class BloomRouter {
+  static final List<BloomRouter> _activeRouters = [];
+
   final List<BloomRoute> routes;
 
   /// Fallback route when no pattern matches.
@@ -148,7 +168,93 @@ class BloomRouter {
   /// When true, trailing slashes are stripped before matching.
   final bool trailing;
 
-  BloomRouter(this.routes, {this.notFound, this.trailing = false});
+  BloomRouter(this.routes, {this.notFound, this.trailing = false}) {
+    if (!_activeRouters.contains(this)) {
+      _activeRouters.add(this);
+    }
+  }
+
+  /// Prefetch route data and lazily-loaded components for [path] across active routers.
+  /// Idempotent across a session; swallowed silently on failure.
+  static Future<void> prefetch(String path) async {
+    final clean = path.split('?').first.split('#').first;
+    if (_prefetchedPaths.contains(clean)) return;
+
+    for (final router in _activeRouters) {
+      final m = router.match(clean);
+      if (m != null) {
+        await router.prefetchRoute(clean);
+        return;
+      }
+    }
+  }
+
+  /// Clears the module-level prefetch cache.
+  static void clearPrefetchCache() {
+    _prefetchedPaths.clear();
+  }
+
+  /// Prefetch route data and lazily-loaded components for [path] using this router.
+  Future<void> prefetchRoute(String path) async {
+    final clean = path.split('?').first.split('#').first;
+    if (_prefetchedPaths.contains(clean)) return;
+    _prefetchedPaths.add(clean);
+
+    try {
+      final m = match(clean);
+      if (m == null) return;
+      await _warmMatch(m);
+    } catch (_) {
+      _prefetchedPaths.remove(clean);
+    }
+  }
+
+  static Future<void> _warmMatch(BloomRouteMatch match) async {
+    final route = match.route;
+    final params = match.params;
+    final futures = <Future<dynamic>>[];
+
+    // 1. Warm route loader if present
+    if (route.loader != null) {
+      try {
+        final f = route.loader!(params);
+        futures.add(f);
+      } catch (_) {}
+    }
+
+    // 2. Warm lazy components if builder returns a SuspenseNode or tree
+    if (route.builder != null) {
+      try {
+        final node = route.builder!(params);
+        _collectSuspenseResources(node, futures);
+      } catch (_) {}
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(
+        futures.map((f) => f.catchError((Object _) => null)),
+      );
+    }
+  }
+
+  static void _collectSuspenseResources(
+    BloomNode node,
+    List<Future<dynamic>> futures,
+  ) {
+    if (node is SuspenseNode) {
+      try {
+        futures.add(node.resourceErased());
+      } catch (_) {}
+    } else if (node is FragmentNode) {
+      for (final child in node.children) {
+        _collectSuspenseResources(child, futures);
+      }
+    } else if (node is ElNode) {
+      for (final child in node.children) {
+        _collectSuspenseResources(child, futures);
+      }
+    }
+  }
 
   /// Match [path] against registered routes.
   BloomRouteMatch? match(String path) {
@@ -228,8 +334,11 @@ class BloomRouter {
 }
 
 class Link extends ElNode {
+  final PrefetchMode prefetch;
+
   Link({
     required String href,
+    this.prefetch = PrefetchMode.off,
     super.text,
     super.className,
     super.style,
@@ -239,13 +348,18 @@ class Link extends ElNode {
     BloomEventHandler? onClick,
   }) : super(
           'a',
-          attrs: {'href': href, if (attrs != null) ...attrs},
-          on: onClick == null && on == null
-              ? null
-              : {
-                  if (on != null) ...on,
-                  if (onClick != null) 'click': onClick,
-                },
+          attrs: {
+            'href': href,
+            if (prefetch == PrefetchMode.visible)
+              'data-bloom-prefetch': 'visible',
+            if (attrs != null) ...attrs,
+          },
+          on: _buildHandlers(
+            href: href,
+            prefetch: prefetch,
+            on: on,
+            onClick: onClick,
+          ),
         );
 
   const Link.raw({
@@ -255,5 +369,34 @@ class Link extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    this.prefetch = PrefetchMode.off,
   }) : super('a');
+
+  static Map<String, BloomEventHandler>? _buildHandlers({
+    required String href,
+    required PrefetchMode prefetch,
+    Map<String, BloomEventHandler>? on,
+    BloomEventHandler? onClick,
+  }) {
+    final handlers = <String, BloomEventHandler>{
+      if (on != null) ...on,
+      if (onClick != null) 'click': onClick,
+    };
+
+    if (prefetch == PrefetchMode.hover) {
+      final existingPointerEnter = handlers['pointerenter'];
+      handlers['pointerenter'] = (e) {
+        BloomRouter.prefetch(href);
+        existingPointerEnter?.call(e);
+      };
+
+      final existingMouseEnter = handlers['mouseenter'];
+      handlers['mouseenter'] = (e) {
+        BloomRouter.prefetch(href);
+        existingMouseEnter?.call(e);
+      };
+    }
+
+    return handlers.isEmpty ? null : handlers;
+  }
 }

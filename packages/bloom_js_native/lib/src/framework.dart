@@ -361,11 +361,13 @@ class SuspenseNode<T> extends BloomNode {
   final Future<T> Function() resource;
   final BloomNode Function(T data) builder;
   final BloomNode fallback;
+  final BloomNode Function(Object error, StackTrace stackTrace)? errorBuilder;
 
   const SuspenseNode({
     required this.resource,
     required this.builder,
     required this.fallback,
+    this.errorBuilder,
   });
 
   /// [resource], viewed untyped.
@@ -386,6 +388,7 @@ class Suspense<T> extends SuspenseNode<T> {
     required super.resource,
     required super.builder,
     required super.fallback,
+    super.errorBuilder,
   });
 }
 
