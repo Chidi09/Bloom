@@ -1,5 +1,6 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_server/bloom_server.dart';
+import '../components/button_variants.dart';
 import '../components/layout.dart';
 import '../components/ui.dart';
 import '../db.dart';
@@ -19,7 +20,7 @@ Future<BloomNode> adminDashboard(BloomRequest req) async {
       Div(className: 'mt-8 rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4', children: [
         H3(className: 'text-h3', text: 'Next steps'),
         P(className: 'text-sm text-[var(--text-muted)] mt-1', text: 'Stage 1: list and manage products. Stage 2 will add auth, audit log, and destructive-action guards.'),
-        Link(href: '/admin/products', className: 'inline-flex mt-3 px-3 py-1.5 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Go to products'),
+        button(text: 'Go to products', href: '/admin/products', extraClassName: 'inline-flex mt-3'),
       ]),
     ]),
   );
@@ -59,7 +60,7 @@ Future<BloomNode> adminProducts(BloomRequest req) async {
     Div(children: [
       Div(className: 'flex items-center justify-between gap-4', children: [
         H1(className: 'text-h1', text: 'Products'),
-        Link(href: '/admin/products/new', className: 'px-3 py-1.5 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)]', text: 'New product'),
+        button(text: 'New product', href: '/admin/products/new'),
       ]),
       Div(className: 'flex items-center gap-2 text-sm mt-3', children: [
         Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
@@ -112,8 +113,8 @@ Future<BloomNode> adminProductForm(BloomRequest req, {bool isNew = false}) async
             _field('Currency', 'currency', prod?.currency ?? 'USD'),
           ]),
           Div(className: 'flex gap-3 mt-2', children: [
-            El('button', attrs: {'type': 'submit'}, className: 'px-5 py-2.5 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: isNew ? 'Create' : 'Save'),
-            Link(href: '/admin/products', className: 'px-5 py-2.5 rounded-md border border-[var(--border)] text-sm font-medium hover:bg-[var(--bg-muted)]', text: 'Cancel'),
+            button(text: isNew ? 'Create' : 'Save', attrs: const {'type': 'submit'}),
+            button(text: 'Cancel', variant: ButtonVariant.secondary, href: '/admin/products'),
           ]),
         ],
       ),

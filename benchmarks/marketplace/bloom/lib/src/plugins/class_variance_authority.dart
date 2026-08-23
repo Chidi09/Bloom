@@ -13,12 +13,32 @@ import 'package:web/web.dart' as web;
 /// This file was auto-generated from the package's TypeScript declarations
 /// fetched from esm.sh / DefinitelyTyped.
 ///
+/// Many npm packages (clsx, class-variance-authority, tailwind-merge, and
+/// most small utility libraries) export a *callable function* as their
+/// default export, not an object with named methods — there is no method
+/// name to hand [ClassVarianceAuthority.callMethod], so that member alone cannot invoke
+/// them. [class_variance_authority] below binds the JS global directly as a callable
+/// Dart top-level function for exactly that case; pass only the leading
+/// arguments you need, the rest default to omitted (`undefined` in JS).
+///
 /// Usage:
-///   Shadcn.render('ClassVarianceAuthority', container, { ... });   // via the Shadcn bridge
-///   class_variance_authority.method(...)                               // via raw JS global
+///   class_variance_authority(arg0.jsify(), arg1.jsify())   // package exports a function
+///   class_variance_authority.method(...)                       // package exports an object — via callMethod below
+@JS('class_variance_authority')
+external JSAny? class_variance_authority([
+  JSAny? a0,
+  JSAny? a1,
+  JSAny? a2,
+  JSAny? a3,
+  JSAny? a4,
+  JSAny? a5,
+]);
+
 @JS('class_variance_authority')
 extension type ClassVarianceAuthority(JSObject _) implements JSObject {
-  /// Call any method on the JS object dynamically.
+  /// Call a named method on the JS object form of this package (only
+  /// applicable if it exports an object rather than a bare function — see
+  /// [class_variance_authority] above for the function case).
   /// For better type safety, extend this file with explicit external members.
   external JSAny? callMethod(String method, [JSArray<JSAny?>? args]);
 }

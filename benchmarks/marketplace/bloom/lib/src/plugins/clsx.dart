@@ -13,12 +13,32 @@ import 'package:web/web.dart' as web;
 /// This file was auto-generated from the package's TypeScript declarations
 /// fetched from esm.sh / DefinitelyTyped.
 ///
+/// Many npm packages (clsx, class-variance-authority, tailwind-merge, and
+/// most small utility libraries) export a *callable function* as their
+/// default export, not an object with named methods — there is no method
+/// name to hand [Clsx.callMethod], so that member alone cannot invoke
+/// them. [clsx] below binds the JS global directly as a callable
+/// Dart top-level function for exactly that case; pass only the leading
+/// arguments you need, the rest default to omitted (`undefined` in JS).
+///
 /// Usage:
-///   Shadcn.render('Clsx', container, { ... });   // via the Shadcn bridge
-///   clsx.method(...)                               // via raw JS global
+///   clsx(arg0.jsify(), arg1.jsify())   // package exports a function
+///   clsx.method(...)                       // package exports an object — via callMethod below
+@JS('clsx')
+external JSAny? clsx([
+  JSAny? a0,
+  JSAny? a1,
+  JSAny? a2,
+  JSAny? a3,
+  JSAny? a4,
+  JSAny? a5,
+]);
+
 @JS('clsx')
 extension type Clsx(JSObject _) implements JSObject {
-  /// Call any method on the JS object dynamically.
+  /// Call a named method on the JS object form of this package (only
+  /// applicable if it exports an object rather than a bare function — see
+  /// [clsx] above for the function case).
   /// For better type safety, extend this file with explicit external members.
   external JSAny? callMethod(String method, [JSArray<JSAny?>? args]);
 }
