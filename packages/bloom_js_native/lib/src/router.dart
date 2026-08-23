@@ -107,7 +107,133 @@ abstract class BloomRouteGuard {
   const BloomRouteGuard();
 
   /// Evaluates whether navigation to [location] with extracted route [params] is allowed.
+  ///
+  /// [location] contains the full target URL string including any query parameters
+  /// and hash fragments (e.g. `'/search?q=shoes&page=2#top'`).
   FutureOr<GuardResult> canActivate(String location, Map<String, String> params);
+}
+
+/// Parses a URL or query string into a single-value map of query parameters.
+///
+/// Keys and values are percent-decoded, `+` is converted to spaces, and duplicate
+/// keys follow "last-wins" semantics. Keys without values are assigned an empty string.
+/// If no query string is present, returns an empty map.
+///
+/// Safe for both server-side rendering (SSR) and browser environments.
+///
+/// ```dart
+/// final query = parseQueryString('/search?q=shoes+sale&category=footwear');
+/// print(query['q']); // 'shoes sale'
+/// print(query['category']); // 'footwear'
+/// ```
+Map<String, String> parseQueryString(String location) {
+  final query = _extractQueryString(location);
+  if (query.isEmpty) return const {};
+  return Uri.splitQueryString(query);
+}
+
+/// Parses a URL or query string into a multi-value map preserving repeated keys.
+///
+/// Keys and values are percent-decoded, `+` is converted to spaces, and repeated
+/// keys (e.g. `?tag=news&tag=tech`) are collected into a [List<String>] in order of appearance.
+/// Keys without values are assigned a list containing an empty string (`['']`).
+/// If no query string is present, returns an empty map.
+///
+/// Safe for both server-side rendering (SSR) and browser environments.
+///
+/// ```dart
+/// final allParams = parseQueryStringAll('/filter?tag=web&tag=dart&sort=asc');
+/// print(allParams['tag']); // ['web', 'dart']
+/// print(allParams['sort']); // ['asc']
+/// ```
+Map<String, List<String>> parseQueryStringAll(String location) {
+  final query = _extractQueryString(location);
+  if (query.isEmpty) return const {};
+  final result = <String, List<String>>{};
+  for (final part in query.split('&')) {
+    if (part.isEmpty) continue;
+    final eqIdx = part.indexOf('=');
+    String rawKey;
+    String rawValue;
+    if (eqIdx == -1) {
+      rawKey = part;
+      rawValue = '';
+    } else {
+      rawKey = part.substring(0, eqIdx);
+      rawValue = part.substring(eqIdx + 1);
+    }
+    final key = Uri.decodeQueryComponent(rawKey);
+    final value = Uri.decodeQueryComponent(rawValue);
+    (result[key] ??= []).add(value);
+  }
+  return result;
+}
+
+/// Extracts the hash fragment from a URL or location string without the leading `#`.
+///
+/// If no hash fragment is present in [location], returns an empty string.
+///
+/// Safe for both server-side rendering (SSR) and browser environments.
+///
+/// ```dart
+/// final fragment = parseFragment('/docs/guide#getting-started');
+/// print(fragment); // 'getting-started'
+/// ```
+String parseFragment(String location) {
+  final hashIdx = location.indexOf('#');
+  if (hashIdx == -1) return '';
+  return location.substring(hashIdx + 1);
+}
+
+/// Serializes a map of query parameters into a URL query string prefixed with `?`.
+///
+/// Handles percent-encoding of keys and values, unrolls [Iterable] values into repeated keys,
+/// and ignores entries with `null` values. Returns an empty string if [query] is empty
+/// or contains only null values.
+///
+/// Safe for both server-side rendering (SSR) and browser environments.
+///
+/// ```dart
+/// final qs = buildQueryString({
+///   'q': 'shoes',
+///   'page': 2,
+///   'tag': ['sale', 'men'],
+///   'empty': null,
+/// });
+/// print(qs); // '?q=shoes&page=2&tag=sale&tag=men'
+/// ```
+String buildQueryString(Map<String, dynamic> query) {
+  if (query.isEmpty) return '';
+  final pairs = <String>[];
+  query.forEach((key, value) {
+    if (value == null) return;
+    final encodedKey = Uri.encodeQueryComponent(key);
+    if (value is Iterable) {
+      for (final item in value) {
+        if (item == null) continue;
+        pairs.add('$encodedKey=${Uri.encodeQueryComponent(item.toString())}');
+      }
+    } else {
+      pairs.add('$encodedKey=${Uri.encodeQueryComponent(value.toString())}');
+    }
+  });
+  return pairs.isEmpty ? '' : '?${pairs.join('&')}';
+}
+
+String _extractQueryString(String location) {
+  var s = location;
+  final hIdx = s.indexOf('#');
+  if (hIdx != -1) {
+    s = s.substring(0, hIdx);
+  }
+  final qIdx = s.indexOf('?');
+  if (qIdx != -1) {
+    return s.substring(qIdx + 1);
+  }
+  if (!s.contains('/') && s.contains('=')) {
+    return s;
+  }
+  return '';
 }
 
 /// Route definition that pairs a URL path pattern with view builders, loaders, and guards.
@@ -225,18 +351,33 @@ class BloomRoute {
 /// Result of a successful route match containing the matched route and extracted parameters.
 ///
 /// Created by [BloomRouter.match] when a URL path successfully satisfies a [BloomRoute] pattern.
+/// Contains extracted route parameters ([params]), single-value query parameters ([query]),
+/// multi-value query parameters ([queryAll]), and the optional hash [fragment].
 class BloomRouteMatch {
   /// The [BloomRoute] that matched the requested path.
   final BloomRoute route;
 
   /// Extracted route parameters, keyed by parameter name with URI-decoded string values.
   final Map<String, String> params;
+
+  /// Extracted route query parameters (single value per key, last wins).
+  final Map<String, String> query;
+
+  /// Extracted route query parameters preserving multiple values for repeated keys.
+  final Map<String, List<String>> queryAll;
+
+  /// Extracted URL hash fragment without the leading `#`.
+  final String fragment;
+
   final BloomNode Function()? _buildNode;
 
   /// Creates a route match result.
   const BloomRouteMatch({
     required this.route,
     required this.params,
+    this.query = const {},
+    this.queryAll = const {},
+    this.fragment = '',
     BloomNode Function()? buildNode,
   }) : _buildNode = buildNode;
 
@@ -278,8 +419,10 @@ class BloomRouteMatch {
 ///   BloomRoute('/users/:id', (params) => Div(text: 'User ${params['id']}')),
 /// ], notFound: BloomRoute('*', (params) => const Div(text: '404 Not Found')));
 ///
-/// final match = router.match('/users/42');
+/// final match = router.match('/users/42?tab=profile#bio');
 /// if (match != null) {
+///   print(match.query['tab']); // 'profile'
+///   print(match.fragment); // 'bio'
 ///   final node = match.build();
 /// }
 /// ```
@@ -388,27 +531,54 @@ class BloomRouter {
 
   /// Matches [path] against registered routes.
   ///
-  /// Strips query parameters and hash fragments before matching. If [trailing] is `true`,
-  /// trailing slashes are removed before evaluation. Returns a [BloomRouteMatch] if a route
-  /// matches or if [notFound] is configured; returns `null` otherwise.
+  /// Accepts a full URL location including optional query string and hash fragment.
+  /// Matches route patterns against the cleaned path while extracting query parameters
+  /// into [BloomRouteMatch.query] and [BloomRouteMatch.queryAll], and hash fragments into
+  /// [BloomRouteMatch.fragment]. If [trailing] is `true`, trailing slashes are removed
+  /// before evaluation. Returns a [BloomRouteMatch] if a route matches or if [notFound]
+  /// is configured; returns `null` otherwise.
   BloomRouteMatch? match(String path) {
     var clean = path.split('?').first.split('#').first;
     if (trailing && clean.length > 1 && clean.endsWith('/')) {
       clean = clean.substring(0, clean.length - 1);
     }
+    final query = parseQueryString(path);
+    final queryAll = parseQueryStringAll(path);
+    final fragment = parseFragment(path);
 
-    return _matchList(routes, clean);
+    return _matchList(
+      routes,
+      clean,
+      query: query,
+      queryAll: queryAll,
+      fragment: fragment,
+    );
   }
 
-  BloomRouteMatch? _matchList(List<BloomRoute> list, String clean) {
+  BloomRouteMatch? _matchList(
+    List<BloomRoute> list,
+    String clean, {
+    Map<String, String> query = const {},
+    Map<String, List<String>> queryAll = const {},
+    String fragment = '',
+  }) {
     for (final route in list) {
       if (route.layout != null && route.children.isNotEmpty) {
         // Shell route
-        final childMatch = _matchList(route.children, clean);
+        final childMatch = _matchList(
+          route.children,
+          clean,
+          query: query,
+          queryAll: queryAll,
+          fragment: fragment,
+        );
         if (childMatch != null) {
           return BloomRouteMatch(
             route: childMatch.route,
             params: childMatch.params,
+            query: childMatch.query,
+            queryAll: childMatch.queryAll,
+            fragment: childMatch.fragment,
             buildNode: () => route.layout!(childMatch.build(), childMatch.params),
           );
         }
@@ -418,17 +588,29 @@ class BloomRouter {
           return BloomRouteMatch(
             route: route,
             params: params,
+            query: query,
+            queryAll: queryAll,
+            fragment: fragment,
           );
         }
       }
     }
     if (notFound != null) {
-      return BloomRouteMatch(route: notFound!, params: const {});
+      return BloomRouteMatch(
+        route: notFound!,
+        params: const {},
+        query: query,
+        queryAll: queryAll,
+        fragment: fragment,
+      );
     }
     return null;
   }
 
   /// Evaluates all navigation guards attached to [route] in sequential order.
+  ///
+  /// Passes the full [location] (including query string and hash fragment) and extracted [params]
+  /// to each [BloomRouteGuard.canActivate].
   ///
   /// Returns the first failing [GuardResult] if any guard disallows navigation,
   /// or [GuardResult.allow] if all guards pass.
