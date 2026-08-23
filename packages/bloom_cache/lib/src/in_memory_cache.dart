@@ -3,14 +3,16 @@ import 'dart:collection';
 import 'dart:convert';
 import 'cache.dart';
 
-/// Entry wrapper storing cached JSON payload and absolute expiration timestamp.
+/// Entry wrapper storing cached JSON payload, absolute expiration timestamp, and associated tags.
 class _MemoryEntry {
   final String jsonPayload;
   final DateTime? expiresAt;
+  final Set<String> tags;
 
   const _MemoryEntry({
     required this.jsonPayload,
     this.expiresAt,
+    this.tags = const <String>{},
   });
 
   bool get isExpired {
@@ -31,12 +33,16 @@ class _MemoryEntry {
 ///   is evicted in O(1) time before inserting the new entry at the tail.
 /// - Time-to-live (TTL) expiration is actively enforced on [get] reads, returning `null` and
 ///   evicting stale entries.
+/// - Tag-to-keys reverse index enables O(1) tag-based invalidation.
 class InMemoryCache extends BloomCache {
   /// Maximum number of items this cache can hold before LRU eviction occurs.
   final int maxCapacity;
 
   /// Ordered map of cache keys to their entries (head = LRU, tail = MRU).
   final LinkedHashMap<String, _MemoryEntry> _entries = LinkedHashMap<String, _MemoryEntry>();
+
+  /// Reverse index mapping tags to the set of keys that carry them.
+  final Map<String, Set<String>> _tagIndex = <String, Set<String>>{};
 
   /// Creates a new [InMemoryCache] instance.
   ///
@@ -62,7 +68,7 @@ class InMemoryCache extends BloomCache {
 
     // TTL Expiration Check on Read
     if (entry.isExpired) {
-      _entries.remove(key);
+      _removeEntry(key);
       return null;
     }
 
@@ -74,33 +80,84 @@ class InMemoryCache extends BloomCache {
   }
 
   @override
-  Future<void> set<T>(String key, T value, {Duration? ttl}) async {
+  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
     final payload = jsonEncode(value);
     final expiresAt = ttl != null ? DateTime.now().toUtc().add(ttl) : null;
-    final newEntry = _MemoryEntry(jsonPayload: payload, expiresAt: expiresAt);
+    final tagSet = tags != null ? Set<String>.from(tags) : <String>{};
+    final newEntry = _MemoryEntry(jsonPayload: payload, expiresAt: expiresAt, tags: tagSet);
 
-    // If key already exists, remove it first so re-insertion places it at the MRU tail
+    // If key already exists, remove its old tag associations first
     if (_entries.containsKey(key)) {
+      _removeTagAssociations(key, _entries[key]!.tags);
       _entries.remove(key);
     } else {
       // Evict Least Recently Used (LRU) item from head if over capacity
       while (_entries.length >= maxCapacity && _entries.isNotEmpty) {
         final oldestKey = _entries.keys.first;
-        _entries.remove(oldestKey);
+        _removeEntry(oldestKey);
       }
     }
 
     _entries[key] = newEntry;
+    _addTagAssociations(key, tagSet);
   }
 
   @override
   Future<void> delete(String key) async {
-    _entries.remove(key);
+    _removeEntry(key);
   }
 
   @override
   Future<void> clear() async {
     _entries.clear();
+    _tagIndex.clear();
+  }
+
+  @override
+  Future<void> invalidateTag(String tag) async {
+    await invalidateTags([tag]);
+  }
+
+  @override
+  Future<void> invalidateTags(List<String> tags) async {
+    final keysToRemove = <String>{};
+    for (final tag in tags) {
+      final keys = _tagIndex[tag];
+      if (keys != null) {
+        keysToRemove.addAll(keys);
+      }
+    }
+    for (final key in keysToRemove) {
+      _removeEntry(key);
+    }
+  }
+
+  /// Removes an entry and its tag associations.
+  void _removeEntry(String key) {
+    final entry = _entries.remove(key);
+    if (entry != null) {
+      _removeTagAssociations(key, entry.tags);
+    }
+  }
+
+  /// Adds tag associations for a key.
+  void _addTagAssociations(String key, Set<String> tags) {
+    for (final tag in tags) {
+      _tagIndex.putIfAbsent(tag, () => <String>{}).add(key);
+    }
+  }
+
+  /// Removes tag associations for a key.
+  void _removeTagAssociations(String key, Set<String> tags) {
+    for (final tag in tags) {
+      final keys = _tagIndex[tag];
+      if (keys != null) {
+        keys.remove(key);
+        if (keys.isEmpty) {
+          _tagIndex.remove(tag);
+        }
+      }
+    }
   }
 
   /// Actively scans and evicts all expired entries from memory.
@@ -112,7 +169,7 @@ class InMemoryCache extends BloomCache {
       }
     }
     for (final k in expiredKeys) {
-      _entries.remove(k);
+      _removeEntry(k);
     }
   }
 }

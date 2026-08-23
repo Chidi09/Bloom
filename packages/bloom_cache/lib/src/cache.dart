@@ -15,6 +15,7 @@ abstract class BloomCacheReader {
     String key,
     Future<T> Function() compute, {
     Duration? ttl,
+    List<String>? tags,
   });
 }
 
@@ -24,13 +25,24 @@ abstract class BloomCacheWriter {
   ///
   /// The [value] must be JSON-encodable (e.g. primitives, [Map], [List], or objects
   /// providing a `toJson()` method).
-  Future<void> set<T>(String key, T value, {Duration? ttl});
+  ///
+  /// If [tags] is provided, the entry is labelled with those tags. Any later
+  /// [invalidateTag] or [invalidateTags] call naming one of those tags will
+  /// remove this entry.
+  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags});
 
   /// Deletes the cache entry associated with [key].
   Future<void> delete(String key);
 
   /// Clears all entries from this cache.
   Future<void> clear();
+
+  /// Removes every entry labelled with [tag]. A tag that was never used
+  /// is not an error -- it simply removes nothing.
+  Future<void> invalidateTag(String tag);
+
+  /// Removes every entry labelled with ANY of [tags], in one pass.
+  Future<void> invalidateTags(List<String> tags);
 }
 
 /// Server-side caching abstraction for Bloom applications.
@@ -47,7 +59,7 @@ abstract class BloomCache implements BloomCacheReader, BloomCacheWriter {
   Future<T?> get<T>(String key);
 
   @override
-  Future<void> set<T>(String key, T value, {Duration? ttl});
+  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags});
 
   @override
   Future<void> delete(String key);
@@ -56,10 +68,17 @@ abstract class BloomCache implements BloomCacheReader, BloomCacheWriter {
   Future<void> clear();
 
   @override
+  Future<void> invalidateTag(String tag);
+
+  @override
+  Future<void> invalidateTags(List<String> tags);
+
+  @override
   Future<T> getOrSet<T>(
     String key,
     Future<T> Function() compute, {
     Duration? ttl,
+    List<String>? tags,
   }) async {
     // 1. Fast check for an in-flight computation already in progress.
     if (_inFlight.containsKey(key)) {
@@ -88,7 +107,7 @@ abstract class BloomCache implements BloomCacheReader, BloomCacheWriter {
     // 4. Initiate computation and store in in-flight deduplication map.
     final future = () async {
       final value = await compute();
-      await set<T>(key, value, ttl: ttl);
+      await set<T>(key, value, ttl: ttl, tags: tags);
       return value;
     }();
 
