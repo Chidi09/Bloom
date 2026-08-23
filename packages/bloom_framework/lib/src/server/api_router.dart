@@ -204,6 +204,12 @@ class BloomApiRouter {
           return _executePipeline(route.middlewares, request, () async {
             final res = await route.handler(request);
             if (method == 'HEAD') {
+              // A HEAD response carries no body. Cancel any stream the handler
+              // produced, or its subscription is never listened to and the
+              // producer is left running for the life of the process.
+              if (res.isStreaming) {
+                unawaited(res.takeBodyStream().listen(null).cancel());
+              }
               return BloomResponse(
                 statusCode: res.statusCode,
                 headers: res.headers,
@@ -351,7 +357,24 @@ class BloomApiRouter {
 
       ioReq.response.statusCode = bloomRes.statusCode;
       bloomRes.headers.forEach((k, v) => ioReq.response.headers.set(k, v));
-      ioReq.response.add(bloomRes.body);
+      if (bloomRes.isStreaming) {
+        // addStream propagates backpressure from the socket to the source,
+        // so a slow client throttles the producer instead of filling memory.
+        //
+        // Status and headers are already committed by the time the first
+        // chunk is written, so a mid-stream failure cannot be reported as an
+        // error status. Aborting the connection is the only honest signal:
+        // the client sees a truncated chunked body rather than a well-formed
+        // response that silently lost data.
+        try {
+          await ioReq.response.addStream(bloomRes.takeBodyStream());
+        } catch (_) {
+          await ioReq.response.close().catchError((_) {});
+          return;
+        }
+      } else {
+        ioReq.response.add(bloomRes.body);
+      }
       await ioReq.response.close();
     } on _PayloadTooLargeException catch (e) {
       try {

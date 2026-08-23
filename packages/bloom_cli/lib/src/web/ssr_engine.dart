@@ -732,12 +732,15 @@ Future<BloomResponse> _forwardProxyRequest(BloomRequest req, _BloomServerProxyRu
       responseHeaders[name] = values.join(', ');
     });
 
-    final bodyBytes = await upstreamRes.fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    responseHeaders.remove('content-length');
 
-    return BloomResponse(
+    // Stream the upstream straight through. Buffering here would hold an
+    // entire proxied response in memory and delay first byte until the
+    // upstream finished.
+    return BloomResponse.stream(
+      upstreamRes,
       statusCode: upstreamRes.statusCode,
       headers: responseHeaders,
-      body: Uint8List.fromList(bodyBytes),
     );
   } catch (e) {
     return BloomResponse(
