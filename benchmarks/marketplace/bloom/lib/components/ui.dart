@@ -1,5 +1,8 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 
+import 'button_variants.dart';
+import 'cn.dart';
+
 // HugeIcons — stroke style 1.5px, inline SVG (single icon set, no emoji)
 String _hugeIconSvg(String name, {String className = 'w-4 h-4'}) {
   // Minimal handcrafted stroke icons approximating HugeIcons style.
@@ -38,12 +41,35 @@ BloomNode statusPill(String status) {
       bg = 'bg-[var(--bg-muted)]'; fg = 'text-[var(--text-muted)]'; icon = 'alert';
   }
   return Span(
-    className: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[var(--border)] $bg $fg',
+    // Resolved through cn() (clsx + tailwind-merge) rather than string
+    // interpolation, so a caller could later pass an override class without
+    // producing two conflicting `bg-*` utilities in the final class list.
+    className: cn([
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[var(--border)]',
+      bg,
+      fg,
+    ]),
     children: [
       hugeIcon(icon, className: 'w-3.5 h-3.5'),
       Text(status),
     ],
   );
+}
+
+/// Button per the design spec's component contract: primary / secondary /
+/// ghost / destructive, variant classes resolved via `cva`.
+BloomNode button({
+  required String text,
+  ButtonVariant variant = ButtonVariant.primary,
+  String? href,
+  String extraClassName = '',
+  Map<String, String> attrs = const {},
+}) {
+  final className = cn([buttonClasses(variant), extraClassName]);
+  if (href != null) {
+    return Link(href: href, className: className, children: [Text(text)]);
+  }
+  return El('button', attrs: attrs, className: className, children: [Text(text)]);
 }
 
 BloomNode priceText(int cents) {
@@ -81,7 +107,14 @@ BloomNode productCard(dynamic p) {
           Div(className: 'flex items-center justify-between gap-2 mt-1', children: [
             priceText(cents),
             Span(
-              className: stock == 0 ? 'text-xs text-[var(--danger)]' : stock < 5 ? 'text-xs text-[var(--warning)]' : 'text-xs text-[var(--text-muted)]',
+              className: cn([
+                'text-xs',
+                stock == 0
+                    ? 'text-[var(--danger)]'
+                    : stock < 5
+                        ? 'text-[var(--warning)]'
+                        : 'text-[var(--text-muted)]',
+              ]),
               text: stock == 0 ? 'Out of stock' : stock < 5 ? 'Low stock • $stock left' : 'In stock',
             ),
           ]),
