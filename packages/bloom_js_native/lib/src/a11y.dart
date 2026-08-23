@@ -3,7 +3,7 @@
 // Pure-Dart Accessibility & WAI-ARIA module for Bloom JS Native.
 // Safe for both SSR (VM) and browser DOM mounting.
 
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 import 'framework.dart';
 
 // ─── ARIA Enums ─────────────────────────────────────────────────────────────

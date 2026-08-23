@@ -14,7 +14,11 @@ environment:
   sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
-  signals: ^5.5.0
+  # signals_core rather than signals: the `signals` umbrella package depends on
+  # the Flutter SDK, which would force every consumer of this package -- including
+  # server-side rendering -- to be a Flutter app. signals_core is the same
+  # reactivity engine with no dependencies at all.
+  signals_core: ^5.5.0
   web: ^1.1.0
   meta: ^1.15.0
   http: ^1.2.0

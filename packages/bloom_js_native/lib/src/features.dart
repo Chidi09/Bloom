@@ -1,7 +1,7 @@
 // lib/src/features.dart
 import 'dart:collection';
 
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 /// Dynamic, signal-backed feature flags engine for runtime gating and progressive rollout.
 ///

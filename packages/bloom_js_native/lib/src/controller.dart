@@ -1,5 +1,5 @@
 // lib/src/controller.dart
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 /// Base class for stateful controllers and view-models in Bloom JS Native applications.
 ///

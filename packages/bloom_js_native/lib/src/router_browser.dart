@@ -1,5 +1,5 @@
 import 'dart:js_interop';
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 import 'package:web/web.dart' as web;
 import 'a11y.dart';
 import 'framework.dart';

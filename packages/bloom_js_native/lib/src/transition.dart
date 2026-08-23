@@ -4,7 +4,7 @@
 // Safe for both SSR (VM) and browser DOM mounting.
 
 import 'dart:async';
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 // ─── Priority Levels ──────────────────────────────────────────────────────────
 

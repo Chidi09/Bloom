@@ -1,4 +1,4 @@
-import 'package:signals/signals.dart';
+import 'package:signals_core/signals_core.dart';
 
 String _esc(String s) => s
     .replaceAll('&', '&amp;')
