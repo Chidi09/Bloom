@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../deployment/host_config_generator.dart';
+import '../deployment/proxy_config_loader.dart';
+import '../deployment/web_deploy_targets.dart';
 import '../provenance/provenance_generator.dart';
 import '../npm/npm_vendor_assembler.dart';
 import '../templates/templates.dart';
@@ -143,6 +146,23 @@ class BuildCommand extends Command<int> {
         print(Ansi.error('dart compile js failed:\n${dartBuildResult.stdout}\n${dartBuildResult.stderr}'));
         return 1;
       }
+
+      // Host configuration generation for pure Dart static web deployment
+      final config = project.loadBloomConfig();
+      final proxyRules = loadProxyRules(config);
+      if (proxyRules.isNotEmpty) {
+        final generator = const BloomHostConfigGenerator();
+        final written = generator.writeAll(
+          outputDir: Directory(p.join(project.rootDir.path, 'web')),
+          rules: proxyRules,
+          appName: project.projectName,
+          formats: {BloomWebHostFormat.netlify},
+        );
+        for (final file in written) {
+          print(Ansi.info('› Generated host configuration: ${p.basename(file.path)}'));
+        }
+      }
+
       print('\n${Ansi.success('Pure Dart web application compiled successfully!')}\n');
       return 0;
     }
@@ -166,6 +186,24 @@ class BuildCommand extends Command<int> {
         final ssr = BloomSsrEngine(project: project);
         await ssr.generate();
       }
+
+      if (isStatic) {
+        final config = project.loadBloomConfig();
+        final proxyRules = loadProxyRules(config);
+        if (proxyRules.isNotEmpty) {
+          final generator = const BloomHostConfigGenerator();
+          final written = generator.writeAll(
+            outputDir: Directory(p.join(project.rootDir.path, 'build', 'web')),
+            rules: proxyRules,
+            appName: project.projectName,
+            formats: {BloomWebHostFormat.netlify},
+          );
+          for (final file in written) {
+            print(Ansi.info('› Generated host configuration: ${p.basename(file.path)}'));
+          }
+        }
+      }
+
       ProvenanceGenerator(project).generateProvenance();
       return 0;
     }

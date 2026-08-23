@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../deployment/host_config_generator.dart';
+import '../deployment/proxy_config_loader.dart';
+import '../deployment/web_deploy_targets.dart';
 import '../dev/dev_proxy.dart';
 import '../dev/live_reload_server.dart';
 import '../dev/source_watcher.dart';
@@ -92,24 +95,13 @@ class JsDevCommand extends Command<int> {
 
     // 3. Parse dev proxy configuration from bloom.yaml
     final config = project.loadBloomConfig();
-    final proxyRules = <BloomDevProxyRule>[];
-
-    if (config['proxy'] != null) {
-      final rawProxy = config['proxy'];
-      if (rawProxy is! Map) {
-        print(Ansi.error('Invalid "proxy" configuration in bloom.yaml: Expected a YAML map.'));
-        return 1;
-      }
-      for (final entry in rawProxy.entries) {
-        final key = entry.key.toString();
-        try {
-          final rule = BloomDevProxyRule.fromYaml(key, entry.value);
-          proxyRules.add(rule);
-        } catch (e) {
-          print(Ansi.error('Invalid proxy rule for "$key" in bloom.yaml:\n$e'));
-          return 1;
-        }
-      }
+    final List<BloomDevProxyRule> proxyRules;
+    try {
+      proxyRules = List.of(loadProxyRules(config));
+    } catch (e) {
+      final message = e is FormatException ? e.message : e.toString();
+      print(Ansi.error(message));
+      return 1;
     }
 
     // 4. Optional: Supervise a co-located Bloom server if bin/server.dart exists
@@ -331,6 +323,22 @@ class JsBuildCommand extends Command<int> {
 
     print(Ansi.success('✓ Production build succeeded in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s!'));
     print(Ansi.boldText('  • Output Bundle : ${outputFile.path} ($sizeKb kB)'));
+
+    // Host configuration generation for production static hosting
+    final config = project.loadBloomConfig();
+    final proxyRules = loadProxyRules(config);
+    if (proxyRules.isNotEmpty) {
+      final generator = const BloomHostConfigGenerator();
+      final written = generator.writeAll(
+        outputDir: webDir,
+        rules: proxyRules,
+        appName: project.projectName,
+        formats: {BloomWebHostFormat.netlify},
+      );
+      for (final file in written) {
+        print(Ansi.info('› Generated host configuration: ${p.basename(file.path)}'));
+      }
+    }
 
     return 0;
   }

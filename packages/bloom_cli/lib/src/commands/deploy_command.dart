@@ -4,18 +4,29 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../deployment/shorebird_config.dart';
+import '../deployment/web_deploy_targets.dart';
 import '../native/prebuild_engine.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
-const List<String> supportedTargets = ['android', 'ios', 'aar', 'ios-framework'];
+const List<String> supportedMobileTargets = ['android', 'ios', 'aar', 'ios-framework'];
+const List<String> supportedWebTargets = ['web', 'web-container'];
+const List<String> supportedTargets = [
+  'android',
+  'ios',
+  'aar',
+  'ios-framework',
+  'web',
+  'web-container',
+];
 
 class DeployCommand extends Command<int> {
   @override
   final String name = 'deploy';
   @override
-  final String description = 'Deploys Over-The-Air (OTA) patches and releases using Shorebird.';
+  final String description =
+      'Deploys web hosting configurations or Over-The-Air (OTA) mobile patches/releases using Shorebird.';
 
   DeployCommand() {
     argParser
@@ -35,6 +46,16 @@ class DeployCommand extends Command<int> {
         'flavor',
         abbr: 'f',
         help: 'Build flavor to deploy (e.g. development, staging, production).',
+      )
+      ..addMultiOption(
+        'host-format',
+        help: 'Host configuration formats to generate for web targets (netlify, vercel, nginx, docker).',
+        allowed: ['netlify', 'vercel', 'nginx', 'docker'],
+      )
+      ..addOption(
+        'output',
+        abbr: 'o',
+        help: 'Explicit output directory for generated web deployment configuration files.',
       )
       ..addOption(
         'app-id',
@@ -79,12 +100,55 @@ class DeployCommand extends Command<int> {
     final isDryRun = argResults?['dry-run'] as bool? ?? false;
     final runPrebuild = argResults?['prebuild'] as bool? ?? true;
 
-    // 1. Validation
+    // 1. Target Validation
     if (!supportedTargets.contains(target)) {
       print(Ansi.error('Invalid target "$target". Supported targets: ${supportedTargets.join(', ')}'));
       return 1;
     }
 
+    // 2. Flavor Validation
+    final config = project.loadBloomConfig();
+    if (flavor != null) {
+      final flavors = config['flavors'];
+      if (flavors is! Map || !flavors.containsKey(flavor)) {
+        print(Ansi.error('Flavor "$flavor" is not defined under flavors in bloom.yaml.'));
+        return 1;
+      }
+    }
+
+    // 3. Web Deployment Branch (dispatched before mobile/Shorebird steps)
+    if (supportedWebTargets.contains(target)) {
+      final webTarget = target == 'web'
+          ? BloomWebDeployTarget.static_
+          : BloomWebDeployTarget.container;
+
+      final rawFormats = (argResults?['host-format'] as List<String>?) ?? [];
+      final Set<BloomWebHostFormat> formats;
+      if (rawFormats.isNotEmpty) {
+        formats = rawFormats
+            .map((f) => BloomWebHostFormat.values.firstWhere((v) => v.name == f))
+            .toSet();
+      } else {
+        formats = webTarget == BloomWebDeployTarget.static_
+            ? {BloomWebHostFormat.netlify}
+            : {BloomWebHostFormat.docker, BloomWebHostFormat.nginx};
+      }
+
+      final explicitOutput = argResults?['output'] as String?;
+      final outputDir = explicitOutput != null ? Directory(explicitOutput) : null;
+
+      final deployer = const BloomWebDeployer();
+      return await deployer.run(
+        project: project,
+        target: webTarget,
+        flavor: flavor,
+        dryRun: isDryRun,
+        formats: formats,
+        outputDir: outputDir,
+      );
+    }
+
+    // 4. Mobile Validation
     if (channel.isEmpty) {
       print(Ansi.error('Deployment release channel cannot be empty.'));
       return 1;
@@ -93,15 +157,6 @@ class DeployCommand extends Command<int> {
     if (!isRelease && !isPatch) {
       print(Ansi.error('Must specify either --patch or --release mode for deployment.'));
       return 1;
-    }
-
-    final config = project.loadBloomConfig();
-    if (flavor != null) {
-      final flavors = config['flavors'];
-      if (flavors is! Map || !flavors.containsKey(flavor)) {
-        print(Ansi.error('Flavor "$flavor" is not defined under flavors in bloom.yaml.'));
-        return 1;
-      }
     }
 
     printBloomBanner();
