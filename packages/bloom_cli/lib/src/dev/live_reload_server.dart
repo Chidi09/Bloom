@@ -184,6 +184,28 @@ class BloomLiveReloadServer {
         background: #ef4444;
         box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
       }
+      /* Rebuild-in-progress state. A compile takes seconds, so the badge has to
+         say something the instant a file is saved -- otherwise a save looks like
+         it did nothing right up until the page abruptly reloads. */
+      .bloom-badge.bloom-compiling {
+        box-shadow: 0 0 0 3px rgba(245,158,11,0.45), 0 4px 18px rgba(0,0,0,0.5);
+        animation: bloom-compiling-pulse 1s ease-in-out infinite;
+      }
+      @keyframes bloom-compiling-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.55; }
+      }
+      .bloom-status-badge.bloom-badge-compiling {
+        background: rgba(245,158,11,0.15);
+        color: #f59e0b;
+      }
+      .bloom-status-badge.bloom-badge-compiling .bloom-status-badge-dot {
+        background: #f59e0b;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bloom-badge.bloom-compiling { animation: none; }
+      }
+
       .bloom-badge-pill {
         position: absolute;
         top: -4px;
@@ -969,7 +991,21 @@ class BloomLiveReloadServer {
       }, 1000);
 
       return {
+        showCompiling(reason) {
+          badge.classList.add('bloom-compiling');
+          const statusText = statusBadge.querySelector('.bloom-status-text');
+          if (statusText) {
+            statusBadge.className = 'bloom-status-badge bloom-badge-compiling';
+            statusText.textContent = reason ? 'Compiling ' + reason + '…' : 'Compiling…';
+          }
+          if (open && currentTab === 'overview') renderBody();
+        },
+        clearCompiling() {
+          badge.classList.remove('bloom-compiling');
+          if (open && currentTab === 'overview') renderBody();
+        },
         setStatus(connected) {
+          badge.classList.remove('bloom-compiling');
           isConnectedState = connected;
           const statusText = statusBadge.querySelector('.bloom-status-text');
           if (connected) {
@@ -1032,21 +1068,137 @@ class BloomLiveReloadServer {
     }
     let dt = devtools;
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => { dt = ensureDevtools(); });
+      document.addEventListener('DOMContentLoaded', () => { dt = ensureDevtools(); flushPendingLogs(); });
     }
 
-    // Intercept uncaught runtime client errors
+    // This script is injected into <head>, so readyState is 'loading' and the
+    // panel does not exist until DOMContentLoaded. Anything reported before then
+    // used to hit an `if (dt)` guard and be discarded -- which silently dropped
+    // exactly the earliest errors, the ones most worth seeing. Buffer instead.
+    const pendingLogs = [];
+    function pushLog(type, message) {
+      if (dt) { dt.addLog(type, message); return; }
+      pendingLogs.push([type, message]);
+      if (pendingLogs.length > 50) pendingLogs.shift();
+    }
+    function flushPendingLogs() {
+      if (!dt) return;
+      while (pendingLogs.length) {
+        const entry = pendingLogs.shift();
+        dt.addLog(entry[0], entry[1]);
+      }
+    }
+
+    // Intercept uncaught runtime client errors.
+    //
+    // `capture: true` is required, not cosmetic: a failed resource load
+    // (<img>, <video>, <script>, <link>) fires an `error` event on the element
+    // itself and does NOT bubble, so a plain non-capturing window listener never
+    // observes it. Those events also carry no `message`/`filename`, so they need
+    // to be formatted from the element rather than from the event.
     window.addEventListener('error', (e) => {
-      if (dt) dt.addLog('error', e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : ''));
-    });
+      const el = e.target;
+      if (el && el !== window && el.tagName) {
+        pushLog('error', 'Failed to load ' + el.tagName.toLowerCase() + ': ' + (el.src || el.href || '(unknown source)'));
+        return;
+      }
+      pushLog('error', e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : ''));
+    }, true);
     window.addEventListener('unhandledrejection', (e) => {
       const reason = e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'Unhandled Promise Rejection';
-      if (dt) dt.addLog('error', reason);
+      pushLog('error', reason);
     });
+
+    // Mirror console.* into the Logs tab.
+    //
+    // Nothing else populates it: addLog was only ever reached from the two
+    // listeners above and from SSE build errors, so anything the application or
+    // a third-party library reported through console.error/warn was invisible in
+    // devtools while being plainly visible in the browser's own console. The
+    // original method is always called, so native console output is unchanged.
+    ['error', 'warn', 'log', 'info'].forEach((level) => {
+      const original = console[level];
+      if (typeof original !== 'function') return;
+      console[level] = function () {
+        const args = Array.prototype.slice.call(arguments);
+        try {
+          pushLog(level === 'info' ? 'log' : level, args.map((a) => {
+            if (typeof a === 'string') return a;
+            if (a instanceof Error) return a.stack || a.message;
+            try { return JSON.stringify(a); } catch (_) { return String(a); }
+          }).join(' '));
+        } catch (_) {
+          // Never let devtools bookkeeping break a real console call.
+        }
+        return original.apply(console, args);
+      };
+    });
+
+    // Network failures are the most common thing anyone opens a dev console to
+    // look for, and every hook above misses them.
+    //
+    // A CORS rejection reaches page JS only as a bare "TypeError: Failed to
+    // fetch" / "NetworkError when attempting to fetch resource" with no URL
+    // attached. The browser's explanatory line -- "Cross-Origin Request Blocked
+    // ... Access-Control-Allow-Origin missing" -- is printed by the browser
+    // itself and is deliberately NOT exposed through any JS-observable channel,
+    // so no amount of hooking can capture it. Wrapping fetch/XHR cannot recover
+    // that reason, but it does recover the part that actually identifies the
+    // problem: which request failed.
+    const nativeFetch = window.fetch;
+    if (typeof nativeFetch === 'function') {
+      window.fetch = function (input) {
+        const url = (typeof input === 'string')
+          ? input
+          : (input && input.url) || String(input);
+        return nativeFetch.apply(window, arguments).then((res) => {
+          if (!res.ok) pushLog('error', 'HTTP ' + res.status + ' — ' + url);
+          return res;
+        }).catch((err) => {
+          pushLog('error', 'Network request failed: ' + url +
+            ' (' + ((err && err.message) || err) + '). If the host is reachable, this is' +
+            ' usually a CORS rejection; the browser console has the specific reason.');
+          throw err;
+        });
+      };
+    }
+    const NativeXHR = window.XMLHttpRequest;
+    if (typeof NativeXHR === 'function' && NativeXHR.prototype) {
+      const nativeOpen = NativeXHR.prototype.open;
+      const nativeSend = NativeXHR.prototype.send;
+      NativeXHR.prototype.open = function (method, url) {
+        this.__bloomUrl = url;
+        return nativeOpen.apply(this, arguments);
+      };
+      NativeXHR.prototype.send = function () {
+        const self = this;
+        self.addEventListener('error', () => {
+          pushLog('error', 'XHR failed: ' + (self.__bloomUrl || '(unknown URL)') +
+            ' — often a CORS rejection; see the browser console for the reason.');
+        });
+        self.addEventListener('load', () => {
+          if (self.status >= 400) {
+            pushLog('error', 'HTTP ' + self.status + ' — ' + (self.__bloomUrl || '(unknown URL)'));
+          }
+        });
+        return nativeSend.apply(self, arguments);
+      };
+    }
 
     const connect = () => {
       const es = new EventSource('/_bloom_hr');
       es.addEventListener('open', () => { if (dt) dt.setStatus(true); });
+      es.addEventListener('compiling', (e) => {
+        let reason = null;
+        try {
+          if (e.data) {
+            const payload = JSON.parse(e.data);
+            if (payload.reason) reason = payload.reason;
+          }
+        } catch (_) {}
+        dt = dt || ensureDevtools();
+        if (dt) dt.showCompiling(reason);
+      });
       es.addEventListener('reload', (e) => {
         let reason = null;
         try {
@@ -1069,7 +1221,10 @@ class BloomLiveReloadServer {
         } catch (_) {}
         if (msg) {
           console.error('[Bloom Build Error]', msg);
-          if (dt) dt.addError(msg);
+          dt = dt || ensureDevtools();
+          // A failed build never reaches the 'reload' event, so the compiling
+          // state has to be cleared here or the badge pulses forever.
+          if (dt) { dt.clearCompiling(); dt.addError(msg); }
         }
       });
       es.onerror = () => {
@@ -1105,6 +1260,22 @@ class BloomLiveReloadServer {
     });
 
     final data = 'event: reload\ndata: $payload\n\n';
+    _broadcast(data);
+  }
+
+  /// Notifies clients that a rebuild has *started*, before the compile runs.
+  ///
+  /// Without this the browser shows nothing at all for the several seconds a
+  /// compile takes and then reloads abruptly, so a save appears to do nothing
+  /// until it suddenly doesn't. Emitting this immediately on the file-change
+  /// event lets the badge report progress the moment you hit save.
+  void broadcastCompiling({String? reason}) {
+    final payload = jsonEncode({
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      if (reason != null) 'reason': reason,
+    });
+
+    final data = 'event: compiling\ndata: $payload\n\n';
     _broadcast(data);
   }
 
