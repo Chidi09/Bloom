@@ -1,6 +1,8 @@
 // lib/src/web/ssr_engine.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../deployment/proxy_config_loader.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
@@ -216,6 +218,7 @@ class BloomSsrEngine {
 
   String _generateServerDartCode(List<DiscoveredApiRoute> apiRoutes, List<DiscoveredPageRoute> pageRoutes) {
     final config = project.loadBloomConfig();
+    final proxyRules = loadProxyRules(config);
     final appName = config['name']?.toString() ?? 'Bloom App';
     final pwaConfig = (config['web'] is Map && config['web']['pwa'] is Map)
         ? (config['web']['pwa'] as Map)
@@ -251,6 +254,21 @@ class BloomSsrEngine {
       }
     }
     buffer.writeln();
+
+    if (proxyRules.isNotEmpty) {
+      buffer.writeln('class _BloomServerProxyRule {');
+      buffer.writeln('  final String pathPrefix;');
+      buffer.writeln('  final String targetUrl;');
+      buffer.writeln('  final bool stripPrefix;');
+      buffer.writeln();
+      buffer.writeln('  const _BloomServerProxyRule({');
+      buffer.writeln('    required this.pathPrefix,');
+      buffer.writeln('    required this.targetUrl,');
+      buffer.writeln('    required this.stripPrefix,');
+      buffer.writeln('  });');
+      buffer.writeln('}');
+      buffer.writeln();
+    }
 
     buffer.writeln('class _IsrCacheEntry {');
     buffer.writeln('  final String html;');
@@ -316,6 +334,30 @@ class BloomSsrEngine {
       }
     }
     buffer.writeln();
+
+    // Register Reverse Proxy Endpoints before Dynamic SSR Page Renderers
+    if (proxyRules.isNotEmpty) {
+      buffer.writeln('  // Registered Reverse Proxy Endpoints');
+      for (final rule in proxyRules) {
+        final prefix = rule.pathPrefix.endsWith('/') && rule.pathPrefix.length > 1
+            ? rule.pathPrefix.substring(0, rule.pathPrefix.length - 1)
+            : rule.pathPrefix;
+        final cleanPrefix = prefix.startsWith('/') ? prefix : '/$prefix';
+        if (cleanPrefix == '/') {
+          buffer.writeln(
+            "  router.all('/*', (req) => _forwardProxyRequest(req, const _BloomServerProxyRule(pathPrefix: ${jsonEncode(rule.pathPrefix)}, targetUrl: ${jsonEncode(rule.targetUri.toString())}, stripPrefix: ${rule.stripPrefix})));",
+          );
+        } else {
+          buffer.writeln(
+            "  router.all('$cleanPrefix', (req) => _forwardProxyRequest(req, const _BloomServerProxyRule(pathPrefix: ${jsonEncode(rule.pathPrefix)}, targetUrl: ${jsonEncode(rule.targetUri.toString())}, stripPrefix: ${rule.stripPrefix})));",
+          );
+          buffer.writeln(
+            "  router.all('$cleanPrefix/*', (req) => _forwardProxyRequest(req, const _BloomServerProxyRule(pathPrefix: ${jsonEncode(rule.pathPrefix)}, targetUrl: ${jsonEncode(rule.targetUri.toString())}, stripPrefix: ${rule.stripPrefix})));",
+          );
+        }
+      }
+      buffer.writeln();
+    }
 
     // Register Dynamic SSR Page Renderers
     buffer.writeln('  // Server-Side Rendered (SSR) Dynamic Page Handlers');
@@ -600,6 +642,113 @@ String _getContentType(String extension) {
   }
 }
 ''');
+
+    if (proxyRules.isNotEmpty) {
+      buffer.writeln('''
+const _proxyHopByHopHeaders = {
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'host',
+};
+
+final _proxyHttpClient = HttpClient()..autoUncompress = false;
+
+Uri _resolveProxyTargetUri(Uri requestUri, _BloomServerProxyRule rule) {
+  final reqPath = requestUri.path;
+  final prefix = rule.pathPrefix.endsWith('/') && rule.pathPrefix.length > 1
+      ? rule.pathPrefix.substring(0, rule.pathPrefix.length - 1)
+      : rule.pathPrefix;
+
+  String effectiveSubPath;
+  if (rule.stripPrefix) {
+    if (reqPath == prefix) {
+      effectiveSubPath = '';
+    } else if (reqPath.startsWith('\$prefix/')) {
+      effectiveSubPath = reqPath.substring(prefix.length);
+    } else {
+      effectiveSubPath = reqPath;
+    }
+  } else {
+    effectiveSubPath = reqPath;
+  }
+
+  final targetUri = Uri.parse(rule.targetUrl);
+  final basePath = targetUri.path.endsWith('/') && targetUri.path.length > 1
+      ? targetUri.path.substring(0, targetUri.path.length - 1)
+      : (targetUri.path == '/' ? '' : targetUri.path);
+
+  final String finalPath;
+  if (effectiveSubPath.startsWith('/')) {
+    finalPath = '\$basePath\$effectiveSubPath';
+  } else if (effectiveSubPath.isEmpty) {
+    finalPath = basePath.isEmpty ? '/' : basePath;
+  } else {
+    finalPath = '\$basePath/\$effectiveSubPath';
+  }
+
+  final query = requestUri.hasQuery
+      ? requestUri.query
+      : (targetUri.hasQuery ? targetUri.query : null);
+
+  return targetUri.replace(
+    path: finalPath.isEmpty ? '/' : finalPath,
+    query: query,
+  );
+}
+
+Future<BloomResponse> _forwardProxyRequest(BloomRequest req, _BloomServerProxyRule rule) async {
+  final upstreamUri = _resolveProxyTargetUri(req.uri, rule);
+  try {
+    final upstreamReq = await _proxyHttpClient.openUrl(req.method, upstreamUri);
+
+    req.headers.forEach((name, value) {
+      final lower = name.toLowerCase();
+      if (_proxyHopByHopHeaders.contains(lower)) return;
+      upstreamReq.headers.add(name, value);
+    });
+
+    final clientIp = req.headers['x-forwarded-for'] ?? '127.0.0.1';
+    upstreamReq.headers.set('x-forwarded-for', clientIp);
+    upstreamReq.headers.set('x-forwarded-proto', req.isSecure ? 'https' : 'http');
+    if (req.headers.containsKey('host')) {
+      upstreamReq.headers.set('x-forwarded-host', req.headers['host']!);
+    }
+
+    if (req.rawBody.isNotEmpty) {
+      upstreamReq.add(req.rawBody);
+    }
+    final upstreamRes = await upstreamReq.close();
+
+    final responseHeaders = <String, String>{};
+    upstreamRes.headers.forEach((name, values) {
+      final lower = name.toLowerCase();
+      if (_proxyHopByHopHeaders.contains(lower)) return;
+      responseHeaders[name] = values.join(', ');
+    });
+
+    final bodyBytes = await upstreamRes.fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+
+    return BloomResponse(
+      statusCode: upstreamRes.statusCode,
+      headers: responseHeaders,
+      body: Uint8List.fromList(bodyBytes),
+    );
+  } catch (e) {
+    return BloomResponse(
+      statusCode: 502,
+      headers: {'content-type': 'text/plain; charset=utf-8'},
+      body: Uint8List.fromList(utf8.encode('502 Bad Gateway: Upstream connection failed to \$upstreamUri\\n\\n\$e')),
+    );
+  }
+}
+''');
+    }
 
     return buffer.toString();
   }
