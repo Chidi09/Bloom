@@ -1,0 +1,45 @@
+name: marketplace
+description: Marketplace benchmark Bloom web_dom app.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  web: ^1.1.0
+  signals_core: ^5.5.0
+  postgres: ^3.2.1
+  bloom_js_native:
+    path: ../../../packages/bloom_js_native
+  bloom_server:
+    path: ../../../packages/bloom_server
+  bloom_db:
+    path: ../../../packages/bloom_db
+  bloom_seo:
+    path: ../../../packages/bloom_seo
+  bloom_rest:
+    path: ../../../packages/bloom_rest
+
+dev_dependencies:
+  lints: ^4.0.0
+
+# The bloom_* packages depend on each other by *hosted* version constraint
+# (bloom_rest -> bloom_server: ^0.1.0, bloom_server -> bloom_js_native: ^0.2.0,
+# and so on). This app pulls the same packages from path, and pub refuses to
+# resolve one package from two sources. Overrides pin every one of them --
+# including the transitive-only bloom_cache -- to the working tree, so the
+# benchmark measures the code in this repo rather than the last release.
+dependency_overrides:
+  bloom_js_native:
+    path: ../../../packages/bloom_js_native
+  bloom_server:
+    path: ../../../packages/bloom_server
+  bloom_db:
+    path: ../../../packages/bloom_db
+  bloom_seo:
+    path: ../../../packages/bloom_seo
+  bloom_rest:
+    path: ../../../packages/bloom_rest
+  bloom_cache:
+    path: ../../../packages/bloom_cache

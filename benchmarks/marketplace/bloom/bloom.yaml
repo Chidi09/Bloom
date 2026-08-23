@@ -1,0 +1,43 @@
+name: marketplace
+target: web_dom
+npm_packages:
+  "@tailwindcss\/browser":
+    version: 4.3.3
+    esm_url: https://esm.sh/@tailwindcss/browser@4.3.3?bundle
+    vendor_file: web/vendor/tailwindcss-browser.min.js
+    dart_binding: lib/src/plugins/tailwindcss_browser.dart
+  "@hugeicons\/core-free-icons":
+    version: 4.3.0
+    esm_url: https://esm.sh/@hugeicons/core-free-icons@4.3.0?bundle
+    vendor_file: web/vendor/hugeicons-core-free-icons.min.js
+    dart_binding: lib/src/plugins/hugeicons_core_free_icons.dart
+  "@floating-ui\/dom":
+    version: 1.8.0
+    esm_url: https://esm.sh/@floating-ui/dom@1.8.0?bundle
+    vendor_file: web/vendor/floating-ui-dom.min.js
+    dart_binding: lib/src/plugins/floating_ui_dom.dart
+  embla-carousel:
+    version: 8.6.0
+    esm_url: https://esm.sh/embla-carousel@8.6.0?bundle
+    vendor_file: web/vendor/embla-carousel.min.js
+    dart_binding: lib/src/plugins/embla_carousel.dart
+  motion:
+    version: 13.1.1
+    esm_url: https://esm.sh/motion@13.1.1?bundle
+    vendor_file: web/vendor/motion.min.js
+    dart_binding: lib/src/plugins/motion.dart
+  clsx:
+    version: 2.1.1
+    esm_url: https://esm.sh/clsx@2.1.1?bundle
+    vendor_file: web/vendor/clsx.min.js
+    dart_binding: lib/src/plugins/clsx.dart
+  tailwind-merge:
+    version: 3.6.0
+    esm_url: https://esm.sh/tailwind-merge@3.6.0?bundle
+    vendor_file: web/vendor/tailwind-merge.min.js
+    dart_binding: lib/src/plugins/tailwind_merge.dart
+  class-variance-authority:
+    version: 0.7.1
+    esm_url: https://esm.sh/class-variance-authority@0.7.1?bundle
+    vendor_file: web/vendor/class-variance-authority.min.js
+    dart_binding: lib/src/plugins/class_variance_authority.dart
