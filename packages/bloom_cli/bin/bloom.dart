@@ -27,6 +27,7 @@ import '../lib/src/commands/server_command.dart';
 import '../lib/src/commands/symbols_command.dart';
 import '../lib/src/commands/templates_command.dart';
 import '../lib/src/commands/test_command.dart';
+import '../lib/src/commands/typegen_command.dart';
 import '../lib/src/commands/ui_command.dart';
 import '../lib/src/commands/update_command.dart';
 import '../lib/src/commands/upgrade_command.dart';
@@ -69,6 +70,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(JsCommand())
     ..addCommand(AddCommand())
     ..addCommand(RemoveCommand())
+    ..addCommand(TypegenCommand())
     ..addCommand(UiCommand())
     ..addCommand(DeployCommand())
     ..addCommand(ServerCommand());
