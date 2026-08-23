@@ -102,7 +102,18 @@ BloomNode homePage(Map<String, String> params) {
   return Suspense<_PaginatedData>(
     resource: fetch,
     fallback: appShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading marketplace...'),
+      Div(children: [
+        Div(className: 'py-12 sm:py-16 border-b border-[var(--border)] mb-8 animate-pulse', children: [
+          Div(className: 'h-6 bg-[var(--bg-muted)] rounded-full w-48 mb-4'),
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded w-2/3 mb-3'),
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-1/2 mb-6'),
+          Div(className: 'h-10 bg-[var(--bg-muted)] rounded-md w-36'),
+        ]),
+        Div(
+          className: 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4',
+          children: List.generate(8, (_) => skeletonCard()),
+        ),
+      ]),
     ),
     builder: (data) => appShell(
       Div(children: [
@@ -110,6 +121,13 @@ BloomNode homePage(Map<String, String> params) {
         Div(
           className: 'py-12 sm:py-16 border-b border-[var(--border)] mb-8',
           children: [
+            Div(
+              className: 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[var(--bg-muted)] text-[var(--text-muted)] border border-[var(--border)] mb-4',
+              children: [
+                Span(className: 'w-1.5 h-1.5 rounded-full bg-[var(--brand-600)]'),
+                Span(text: '${formatNumber(data.total)} verified items in catalog'),
+              ],
+            ),
             H1(
               className: 'text-display tracking-tight',
               text: 'Curated goods for modern living',
@@ -127,10 +145,6 @@ BloomNode homePage(Map<String, String> params) {
                   href: '#catalog',
                 ),
               ],
-            ),
-            P(
-              className: 'text-label text-[var(--text-muted)] mt-5',
-              text: '${formatNumber(data.total)} verified items in catalog',
             ),
           ],
         ),
@@ -202,7 +216,17 @@ BloomNode categoryPage(Map<String, String> params) {
   return Suspense<({Category? category, _PaginatedData data})>(
     resource: fetch,
     fallback: appShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading category...'),
+      Div(children: [
+        Div(className: 'mb-6 animate-pulse', children: [
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-32 mb-2'),
+          Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-48 mb-2'),
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-40'),
+        ]),
+        Div(
+          className: 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4',
+          children: List.generate(8, (_) => skeletonCard()),
+        ),
+      ]),
     ),
     builder: (result) {
       final cat = result.category;
@@ -213,7 +237,7 @@ BloomNode categoryPage(Map<String, String> params) {
       return appShell(Div(children: [
         Div(className: 'mb-6', children: [
           Div(className: 'flex items-center gap-2 text-sm text-[var(--text-muted)]', children: [
-            Link(href: '/', className: 'hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Home'),
+            Link(href: '/', className: 'hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Catalog'),
             Span(text: '/'),
             Span(className: 'text-[var(--text)] font-medium', text: cat.name),
           ]),
@@ -258,9 +282,7 @@ BloomNode productDetailPage(Map<String, String> params) {
 
   return Suspense<({Product? product, List<ProductImage> images})>(
     resource: fetch,
-    fallback: appShell(
-      Div(className: 'py-16 text-center text-[var(--text-muted)]', text: 'Loading product...'),
-    ),
+    fallback: appShell(skeletonDetail()),
     builder: (result) {
       final product = result.product;
       if (product == null) {
@@ -286,7 +308,7 @@ BloomNode productDetailPage(Map<String, String> params) {
                 alt: images.first.alt,
                 widths: [600, 800, 1200],
                 sizes: '(max-width:1024px) 100vw, 50vw',
-                className: 'w-full aspect-square object-cover rounded-[10px] border border-[var(--border)] bg-[var(--bg-muted)]',
+                className: 'w-full aspect-square max-h-[420px] md:max-h-[480px] object-cover rounded-[10px] border border-[var(--border)] bg-[var(--bg-muted)]',
                 priority: true,
               )
             else
@@ -305,7 +327,6 @@ BloomNode productDetailPage(Map<String, String> params) {
               P(className: 'text-xs uppercase tracking-widest text-[var(--text-muted)]', text: product.vendorName ?? ''),
               H1(className: 'text-h1 mt-1', text: product.title),
               Div(className: 'flex items-center gap-3 mt-2', children: [
-                statusPill(product.status),
                 Span(className: 'text-sm $stockColor', text: stockLabel),
               ]),
             ]),

@@ -123,7 +123,7 @@ BloomNode _toastCard(ToastItem item) {
           },
         },
         children: [
-          Span(className: 'text-xs font-semibold select-none px-1', text: '✕'),
+          hugeIcon('x', className: 'w-3.5 h-3.5'),
         ],
       ),
     ],

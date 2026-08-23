@@ -17,6 +17,7 @@ String _hugeIconSvg(String name, {String className = 'w-4 h-4'}) {
     'chevron-right': '<path d="M9.00005 18C9.00005 18 15 13.5811 15 12C15 10.4188 9 6 9 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'star': '<path d="M13.7276 3.44418L15.4874 6.99288C15.7274 7.48687 16.3673 7.9607 16.9073 8.05143L20.0969 8.58575C22.1367 8.92853 22.6167 10.4206 21.1468 11.8925L18.6671 14.3927C18.2471 14.8161 18.0172 15.6327 18.1471 16.2175L18.8571 19.3125C19.417 21.7623 18.1271 22.71 15.9774 21.4296L12.9877 19.6452C12.4478 19.3226 11.5579 19.3226 11.0079 19.6452L8.01827 21.4296C5.8785 22.71 4.57865 21.7522 5.13859 19.3125L5.84851 16.2175C5.97849 15.6327 5.74852 14.8161 5.32856 14.3927L2.84884 11.8925C1.389 10.4206 1.85895 8.92853 3.89872 8.58575L7.08837 8.05143C7.61831 7.9607 8.25824 7.48687 8.49821 6.99288L10.258 3.44418C11.2179 1.51861 12.7777 1.51861 13.7276 3.44418Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
     'shopping': '<path d="M10.5 20.25C10.5 20.6642 10.1642 21 9.75 21C9.33579 21 9 20.6642 9 20.25C9 19.8358 9.33579 19.5 9.75 19.5C10.1642 19.5 10.5 19.8358 10.5 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M19 20.25C19 20.6642 18.6642 21 18.25 21C17.8358 21 17.5 20.6642 17.5 20.25C17.5 19.8358 17.8358 19.5 18.25 19.5C18.6642 19.5 19 19.8358 19 20.25Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M2 3H2.20664C3.53124 3 4.19354 3 4.6255 3.40221C5.05746 3.80441 5.10464 4.46503 5.19902 5.78626L5.45035 9.30496C5.5924 11.2936 5.66342 12.2879 5.96476 13.0961C6.62531 14.8677 8.08229 16.2244 9.89648 16.757C10.7241 17 11.7267 17 13.7317 17C15.8373 17 16.89 17 17.7417 16.7416C19.6593 16.1599 21.1599 14.6593 21.7416 12.7417C22 11.89 22 10.8433 22 8.75C22 8.05222 22 7.70333 21.9139 7.41943C21.72 6.78023 21.2198 6.28002 20.5806 6.08612C20.2967 6 19.9478 6 19.25 6H5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M16 10V13M11 10V13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
+    'x': '<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
   };
   final d = paths[name] ?? paths['package']!;
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="$className" aria-hidden="true">$d</svg>';
@@ -35,7 +36,7 @@ BloomNode statusPill(String status) {
       bg = 'bg-[#D97706]/12'; fg = 'text-[#D97706]'; icon = 'draft';
       break;
     case 'archived':
-      bg = 'bg-[#78716C]/15'; fg = 'text-[var(--n-700)]'; icon = 'archive';
+      bg = 'bg-[#78716C]/15'; fg = 'text-[var(--n-400)]'; icon = 'archive';
       break;
     default:
       bg = 'bg-[var(--bg-muted)]'; fg = 'text-[var(--text-muted)]'; icon = 'alert';
@@ -84,10 +85,9 @@ BloomNode productCard(dynamic p) {
   final slug = p.slug as String;
   final cents = p.priceCents as int;
   final stock = p.stock as int;
-  final status = p.status as String;
   return Link(
     href: '/p/$slug',
-    className: 'group flex flex-col rounded-[10px] border border-[var(--border)] bg-[var(--card)] overflow-hidden hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] focus-visible:ring-offset-2',
+    className: 'group flex flex-col rounded-[10px] border border-[var(--border)] bg-[var(--card)] overflow-hidden shadow-[var(--shadow-card)] hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] focus-visible:ring-offset-2',
     children: [
       Div(
         className: 'aspect-[4/3] bg-[var(--bg-muted)] overflow-hidden',
@@ -104,7 +104,7 @@ BloomNode productCard(dynamic p) {
       Div(
         className: 'p-3 flex flex-col gap-1.5 flex-1',
         children: [
-          P(className: 'text-sm leading-snug line-clamp-2 min-h-[2.75rem]', text: title),
+          P(className: 'text-sm leading-snug line-clamp-2 min-h-[2.75rem] text-[var(--text)] group-hover:text-[var(--brand-600)] transition-colors', text: title),
           Div(className: 'flex items-center justify-between gap-2 mt-1', children: [
             priceText(cents),
             Span(
@@ -119,7 +119,6 @@ BloomNode productCard(dynamic p) {
               text: stock == 0 ? 'Out of stock' : stock < 5 ? 'Low stock • $stock left' : 'In stock',
             ),
           ]),
-          Div(className: 'mt-1', children: [statusPill(status)]),
         ],
       ),
     ],
@@ -130,6 +129,104 @@ BloomNode productGrid(List<dynamic> products) {
   return Div(
     className: 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4',
     children: products.map((p) => productCard(p)).toList(),
+  );
+}
+
+/// Skeleton loader components mimicking component shapes with pulse animation
+BloomNode skeletonCard() {
+  return Div(
+    className: 'flex flex-col rounded-[10px] border border-[var(--border)] bg-[var(--card)] overflow-hidden shadow-[var(--shadow-card)] animate-pulse',
+    children: [
+      Div(className: 'aspect-[4/3] bg-[var(--bg-muted)]'),
+      Div(
+        className: 'p-3 flex flex-col gap-2 flex-1',
+        children: [
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-3/4'),
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-1/2'),
+          Div(className: 'flex items-center justify-between mt-auto pt-2', children: [
+            Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-16'),
+            Div(className: 'h-3 bg-[var(--bg-muted)] rounded w-12'),
+          ]),
+        ],
+      ),
+    ],
+  );
+}
+
+BloomNode skeletonTable([int rows = 6]) {
+  return Div(
+    className: 'overflow-x-auto rounded-[10px] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] animate-pulse',
+    children: [
+      El('table',
+        className: 'w-full text-sm',
+        children: [
+          El('thead',
+            className: 'bg-[var(--bg-soft)] border-b border-[var(--border)]',
+            children: [
+              El('tr', children: [
+                El('th', className: 'text-left font-medium px-4 py-2.5', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-20')]),
+                El('th', className: 'text-right font-medium px-4 py-2.5', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-12 ml-auto')]),
+                El('th', className: 'text-right font-medium px-4 py-2.5', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-12 ml-auto')]),
+                El('th', className: 'text-left font-medium px-4 py-2.5', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-16')]),
+                El('th', className: 'px-4 py-2.5', children: [Div(className: 'h-4 w-8')]),
+              ]),
+            ],
+          ),
+          El('tbody', children: List.generate(rows, (_) => El('tr',
+            className: 'border-b border-[var(--border)] last:border-0',
+            children: [
+              El('td', className: 'px-4 py-3 align-middle', children: [
+                Div(className: 'flex items-center gap-3', children: [
+                  Div(className: 'w-9 h-9 rounded-md bg-[var(--bg-muted)] shrink-0'),
+                  Div(className: 'flex flex-col gap-1.5 flex-1', children: [
+                    Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-40'),
+                    Div(className: 'h-3 bg-[var(--bg-muted)] rounded w-24'),
+                  ]),
+                ]),
+              ]),
+              El('td', className: 'px-4 py-3 align-middle text-right', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-12 ml-auto')]),
+              El('td', className: 'px-4 py-3 align-middle text-right', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-8 ml-auto')]),
+              El('td', className: 'px-4 py-3 align-middle', children: [Div(className: 'h-5 bg-[var(--bg-muted)] rounded-full w-20')]),
+              El('td', className: 'px-4 py-3 align-middle text-right', children: [Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-8 ml-auto')]),
+            ],
+          ))),
+        ],
+      ),
+    ],
+  );
+}
+
+BloomNode skeletonDetail() {
+  return Div(
+    className: 'animate-pulse flex flex-col gap-6',
+    children: [
+      Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-48 mb-2'),
+      Div(className: 'grid lg:grid-cols-2 gap-8', children: [
+        Div(className: 'flex flex-col gap-3', children: [
+          Div(className: 'w-full aspect-square max-h-[420px] md:max-h-[480px] rounded-[10px] bg-[var(--bg-muted)] border border-[var(--border)]'),
+          Div(className: 'grid grid-cols-3 gap-2', children: [
+            Div(className: 'aspect-square rounded-md bg-[var(--bg-muted)]'),
+            Div(className: 'aspect-square rounded-md bg-[var(--bg-muted)]'),
+            Div(className: 'aspect-square rounded-md bg-[var(--bg-muted)]'),
+          ]),
+        ]),
+        Div(className: 'flex flex-col gap-4', children: [
+          Div(className: 'h-3 bg-[var(--bg-muted)] rounded w-20'),
+          Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-3/4'),
+          Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-28'),
+          Div(className: 'h-8 bg-[var(--bg-muted)] rounded w-24 mt-2'),
+          Div(className: 'flex flex-col gap-2 mt-2', children: [
+            Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-full'),
+            Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-full'),
+            Div(className: 'h-4 bg-[var(--bg-muted)] rounded w-2/3'),
+          ]),
+          Div(className: 'flex gap-3 mt-4', children: [
+            Div(className: 'h-11 bg-[var(--bg-muted)] rounded-md w-36'),
+            Div(className: 'h-11 bg-[var(--bg-muted)] rounded-md w-40'),
+          ]),
+        ]),
+      ]),
+    ],
   );
 }
 
@@ -190,9 +287,12 @@ BloomNode paginationBar({
 
   final startItem = total == 0 ? 0 : (backList.length * pageSize) + 1;
   final endItem = total == 0 ? 0 : (startItem + itemCount - 1).clamp(0, total);
+  final currentPage = backList.length + 1;
+  final totalPages = total == 0 ? 1 : ((total - 1) ~/ pageSize) + 1;
   final positionText = total == 0
       ? 'No results'
       : 'Showing ${formatNumber(startItem)}–${formatNumber(endItem)} of ${formatNumber(total)}';
+  final pageText = 'Page $currentPage of $totalPages';
 
   return Div(
     attrs: aria(role: AriaRole.navigation, label: 'Pagination'),
@@ -240,9 +340,11 @@ BloomNode paginationBar({
         ],
       ),
       Div(
-        className: 'text-sm text-[var(--text-muted)] flex items-center gap-2',
+        className: 'text-sm text-[var(--text-muted)] flex items-center gap-2 flex-wrap',
         children: [
           Span(text: positionText),
+          Span(className: 'text-[var(--text-faint)]', text: '•'),
+          Span(text: pageText),
           if (!hasNext && total > 0)
             Span(className: 'text-xs text-[var(--text-faint)]', text: '• End of results'),
         ],
@@ -255,7 +357,7 @@ BloomNode paginationBar({
 BloomNode adminTable({required List<String> headers, required List<BloomNode> rows, BloomNode? empty}) {
   if (rows.isEmpty && empty != null) return empty;
   return Div(
-    className: 'overflow-x-auto rounded-[10px] border border-[var(--border)] bg-[var(--card)]',
+    className: 'overflow-x-auto rounded-[10px] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]',
     children: [
       El('table',
         className: 'w-full text-sm',
@@ -263,7 +365,11 @@ BloomNode adminTable({required List<String> headers, required List<BloomNode> ro
           El('thead',
             className: 'sticky top-0 bg-[var(--bg-soft)] border-b border-[var(--border)]',
             children: [
-              El('tr', children: headers.map((h) => El('th', className: 'text-left font-medium px-4 py-2.5 whitespace-nowrap', text: h)).toList()),
+              El('tr', children: headers.map((h) {
+                final isRight = h == 'Price' || h == 'Stock';
+                final align = isRight ? 'text-right' : 'text-left';
+                return El('th', className: '$align font-medium px-4 py-2.5 whitespace-nowrap', text: h);
+              }).toList()),
             ],
           ),
           El('tbody', children: rows),

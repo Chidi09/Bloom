@@ -41,7 +41,6 @@ BloomNode _header() {
             className: 'hidden sm:flex items-center gap-1 text-sm',
             children: [
               Link(href: '/', className: 'px-3 py-1.5 rounded-md hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Catalog'),
-              Link(href: '/admin', className: 'px-3 py-1.5 rounded-md hover:bg-[var(--bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'Admin'),
             ],
           ),
           Div(className: 'flex items-center gap-2', children: [
@@ -108,7 +107,13 @@ BloomNode adminShell(BloomNode content) {
                 _adminLink('/admin/products', 'Products'),
               ],
             ),
-            Div(className: 'mt-auto p-4 text-xs text-[var(--text-muted)] border-t border-[var(--border)]', children: [P(text: 'TODO: Auth (Stage 2)')]),
+            Div(
+              className: 'mt-auto p-4 flex items-center gap-2.5 border-t border-[var(--border)] text-xs text-[var(--text-muted)]',
+              children: [
+                Span(className: 'w-6 h-6 rounded-full bg-[var(--bg-muted)] border border-[var(--border)] grid place-items-center text-[10px] font-medium text-[var(--text)]', text: 'A'),
+                Span(className: 'font-medium text-[var(--text)]', text: 'Admin'),
+              ],
+            ),
           ],
         ),
         Div(className: 'flex-1 min-w-0 flex flex-col', children: [
@@ -117,6 +122,16 @@ BloomNode adminShell(BloomNode content) {
             Span(className: 'font-medium', text: 'Marketplace Admin'),
             Link(href: '/admin/products/new', className: 'inline-flex items-center px-3 py-1.5 rounded-md bg-[var(--brand-600)] text-white text-sm font-medium hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]', text: 'New product'),
           ]),
+          // mobile nav bar below top bar
+          El('nav',
+            attrs: aria(role: AriaRole.navigation, label: 'Admin mobile'),
+            className: 'flex lg:hidden items-center gap-2 px-4 py-2 border-b border-[var(--border)] bg-[var(--bg-soft)] text-sm overflow-x-auto',
+            children: [
+              _adminLink('/', 'Storefront'),
+              _adminLink('/admin', 'Overview'),
+              _adminLink('/admin/products', 'Products'),
+            ],
+          ),
           Main(
             attrs: aria(role: AriaRole.main),
             className: 'flex-1 max-w-[1440px] w-full mx-auto p-4 lg:p-6',

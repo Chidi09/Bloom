@@ -37,6 +37,8 @@ const designTokensCss = r'''
   --radius-lg: 14px;
   --shadow-sm: 0 1px 2px rgb(28 25 23 / .06);
   --shadow-md: 0 4px 12px rgb(28 25 23 / .08);
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-overlay: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   color-scheme: light;
@@ -52,6 +54,7 @@ const designTokensCss = r'''
     --text: var(--n-50);
     --text-muted: var(--n-400);
     --card: #1c1b1a;
+    --card-highlight: inset 0 1px 0 0 rgba(255,255,255,0.06);
     color-scheme: dark;
   }
 }
@@ -63,6 +66,7 @@ const designTokensCss = r'''
   --text: var(--n-50);
   --text-muted: var(--n-400);
   --card: #1c1b1a;
+  --card-highlight: inset 0 1px 0 0 rgba(255,255,255,0.06);
   color-scheme: dark;
 }
 
