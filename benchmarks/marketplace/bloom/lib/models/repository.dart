@@ -37,6 +37,7 @@ Future<PaginatedProducts> fetchProducts({
   String? sort,
   bool publishedOnly = true,
   String? statusFilter,
+  bool inStockOnly = false,
 }) async {
   final db = await getDb();
   final lim = limit.clamp(1, 100);
@@ -83,6 +84,9 @@ Future<PaginatedProducts> fetchProducts({
     final phs = catIds.map((id) => cph(id)).toList();
     countWheres.add('p.category_id IN (${phs.join(', ')})');
   }
+  if (inStockOnly) {
+    countWheres.add('p.stock > 0');
+  }
   final countWhereSql = countWheres.isEmpty ? '' : 'WHERE ${countWheres.join(' AND ')}';
   final countRow = await db.fetchOne('SELECT COUNT(*) as c FROM products p $countWhereSql', countParams);
   final total = countRow.tryIntByName('c') ?? countRow.tryInt(0) ?? 0;
@@ -101,6 +105,9 @@ Future<PaginatedProducts> fetchProducts({
   if (catIds != null) {
     final phs = catIds.map((id) => ph(id)).toList();
     wheres.add('p.category_id IN (${phs.join(', ')})');
+  }
+  if (inStockOnly) {
+    wheres.add('p.stock > 0');
   }
 
   if (cursor != null && cursor.isNotEmpty) {

@@ -1,5 +1,6 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 
+import '../models/models.dart';
 import 'button_variants.dart';
 import 'cn.dart';
 
@@ -383,5 +384,199 @@ BloomNode tableRow(List<BloomNode> cells) {
   return El('tr',
     className: 'border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-soft)]',
     children: cells.map((c) => El('td', className: 'px-4 py-3 align-middle', children: [c])).toList(),
+  );
+}
+
+/// Interactive product gallery with reactive active-image switching
+BloomNode productGallery(List<ProductImage> images) {
+  if (images.isEmpty) {
+    return Div(
+      className: 'aspect-square rounded-[10px] bg-[var(--bg-muted)] grid place-items-center text-[var(--text-muted)]',
+      text: 'No image',
+    );
+  }
+
+  final activeIndex = signal<int>(0);
+
+  return Div(
+    className: 'flex flex-col gap-3',
+    children: [
+      Live(() {
+        final idx = activeIndex.value.clamp(0, images.length - 1);
+        final current = images[idx];
+        return bloomImage(
+          src: current.url,
+          alt: current.alt,
+          widths: [600, 800, 1200],
+          sizes: '(max-width:1024px) 100vw, 50vw',
+          className: 'w-full aspect-square max-h-[420px] md:max-h-[480px] object-cover rounded-[10px] border border-[var(--border)] bg-[var(--bg-muted)]',
+          priority: true,
+        );
+      }),
+      if (images.length > 1)
+        Live(() {
+          final cur = activeIndex.value;
+          return Div(
+            className: 'grid grid-cols-3 gap-2',
+            children: List.generate(images.length, (i) {
+              final im = images[i];
+              final isActive = i == cur;
+              return El('button',
+                attrs: {
+                  'type': 'button',
+                  'aria-label': 'View image ${i + 1}',
+                  if (isActive) 'aria-current': 'true',
+                },
+                className: cn([
+                  'aspect-square rounded-md overflow-hidden border border-[var(--border)] focus-visible:outline-none cursor-pointer',
+                  isActive
+                      ? 'ring-2 ring-[var(--brand-600)] ring-offset-2 ring-offset-[var(--bg)]'
+                      : 'opacity-60 hover:opacity-100 transition-opacity',
+                ]),
+                onClick: (_) {
+                  activeIndex.value = i;
+                },
+                children: [
+                  bloomImage(
+                    src: im.url,
+                    alt: im.alt,
+                    widths: [300, 600],
+                    sizes: '200px',
+                    className: 'w-full h-full object-cover',
+                  ),
+                ],
+              );
+            }),
+          );
+        }),
+    ],
+  );
+}
+
+/// Storefront filter bar with category pills, in-stock toggle, and active filter chips
+BloomNode filterBar({
+  required String currentPath,
+  required Map<String, String> currentQuery,
+  required List<Category> categories,
+  String? currentCategorySlug,
+}) {
+  final isInStock = currentQuery['in_stock'] == 'true';
+  final isAllActive = currentCategorySlug == null || currentCategorySlug.isEmpty;
+
+  // In-stock toggle href
+  final inStockQp = Map<String, String>.from(currentQuery)..remove('cursor')..remove('back');
+  if (isInStock) {
+    inStockQp.remove('in_stock');
+  } else {
+    inStockQp['in_stock'] = 'true';
+  }
+  final inStockHref = _buildUrlWithQuery(currentPath, inStockQp);
+
+  // Active category lookup
+  Category? activeCat;
+  if (currentCategorySlug != null && currentCategorySlug.isNotEmpty) {
+    for (final c in categories) {
+      if (c.slug == currentCategorySlug) {
+        activeCat = c;
+        break;
+      }
+    }
+  }
+
+  final hasActiveFilters = !isAllActive || isInStock;
+
+  // Category navigation href
+  String categoryHref(String? slug) {
+    final qp = <String, String>{};
+    if (currentQuery.containsKey('sort')) qp['sort'] = currentQuery['sort']!;
+    if (currentQuery.containsKey('in_stock')) qp['in_stock'] = currentQuery['in_stock']!;
+    if (slug == null || slug.isEmpty) {
+      return _buildUrlWithQuery('/', qp);
+    }
+    return _buildUrlWithQuery('/c/$slug', qp);
+  }
+
+  // Dismiss category filter href: goes back to '/' keeping in_stock & sort
+  final dismissCategoryHref = categoryHref(null);
+
+  // Dismiss in-stock filter href: currentPath with in_stock removed
+  final dismissInStockQp = Map<String, String>.from(currentQuery)
+    ..remove('in_stock')
+    ..remove('cursor')
+    ..remove('back');
+  final dismissInStockHref = _buildUrlWithQuery(currentPath, dismissInStockQp);
+
+  return Div(
+    className: 'flex flex-col gap-3 mb-6',
+    children: [
+      Div(
+        className: 'flex flex-wrap items-center gap-2 text-sm',
+        children: [
+          Span(className: 'text-[var(--text-muted)] mr-1', text: 'Category:'),
+          Link(
+            href: categoryHref(null),
+            attrs: isAllActive ? {'aria-current': 'page'} : const {},
+            className: isAllActive
+                ? 'px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                : 'px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+            text: 'All',
+          ),
+          ...categories.map((cat) {
+            final isActive = currentCategorySlug == cat.slug;
+            return Link(
+              href: categoryHref(cat.slug),
+              attrs: isActive ? {'aria-current': 'page'} : const {},
+              className: isActive
+                  ? 'px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                  : 'px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+              text: cat.name,
+            );
+          }),
+          Span(className: 'text-[var(--text-faint)] mx-1 hidden sm:inline', text: '|'),
+          Link(
+            href: inStockHref,
+            attrs: isInStock ? {'aria-pressed': 'true'} : {'aria-pressed': 'false'},
+            className: isInStock
+                ? 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--brand-600)] text-white font-medium text-xs sm:text-sm'
+                : 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border)] hover:bg-[var(--bg-muted)] text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+            children: [
+              if (isInStock) hugeIcon('check', className: 'w-3.5 h-3.5')
+              else Span(className: 'w-2 h-2 rounded-full bg-[var(--text-muted)]'),
+              Span(text: 'In stock only'),
+            ],
+          ),
+        ],
+      ),
+      if (hasActiveFilters)
+        Div(
+          className: 'flex flex-wrap items-center gap-2 text-xs pt-1',
+          children: [
+            Span(className: 'text-[var(--text-muted)] font-medium', text: 'Active filters:'),
+            if (!isAllActive)
+              Link(
+                href: dismissCategoryHref,
+                className: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-muted)] border border-[var(--border)] text-[var(--text)] hover:bg-[var(--border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                children: [
+                  Span(text: activeCat?.name ?? currentCategorySlug),
+                  hugeIcon('x', className: 'w-3 h-3 text-[var(--text-muted)]'),
+                ],
+              ),
+            if (isInStock)
+              Link(
+                href: dismissInStockHref,
+                className: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-muted)] border border-[var(--border)] text-[var(--text)] hover:bg-[var(--border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)]',
+                children: [
+                  Span(text: 'In stock only'),
+                  hugeIcon('x', className: 'w-3 h-3 text-[var(--text-muted)]'),
+                ],
+              ),
+            Link(
+              href: '/',
+              className: 'text-[var(--text-muted)] hover:text-[var(--danger)] hover:underline ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] rounded px-1',
+              text: 'Clear all',
+            ),
+          ],
+        ),
+    ],
   );
 }

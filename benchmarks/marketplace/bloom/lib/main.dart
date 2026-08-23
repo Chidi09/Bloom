@@ -1,6 +1,7 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 import 'package:web/web.dart' as web;
+import 'components/dialog.dart';
 import 'components/toast.dart';
 import 'pages/admin.dart';
 import 'pages/cart.dart';
@@ -33,6 +34,7 @@ void main() {
   mount(
     Fragment(children: [
       Live(() => routerController.resolve()),
+      dialogViewport(),
       toastViewport(),
     ]),
     '#app',

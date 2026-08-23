@@ -9,6 +9,7 @@ BloomApiRouter buildRouter() {
   router.get('/api/products', (req) async => listProductsHandler(req));
   router.get('/api/products/:slug', (req) async => singleProductHandler(req));
   router.get('/api/products/:slug/images', (req) async => productImagesHandler(req));
+  router.get('/api/categories', (req) async => listCategoriesHandler(req));
   router.get('/api/categories/:slug', (req) async => singleCategoryHandler(req));
   router.get('/api/admin/products', (req) async => adminListProductsHandler(req));
   router.get('/api/admin/products/:id', (req) async => adminSingleProductHandler(req));

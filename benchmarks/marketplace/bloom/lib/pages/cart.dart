@@ -1,5 +1,6 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
 import '../components/button_variants.dart';
+import '../components/dialog.dart';
 import '../components/layout.dart';
 import '../components/ui.dart';
 import '../state/cart.dart';
@@ -50,7 +51,13 @@ BloomNode _cartContent() {
               El('button',
                 attrs: {'type': 'button'},
                 className: 'text-xs text-[var(--text-muted)] hover:text-[var(--danger)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] rounded px-1',
-                onClick: (_) => clearCart(),
+                onClick: (_) => openConfirmDialog(
+                  title: 'Clear cart?',
+                  description: 'This will remove all $cartItemCount items from your cart. This cannot be undone.',
+                  confirmLabel: 'Clear cart',
+                  destructive: true,
+                  onConfirm: () => clearCart(),
+                ),
                 children: [Span(text: 'Clear cart')],
               ),
             ],

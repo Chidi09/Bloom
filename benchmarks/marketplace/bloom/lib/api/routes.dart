@@ -6,14 +6,27 @@ Future<BloomResponse> listProductsHandler(BloomRequest req) async {
   final limitRaw = req.queryParams['limit'];
   final category = req.queryParams['category'];
   final sort = req.queryParams['sort'];
+  final inStockOnly = req.queryParams['in_stock'] == 'true';
   final limit = int.tryParse(limitRaw ?? '') ?? 24;
-  final data = await fetchProducts(cursor: cursor, limit: limit, categorySlug: category, sort: sort, publishedOnly: true);
+  final data = await fetchProducts(
+    cursor: cursor,
+    limit: limit,
+    categorySlug: category,
+    sort: sort,
+    publishedOnly: true,
+    inStockOnly: inStockOnly,
+  );
   return BloomResponse.json({
     'count': data.total,
     'results': data.items.map((p) => p.toJson()).toList(),
     'next_cursor': data.nextCursor,
     'previous_cursor': null,
   });
+}
+
+Future<BloomResponse> listCategoriesHandler(BloomRequest req) async {
+  final categories = await fetchAllCategories();
+  return BloomResponse.json(categories.map((c) => c.toJson()).toList());
 }
 
 Future<BloomResponse> singleProductHandler(BloomRequest req) async {
