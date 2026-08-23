@@ -236,6 +236,8 @@ class BloomSsrEngine {
     buffer.writeln("import 'package:bloom_framework/bloom.dart';");
     buffer.writeln("import 'package:bloom_framework/bloom_server.dart';");
     buffer.writeln("import 'package:bloom_cli/src/web/prerender_engine.dart';");
+    buffer.writeln("import 'package:bloom_cli/src/assets/image_transformer.dart' as bloom_img;");
+    buffer.writeln("import 'package:bloom_cli/src/assets/image_variant_cache.dart' as bloom_img_cache;");
     buffer.writeln();
 
     // Import API route files
@@ -501,8 +503,76 @@ class BloomSsrEngine {
       if (p.isWithin(webDir.path, targetPath) || targetPath == p.canonicalize(webDir.path)) {
         final staticFile = File(targetPath);
         if (staticFile.existsSync() && !FileSystemEntity.isDirectorySync(staticFile.path)) {
-          final bytes = staticFile.readAsBytesSync();
           final ext = staticFile.path.split('.').last.toLowerCase();
+
+          // Responsive image variants. The client half of this already ships:
+          // bloomImage()/buildSrcSet emit srcset URLs of the form
+          // "/photo.jpg?w=640" via defaultImageUrlBuilder. This is the server
+          // half that actually produces those widths, so a srcset stops being
+          // a promise of optimisation that nothing keeps.
+          //
+          // Any failure here falls through to serving the original file
+          // untouched: a broken optimiser must degrade to a correct-but-larger
+          // image, never to an error page.
+          final widthParam = req.queryParams['w'];
+          if (widthParam != null && const ['jpg', 'jpeg', 'png'].contains(ext)) {
+            final requestedWidth = int.tryParse(widthParam);
+            if (requestedWidth != null &&
+                bloom_img.BloomImageTransformer.isAllowedWidth(requestedWidth)) {
+              try {
+                final variantCache = bloom_img_cache.BloomImageVariantCache(
+                  projectRoot: Directory.current,
+                );
+                var variantBytes = variantCache.read(staticFile, requestedWidth);
+                var variantFormat = bloom_img.BloomImageFormat.jpeg;
+
+                if (variantBytes == null) {
+                  final result = bloom_img.BloomImageTransformer().transform(
+                    staticFile.readAsBytesSync(),
+                    requestedWidth,
+                  );
+                  variantBytes = result.bytes;
+                  variantFormat = result.format;
+                  variantCache.write(
+                      staticFile, requestedWidth, result.bytes, result.format);
+                } else {
+                  // The cache stores only JPEG and PNG, distinguishable by
+                  // their signatures. Trust the bytes, not the request's
+                  // extension: a .png without alpha is re-encoded to JPEG, so
+                  // the source extension is not the output type.
+                  final isPng = variantBytes.length >= 8 &&
+                      variantBytes[0] == 0x89 &&
+                      variantBytes[1] == 0x50;
+                  variantFormat = isPng
+                      ? bloom_img.BloomImageFormat.png
+                      : bloom_img.BloomImageFormat.jpeg;
+                }
+
+                // Re-encoding does not always shrink a file. When the source is
+                // already at or below the requested width no resize happens, and
+                // re-encoding an already-compressed JPEG costs generation loss
+                // AND bytes -- a 618KB photo requested at its own width came back
+                // as 684KB. Serving that would be a pessimisation dressed up as
+                // an optimisation, so keep the variant only when it actually wins.
+                if (variantBytes.length < staticFile.lengthSync()) {
+                  return BloomResponse(
+                    statusCode: 200,
+                    headers: {
+                      'content-type': variantFormat == bloom_img.BloomImageFormat.png
+                          ? 'image/png'
+                          : 'image/jpeg',
+                      'cache-control': 'public, max-age=31536000, immutable',
+                    },
+                    body: variantBytes,
+                  );
+                }
+              } catch (_) {
+                // Fall through to the original file below.
+              }
+            }
+          }
+
+          final bytes = staticFile.readAsBytesSync();
           final contentType = _getContentType(ext);
           return BloomResponse(
             statusCode: 200,
