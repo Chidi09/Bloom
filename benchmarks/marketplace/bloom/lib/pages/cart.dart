@@ -130,21 +130,11 @@ BloomNode _cartLineItem(CartItem item) {
         ]),
       ]),
       Div(className: 'flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--border)]', children: [
-        Div(className: 'flex items-center gap-1', children: [
-          El('button',
-            attrs: {'type': 'button', 'aria-label': 'Decrease quantity of ${item.title}'},
-            className: 'w-7 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] hover:bg-[var(--border)] text-[var(--text)] flex items-center justify-center text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] select-none',
-            onClick: (_) => setCartQuantity(item.id, item.quantity - 1),
-            children: [Span(text: '−')],
-          ),
-          Span(className: 'w-8 text-center text-sm font-semibold tabular', text: '${item.quantity}'),
-          El('button',
-            attrs: {'type': 'button', 'aria-label': 'Increase quantity of ${item.title}'},
-            className: 'w-7 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] hover:bg-[var(--border)] text-[var(--text)] flex items-center justify-center text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] select-none',
-            onClick: (_) => setCartQuantity(item.id, item.quantity + 1),
-            children: [Span(text: '+')],
-          ),
-        ]),
+        quantityStepper(
+          quantity: item.quantity,
+          min: 1,
+          onChange: (q) => setCartQuantity(item.id, q),
+        ),
         Div(className: 'flex items-center gap-3', children: [
           Span(className: 'text-sm font-semibold price tabular', text: '\$${((item.priceCents * item.quantity) / 100).toStringAsFixed(2)}'),
           El('button',

@@ -219,23 +219,24 @@ BloomNode adminProducts(Map<String, String> params) {
               Span(className: 'text-[var(--border)]', text: '•'),
             ],
             Span(className: 'text-[var(--text-muted)]', text: 'Sort:'),
-            Link(
-              href: '/admin/products?sort=newest${status != null && status.isNotEmpty ? '&status=$status' : ''}',
-              attrs: sort == 'newest' ? const {'aria-current': 'page'} : const {},
-              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='newest'?'bg-[var(--brand-600)] text-white border-transparent':''}',
-              text: 'Newest',
-            ),
-            Link(
-              href: '/admin/products?sort=price_asc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
-              attrs: sort == 'price_asc' ? const {'aria-current': 'page'} : const {},
-              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_asc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
-              text: 'Price ↑',
-            ),
-            Link(
-              href: '/admin/products?sort=price_desc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
-              attrs: sort == 'price_desc' ? const {'aria-current': 'page'} : const {},
-              className: 'px-2 py-1 rounded-md border border-[var(--border)] ${sort=='price_desc'?'bg-[var(--brand-600)] text-white border-transparent':''}',
-              text: 'Price ↓',
+            segmentedControl(
+              options: [
+                (
+                  label: 'Newest',
+                  href: '/admin/products?sort=newest${status != null && status.isNotEmpty ? '&status=$status' : ''}',
+                  active: sort == 'newest',
+                ),
+                (
+                  label: 'Price ↑',
+                  href: '/admin/products?sort=price_asc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
+                  active: sort == 'price_asc',
+                ),
+                (
+                  label: 'Price ↓',
+                  href: '/admin/products?sort=price_desc${status != null && status.isNotEmpty ? '&status=$status' : ''}',
+                  active: sort == 'price_desc',
+                ),
+              ],
             ),
           ]),
           Div(className: 'mt-4', children: [
@@ -381,48 +382,96 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
         },
         className: 'mt-6 flex flex-col gap-4 max-w-[640px]',
         children: [
-          _field(
-            'Title',
-            'title',
-            prod?.title ?? '',
+          formField(
+            label: 'Title',
+            id: 'f-title',
             required: true,
-            onInput: isNew
-                ? (BloomEvent e) {
-                    if (slugManuallyEdited) return;
-                    final val = e.value ?? (web.document.getElementById('f-title') as web.HTMLInputElement?)?.value ?? '';
-                    final slugInput = web.document.getElementById('f-slug') as web.HTMLInputElement?;
-                    if (slugInput != null) {
-                      slugInput.value = slugify(val);
+            control: textInput(
+              id: 'f-title',
+              name: 'title',
+              value: prod?.title ?? '',
+              required: true,
+              onInput: isNew
+                  ? (BloomEvent e) {
+                      if (slugManuallyEdited) return;
+                      final val = e.value ?? (web.document.getElementById('f-title') as web.HTMLInputElement?)?.value ?? '';
+                      final slugInput = web.document.getElementById('f-slug') as web.HTMLInputElement?;
+                      if (slugInput != null) {
+                        slugInput.value = slugify(val);
+                      }
                     }
-                  }
-                : null,
-          ),
-          _field(
-            'Slug',
-            'slug',
-            prod?.slug ?? '',
-            help: 'Stable, unique, used in URLs',
-            onInput: isNew
-                ? (BloomEvent e) {
-                    slugManuallyEdited = true;
-                  }
-                : null,
-          ),
-          _field('Description', 'description', prod?.description ?? '', textarea: true),
-          Div(className: 'grid grid-cols-2 gap-4', children: [
-            _field(
-              'Price',
-              'price',
-              prod != null ? (prod.priceCents / 100).toStringAsFixed(2) : '',
-              prefix: '\$',
-              step: '0.01',
-              type: 'number',
+                  : null,
             ),
-            _field('Stock', 'stock', prod?.stock.toString() ?? '', type: 'number'),
+          ),
+          formField(
+            label: 'Slug',
+            id: 'f-slug',
+            help: 'Stable, unique, used in URLs',
+            control: textInput(
+              id: 'f-slug',
+              name: 'slug',
+              value: prod?.slug ?? '',
+              ariaDescribedBy: 'f-slug-help',
+              onInput: isNew
+                  ? (BloomEvent e) {
+                      slugManuallyEdited = true;
+                    }
+                  : null,
+            ),
+          ),
+          formField(
+            label: 'Description',
+            id: 'f-description',
+            control: textArea(
+              id: 'f-description',
+              name: 'description',
+              value: prod?.description ?? '',
+            ),
+          ),
+          Div(className: 'grid grid-cols-2 gap-4', children: [
+            formField(
+              label: 'Price',
+              id: 'f-price',
+              control: textInput(
+                id: 'f-price',
+                name: 'price',
+                value: prod != null ? (prod.priceCents / 100).toStringAsFixed(2) : '',
+                prefix: '\$',
+                step: '0.01',
+                type: 'number',
+              ),
+            ),
+            formField(
+              label: 'Stock',
+              id: 'f-stock',
+              control: textInput(
+                id: 'f-stock',
+                name: 'stock',
+                value: prod?.stock.toString() ?? '',
+                type: 'number',
+              ),
+            ),
           ]),
           Div(className: 'grid grid-cols-2 gap-4', children: [
-            _select('Status', 'status', prod?.status ?? 'draft', ['draft', 'published', 'archived']),
-            _field('Currency', 'currency', prod?.currency ?? 'USD'),
+            formField(
+              label: 'Status',
+              id: 'f-status',
+              control: selectInput(
+                id: 'f-status',
+                name: 'status',
+                value: prod?.status ?? 'draft',
+                options: const ['draft', 'published', 'archived'],
+              ),
+            ),
+            formField(
+              label: 'Currency',
+              id: 'f-currency',
+              control: textInput(
+                id: 'f-currency',
+                name: 'currency',
+                value: prod?.currency ?? 'USD',
+              ),
+            ),
           ]),
           Div(className: 'flex gap-3 mt-2', children: [
             Live(() => button(
@@ -438,80 +487,6 @@ BloomNode _renderForm(Product? prod, {required bool isNew, String? id}) {
       ),
     ]),
   );
-}
-
-BloomNode _field(
-  String label,
-  String name,
-  String value, {
-  bool required = false,
-  bool textarea = false,
-  String? help,
-  String? prefix,
-  String? step,
-  String? type,
-  BloomEventHandler? onInput,
-}) {
-  final id = 'f-$name';
-  return Div(className: 'flex flex-col gap-1.5', children: [
-    El('label', attrs: {'for': id}, className: 'text-label', text: label),
-    if (textarea)
-      El('textarea',
-        attrs: {
-          'id': id,
-          'name': name,
-          if (required) 'required': '',
-          'rows': '4',
-          if (help != null) 'aria-describedby': '$id-help',
-        },
-        className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
-        on: onInput != null ? {'input': onInput} : const {},
-        text: value,
-      )
-    else if (prefix != null)
-      Div(
-        className: 'relative flex items-center',
-        children: [
-          Span(className: 'absolute left-3 text-sm text-[var(--text-muted)] pointer-events-none select-none', text: prefix),
-          El('input',
-            attrs: {
-              'id': id,
-              'name': name,
-              'value': value,
-              if (required) 'required': '',
-              if (step != null) 'step': step,
-              if (type != null) 'type': type,
-              if (help != null) 'aria-describedby': '$id-help',
-            },
-            className: 'w-full pl-7 pr-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
-            on: onInput != null ? {'input': onInput} : const {},
-          ),
-        ],
-      )
-    else
-      El('input',
-        attrs: {
-          'id': id,
-          'name': name,
-          'value': value,
-          if (required) 'required': '',
-          if (step != null) 'step': step,
-          if (type != null) 'type': type,
-          if (help != null) 'aria-describedby': '$id-help',
-        },
-        className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
-        on: onInput != null ? {'input': onInput} : const {},
-      ),
-    if (help != null) P(attrs: {'id': '$id-help'}, className: 'text-xs text-[var(--text-muted)]', text: help),
-  ]);
-}
-
-BloomNode _select(String label, String name, String value, List<String> opts) {
-  final id = 'f-$name';
-  return Div(className: 'flex flex-col gap-1.5', children: [
-    El('label', attrs: {'for': id}, className: 'text-label', text: label),
-    El('select', attrs: {'id': id, 'name': name}, className: 'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]', children: opts.map((o) => El('option', attrs: {'value': o, if (o==value) 'selected': ''}, text: o)).toList()),
-  ]);
 }
 
 

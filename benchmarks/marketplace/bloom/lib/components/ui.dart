@@ -712,3 +712,260 @@ BloomNode breadcrumb(List<({String label, String? href})> items) {
   );
 }
 
+/// Form field layout wrapper with label, control, and optional help or error text.
+BloomNode formField({
+  required String label,
+  required BloomNode control,
+  String? id,
+  String? error,
+  String? help,
+  bool required = false,
+}) {
+  return Div(
+    className: 'flex flex-col gap-1.5',
+    children: [
+      El('label', attrs: id != null ? {'for': id} : const {}, className: 'text-label', text: label),
+      control,
+      if (error != null)
+        P(attrs: id != null ? {'id': '$id-help'} : const {}, className: 'text-xs text-[var(--danger)]', text: error)
+      else if (help != null)
+        P(attrs: id != null ? {'id': '$id-help'} : const {}, className: 'text-xs text-[var(--text-muted)]', text: help),
+    ],
+  );
+}
+
+/// Text input primitive supporting optional prefix ($), number type, step, and error state.
+BloomNode textInput({
+  required String id,
+  String? name,
+  String? value,
+  String? placeholder,
+  String? prefix,
+  String? type,
+  String? step,
+  bool required = false,
+  bool hasError = false,
+  String? ariaDescribedBy,
+  BloomEventHandler? onInput,
+}) {
+  final inputAttrs = <String, String>{
+    'id': id,
+    if (name != null) 'name': name,
+    if (value != null) 'value': value,
+    if (placeholder != null) 'placeholder': placeholder,
+    if (required) 'required': '',
+    if (step != null) 'step': step,
+    if (type != null) 'type': type,
+    if (ariaDescribedBy != null) 'aria-describedby': ariaDescribedBy,
+  };
+
+  final borderRingClass = hasError
+      ? 'border-[var(--danger)] focus:ring-[var(--danger)]'
+      : 'border-[var(--border)] focus:ring-[var(--brand-600)]';
+
+  if (prefix != null) {
+    return Div(
+      className: 'relative flex items-center',
+      children: [
+        Span(
+          className: 'absolute left-3 text-sm text-[var(--text-muted)] pointer-events-none select-none',
+          text: prefix,
+        ),
+        El(
+          'input',
+          attrs: inputAttrs,
+          className: cn([
+            'w-full pl-7 pr-3 py-2 rounded-[6px] border bg-[var(--bg)] text-sm focus:outline-none focus:ring-2',
+            borderRingClass,
+          ]),
+          on: onInput != null ? {'input': onInput} : const {},
+        ),
+      ],
+    );
+  }
+
+  return El(
+    'input',
+    attrs: inputAttrs,
+    className: cn([
+      'w-full px-3 py-2 rounded-[6px] border bg-[var(--bg)] text-sm focus:outline-none focus:ring-2',
+      borderRingClass,
+    ]),
+    on: onInput != null ? {'input': onInput} : const {},
+  );
+}
+
+/// Multi-line text area primitive with configurable rows and error styling.
+BloomNode textArea({
+  required String id,
+  String? name,
+  String? value,
+  int rows = 4,
+  bool required = false,
+  bool hasError = false,
+  String? ariaDescribedBy,
+  BloomEventHandler? onInput,
+}) {
+  final borderRingClass = hasError
+      ? 'border-[var(--danger)] focus:ring-[var(--danger)]'
+      : 'border-[var(--border)] focus:ring-[var(--brand-600)]';
+
+  return El(
+    'textarea',
+    attrs: {
+      'id': id,
+      if (name != null) 'name': name,
+      if (required) 'required': '',
+      'rows': '$rows',
+      if (ariaDescribedBy != null) 'aria-describedby': ariaDescribedBy,
+    },
+    className: cn([
+      'w-full px-3 py-2 rounded-[6px] border bg-[var(--bg)] text-sm focus:outline-none focus:ring-2',
+      borderRingClass,
+    ]),
+    on: onInput != null ? {'input': onInput} : const {},
+    text: value,
+  );
+}
+
+/// Select dropdown input primitive.
+BloomNode selectInput({
+  required String id,
+  String? name,
+  required String value,
+  required List<String> options,
+  BloomEventHandler? onInput,
+}) {
+  return El(
+    'select',
+    attrs: {
+      'id': id,
+      if (name != null) 'name': name,
+    },
+    className:
+        'w-full px-3 py-2 rounded-[6px] border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-600)]',
+    on: onInput != null ? {'input': onInput} : const {},
+    children: options
+        .map((o) => El(
+              'option',
+              attrs: {'value': o, if (o == value) 'selected': ''},
+              text: o,
+            ))
+        .toList(),
+  );
+}
+
+/// Checkbox input with associated label.
+BloomNode checkbox({
+  required String id,
+  String? name,
+  bool checked = false,
+  required String label,
+  BloomEventHandler? onChange,
+}) {
+  return Div(
+    className: 'flex items-center gap-2',
+    children: [
+      El(
+        'input',
+        attrs: {
+          'id': id,
+          'type': 'checkbox',
+          if (name != null) 'name': name,
+          if (checked) 'checked': '',
+        },
+        className:
+            'w-4 h-4 rounded border-[var(--border)] text-[var(--brand-600)] focus:ring-[var(--brand-600)]',
+        on: onChange != null ? {'change': onChange} : const {},
+      ),
+      El(
+        'label',
+        attrs: {'for': id},
+        className: 'text-sm text-[var(--text)] cursor-pointer select-none',
+        text: label,
+      ),
+    ],
+  );
+}
+
+/// Segmented control pill switcher.
+BloomNode segmentedControl({
+  required List<({String label, String href, bool active})> options,
+}) {
+  return Div(
+    className:
+        'inline-flex p-1 bg-[var(--bg-muted)] rounded-[var(--radius-md)] border border-[var(--border)] gap-1',
+    children: [
+      for (final option in options)
+        Link(
+          href: option.href,
+          attrs: option.active ? const {'aria-current': 'page'} : const {},
+          className: option.active
+              ? 'px-3 py-1 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--card)] text-[var(--text)] shadow-sm'
+              : 'px-3 py-1 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text)] transition-colors',
+          text: option.label,
+        ),
+    ],
+  );
+}
+
+/// Shared quantity stepper with decrement/increment controls.
+BloomNode quantityStepper({
+  required int quantity,
+  required void Function(int) onChange,
+  int min = 1,
+  String itemLabel = 'item',
+}) {
+  return Div(
+    className: 'flex items-center gap-1',
+    children: [
+      El(
+        'button',
+        attrs: {
+          'type': 'button',
+          'aria-label': 'Decrease quantity',
+          if (quantity <= min) 'disabled': '',
+        },
+        className: cn([
+          'w-7 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] text-[var(--text)] flex items-center justify-center text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] select-none',
+          quantity <= min ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[var(--border)] cursor-pointer',
+        ]),
+        onClick: (_) {
+          if (quantity > min) onChange(quantity - 1);
+        },
+        children: [Span(text: '−')],
+      ),
+      Span(
+        className: 'w-8 text-center text-sm font-semibold tabular',
+        text: '$quantity',
+      ),
+      El(
+        'button',
+        attrs: {
+          'type': 'button',
+          'aria-label': 'Increase quantity',
+        },
+        className:
+            'w-7 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-muted)] hover:bg-[var(--border)] text-[var(--text)] flex items-center justify-center text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-600)] select-none cursor-pointer',
+        onClick: (_) => onChange(quantity + 1),
+        children: [Span(text: '+')],
+      ),
+    ],
+  );
+}
+
+/// Horizontal or vertical visual divider line.
+BloomNode separator({bool vertical = false, String extraClassName = ''}) {
+  return Div(
+    attrs: {
+      'role': 'separator',
+      'aria-orientation': vertical ? 'vertical' : 'horizontal',
+    },
+    className: cn([
+      vertical ? 'w-px self-stretch bg-[var(--border)]' : 'h-px w-full bg-[var(--border)]',
+      extraClassName,
+    ]),
+  );
+}
+
+
