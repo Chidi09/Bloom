@@ -9,6 +9,28 @@ import 'storage_backend.dart';
 ///
 /// Intended for local development, tests, or self-hosted deployments with mounted storage volumes.
 /// Enforces canonical path verification to prevent path traversal vulnerabilities.
+///
+/// Example:
+/// ```dart
+/// final backend = LocalDiskBackend(
+///   baseDirectory: './storage/uploads',
+///   publicUrlPrefix: 'http://localhost:8080/static/uploads',
+/// );
+///
+/// // Upload a file
+/// final url = await backend.upload(
+///   'photos/avatar.png',
+///   imageBytes,
+///   contentType: 'image/png',
+/// );
+///
+/// // Download a file
+/// final bytes = await backend.download('photos/avatar.png');
+///
+/// // Generate and verify temporary signed URL
+/// final signedUrl = await backend.getSignedUrl('photos/avatar.png');
+/// final isValid = backend.verifySignedUrl('photos/avatar.png', expiresUnix, signature);
+/// ```
 class LocalDiskBackend implements BloomStorageBackend {
   /// The root directory on the local filesystem where files are stored.
   final String baseDirectory;
@@ -22,11 +44,19 @@ class LocalDiskBackend implements BloomStorageBackend {
   /// The canonical absolute path of [baseDirectory].
   late final String _canonicalBaseDir;
 
-  /// Creates a [LocalDiskBackend] with root [baseDirectory].
+  /// Creates a [LocalDiskBackend] rooted at [baseDirectory].
   ///
   /// - [baseDirectory]: Root folder on disk where files are stored. Created automatically if missing.
   /// - [publicUrlPrefix]: Optional URL prefix for generated public file links.
-  /// - [signingSecret]: HMAC secret used by [getSignedUrl] to sign local temporary access tokens.
+  /// - [signingSecret]: HMAC secret used by [getSignedUrl] and [verifySignedUrl] to sign and validate local temporary access tokens.
+  ///
+  /// Example:
+  /// ```dart
+  /// final backend = LocalDiskBackend(
+  ///   baseDirectory: '/var/data/uploads',
+  ///   publicUrlPrefix: 'https://example.com/files',
+  /// );
+  /// ```
   LocalDiskBackend({
     required this.baseDirectory,
     this.publicUrlPrefix,
@@ -71,6 +101,25 @@ class LocalDiskBackend implements BloomStorageBackend {
     return canonicalTarget;
   }
 
+  /// Writes binary [bytes] to the local filesystem at [path].
+  ///
+  /// Automatically creates missing intermediate directories.
+  ///
+  /// - [path]: Relative file path inside [baseDirectory].
+  /// - [bytes]: File content to write.
+  /// - [contentType]: Optional MIME type hint (ignored on local disk).
+  ///
+  /// Returns the relative [path] or a full public URL if [publicUrlPrefix] is configured.
+  /// Throws [BloomStoragePathTraversalException] if [path] escapes [baseDirectory].
+  /// Throws [BloomStorageException] if writing fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// final fileUrl = await backend.upload(
+  ///   'documents/summary.txt',
+  ///   utf8.encode('Annual summary content'),
+  /// );
+  /// ```
   @override
   Future<String> upload(
     String path,
@@ -99,6 +148,19 @@ class LocalDiskBackend implements BloomStorageBackend {
     return path;
   }
 
+  /// Reads and returns binary content of the file at [path].
+  ///
+  /// - [path]: Relative file path inside [baseDirectory].
+  ///
+  /// Returns the raw byte list of the file.
+  /// Throws [BloomFileNotFoundException] if the file does not exist.
+  /// Throws [BloomStoragePathTraversalException] if [path] escapes [baseDirectory].
+  /// Throws [BloomStorageException] if reading fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// final bytes = await backend.download('documents/summary.txt');
+  /// ```
   @override
   Future<List<int>> download(String path) async {
     final resolvedPath = _resolveAndValidatePath(path);
@@ -116,6 +178,18 @@ class LocalDiskBackend implements BloomStorageBackend {
     }
   }
 
+  /// Deletes the file at [path] from the local filesystem.
+  ///
+  /// - [path]: Relative file path inside [baseDirectory].
+  ///
+  /// Throws [BloomFileNotFoundException] if the file does not exist.
+  /// Throws [BloomStoragePathTraversalException] if [path] escapes [baseDirectory].
+  /// Throws [BloomStorageException] if deletion fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// await backend.delete('temp/scratch.txt');
+  /// ```
   @override
   Future<void> delete(String path) async {
     final resolvedPath = _resolveAndValidatePath(path);
@@ -133,6 +207,17 @@ class LocalDiskBackend implements BloomStorageBackend {
     }
   }
 
+  /// Checks if a file exists at [path] on the local filesystem.
+  ///
+  /// Returns `true` if the file exists within [baseDirectory], or `false` if it does not
+  /// exist or attempts directory traversal.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (await backend.exists('documents/summary.txt')) {
+  ///   print('File exists');
+  /// }
+  /// ```
   @override
   Future<bool> exists(String path) async {
     try {
@@ -143,6 +228,23 @@ class LocalDiskBackend implements BloomStorageBackend {
     }
   }
 
+  /// Generates a time-limited signed URL for local development and testing.
+  ///
+  /// Signs the [path] and expiration timestamp with HMAC-SHA256 using [signingSecret].
+  ///
+  /// - [path]: Relative storage path to sign.
+  /// - [expiry]: Duration before the signed link expires (defaults to 15 minutes).
+  ///
+  /// Returns the signed URL string containing `expires` and `signature` query parameters.
+  /// Throws [BloomStoragePathTraversalException] if [path] escapes [baseDirectory].
+  ///
+  /// Example:
+  /// ```dart
+  /// final devUrl = await backend.getSignedUrl(
+  ///   'reports/preview.pdf',
+  ///   expiry: const Duration(minutes: 60),
+  /// );
+  /// ```
   @override
   Future<String> getSignedUrl(
     String path, {
@@ -165,13 +267,21 @@ class LocalDiskBackend implements BloomStorageBackend {
     return '$prefix/$cleanPath?expires=$expiresAt&signature=$signature';
   }
 
-  /// Helper to verify a dev-signed URL generated by [getSignedUrl].
+  /// Verifies a temporary signed URL generated by [getSignedUrl].
   ///
   /// - [path]: Storage relative path that was signed.
   /// - [expiresAtUnix]: Epoch timestamp (in seconds) when the signature expires.
-  /// - [signature]: HMAC-SHA256 signature string to validate.
+  /// - [signature]: HMAC-SHA256 signature string to validate against [signingSecret].
   ///
-  /// Returns `true` if the signature matches and has not yet expired.
+  /// Returns `true` if the signature is valid and the timestamp has not expired; `false` otherwise.
+  ///
+  /// Example:
+  /// ```dart
+  /// final valid = backend.verifySignedUrl('reports/preview.pdf', expiresUnix, signature);
+  /// if (!valid) {
+  ///   throw BloomStorageAuthException('Invalid or expired signature');
+  /// }
+  /// ```
   bool verifySignedUrl(String path, int expiresAtUnix, String signature) {
     final cleanPath = path.startsWith('/') ? path.substring(1) : path;
     final nowUnix = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;

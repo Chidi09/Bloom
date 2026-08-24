@@ -5,6 +5,31 @@ import 'package:crypto/crypto.dart';
 ///
 /// Implements full RFC-compliant request signing and presigned URL generation
 /// for AWS S3, Cloudflare R2, MinIO, and Supabase Storage S3 APIs without external SDK dependencies.
+///
+/// Example:
+/// ```dart
+/// final signer = S3Signer(
+///   accessKeyId: 'AKIAEXAMPLE',
+///   secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+///   region: 'us-east-1',
+/// );
+///
+/// // Sign an HTTP PUT request
+/// final uri = Uri.parse('https://my-bucket.s3.us-east-1.amazonaws.com/image.png');
+/// final payload = [1, 2, 3, 4];
+/// final headers = signer.signRequest(
+///   method: 'PUT',
+///   uri: uri,
+///   headers: {'content-type': 'image/png'},
+///   payload: payload,
+/// );
+///
+/// // Generate a presigned GET URL
+/// final presignedUrl = signer.generatePresignedUrl(
+///   uri: uri,
+///   expiry: const Duration(minutes: 15),
+/// );
+/// ```
 class S3Signer {
   /// AWS access key ID or compatible API key.
   final String accessKeyId;
@@ -18,16 +43,25 @@ class S3Signer {
   /// S3 service name used in the credential scope (defaults to `'s3'`).
   final String service;
 
-  /// Optional AWS STS session token.
+  /// Optional AWS STS session token for temporary credentials.
   final String? sessionToken;
 
   /// Creates an [S3Signer] configured with AWS credentials and region.
   ///
   /// - [accessKeyId]: AWS access key identifier.
   /// - [secretAccessKey]: AWS secret access key.
-  /// - [region]: Target AWS region name (e.g. `us-east-1`).
+  /// - [region]: Target AWS region name (e.g. `us-east-1`, `auto`).
   /// - [service]: Target AWS service identifier (defaults to `'s3'`).
   /// - [sessionToken]: Optional STS session token for temporary credentials.
+  ///
+  /// Example:
+  /// ```dart
+  /// final signer = S3Signer(
+  ///   accessKeyId: 'KEY',
+  ///   secretAccessKey: 'SECRET',
+  ///   region: 'us-east-1',
+  /// );
+  /// ```
   const S3Signer({
     required this.accessKeyId,
     required this.secretAccessKey,
@@ -36,7 +70,13 @@ class S3Signer {
     this.sessionToken,
   });
 
-  /// Formats date to `YYYYMMDDTHHMMSSZ`.
+  /// Formats a [DateTime] [dt] into basic ISO 8601 format (`YYYYMMDDTHHMMSSZ`) required by AWS SigV4.
+  ///
+  /// Example:
+  /// ```dart
+  /// final amzDate = S3Signer.formatIso8601Basic(DateTime.utc(2026, 8, 24, 12, 0, 0));
+  /// // Returns: '20260824T120000Z'
+  /// ```
   static String formatIso8601Basic(DateTime dt) {
     final utc = dt.toUtc();
     final y = utc.year.toString().padLeft(4, '0');
@@ -48,7 +88,13 @@ class S3Signer {
     return '$y$m${d}T$h$min${s}Z';
   }
 
-  /// Formats date to `YYYYMMDD`.
+  /// Formats a [DateTime] [dt] into date stamp format (`YYYYMMDD`) used in the AWS SigV4 credential scope.
+  ///
+  /// Example:
+  /// ```dart
+  /// final dateStamp = S3Signer.formatDateStamp(DateTime.utc(2026, 8, 24));
+  /// // Returns: '20260824'
+  /// ```
   static String formatDateStamp(DateTime dt) {
     final utc = dt.toUtc();
     final y = utc.year.toString().padLeft(4, '0');
@@ -57,7 +103,15 @@ class S3Signer {
     return '$y$m$d';
   }
 
-  /// Encodes URI path segments per RFC 3986 for AWS SigV4.
+  /// Encodes URI [path] segments per RFC 3986 for AWS SigV4 canonical requests.
+  ///
+  /// Ensures each path segment is properly percent-encoded while preserving slashes.
+  ///
+  /// Example:
+  /// ```dart
+  /// final encoded = S3Signer.canonicalUriEncode('photos/summer vacation/1.png');
+  /// // Returns: '/photos/summer%20vacation/1.png'
+  /// ```
   static String canonicalUriEncode(String path) {
     if (path.isEmpty || path == '/') return '/';
     final segments = path.split('/');
@@ -65,13 +119,26 @@ class S3Signer {
     return encoded.startsWith('/') ? encoded : '/$encoded';
   }
 
-  /// Signs an HTTP request and returns the map of headers including `Authorization`.
+  /// Signs an HTTP request and returns a complete map of headers including `Authorization`,
+  /// `x-amz-date`, and `x-amz-content-sha256`.
   ///
-  /// - [method]: HTTP request method (`GET`, `PUT`, `DELETE`, etc.).
-  /// - [uri]: Target object URI.
+  /// - [method]: HTTP request method (`GET`, `PUT`, `DELETE`, `HEAD`, etc.).
+  /// - [uri]: Target object [Uri].
   /// - [headers]: Existing request headers to include in signing.
-  /// - [payload]: Request body bytes used to compute SHA-256 payload hash.
-  /// - [requestTime]: Optional explicit timestamp override for signing.
+  /// - [payload]: Request body bytes used to compute the SHA-256 payload hash.
+  /// - [requestTime]: Optional explicit timestamp override for signing (defaults to `DateTime.now().toUtc()`).
+  ///
+  /// Returns a map of HTTP headers with AWS SigV4 authorization headers attached.
+  ///
+  /// Example:
+  /// ```dart
+  /// final signedHeaders = signer.signRequest(
+  ///   method: 'PUT',
+  ///   uri: Uri.parse('https://mybucket.s3.amazonaws.com/doc.pdf'),
+  ///   headers: {'content-type': 'application/pdf'},
+  ///   payload: pdfBytes,
+  /// );
+  /// ```
   Map<String, String> signRequest({
     required String method,
     required Uri uri,
@@ -140,11 +207,21 @@ class S3Signer {
     };
   }
 
-  /// Generates an AWS SigV4 presigned URL for GET access.
+  /// Generates an AWS SigV4 presigned URL for `GET` access without exposing credentials.
   ///
-  /// - [uri]: Full target object URI to presign.
-  /// - [expiry]: Duration for which the presigned URL remains valid.
+  /// - [uri]: Full target object [Uri] to presign.
+  /// - [expiry]: [Duration] for which the presigned URL remains valid.
   /// - [requestTime]: Optional explicit timestamp override for the signature date.
+  ///
+  /// Returns the complete URL string containing AWS SigV4 authentication query parameters.
+  ///
+  /// Example:
+  /// ```dart
+  /// final url = signer.generatePresignedUrl(
+  ///   uri: Uri.parse('https://mybucket.s3.amazonaws.com/private/report.pdf'),
+  ///   expiry: const Duration(hours: 1),
+  /// );
+  /// ```
   String generatePresignedUrl({
     required Uri uri,
     required Duration expiry,

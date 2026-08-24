@@ -7,9 +7,32 @@ import 'expr.dart';
 import 'meta.dart';
 import 'model.dart';
 
-/// Lazily constructed database query builder for model [T].
+/// Immutable, lazily evaluated database query builder for model entity [T].
+///
+/// A [QuerySet] represents a collection of database queries constructed fluently via
+/// `.filter()`, `.exclude()`, `.orderBy()`, `.limit()`, and `.offset()`. QuerySets are immutable;
+/// modifying methods return a new [QuerySet] instance with updated parameters.
+///
+/// SQL queries are compiled and dispatched to the database only when invoking terminal execution
+/// methods: [all], [get], [first], [exists], [count], [update], [delete], [getOrCreate], [values],
+/// or [valuesList].
 ///
 /// Mirrors `djangors_orm::queryset::QuerySet<T>`.
+///
+/// Example:
+/// ```dart
+/// final qs = QuerySet<User>(meta: User.meta, fromRow: User.fromRow);
+///
+/// // Fluent filtering and ordering
+/// final activeUsers = await qs
+///     .filter(Q('age__gte', 18) & Q('is_active', true))
+///     .orderBy('-created_at')
+///     .limit(20)
+///     .all(db);
+///
+/// // Single object lookup
+/// final user = await qs.filter({'email': 'alice@example.com'}).get(db);
+/// ```
 class QuerySet<T extends Model> {
   final ModelMeta _meta;
   final ModelFromRow<T> _fromRow;
@@ -18,7 +41,14 @@ class QuerySet<T extends Model> {
   final int? _limit;
   final int? _offset;
 
-  /// Creates a [QuerySet] builder for model [T] with given [meta] and row deserializer [fromRow].
+  /// Creates an immutable [QuerySet] builder for model [T].
+  ///
+  /// - [meta]: Runtime schema metadata for model entity [T].
+  /// - [fromRow]: Factory deserializer constructing a [T] instance from a [DbRow].
+  /// - [filters]: Optional initial list of resolved [BloomExpr] criteria.
+  /// - [orderBy]: Optional initial list of `(columnName, descending)` order rules.
+  /// - [limit]: Optional row limit cap.
+  /// - [offset]: Optional row offset count.
   QuerySet({
     required ModelMeta meta,
     required ModelFromRow<T> fromRow,
@@ -51,24 +81,50 @@ class QuerySet<T extends Model> {
     );
   }
 
-  /// Adds a filter expression or map of field criteria to this queryset.
+  /// Returns a new [QuerySet] with the added filter criteria [expr].
+  ///
+  /// [expr] can be:
+  /// - An [UnresolvedExpr] constructed with [Q] or [QF] (e.g. `Q('age__gte', 21)`)
+  /// - A [Map<String, dynamic>] of field lookups (e.g. `{'status': 'active', 'age__gte': 18}`)
+  /// - A pre-resolved [BloomExpr]
+  ///
+  /// Throws [BloomOrmFieldNotFoundError] if any referenced field does not exist on the model.
+  /// Throws [BloomOrmInvalidQueryError] if [expr] is of an unsupported type.
+  ///
+  /// Example:
+  /// ```dart
+  /// final activeAdults = qs.filter(Q('age__gte', 18) & Q('is_active', true));
+  /// final byMap = qs.filter({'is_active': true, 'age__lt': 65});
+  /// ```
   QuerySet<T> filter(dynamic expr) {
     final resolved = _resolveExpression(expr);
     return _copyWith(filters: [..._filters, resolved]);
   }
 
-  /// Excludes rows matching [expr] — the negation of [filter].
+  /// Returns a new [QuerySet] excluding records matching [expr] (negation of [filter]).
+  ///
+  /// Example:
+  /// ```dart
+  /// final nonBanned = qs.exclude(Q('is_banned', true));
+  /// ```
   QuerySet<T> exclude(dynamic expr) {
     final resolved = _resolveExpression(expr);
     return _copyWith(filters: [..._filters, BloomExpr.not(resolved)]);
   }
 
-  /// Orders results by the given [field] name. A leading `'-'` specifies descending order.
+  /// Returns a new [QuerySet] ordered by the given model [field].
+  ///
+  /// Prefixing [field] with `'-'` specifies descending order (e.g. `'-created_at'`).
   ///
   /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
+  ///
+  /// Example:
+  /// ```dart
+  /// final sorted = qs.orderBy('name').orderBy('-created_at');
+  /// ```
   QuerySet<T> orderBy(String field) => order_by(field);
 
-  /// Snake_case alias matching Rust `order_by`.
+  /// Snake_case alias for [orderBy], matching Django/Rust ORM conventions.
   ///
   /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
   QuerySet<T> order_by(String field) {
@@ -86,10 +142,20 @@ class QuerySet<T extends Model> {
     return _copyWith(orderBy: [..._orderBy, (colName, isDesc)]);
   }
 
-  /// Restricts the maximum number of rows returned by the query.
+  /// Returns a new [QuerySet] restricting the maximum number of returned rows to [n].
+  ///
+  /// Example:
+  /// ```dart
+  /// final topTen = qs.orderBy('-score').limit(10);
+  /// ```
   QuerySet<T> limit(int n) => _copyWith(limit: n);
 
-  /// Sets the number of rows to skip before starting to return rows.
+  /// Returns a new [QuerySet] skipping the first [n] rows of query results.
+  ///
+  /// Example:
+  /// ```dart
+  /// final pageTwo = qs.limit(10).offset(10);
+  /// ```
   QuerySet<T> offset(int n) => _copyWith(offset: n);
 
   /// Resolves an input filter into a fully validated [BloomExpr].
@@ -170,7 +236,13 @@ class QuerySet<T extends Model> {
     };
   }
 
-  /// Compiles this queryset to a parameterized `SELECT` SQL string and parameter list.
+  /// Compiles this queryset into a parameterized `SELECT` SQL string and parameter list.
+  ///
+  /// - [selectList]: SQL column projection string (e.g. `'*'`, `'COUNT(*)'`, `'"id", "name"'`).
+  /// - [includeOrder]: Whether to append `ORDER BY` clauses to the generated SQL.
+  /// - [dialect]: Database [Dialect] determining placeholders, escaping, and type casts.
+  ///
+  /// Returns a record `(sql, parameters)`.
   (String, List<dynamic>) compileSelectWithOrder(
     String selectList,
     bool includeOrder,
@@ -327,6 +399,14 @@ class QuerySet<T extends Model> {
   }
 
   /// Compiles and returns the SQL text and bind parameters for debugging and test inspection.
+  ///
+  /// - [dialect]: Database dialect to compile for (defaults to [Dialect.postgres]).
+  ///
+  /// Example:
+  /// ```dart
+  /// final (sql, params) = qs.filter(Q('age__gte', 18)).debugSql(Dialect.sqlite);
+  /// print('Generated SQL: $sql with params: $params');
+  /// ```
   (String, List<dynamic>) debugSql([Dialect dialect = Dialect.postgres]) {
     return compileSelectWithOrder('*', true, dialect);
   }
@@ -335,17 +415,30 @@ class QuerySet<T extends Model> {
   (String, List<dynamic>) debug_sql([Dialect dialect = Dialect.postgres]) =>
       debugSql(dialect);
 
-  /// Executes the query and returns all matching model instances.
+  /// Executes the compiled query against [db] and returns all matching model instances as a [List<T>].
+  ///
+  /// Throws [BloomOrmQueryException] if query execution fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// final users = await qs.filter(Q('is_active', true)).all(db);
+  /// ```
   Future<List<T>> all(DbExecutor db) async {
     final (sql, params) = compileSelectWithOrder('*', true, db.dialect);
     final rows = await db.fetchAll(sql, params);
     return rows.map(_fromRow).toList();
   }
 
-  /// Fetches a single model instance matching the filters.
+  /// Fetches a single model instance matching the queryset filters from [db].
   ///
-  /// Throws [BloomOrmNotFoundError] if no row is found, or
-  /// [BloomOrmMultipleObjectsReturnedError] if more than one row matches.
+  /// Throws [BloomOrmNotFoundError] if zero matching records are found.
+  /// Throws [BloomOrmMultipleObjectsReturnedError] if more than one matching record is found.
+  /// Throws [BloomOrmQueryException] on database driver failure.
+  ///
+  /// Example:
+  /// ```dart
+  /// final admin = await qs.filter(Q('email', 'admin@example.com')).get(db);
+  /// ```
   Future<T> get(DbExecutor db) async {
     final limited = limit(2);
     final results = await limited.all(db);
@@ -358,31 +451,66 @@ class QuerySet<T extends Model> {
     return results.first;
   }
 
-  /// Fetches the first model instance matching query filters, or `null` if no row matches.
+  /// Fetches the first model instance matching query filters from [db], or returns `null` if no records match.
+  ///
+  /// Throws [BloomOrmQueryException] on database driver failure.
+  ///
+  /// Example:
+  /// ```dart
+  /// final newest = await qs.orderBy('-created_at').first(db);
+  /// if (newest != null) print(newest.id);
+  /// ```
   Future<T?> first(DbExecutor db) async {
     final limited = limit(1);
     final results = await limited.all(db);
     return results.isEmpty ? null : results.first;
   }
 
-  /// Returns `true` if at least one record matches query filters.
+  /// Checks whether at least one record matching query filters exists in the database [db].
+  ///
+  /// Compiles an optimized `SELECT 1 ... LIMIT 1` query.
+  ///
+  /// Example:
+  /// ```dart
+  /// final hasBanned = await qs.filter(Q('is_banned', true)).exists(db);
+  /// ```
   Future<bool> exists(DbExecutor db) async {
     final (sql, params) = limit(1).compileSelectWithOrder('1', false, db.dialect);
     final row = await db.fetchOptional(sql, params);
     return row != null;
   }
 
-  /// Returns the total count of rows matching query filters.
+  /// Returns the total count of rows matching query filters in the database [db].
+  ///
+  /// Compiles a `SELECT COUNT(*) FROM ...` aggregation query.
+  ///
+  /// Example:
+  /// ```dart
+  /// final count = await qs.filter(Q('status', 'active')).count(db);
+  /// ```
   Future<int> count(DbExecutor db) async {
     final (sql, params) = compileSelectWithOrder('COUNT(*)', false, db.dialect);
     final row = await db.fetchOne(sql, params);
     return row.tryInt(0) ?? 0;
   }
 
-  /// Executes a bulk UPDATE query on rows matching current filters.
+  /// Executes a bulk `UPDATE` query on all rows matching current queryset filters.
   ///
-  /// Supports literal updates and field arithmetic expressions (via [SetExpr] / [F]).
-  /// Throws [BloomOrmFieldNotFoundError] if any field in [sets] is not defined on the model.
+  /// [sets] maps field names to new values or expressions. Supports both literal values and
+  /// database-side field arithmetic expressions using [F] (e.g. `{'score': F('score') + 10}`).
+  ///
+  /// Throws [BloomOrmFieldNotFoundError] if any key in [sets] is not defined on the model.
+  /// Throws [BloomOrmQueryException] if underlying query execution fails.
+  ///
+  /// Returns the number of affected database rows.
+  ///
+  /// Example:
+  /// ```dart
+  /// final updated = await qs.filter(Q('status', 'pending')).update(db, {
+  ///   'status': 'processed',
+  ///   'attempts': F('attempts') + 1,
+  /// });
+  /// ```
   Future<int> update(DbExecutor db, Map<String, dynamic> sets) async {
     if (sets.isEmpty) return 0;
     final dialect = db.dialect;
@@ -447,7 +575,15 @@ class QuerySet<T extends Model> {
     return await db.execute(buffer.toString(), params);
   }
 
-  /// Deletes all rows matching current filters, returning rows deleted count.
+  /// Deletes all database records matching the current queryset filters.
+  ///
+  /// Returns the total count of deleted database rows.
+  /// Throws [BloomOrmQueryException] if statement execution fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// final deletedCount = await qs.filter(Q('is_expired', true)).delete(db);
+  /// ```
   Future<int> delete(DbExecutor db) async {
     final dialect = db.dialect;
     final params = <dynamic>[];
@@ -475,10 +611,22 @@ class QuerySet<T extends Model> {
     return await db.execute(buffer.toString(), params);
   }
 
-  /// Low-level INSERT query returning the generated primary key.
+  /// Low-level `INSERT` statement execution returning the generated primary key value.
   ///
-  /// Supports both integer and String/UUID primary keys (Liskov Substitution Principle).
-  /// Throws [BloomOrmFieldNotFoundError] if any field in [values] does not exist on [meta].
+  /// - [db]: Active [DbExecutor] connection.
+  /// - [meta]: Target model schema metadata.
+  /// - [values]: Map of column or field names to raw values. Auto-increment columns are omitted.
+  ///
+  /// Returns the generated primary key (typically [int] or [String]).
+  /// Throws [BloomOrmFieldNotFoundError] if any key in [values] is missing from [meta].
+  ///
+  /// Example:
+  /// ```dart
+  /// final newId = await QuerySet.insertRaw(db, User.meta, {
+  ///   'name': 'Bob',
+  ///   'email': 'bob@example.com',
+  /// });
+  /// ```
   static Future<dynamic> insertRaw(
     DbExecutor db,
     ModelMeta meta,
@@ -518,7 +666,19 @@ class QuerySet<T extends Model> {
     return row.tryStringByName(pkCol) ?? row.tryIntByName(pkCol) ?? row[pkCol] ?? row[0];
   }
 
-  /// Inserts many rows in a single multi-row INSERT statement and returns generated primary keys.
+  /// Inserts multiple model [items] in a single multi-row `INSERT ... VALUES (...), (...) RETURNING` statement.
+  ///
+  /// - [db]: Database executor.
+  /// - [meta]: Target model schema metadata.
+  /// - [items]: List of model entity instances to insert.
+  ///
+  /// Returns a list of generated primary keys corresponding to [items].
+  /// Returns empty list if [items] is empty.
+  ///
+  /// Example:
+  /// ```dart
+  /// final ids = await QuerySet.bulkCreate(db, User.meta, [user1, user2, user3]);
+  /// ```
   static Future<List<dynamic>> bulkCreate<M extends Model>(
     DbExecutor db,
     ModelMeta meta,
@@ -576,9 +736,17 @@ class QuerySet<T extends Model> {
   ) =>
       bulkCreate<M>(db, meta, items);
 
-  /// Fetches the first row matching current filter, or creates a new one from [defaults].
+  /// Fetches the first record matching current queryset filters, or creates a new record using [defaults].
   ///
-  /// Returns `(T, true)` when created, `(T, false)` when already existed.
+  /// Returns a record `(instance, created)` where `created` is `true` if a new row was inserted,
+  /// or `false` if an existing row was retrieved.
+  ///
+  /// Example:
+  /// ```dart
+  /// final (user, wasCreated) = await qs
+  ///     .filter({'email': 'alice@example.com'})
+  ///     .getOrCreate(db, defaults: {'name': 'Alice', 'email': 'alice@example.com'});
+  /// ```
   Future<(T, bool)> getOrCreate(
     DbExecutor db, {
     required Map<String, dynamic> defaults,
@@ -600,7 +768,21 @@ class QuerySet<T extends Model> {
   }) =>
       getOrCreate(db, defaults: defaults);
 
-  /// Like [getOrCreate] but updates existing rows with [updates].
+  /// Fetches the first record matching current queryset filters, updating it with [updates],
+  /// or creates a new record using [defaults] if none was found.
+  ///
+  /// Returns a record `(instance, created)` where `created` is `true` if created, or `false` if updated.
+  ///
+  /// Example:
+  /// ```dart
+  /// final (user, wasCreated) = await qs
+  ///     .filter({'email': 'alice@example.com'})
+  ///     .updateOrCreate(
+  ///       db,
+  ///       defaults: {'name': 'Alice', 'email': 'alice@example.com', 'login_count': 1},
+  ///       updates: {'login_count': F('login_count') + 1},
+  ///     );
+  /// ```
   Future<(T, bool)> updateOrCreate(
     DbExecutor db, {
     required Map<String, dynamic> defaults,
@@ -628,9 +810,20 @@ class QuerySet<T extends Model> {
   }) =>
       updateOrCreate(db, defaults: defaults, updates: updates);
 
-  /// Selects only specified [fields], returning raw maps of column values — Django's `.values()`.
+  /// Selects only the specified [fields], returning raw maps of field names to values — Django's `.values()`.
   ///
-  /// Throws [BloomOrmInvalidQueryError] if [fields] is empty, or [BloomOrmFieldNotFoundError] if a field is not found.
+  /// If [fields] is omitted or `null`, all model fields are selected.
+  ///
+  /// Throws [BloomOrmInvalidQueryError] if [fields] is explicitly empty.
+  /// Throws [BloomOrmFieldNotFoundError] if any field in [fields] is not found on the model.
+  ///
+  /// Example:
+  /// ```dart
+  /// final rows = await qs.filter(Q('is_active', true)).values(db, ['id', 'email']);
+  /// for (final r in rows) {
+  ///   print('${r["id"]}: ${r["email"]}');
+  /// }
+  /// ```
   Future<List<Map<String, dynamic>>> values(
     DbExecutor db, [
     List<String>? fields,
@@ -654,9 +847,15 @@ class QuerySet<T extends Model> {
     return rows.map((r) => r.toMap()).toList();
   }
 
-  /// Selects a single field as a flat list of values — Django's `.values_list(field, flat=True)`.
+  /// Selects a single model [field] as a flat list of values — Django's `.values_list(field, flat=True)`.
   ///
   /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
+  ///
+  /// Example:
+  /// ```dart
+  /// final emails = await qs.filter(Q('is_active', true)).valuesList(db, 'email');
+  /// print(emails); // ['alice@example.com', 'bob@example.com']
+  /// ```
   Future<List<dynamic>> valuesList(
     DbExecutor db,
     String field, {
@@ -682,4 +881,5 @@ class QuerySet<T extends Model> {
   }) =>
       valuesList(db, field, flat: flat);
 }
+
 
