@@ -21,6 +21,7 @@ export 'ui/dialog.dart';
 export 'ui/drawer.dart';
 export 'ui/dropdown_menu.dart';
 export 'ui/field.dart';
+export 'ui/font_link.dart';
 export 'ui/hover_card.dart';
 export 'ui/icons.dart';
 export 'ui/input.dart';
