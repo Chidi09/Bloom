@@ -4,11 +4,31 @@ import 'package:bloom_server/bloom_server.dart';
 
 /// A policy deciding whether an incoming [BloomRequest] may reach a ViewSet handler.
 ///
+/// Implement this class to enforce authorization rules on ViewSet endpoints. Permissions
+/// can be combined using [and], [or], [negate] (or their operator equivalents `&`, `|`, `~`).
+///
+/// Example:
+/// ```dart
+/// class HasOrgMembership extends BloomRestPermission {
+///   final String orgId;
+///   const HasOrgMembership(this.orgId);
+///
+///   @override
+///   bool hasPermission(BloomRequest req) {
+///     final userOrgs = req.params['auth_orgs']?.split(',') ?? [];
+///     return userOrgs.contains(orgId);
+///   }
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::Permission`.
 abstract class BloomRestPermission {
+  /// Creates a [BloomRestPermission] instance.
   const BloomRestPermission();
 
-  /// Determines whether the given request satisfies this permission requirement.
+  /// Determines whether the given [req] satisfies this permission requirement.
+  ///
+  /// Returns `true` if access is granted, or `false` to deny access (yielding a 401 Unauthorized response).
   FutureOr<bool> hasPermission(BloomRequest req);
 }
 
@@ -36,6 +56,8 @@ extension BloomPermissionExt on BloomRestPermission {
 }
 
 /// Combinator requiring both policies (A AND B).
+///
+/// Returns `true` only if both [a] and [b] grant permission.
 class BloomAndPermission extends BloomRestPermission {
   /// First permission requirement.
   final BloomRestPermission a;
@@ -55,6 +77,8 @@ class BloomAndPermission extends BloomRestPermission {
 }
 
 /// Combinator requiring either policy (A OR B).
+///
+/// Returns `true` if either [a] or [b] grants permission.
 class BloomOrPermission extends BloomRestPermission {
   /// First permission requirement.
   final BloomRestPermission a;
@@ -74,6 +98,8 @@ class BloomOrPermission extends BloomRestPermission {
 }
 
 /// Combinator inverting a policy (NOT P).
+///
+/// Returns `true` if [inner] denies permission, and `false` if [inner] grants permission.
 class BloomNotPermission extends BloomRestPermission {
   /// Inner permission requirement to invert.
   final BloomRestPermission inner;
@@ -89,7 +115,7 @@ class BloomNotPermission extends BloomRestPermission {
 }
 
 /// Resolves the authenticated user ID for a request.
-/// Checks `request.params['auth_user_id']` or `Authorization` Bearer token header.
+/// Checks `request.params['auth_user_id']`.
 ///
 /// Only reads `req.params['auth_user_id']` — a value exclusively populated by
 /// verified server-side auth middleware (e.g. `bloom_auth_server`'s
@@ -101,6 +127,8 @@ class BloomNotPermission extends BloomRestPermission {
 /// like [IsAuthenticated] MUST wire real auth-verification middleware ahead of
 /// the route in the middleware chain — permission checks here only consume an
 /// already-verified identity, they never verify one themselves.
+///
+/// Returns the verified user ID string, or `null` if unauthenticated.
 String? resolveCurrentUserId(BloomRequest req) {
   final paramId = req.params['auth_user_id'];
   if (paramId != null && paramId.isNotEmpty) {
@@ -120,6 +148,17 @@ List<String> resolveCurrentUserRoles(BloomRequest req) {
 
 /// Explicitly permits unauthenticated and public requests.
 ///
+/// Always evaluates to `true`. Use this when configuring public ViewSets since ViewSets
+/// default to [IsAuthenticated].
+///
+/// Example:
+/// ```dart
+/// final options = BloomViewSetOptions<Article>(
+///   serializer: serializer,
+///   permission: const AllowAny(),
+/// );
+/// ```
+///
 /// Mirrors `djangors_rest::AllowAny`.
 class AllowAny extends BloomRestPermission {
   /// Creates an [AllowAny] permission granting access to all requests.
@@ -129,7 +168,15 @@ class AllowAny extends BloomRestPermission {
   bool hasPermission(BloomRequest req) => true;
 }
 
-/// Requires a valid authenticated session, user token, or header context.
+/// Requires a valid authenticated session or user token context.
+///
+/// Checks whether [resolveCurrentUserId] returns a valid non-empty user ID populated
+/// by verified auth middleware.
+///
+/// Example:
+/// ```dart
+/// final permission = const IsAuthenticated();
+/// ```
 ///
 /// Mirrors `djangors_rest::IsAuthenticated`.
 class IsAuthenticated extends BloomRestPermission {
@@ -143,7 +190,14 @@ class IsAuthenticated extends BloomRestPermission {
   }
 }
 
-/// Requires an authenticated user flagged as staff / admin.
+/// Requires an authenticated user flagged as staff or admin.
+///
+/// Validates that the user has [roleName] (defaults to `'staff'`), `'admin'`, or `'superuser'`.
+///
+/// Example:
+/// ```dart
+/// final permission = const IsStaff();
+/// ```
 ///
 /// Mirrors `djangors_rest::IsStaff`.
 class IsStaff extends BloomRestPermission {
@@ -162,6 +216,13 @@ class IsStaff extends BloomRestPermission {
 
 /// Requires an authenticated superuser / admin.
 ///
+/// Validates that the user has either the `'admin'` or `'superuser'` role.
+///
+/// Example:
+/// ```dart
+/// final permission = const IsSuperuser();
+/// ```
+///
 /// Mirrors `djangors_rest::IsSuperuser`.
 class IsSuperuser extends BloomRestPermission {
   /// Creates an [IsSuperuser] permission requiring `'admin'` or `'superuser'` roles.
@@ -179,6 +240,11 @@ class IsSuperuser extends BloomRestPermission {
 /// On its own makes an endpoint read-only for everyone.
 /// Combined with another policy: `IsReadOnly().or(IsStaff())`.
 ///
+/// Example:
+/// ```dart
+/// final readOrAuth = const IsReadOnly().or(const IsAuthenticated());
+/// ```
+///
 /// Mirrors `djangors_rest::IsReadOnly`.
 class IsReadOnly extends BloomRestPermission {
   /// Creates an [IsReadOnly] permission permitting only safe HTTP methods (GET, HEAD, OPTIONS).
@@ -190,3 +256,4 @@ class IsReadOnly extends BloomRestPermission {
     return m == 'GET' || m == 'HEAD' || m == 'OPTIONS';
   }
 }
+

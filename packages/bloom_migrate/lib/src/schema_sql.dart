@@ -2,7 +2,20 @@
 import 'package:bloom_db/bloom_db.dart';
 import 'errors.dart';
 
-/// Mapping of [FieldKind] to SQL column types for a given [Dialect].
+/// Mapping of a model field's [FieldKind] to the corresponding SQL column type string for a given [Dialect].
+///
+/// Handles database dialect differences between PostgreSQL and SQLite:
+/// - In PostgreSQL: maps [FieldKind.dateTime] to `TIMESTAMPTZ`, [FieldKind.json] to `JSONB`,
+///   [FieldKind.uuid] to `UUID`, [FieldKind.binary] to `BYTEA`, [FieldKind.char] to `VARCHAR(maxLength)`,
+///   and auto-increment integers to `SERIAL`/`BIGSERIAL`.
+/// - In SQLite: maps text/date/json/uuid kinds to `TEXT`, integers to `INTEGER`, floats to `REAL`,
+///   and binary to `BLOB`.
+///
+/// Example:
+/// ```dart
+/// final sqlType = fieldToSqlType(fieldMeta, Dialect.postgres);
+/// print(sqlType); // e.g. 'VARCHAR(255)' or 'TIMESTAMPTZ'
+/// ```
 String fieldToSqlType(
   FieldMeta field,
   Dialect dialect, {
@@ -91,6 +104,15 @@ String fieldToSqlType(
 }
 
 /// Converts a [DefaultValue] to its SQL literal string for the target [Dialect].
+///
+/// Formats integers, floats, booleans (`TRUE`/`FALSE` for PostgreSQL, `1`/`0` for SQLite),
+/// and single-quote escaped strings. Returns `null` if [defaultValue] has no raw value.
+///
+/// Example:
+/// ```dart
+/// final sql = defaultValueToSql(DefaultValue.value('active'), Dialect.postgres);
+/// print(sql); // "'active'"
+/// ```
 String? defaultValueToSql(DefaultValue defaultValue, Dialect dialect) {
   final isPostgres = dialect.type == DialectType.postgres;
   final raw = defaultValue.rawValue;
@@ -112,6 +134,15 @@ String? defaultValueToSql(DefaultValue defaultValue, Dialect dialect) {
 }
 
 /// Converts an [OnDelete] referential integrity action to SQL syntax.
+///
+/// Maps [OnDelete.cascade] to `CASCADE`, [OnDelete.protect] / [OnDelete.restrict] to `RESTRICT`,
+/// [OnDelete.setNull] to `SET NULL`, and [OnDelete.doNothing] to `NO ACTION`.
+///
+/// Example:
+/// ```dart
+/// final clause = onDeleteToSql(OnDelete.cascade);
+/// print(clause); // 'CASCADE'
+/// ```
 String onDeleteToSql(OnDelete onDelete) {
   switch (onDelete) {
     case OnDelete.cascade:
@@ -127,6 +158,15 @@ String onDeleteToSql(OnDelete onDelete) {
 }
 
 /// Generates a single column definition clause for `CREATE TABLE`.
+///
+/// Composes the column name, dialect-specific SQL type, `PRIMARY KEY`, `AUTOINCREMENT`
+/// (SQLite) or `SERIAL` (PostgreSQL), `NOT NULL`, `UNIQUE`, and `DEFAULT` value constraints.
+///
+/// Example:
+/// ```dart
+/// final columnClause = generateColumnDefinition(fieldMeta, Dialect.postgres);
+/// print(columnClause); // 'email VARCHAR(254) NOT NULL UNIQUE'
+/// ```
 String generateColumnDefinition(
   FieldMeta field,
   Dialect dialect, {
@@ -170,6 +210,16 @@ String generateColumnDefinition(
 }
 
 /// Generates the `CREATE TABLE` DDL SQL string for a given [ModelMeta].
+///
+/// Assembles column definitions, foreign key and one-to-one relation constraints,
+/// `CHECK` constraints for choices, and multi-column unique constraints (`unique_together`).
+/// When [ifNotExists] is `true` (the default), prepends `IF NOT EXISTS`.
+///
+/// Example:
+/// ```dart
+/// final sql = generateCreateTableSql(userModelMeta, Dialect.postgres);
+/// print(sql);
+/// ```
 String generateCreateTableSql(
   ModelMeta model,
   Dialect dialect, {
@@ -223,6 +273,19 @@ String generateCreateTableSql(
 }
 
 /// Generates all explicit and implied index SQL statements for a [ModelMeta].
+///
+/// Includes:
+/// - Explicit composite indexes defined on [ModelMeta.indexes]
+/// - Single-column indexes for fields with `dbIndex: true`
+/// - Performance indexes on foreign key relation columns
+///
+/// Example:
+/// ```dart
+/// final indexStatements = generateIndexesSql(userModelMeta, Dialect.postgres);
+/// for (final stmt in indexStatements) {
+///   print(stmt);
+/// }
+/// ```
 List<String> generateIndexesSql(ModelMeta model, Dialect dialect) {
   final stmts = <String>[];
   final ifNotExists = 'IF NOT EXISTS ';
@@ -253,7 +316,19 @@ List<String> generateIndexesSql(ModelMeta model, Dialect dialect) {
   return stmts;
 }
 
-/// Generates join tables for ManyToMany relations on a [ModelMeta].
+/// Generates join tables for `ManyToMany` relations on a [ModelMeta].
+///
+/// For each many-to-many relationship, constructs a junction table named `<model.tableName>_<relation.fieldName>`
+/// containing foreign keys referencing both participating tables with `CASCADE` delete actions,
+/// a unique pair constraint, and indexes on both foreign key columns.
+///
+/// Example:
+/// ```dart
+/// final joinTableSqls = generateManyToManyTablesSql(userModelMeta, Dialect.postgres);
+/// for (final sql in joinTableSqls) {
+///   print(sql);
+/// }
+/// ```
 List<String> generateManyToManyTablesSql(ModelMeta model, Dialect dialect) {
   final stmts = <String>[];
 
@@ -285,7 +360,18 @@ List<String> generateManyToManyTablesSql(ModelMeta model, Dialect dialect) {
   return stmts;
 }
 
-/// Topologically sorts models based on foreign key relationships.
+/// Topologically sorts [models] based on foreign key relationships.
+///
+/// Ensures that tables referenced by foreign keys appear earlier in the returned list
+/// than the models that depend on them.
+///
+/// Throws a [MigrationCyclicDependencyException] if a circular foreign key cycle is detected.
+///
+/// Example:
+/// ```dart
+/// final sorted = sortModelsTopologically([postModelMeta, userModelMeta]);
+/// print(sorted.map((m) => m.structName).toList()); // ['User', 'Post']
+/// ```
 List<ModelMeta> sortModelsTopologically(List<ModelMeta> models) {
   final modelMap = {for (final m in models) m.structName: m};
   final visited = <String>{};
@@ -322,6 +408,15 @@ List<ModelMeta> sortModelsTopologically(List<ModelMeta> models) {
 }
 
 /// Generates the complete `-- up` section SQL for a list of [ModelMeta]s.
+///
+/// Sorts [models] topologically, then emits `CREATE TABLE`, `CREATE INDEX`, and many-to-many
+/// join table DDL statements.
+///
+/// Example:
+/// ```dart
+/// final upSql = generateUpSql([userModelMeta, postModelMeta], Dialect.postgres);
+/// print(upSql);
+/// ```
 String generateUpSql(List<ModelMeta> models, Dialect dialect) {
   final sortedModels = sortModelsTopologically(models);
   final blocks = <String>[];
@@ -339,6 +434,15 @@ String generateUpSql(List<ModelMeta> models, Dialect dialect) {
 }
 
 /// Generates the complete `-- down` section SQL for a list of [ModelMeta]s.
+///
+/// Emits `DROP TABLE IF EXISTS` statements in reverse topological order, dropping
+/// many-to-many join tables first, followed by entity tables.
+///
+/// Example:
+/// ```dart
+/// final downSql = generateDownSql([userModelMeta, postModelMeta], Dialect.postgres);
+/// print(downSql);
+/// ```
 String generateDownSql(List<ModelMeta> models, Dialect dialect) {
   // Drop in reverse topological order
   final sortedModels = sortModelsTopologically(models).reversed.toList();
@@ -358,6 +462,16 @@ String generateDownSql(List<ModelMeta> models, Dialect dialect) {
 }
 
 /// Generates a complete migration file content with `-- up` and `-- down` sections.
+///
+/// Uses [generateUpSql] and [generateDownSql] to build the standard migration file format.
+///
+/// Example:
+/// ```dart
+/// final fileContent = generateMigrationFileContent(
+///   models: [userModelMeta, postModelMeta],
+///   dialect: Dialect.postgres,
+/// );
+/// ```
 String generateMigrationFileContent({
   required List<ModelMeta> models,
   required Dialect dialect,

@@ -12,8 +12,16 @@ import 'package:bloom_server/bloom_server.dart';
 /// - `Content-Security-Policy`: conservative default policy provided, fully overridable or disableable.
 /// - `Cross-Origin-Opener-Policy` & `Cross-Origin-Resource-Policy`: defaults to `same-origin`.
 /// - `Permissions-Policy`: optional hardware/feature permissions policy.
+///
+/// Example:
+/// ```dart
+/// final router = BloomApiRouter();
+/// router.use(const BloomSecurityHeadersMiddleware());
+/// ```
 class BloomSecurityHeadersMiddleware implements BloomMiddleware {
-  /// Default Content Security Policy.
+  /// Default Content Security Policy directive string.
+  ///
+  /// Sets `default-src 'self'`, restricts object/script sources, and allows self-hosted and HTTPS images.
   static const String defaultCsp =
       "default-src 'self'; "
       "img-src 'self' data: https:; "
@@ -32,7 +40,7 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// Value for `Referrer-Policy`. Set to `null` to omit. Defaults to `'strict-origin-when-cross-origin'`.
   final String? referrerPolicy;
 
-  /// Value for `Content-Security-Policy`. Set to `null` to omit.
+  /// Value for `Content-Security-Policy`. Set to `null` to omit. Defaults to [defaultCsp].
   final String? contentSecurityPolicy;
 
   /// Value for `Cross-Origin-Opener-Policy`. Set to `null` to omit. Defaults to `'same-origin'`.
@@ -57,7 +65,7 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// If `false` (default), HSTS is added ONLY if HTTPS is detected via URI scheme or `X-Forwarded-Proto`.
   final bool forceHsts;
 
-  /// Optional extra security headers to append.
+  /// Optional extra security headers to append to all responses.
   final Map<String, String>? customHeaders;
 
   /// Creates a [BloomSecurityHeadersMiddleware] instance with customizable security headers.
@@ -74,6 +82,14 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// - [hstsPreload]: Whether HSTS includes the `preload` directive.
   /// - [forceHsts]: If `true`, HSTS headers are emitted even on non-HTTPS requests.
   /// - [customHeaders]: Extra custom response headers to append.
+  ///
+  /// Example:
+  /// ```dart
+  /// const security = BloomSecurityHeadersMiddleware(
+  ///   frameOptions: 'SAMEORIGIN',
+  ///   hstsPreload: true,
+  /// );
+  /// ```
   const BloomSecurityHeadersMiddleware({
     this.contentTypeOptions = 'nosniff',
     this.frameOptions = 'DENY',
@@ -91,8 +107,16 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
 
   /// Factory preset optimized for API services (disables HTML frame embedding and sets API-focused CSP).
   ///
+  /// Sets `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  /// and disables framing and execution with `default-src 'none'; frame-ancestors 'none'`.
+  ///
   /// - [contentSecurityPolicy]: Custom CSP string (defaults to `"default-src 'none'; frame-ancestors 'none'"`).
   /// - [customHeaders]: Extra custom response headers to append.
+  ///
+  /// Example:
+  /// ```dart
+  /// router.use(BloomSecurityHeadersMiddleware.api());
+  /// ```
   factory BloomSecurityHeadersMiddleware.api({
     String? contentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'",
     Map<String, String>? customHeaders,
@@ -108,6 +132,10 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
     );
   }
 
+  /// Intercepts the downstream response from [next] and appends all configured security headers.
+  ///
+  /// Evaluates whether the incoming [request] is secure (via HTTPS URI scheme, `X-Forwarded-Proto`,
+  /// or `X-Forwarded-Ssl`) before emitting `Strict-Transport-Security` headers (unless [forceHsts] is enabled).
   @override
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
     final response = await next();

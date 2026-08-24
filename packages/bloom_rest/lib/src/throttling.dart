@@ -6,14 +6,22 @@ import 'permissions.dart';
 
 /// Parses a DRF-style rate string such as `"100/hour"` or `"5/minute"` into a count and [Duration].
 ///
-/// Accepts:
+/// Accepts unit identifiers:
 /// - `second`, `sec`, `s`
 /// - `minute`, `min`, `m`
 /// - `hour`, `hr`, `h`
 /// - `day`, `d`
 /// along with plural forms (e.g. `seconds`, `hours`).
 ///
-/// Returns `null` for malformed rate strings.
+/// Returns a tuple of `(int count, Duration window)`, or `null` if [rate] is malformed.
+///
+/// Example:
+/// ```dart
+/// final parsed = parseRate('100/hour');
+/// if (parsed != null) {
+///   print('Count: ${parsed.$1}, Window: ${parsed.$2}');
+/// }
+/// ```
 ///
 /// Mirrors `djangors_rest::parse_rate`.
 (int, Duration)? parseRate(String rate) {
@@ -57,17 +65,41 @@ import 'permissions.dart';
 }
 
 /// Strategy for resolving the rate-limiting key for an incoming request.
+///
+/// Implement this class to group or partition rate limit budgets by custom request attributes.
+///
+/// Example:
+/// ```dart
+/// class ByApiKey extends BloomRateLimitKey {
+///   const ByApiKey();
+///
+///   @override
+///   String key(BloomRequest req) =>
+///       req.headers['x-api-key'] ?? 'anonymous';
+/// }
+/// ```
 abstract class BloomRateLimitKey {
+  /// Creates a [BloomRateLimitKey] instance.
   const BloomRateLimitKey();
 
-  /// Returns the unique identity key for [req].
+  /// Returns the unique identity string key representing [req].
   FutureOr<String> key(BloomRequest req);
 }
 
 /// Keys by authenticated user ID when available, falling back to client IP.
 ///
+/// If [resolveCurrentUserId] finds a verified user ID, returns `'user:<id>'`.
+/// Otherwise checks `X-Forwarded-For`, `X-Real-IP`, `Remote-Addr`, returning `'anon:<ip>'`.
+///
+/// Example:
+/// ```dart
+/// const keyStrategy = ByUserOrIp();
+/// final key = keyStrategy.key(request);
+/// ```
+///
 /// Mirrors `djangors_rest::ByUserOrIp`.
 class ByUserOrIp extends BloomRateLimitKey {
+  /// Creates a [ByUserOrIp] key strategy.
   const ByUserOrIp();
 
   @override
@@ -87,25 +119,41 @@ class ByUserOrIp extends BloomRateLimitKey {
 
 /// DRF-style request throttle built on top of [BloomCache].
 ///
-/// Uses sliding window / bucket timestamp lists in the cache store.
+/// Tracks sliding-window request timestamps in [cache] per unique caller key.
+/// When the request count exceeds [maxRequests] within [window], subsequent requests
+/// are denied with HTTP 429 Too Many Requests.
+///
+/// Example:
+/// ```dart
+/// final throttle = BloomThrottle.fromRate(
+///   scope: 'articles_api',
+///   rate: '60/minute',
+///   cache: memoryCache,
+/// );
+///
+/// if (!await throttle.allowRequest(request)) {
+///   return BloomResponse.json({'error': 'Too Many Requests'}, statusCode: 429);
+/// }
+/// ```
 ///
 /// Mirrors `djangors_rest::Throttle`.
 class BloomThrottle {
   /// Unique scope isolating this budget from other endpoints.
   final String scope;
 
-  /// Maximum requests allowed in [window].
+  /// Maximum requests allowed within [window].
   final int maxRequests;
 
   /// Time window duration.
   final Duration window;
 
-  /// Underlying [BloomCache] instance.
+  /// Underlying [BloomCache] instance storing sliding timestamp windows.
   final BloomCache cache;
 
   /// Key derivation strategy (defaults to [ByUserOrIp]).
   final BloomRateLimitKey keyStrategy;
 
+  /// Creates a [BloomThrottle] with explicit [maxRequests] and [window].
   BloomThrottle({
     required this.scope,
     required this.maxRequests,
@@ -116,7 +164,7 @@ class BloomThrottle {
 
   /// Factory constructor parsing a rate string like `"100/hour"` with [cache].
   ///
-  /// Throws [ArgumentError] if [rate] is invalid.
+  /// Throws [ArgumentError] if [rate] format is invalid.
   factory BloomThrottle.fromRate({
     required String scope,
     required String rate,
@@ -142,7 +190,7 @@ class BloomThrottle {
 
   /// Checks if [req] is within rate limits.
   ///
-  /// Returns `true` if allowed, `false` if throttled (429 Too Many Requests).
+  /// Returns `true` if the request is permitted, or `false` if throttled (HTTP 429).
   Future<bool> allowRequest(BloomRequest req) async {
     final identKey = await keyStrategy.key(req);
     final cacheKey = 'throttle:$scope:$identKey';
@@ -170,3 +218,4 @@ class BloomThrottle {
     return true;
   }
 }
+

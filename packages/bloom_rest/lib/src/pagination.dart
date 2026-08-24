@@ -4,19 +4,29 @@ import 'dart:math';
 import 'package:bloom_server/bloom_server.dart';
 
 /// Default page size for REST ViewSet list pagination.
-/// Matches DRF and Bloom convention (100).
+///
+/// Matches Django REST Framework and Bloom standard convention (100 items).
 const int kRestPerPage = 100;
 
 /// How many rows to fetch, and from where.
+///
+/// Encapsulates the SQL query window [limit] and [offset] computed by a [BloomPagination] strategy.
+///
+/// Example:
+/// ```dart
+/// const slice = BloomPageSlice(limit: 25, offset: 50);
+/// final query = qs.limit(slice.limit).offset(slice.offset);
+/// ```
 ///
 /// Mirrors `djangors_rest::PageSlice`.
 class BloomPageSlice {
   /// Maximum rows to return.
   final int limit;
 
-  /// Rows to skip.
+  /// Rows to skip before returning records.
   final int offset;
 
+  /// Creates a [BloomPageSlice] with the specified [limit] and [offset].
   const BloomPageSlice({
     required this.limit,
     required this.offset,
@@ -39,17 +49,42 @@ class BloomPageSlice {
 
 /// A pluggable pagination strategy: decides the query window and shapes the response envelope.
 ///
+/// Implement this class to define custom pagination formats or Keyset algorithms.
+/// Built-in strategies include [PageNumberPagination], [LimitOffsetPagination], and [CursorPagination].
+///
+/// Example:
+/// ```dart
+/// class CustomPagination extends BloomPagination {
+///   const CustomPagination();
+///
+///   @override
+///   int pageSize(BloomRequest req) => 20;
+///
+///   @override
+///   BloomPageSlice slice(BloomRequest req, int total) =>
+///       const BloomPageSlice(limit: 20, offset: 0);
+///
+///   @override
+///   Map<String, dynamic> envelope(
+///     BloomRequest req,
+///     int total,
+///     List<Map<String, dynamic>> results,
+///   ) => {'total': total, 'data': results};
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::Pagination`.
 abstract class BloomPagination {
+  /// Creates a [BloomPagination] instance.
   const BloomPagination();
 
-  /// Resolves the page size for this request.
+  /// Resolves the page size for this request from query parameters or default configuration.
   int pageSize(BloomRequest req);
 
-  /// The window of rows this request should receive.
+  /// Calculates the window of rows this request should receive given the [total] record count.
   BloomPageSlice slice(BloomRequest req, int total);
 
-  /// Build the response envelope around the serialized results.
+  /// Builds the JSON response envelope wrapping [results] and metadata for [total] records.
   Map<String, dynamic> envelope(
     BloomRequest req,
     int total,
@@ -58,6 +93,10 @@ abstract class BloomPagination {
 }
 
 /// Helper function to resolve requested page size with an optional ceiling.
+///
+/// Reads the `?page_size=` query parameter from [req]. If absent or invalid, falls
+/// back to [defaultSize] (clamped to at least 1). If [maxSize] is provided, the result
+/// is capped at [maxSize].
 int resolvePageSize(
   BloomRequest req,
   int defaultSize,
@@ -77,6 +116,9 @@ int resolvePageSize(
 }
 
 /// Helper function to parse requested page number (`?page=`), clamped to at least 1.
+///
+/// Reads the `?page=` query parameter from [req]. Returns `1` if the parameter is absent
+/// or cannot be parsed as a positive integer.
 int requestedPage(BloomRequest req) {
   final raw = req.queryParams['page'];
   if (raw == null) return 1;
@@ -87,6 +129,19 @@ int requestedPage(BloomRequest req) {
 
 /// Page-number pagination: reads `?page=` and reports `count`, `page`, `total_pages`, and `results`.
 ///
+/// This is the default pagination strategy for ViewSets. Clients can optionally override the
+/// page size via `?page_size=` up to [maxPageSize].
+///
+/// Example Response:
+/// ```json
+/// {
+///   "count": 100,
+///   "page": 2,
+///   "total_pages": 5,
+///   "results": [...]
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::PageNumberPagination`.
 class PageNumberPagination extends BloomPagination {
   /// Rows per page when the client does not specify `?page_size=`.
@@ -95,6 +150,7 @@ class PageNumberPagination extends BloomPagination {
   /// Maximum allowed `?page_size=`, if client overrides are allowed.
   final int? maxPageSize;
 
+  /// Creates a [PageNumberPagination] with optional [defaultPageSize] and [maxPageSize].
   const PageNumberPagination({
     this.defaultPageSize = kRestPerPage,
     this.maxPageSize,
@@ -132,6 +188,18 @@ class PageNumberPagination extends BloomPagination {
 
 /// Limit-offset pagination: reads `?limit=` and `?offset=` directly.
 ///
+/// Allows clients to explicitly specify record slicing windows.
+///
+/// Example Response:
+/// ```json
+/// {
+///   "count": 100,
+///   "limit": 20,
+///   "offset": 40,
+///   "results": [...]
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::LimitOffsetPagination`.
 class LimitOffsetPagination extends BloomPagination {
   /// Rows per page when `?limit=` is absent.
@@ -140,6 +208,7 @@ class LimitOffsetPagination extends BloomPagination {
   /// Ceiling applied to `?limit=`.
   final int maxLimit;
 
+  /// Creates a [LimitOffsetPagination] with optional [defaultLimit] and [maxLimit].
   const LimitOffsetPagination({
     this.defaultLimit = kRestPerPage,
     this.maxLimit = kRestPerPage,
@@ -195,8 +264,13 @@ class LimitOffsetPagination extends BloomPagination {
 
 /// Opaque cursor encoding and decoding for keyset pagination.
 ///
-/// Encodes a tuple of `(pk, sortValue)` into a base64 string.
-/// Format in JSON: `{"pk": 123, "v": "2026-08-17T15:00:00Z"}`.
+/// Encodes a tuple of `([pk], [sortValue])` into a URL-safe base64 string.
+/// Format in JSON before base64 encoding: `{"pk": 123, "v": "2026-08-17T15:00:00Z"}`.
+///
+/// Example:
+/// ```dart
+/// final cursor = encodeCursor(42, '2026-08-24T12:00:00Z');
+/// ```
 String encodeCursor(dynamic pk, dynamic sortValue) {
   final payload = <String, dynamic>{
     'pk': pk,
@@ -206,7 +280,9 @@ String encodeCursor(dynamic pk, dynamic sortValue) {
 }
 
 /// Decodes a base64 cursor string into `(dynamic pk, String? sortValue)`.
-/// Returns `null` if the cursor is malformed.
+///
+/// Parses [rawCursor] back into its primary key and optional sort value tuple.
+/// Returns `null` if the cursor is malformed, has invalid JSON, or lacks a primary key.
 (dynamic, String?)? decodeCursor(String rawCursor) {
   try {
     // Add padding if missing
@@ -228,7 +304,18 @@ String encodeCursor(dynamic pk, dynamic sortValue) {
 
 /// Keyset pagination over an ordered field, reporting `next_cursor` and `previous_cursor`.
 ///
-/// Stable under concurrent insertions/deletions.
+/// Stable under concurrent insertions and deletions by utilizing SQL keyset filtering
+/// instead of offset counting.
+///
+/// Example Response:
+/// ```json
+/// {
+///   "count": 500,
+///   "results": [...],
+///   "next_cursor": "eyJwayI6MTAsInYiOiIyMDI2In0=",
+///   "previous_cursor": null
+/// }
+/// ```
 ///
 /// Mirrors `djangors_rest::CursorPagination`.
 class CursorPagination extends BloomPagination {
@@ -238,9 +325,10 @@ class CursorPagination extends BloomPagination {
   /// Optional maximum page size ceiling.
   final int? maxPageSize;
 
-  /// Ordering field name (e.g. `'id'`, `'created_at'`).
+  /// Ordering field name used for keyset sorting (e.g. `'id'`, `'created_at'`).
   final String orderingField;
 
+  /// Creates a [CursorPagination] strategy ordering by [orderingField].
   const CursorPagination({
     this.defaultPageSize = kRestPerPage,
     this.maxPageSize,
@@ -269,7 +357,7 @@ class CursorPagination extends BloomPagination {
     return envelopeWithCursor(total, results, nextCursor: null);
   }
 
-  /// Builds the cursor response envelope.
+  /// Builds the cursor response envelope including [nextCursor] and [previousCursor].
   Map<String, dynamic> envelopeWithCursor(
     int total,
     List<Map<String, dynamic>> results, {
@@ -284,3 +372,4 @@ class CursorPagination extends BloomPagination {
     };
   }
 }
+

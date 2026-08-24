@@ -10,6 +10,18 @@ import 'throttling.dart';
 
 /// Configuration options for a ViewSet endpoint.
 ///
+/// Configures filtering allowlists, ordering allowlists, and pagination parameters.
+///
+/// Example:
+/// ```dart
+/// const config = BloomViewSetConfig(
+///   filterableFields: ['status', 'category_id', 'created_at'],
+///   orderableFields: ['created_at', 'title', 'views'],
+///   defaultPageSize: 20,
+///   maxPageSize: 100,
+/// );
+/// ```
+///
 /// Mirrors `djangors_rest::ViewSetConfig`.
 class BloomViewSetConfig {
   /// Allowlist of field names that can be filtered via `?field=value` or `?field__lookup=value`.
@@ -27,6 +39,7 @@ class BloomViewSetConfig {
   /// Maximum allowed page size if client requests `?page_size=`.
   final int? maxPageSize;
 
+  /// Creates a [BloomViewSetConfig] with optional filtering, ordering, and pagination controls.
   const BloomViewSetConfig({
     this.filterableFields = const [],
     this.orderableFields = const [],
@@ -35,7 +48,7 @@ class BloomViewSetConfig {
     this.maxPageSize,
   });
 
-  /// Resolves the page size for a request.
+  /// Resolves the page size for a [req] using [defaultPageSize] and [maxPageSize].
   int resolveRequestPageSize(BloomRequest req) {
     return resolvePageSize(req, defaultPageSize, maxPageSize);
   }
@@ -43,6 +56,22 @@ class BloomViewSetConfig {
 
 /// Full options configuring a [BloomViewSet]: serializer, pagination, permissions,
 /// filters, and throttling.
+///
+/// All ViewSets are **SECURE BY DEFAULT** and require authentication ([IsAuthenticated])
+/// unless explicitly configured otherwise.
+///
+/// Example:
+/// ```dart
+/// final options = BloomViewSetOptions<Article>(
+///   serializer: BloomModelSerializer<Article>(meta: Article.meta),
+///   permission: const IsAuthenticated(),
+///   pagination: const PageNumberPagination(defaultPageSize: 20),
+///   filterBackends: [
+///     BloomSearchFilter(['title', 'summary']),
+///     BloomOrderingFilter(['created_at']),
+///   ],
+/// );
+/// ```
 ///
 /// Mirrors `djangors_rest::ViewSetOptions`.
 class BloomViewSetOptions<T extends Model> {
@@ -64,6 +93,7 @@ class BloomViewSetOptions<T extends Model> {
   /// Optional per-user / per-IP rate limiter.
   final BloomThrottle? throttle;
 
+  /// Creates a [BloomViewSetOptions] bundle.
   BloomViewSetOptions({
     BloomViewSetConfig? config,
     required this.serializer,
@@ -77,7 +107,7 @@ class BloomViewSetOptions<T extends Model> {
         permission = permission ?? const IsAuthenticated(),
         filterBackends = filterBackends ?? const [];
 
-  /// Returns a copy with updated serializer.
+  /// Returns a copy with updated [serializer].
   BloomViewSetOptions<T> withSerializer(BloomSerializer<T> serializer) {
     return BloomViewSetOptions<T>(
       config: config,
@@ -89,7 +119,7 @@ class BloomViewSetOptions<T extends Model> {
     );
   }
 
-  /// Returns a copy with updated pagination strategy.
+  /// Returns a copy with updated [pagination] strategy.
   BloomViewSetOptions<T> withPagination(BloomPagination pagination) {
     return BloomViewSetOptions<T>(
       config: config,
@@ -101,7 +131,7 @@ class BloomViewSetOptions<T extends Model> {
     );
   }
 
-  /// Returns a copy with updated permission policy.
+  /// Returns a copy with updated [permission] policy.
   BloomViewSetOptions<T> withPermission(BloomRestPermission permission) {
     return BloomViewSetOptions<T>(
       config: config,
@@ -113,7 +143,7 @@ class BloomViewSetOptions<T extends Model> {
     );
   }
 
-  /// Returns a copy with an added filter backend.
+  /// Returns a copy with an added filter [backend].
   BloomViewSetOptions<T> withFilterBackend(BloomFilterBackend<T> backend) {
     return BloomViewSetOptions<T>(
       config: config,
@@ -125,7 +155,7 @@ class BloomViewSetOptions<T extends Model> {
     );
   }
 
-  /// Returns a copy with a throttle attached.
+  /// Returns a copy with a [throttle] attached.
   BloomViewSetOptions<T> withThrottle(BloomThrottle throttle) {
     return BloomViewSetOptions<T>(
       config: config,
@@ -150,6 +180,16 @@ class BloomViewSetOptions<T extends Model> {
 /// Security posture:
 /// Endpoints are **AUTHENTICATED BY DEFAULT** using [IsAuthenticated].
 /// Public access requires explicitly specifying [AllowAny].
+///
+/// Example:
+/// ```dart
+/// final viewSet = BloomViewSet<Article>(
+///   meta: Article.meta,
+///   fromRow: Article.fromRow,
+///   getDb: (req) => database,
+/// );
+/// viewSet.mount(router, '/api/articles');
+/// ```
 ///
 /// Mirrors `djangors_rest::ViewSet<M>`.
 class BloomViewSet<T extends Model> {
@@ -205,6 +245,9 @@ class BloomViewSet<T extends Model> {
   }
 
   /// `GET /` — Paginated and filtered list of records.
+  ///
+  /// Evaluates configured [options] permissions, throttles, field filters, search filters,
+  /// ordering, and pagination strategy.
   Future<BloomResponse> list(BloomRequest req) async {
     final guardRes = await _guard(req);
     if (guardRes != null) return guardRes;
@@ -323,6 +366,9 @@ class BloomViewSet<T extends Model> {
   }
 
   /// `GET /:pk` — Retrieve single record details.
+  ///
+  /// Looks up record by the `:pk` route parameter. Returns HTTP 200 with serialized record,
+  /// or HTTP 404 if not found.
   Future<BloomResponse> retrieve(BloomRequest req) async {
     final guardRes = await _guard(req);
     if (guardRes != null) return guardRes;
@@ -351,6 +397,9 @@ class BloomViewSet<T extends Model> {
   }
 
   /// `POST /` — Create new record from JSON body.
+  ///
+  /// Deserializes and validates [BloomRequest.bodyJson] using [BloomSerializer.parse].
+  /// Returns HTTP 201 Created with the new record, or HTTP 422 if validation fails.
   Future<BloomResponse> create(BloomRequest req) async {
     final guardRes = await _guard(req);
     if (guardRes != null) return guardRes;
@@ -389,6 +438,9 @@ class BloomViewSet<T extends Model> {
   }
 
   /// `PUT /:pk` or `PATCH /:pk` — Update record.
+  ///
+  /// Performs full (`PUT`) or partial (`PATCH`) update of the record identified by `:pk`.
+  /// Returns HTTP 200 with updated record, HTTP 422 on validation failure, or HTTP 404 if not found.
   Future<BloomResponse> update(BloomRequest req) async {
     final guardRes = await _guard(req);
     if (guardRes != null) return guardRes;
@@ -436,6 +488,9 @@ class BloomViewSet<T extends Model> {
   }
 
   /// `DELETE /:pk` — Delete record by primary key.
+  ///
+  /// Deletes the record identified by `:pk`. Returns HTTP 204 No Content on success,
+  /// or HTTP 404 if not found.
   Future<BloomResponse> destroy(BloomRequest req) async {
     final guardRes = await _guard(req);
     if (guardRes != null) return guardRes;
@@ -491,7 +546,27 @@ class BloomViewSet<T extends Model> {
 
 /// Convenience top-level mounting function mirroring Rust `viewset_routes`.
 ///
-/// Secure by default: endpoints require authentication.
+/// Registers standard CRUD routes (`list`, `create`, `retrieve`, `update`, `destroy`)
+/// on [router] under [basePath].
+///
+/// Secure by default: endpoints require authentication unless [BloomViewSetOptions.permission]
+/// is explicitly configured with [AllowAny].
+///
+/// Example:
+/// ```dart
+/// mountViewSet<Article>(
+///   router: router,
+///   basePath: '/api/articles',
+///   meta: Article.meta,
+///   fromRow: Article.fromRow,
+///   getDb: (req) => db,
+///   options: BloomViewSetOptions<Article>(
+///     serializer: BloomModelSerializer<Article>(meta: Article.meta),
+///     permission: const AllowAny(),
+///     pagination: const PageNumberPagination(defaultPageSize: 25),
+///   ),
+/// );
+/// ```
 void mountViewSet<T extends Model>({
   required BloomApiRouter router,
   required String basePath,
@@ -508,3 +583,4 @@ void mountViewSet<T extends Model>({
   );
   viewSet.mount(router, basePath);
 }
+

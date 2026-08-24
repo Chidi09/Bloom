@@ -1,28 +1,55 @@
-/// A lightweight, real-time pub/sub, presence, and live query invalidation layer for Bloom server and client applications.
+/// A lightweight, high-performance real-time pub/sub, presence, and live query invalidation layer for Bloom.
 ///
-/// Features:
-/// - Server-side [BloomChannelHub] for channel subscriptions and dead-socket pruned broadcasts.
-/// - Server-side [BloomPresenceTracker] for join/leave user presence tracking.
-/// - Client-side [BloomRealtimeClient] with robust exponential backoff reconnection.
-/// - Wire protocol [RealtimeMessage] serialization and deserialization.
-/// - Seamless [BloomData] query invalidation bridge ([RealtimeQueryBridge], [BloomRealtimeClientQueryBridgeExtension]).
+/// `bloom_realtime` provides full-stack real-time infrastructure designed for both
+/// server-side connection management and client-side reactive subscriptions.
 ///
+/// ### Core Capabilities
+/// - **Server-Side Pub/Sub ([BloomChannelHub])**: In-memory channel registry, connection tracking, and dead-socket pruned broadcasts.
+/// - **Presence Tracking ([BloomPresenceTracker])**: Track online users, state snapshots, and automatic join/leave broadcasts.
+/// - **Multi-Core Clustering ([BloomRealtimeCluster])**: High-throughput multi-isolate orchestrator with shared TCP port binding and peer mesh routing.
+/// - **Client WebSocket Manager ([BloomRealtimeClient])**: Resilient client with exponential backoff reconnection, automatic channel resubscription, and heartbeat keep-alives.
+/// - **Wire Protocol ([RealtimeMessage])**: Pure Dart wire message envelope with JSON and UTF-8 byte serialization.
+///
+/// ### Server Example
 /// ```dart
-/// import 'package:bloom_js_native/bloom_js_native.dart';
-/// import 'package:bloom_realtime/bloom_realtime_client.dart';
+/// import 'dart:io';
+/// import 'package:bloom_realtime/bloom_realtime.dart';
 ///
 /// void main() async {
-///   // 1. Connect realtime client
-///   final realtime = BloomRealtimeClient(
+///   final hub = BloomChannelHub();
+///   final presence = BloomPresenceTracker(hub: hub);
+///   final server = await HttpServer.bind('0.0.0.0', 8080);
+///
+///   server.listen((HttpRequest request) async {
+///     if (request.uri.path == '/ws/realtime' && WebSocketTransformer.isUpgradeRequest(request)) {
+///       final socket = await BloomChannelHub.upgrade(request);
+///       presence.attachProtocolHandler(socket);
+///     } else {
+///       request.response.statusCode = HttpStatus.notFound;
+///       await request.response.close();
+///     }
+///   });
+/// }
+/// ```
+///
+/// ### Client Example
+/// ```dart
+/// import 'package:bloom_realtime/bloom_realtime.dart';
+///
+/// void main() async {
+///   final client = BloomRealtimeClient(
 ///     uri: Uri.parse('ws://localhost:8080/ws/realtime'),
 ///   );
-///   await realtime.connect();
+///   await client.connect();
 ///
-///   // 2. Invalidate query cache automatically on channel broadcasts
-///   realtime.invalidateQueriesOnBroadcast(
-///     channel: 'lists:42',
-///     key: ['lists', '42', 'todos'],
-///   );
+///   // Subscribe to broadcast events on a channel
+///   final stream = client.subscribe('chat:general');
+///   stream.listen((payload) {
+///     print('Received message: $payload');
+///   });
+///
+///   // Broadcast a message to the channel
+///   client.broadcast('chat:general', {'text': 'Hello, world!'});
 /// }
 /// ```
 library;

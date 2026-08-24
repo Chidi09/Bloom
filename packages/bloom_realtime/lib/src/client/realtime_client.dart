@@ -5,32 +5,57 @@ import 'dart:math';
 import '../protocol.dart';
 
 /// Connection states for [BloomRealtimeClient].
+///
+/// Tracks the client socket lifecycle from disconnected through connection attempts,
+/// active connectivity, and reconnect backoffs.
 enum RealtimeConnectionState {
-  /// Disconnected from the WebSocket server.
+  /// Disconnected from the WebSocket server and inactive.
   disconnected,
 
-  /// In the process of establishing an initial connection.
+  /// In the process of establishing an initial WebSocket connection.
   connecting,
 
-  /// Connected and active.
+  /// Connected and active, capable of sending and receiving messages.
   connected,
 
-  /// Attempting to reconnect after a lost connection.
+  /// Connection was lost; currently waiting or attempting automatic reconnection.
   reconnecting,
 }
 
 /// Client-side Realtime manager that connects to a Bloom WebSocket endpoint.
 ///
-/// Features:
+/// Provides resilient real-time features over WebSockets:
 /// - Pub/Sub channel subscriptions returning a `Stream<Map<String, dynamic>>`
 /// - Presence tracking with state snapshots, joins, and leaves
-/// - Automatic exponential backoff reconnection with jitter and max cap
-/// - Automatic re-subscription to channels after reconnection
+/// - Automatic exponential backoff reconnection with jitter and maximum delay cap
+/// - Automatic re-subscription to channels and presence channels after reconnection
+/// - Periodic heartbeat ping/pong keep-alives
+///
+/// ### Example
+/// ```dart
+/// final client = BloomRealtimeClient(
+///   uri: Uri.parse('ws://localhost:8080/ws/realtime'),
+/// );
+///
+/// // Listen to connection state changes
+/// client.onStateChanged.listen((state) {
+///   print('Connection state: $state');
+/// });
+///
+/// await client.connect();
+///
+/// // Subscribe to a channel
+/// final chatStream = client.subscribe('chat:lobby');
+/// chatStream.listen((data) => print('Chat message: $data'));
+///
+/// // Broadcast to channel
+/// client.broadcast('chat:lobby', {'text': 'Hello!'});
+/// ```
 class BloomRealtimeClient {
   /// Target WebSocket server endpoint URI.
   final Uri uri;
 
-  /// Initial reconnection delay before first retry attempt.
+  /// Initial reconnection delay before the first retry attempt.
   final Duration initialReconnectDelay;
 
   /// Maximum ceiling on reconnection delays.
@@ -80,6 +105,16 @@ class BloomRealtimeClient {
   /// - [backoffMultiplier]: Backoff multiplier factor (defaults to 1.5).
   /// - [autoReconnect]: Whether to automatically reconnect on disconnect (defaults to `true`).
   /// - [pingInterval]: Keep-alive ping interval (defaults to 30s).
+  ///
+  /// Example:
+  /// ```dart
+  /// final client = BloomRealtimeClient(
+  ///   uri: Uri.parse('ws://localhost:8080/ws/realtime'),
+  ///   initialReconnectDelay: const Duration(milliseconds: 250),
+  ///   maxReconnectDelay: const Duration(seconds: 10),
+  ///   pingInterval: const Duration(seconds: 15),
+  /// );
+  /// ```
   BloomRealtimeClient({
     required this.uri,
     this.initialReconnectDelay = const Duration(milliseconds: 500),
@@ -89,16 +124,34 @@ class BloomRealtimeClient {
     this.pingInterval = const Duration(seconds: 30),
   });
 
-  /// Current connection state.
+  /// Current connection state of the client.
   RealtimeConnectionState get state => _state;
 
-  /// Stream of connection state changes.
+  /// Broadcast stream that emits whenever [state] changes.
+  ///
+  /// Example:
+  /// ```dart
+  /// client.onStateChanged.listen((state) {
+  ///   if (state == RealtimeConnectionState.connected) {
+  ///     print('Connected to realtime server');
+  ///   }
+  /// });
+  /// ```
   Stream<RealtimeConnectionState> get onStateChanged => _stateController.stream;
 
-  /// Whether currently connected to the server.
+  /// Whether the client is currently connected to the server.
   bool get isConnected => _state == RealtimeConnectionState.connected;
 
-  /// Connects to the WebSocket server.
+  /// Connects to the WebSocket server at [uri].
+  ///
+  /// If already connected or connecting, this method returns immediately without effect.
+  /// Upon successful connection, starts heartbeat pings and re-registers any active
+  /// channel subscriptions and presence joins.
+  ///
+  /// Example:
+  /// ```dart
+  /// await client.connect();
+  /// ```
   Future<void> connect() async {
     if (_isDisposed) return;
     if (_state == RealtimeConnectionState.connected ||
@@ -139,7 +192,17 @@ class BloomRealtimeClient {
     }
   }
 
-  /// Subscribes to a channel and returns a broadcast [Stream] of message payloads.
+  /// Subscribes to [channelName] and returns a broadcast [Stream] of message payloads.
+  ///
+  /// If already connected, immediately sends a subscription request to the server.
+  /// If disconnected, the subscription is queued and registered upon reconnecting.
+  /// Repeated calls with the same [channelName] return the existing broadcast stream.
+  ///
+  /// Example:
+  /// ```dart
+  /// final sub = client.subscribe('notifications');
+  /// sub.listen((payload) => print('New notification: $payload'));
+  /// ```
   Stream<Map<String, dynamic>> subscribe(String channelName) {
     _desiredSubscriptions.add(channelName);
 
@@ -160,7 +223,14 @@ class BloomRealtimeClient {
     return controller.stream;
   }
 
-  /// Unsubscribes from a channel.
+  /// Unsubscribes from [channelName], closing its local broadcast controller.
+  ///
+  /// Informs the server to cease message forwarding for this channel on this connection.
+  ///
+  /// Example:
+  /// ```dart
+  /// client.unsubscribe('notifications');
+  /// ```
   void unsubscribe(String channelName) {
     _desiredSubscriptions.remove(channelName);
     _desiredPresenceJoins.remove(channelName);
@@ -177,14 +247,29 @@ class BloomRealtimeClient {
     _presenceControllers.remove(channelName);
   }
 
-  /// Broadcasts a payload to a channel from the client.
+  /// Broadcasts a [payload] map to [channelName] from the client.
+  ///
+  /// Example:
+  /// ```dart
+  /// client.broadcast('chat:lobby', {'user': 'Alice', 'text': 'Hey everyone!'});
+  /// ```
   void broadcast(String channelName, Map<String, dynamic> payload) {
     _send(RealtimeMessage.broadcast(channelName, payload));
   }
 
-  /// Joins presence in [channelName] with [userInfo] metadata.
+  /// Joins presence in [channelName] publishing [userInfo] metadata.
   ///
-  /// Returns a [Stream] of the current active presence list (list of users in the channel).
+  /// Returns a broadcast [Stream] emitting the updated list of users present in the channel.
+  /// Automatically subscribes to the channel if not already subscribed.
+  ///
+  /// Example:
+  /// ```dart
+  /// final usersStream = client.joinPresence('room:1', {
+  ///   'userId': 'user_42',
+  ///   'name': 'Alice',
+  /// });
+  /// usersStream.listen((users) => print('Users in room: ${users.length}'));
+  /// ```
   Stream<List<Map<String, dynamic>>> joinPresence(
     String channelName,
     Map<String, dynamic> userInfo,
@@ -205,6 +290,13 @@ class BloomRealtimeClient {
   }
 
   /// Leaves presence in [channelName].
+  ///
+  /// Informs the server to broadcast a presence leave event to other subscribers in the channel.
+  ///
+  /// Example:
+  /// ```dart
+  /// client.leavePresence('room:1');
+  /// ```
   void leavePresence(String channelName) {
     final userInfo = _desiredPresenceJoins.remove(channelName);
     _presenceStore.remove(channelName);
@@ -359,7 +451,15 @@ class BloomRealtimeClient {
     }
   }
 
-  /// Disconnects and releases all resources.
+  /// Disconnects the socket, cancels timers, closes stream controllers, and releases resources.
+  ///
+  /// After calling [dispose], no further connection attempts or message broadcasts
+  /// can be made on this client instance.
+  ///
+  /// Example:
+  /// ```dart
+  /// client.dispose();
+  /// ```
   void dispose() {
     _isDisposed = true;
     _reconnectTimer?.cancel();

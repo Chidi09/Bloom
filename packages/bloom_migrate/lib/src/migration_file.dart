@@ -5,6 +5,29 @@ import 'errors.dart';
 
 /// Represents a single parsed database migration file following the
 /// `migrations/<app>/NNNN_name.sql` convention with `-- up` and `-- down` sections.
+///
+/// Encapsulates the migration metadata (application namespace, sequence number, file stem)
+/// and SQL blocks for forward execution and backward rollback.
+///
+/// Example:
+/// ```dart
+/// final migration = BloomMigration.parse(
+///   app: 'accounts',
+///   name: '0001_initial',
+///   filePath: 'migrations/accounts/0001_initial.sql',
+///   content: '''
+/// -- up
+/// CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
+///
+/// -- down
+/// DROP TABLE users;
+/// ''',
+/// );
+///
+/// print(migration.number); // 1
+/// print(migration.hasDown); // true
+/// print(migration.upStatements); // ['CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);']
+/// ```
 class BloomMigration implements Comparable<BloomMigration> {
   /// The logical app or domain name (e.g. `accounts`, `billing`).
   final String app;
@@ -25,8 +48,11 @@ class BloomMigration implements Comparable<BloomMigration> {
   final String downSql;
 
   /// Whether this migration has a reversible `-- down` migration defined.
+  ///
+  /// Returns `true` if [downSql] contains non-whitespace SQL statements; otherwise `false`.
   bool get hasDown => downSql.trim().isNotEmpty;
 
+  /// Creates a [BloomMigration] descriptor with explicit attributes and SQL sections.
   const BloomMigration({
     required this.app,
     required this.name,
@@ -36,7 +62,21 @@ class BloomMigration implements Comparable<BloomMigration> {
     required this.downSql,
   });
 
-  /// Parses a [BloomMigration] from raw file content.
+  /// Parses a [BloomMigration] from raw file [content].
+  ///
+  /// Extracts the leading integer sequence number from [name]. Parses `-- up`,
+  /// `-- down`, and `-- no-down` markers in [content]. If `-- no-down` is present,
+  /// [downSql] will be empty and [hasDown] will evaluate to `false`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final migration = BloomMigration.parse(
+  ///   app: 'billing',
+  ///   name: '0002_add_invoices',
+  ///   filePath: 'migrations/billing/0002_add_invoices.sql',
+  ///   content: fileText,
+  /// );
+  /// ```
   factory BloomMigration.parse({
     required String app,
     required String name,
@@ -70,7 +110,19 @@ class BloomMigration implements Comparable<BloomMigration> {
     );
   }
 
-  /// Loads and parses a migration from a local file on disk.
+  /// Loads and parses a migration from a local [file] on disk.
+  ///
+  /// If [app] is omitted, the application namespace is inferred from the parent
+  /// directory name of [file].
+  ///
+  /// Throws a [MigrationFileNotFoundException] if [file] does not exist.
+  ///
+  /// Example:
+  /// ```dart
+  /// final file = File('migrations/auth/0001_auth_tables.sql');
+  /// final migration = BloomMigration.fromFile(file);
+  /// print(migration.app); // 'auth'
+  /// ```
   factory BloomMigration.fromFile(File file, {String? app}) {
     if (!file.existsSync()) {
       throw MigrationFileNotFoundException(file.path);
@@ -92,12 +144,27 @@ class BloomMigration implements Comparable<BloomMigration> {
   }
 
   /// Parses the individual SQL statements from the `-- up` block.
+  ///
+  /// Uses [splitSqlStatements] to segment statements by semicolon while ignoring comments and strings.
   List<String> get upStatements => splitSqlStatements(upSql);
 
   /// Parses the individual SQL statements from the `-- down` block.
+  ///
+  /// Uses [splitSqlStatements] to segment statements by semicolon while ignoring comments and strings.
   List<String> get downStatements => splitSqlStatements(downSql);
 
   /// Formats `-- up` and `-- down` SQL sections into standard migration file text.
+  ///
+  /// When [noDown] is `true` or [downSql] is null/empty, the output includes `-- no-down`.
+  /// Otherwise, it outputs `-- up` followed by the up SQL, and `-- down` followed by the down SQL.
+  ///
+  /// Example:
+  /// ```dart
+  /// final fileText = BloomMigration.format(
+  ///   upSql: 'CREATE TABLE logs (id INTEGER PRIMARY KEY);',
+  ///   downSql: 'DROP TABLE logs;',
+  /// );
+  /// ```
   static String format({
     required String upSql,
     String? downSql,
@@ -180,6 +247,20 @@ class BloomMigration implements Comparable<BloomMigration> {
 
 /// Splits a raw SQL block into executable statements, properly handling semicolons
 /// and ignoring comments and string literals.
+///
+/// Recognizes single-line comments starting with `--`, string literals wrapped in single
+/// (`'`) or double (`"`) quotes, and escaped single quotes (`''`). Empty statements are excluded.
+///
+/// Example:
+/// ```dart
+/// final sql = '''
+/// -- Create users
+/// CREATE TABLE users (id INT, name TEXT);
+/// INSERT INTO users VALUES (1, 'O''Reilly; author');
+/// ''';
+/// final statements = splitSqlStatements(sql);
+/// print(statements.length); // 2
+/// ```
 List<String> splitSqlStatements(String sql) {
   if (sql.trim().isEmpty) return [];
 

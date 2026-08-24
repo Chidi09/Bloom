@@ -4,6 +4,21 @@ import 'package:bloom_server/bloom_server.dart';
 
 /// The lookup suffixes a client may attach to a filterable field in query parameters.
 ///
+/// Supported suffixes include:
+/// - `eq`: Exact equality (`?status__eq=published` or `?status=published`)
+/// - `ne`: Not equal (`?status__ne=draft`)
+/// - `lt`: Less than (`?age__lt=30`)
+/// - `lte`: Less than or equal (`?price__lte=99.99`)
+/// - `gt`: Greater than (`?score__gt=80`)
+/// - `gte`: Greater than or equal (`?rating__gte=4.5`)
+/// - `contains`: Case-sensitive substring (`?title__contains=Bloom`)
+/// - `icontains`: Case-insensitive substring (`?title__icontains=bloom`)
+/// - `startswith`: Case-sensitive prefix match (`?slug__startswith=v1`)
+/// - `endswith`: Case-sensitive suffix match (`?email__endswith=@example.com`)
+/// - `iexact`: Case-insensitive exact match (`?username__iexact=admin`)
+/// - `in`: Comma-separated list membership (`?id__in=1,2,3`)
+/// - `isnull`: Null or non-null check (`?deleted_at__isnull=true`)
+///
 /// Mirrors `djangors_rest::ALLOWED_LOOKUPS`.
 const List<String> kAllowedLookups = [
   'eq',
@@ -23,15 +38,47 @@ const List<String> kAllowedLookups = [
 
 /// Narrows a [QuerySet] based on the request's query parameters.
 ///
+/// Implement this interface to create custom query filtering logic for ViewSets.
+///
+/// Example:
+/// ```dart
+/// class ActiveTenantFilter<T extends Model> extends BloomFilterBackend<T> {
+///   const ActiveTenantFilter();
+///
+///   @override
+///   QuerySet<T> filterQuerySet(BloomRequest req, QuerySet<T> qs, ModelMeta meta) {
+///     final tenantId = req.headers['x-tenant-id'];
+///     if (tenantId == null) return qs;
+///     return qs.filter({'tenant_id': tenantId});
+///   }
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::FilterBackend<M>`.
 abstract class BloomFilterBackend<T extends Model> {
+  /// Creates a [BloomFilterBackend].
   const BloomFilterBackend();
 
-  /// Applies this backend's constraints to [qs].
+  /// Applies this backend's constraints to [qs] using query parameters from [req] and [meta].
+  ///
+  /// Returns the refined [QuerySet].
   QuerySet<T> filterQuerySet(BloomRequest req, QuerySet<T> qs, ModelMeta meta);
 }
 
 /// Applies all filter backends in [backends] to [qs] in order.
+///
+/// Evaluates each backend in [backends] against [req] and [meta], threading the
+/// resulting [QuerySet] through each step and returning the final query.
+///
+/// Example:
+/// ```dart
+/// final filteredQs = applyFilterBackends(
+///   [BloomSearchFilter(['title', 'body']), BloomOrderingFilter(['created_at'])],
+///   request,
+///   initialQuerySet,
+///   Article.meta,
+/// );
+/// ```
 QuerySet<T> applyFilterBackends<T extends Model>(
   List<BloomFilterBackend<T>> backends,
   BloomRequest req,
@@ -46,6 +93,15 @@ QuerySet<T> applyFilterBackends<T extends Model>(
 }
 
 /// Parses a query-string string into a typed [BloomValue] matching the field's declared type.
+///
+/// Inspects [fieldName] within [meta] to convert the [raw] query string into:
+/// - [BloomValue.i64] for integer and bigint fields,
+/// - [BloomValue.f64] for float and decimal fields,
+/// - [BloomValue.boolVal] for boolean values (`"true"`, `"1"`, `"false"`, `"0"`),
+/// - [BloomValue.dateTime] for ISO-8601 UTC timestamps,
+/// - [BloomValue.text] for string and other fields.
+///
+/// Returns `null` if the value cannot be parsed into the field's declared type.
 BloomValue? parseTypedValue(ModelMeta meta, String fieldName, String raw) {
   final field = meta.findField(fieldName);
   if (field == null) {
@@ -76,6 +132,16 @@ BloomValue? parseTypedValue(ModelMeta meta, String fieldName, String raw) {
 }
 
 /// Field filtering with Django-style lookup suffixes (e.g. `?age__gte=18`, `?status=active`).
+///
+/// Matches URL query parameters against the configured [fields] allowlist,
+/// evaluating both direct equality parameters (e.g. `?status=published`) and
+/// lookup-suffixed parameters (e.g. `?price__lte=50`).
+///
+/// Example:
+/// ```dart
+/// final filter = BloomFieldFilter<Product>(['category', 'price', 'is_active']);
+/// final refinedQs = filter.filterQuerySet(request, productQs, Product.meta);
+/// ```
 ///
 /// Mirrors `djangors_rest::FieldFilter`.
 class BloomFieldFilter<T extends Model> extends BloomFilterBackend<T> {
@@ -150,6 +216,15 @@ class BloomFieldFilter<T extends Model> extends BloomFilterBackend<T> {
 
 /// Free-text search across several text fields (e.g. `?search=query`).
 ///
+/// Constructs a case-insensitive substring search (`field__icontains`) across all
+/// configured [searchFields], combining them with OR disjunction.
+///
+/// Example:
+/// ```dart
+/// final search = BloomSearchFilter<Article>(['title', 'summary', 'body']);
+/// final searchedQs = search.filterQuerySet(request, articleQs, Article.meta);
+/// ```
+///
 /// Mirrors `djangors_rest::SearchFilter`.
 class BloomSearchFilter<T extends Model> extends BloomFilterBackend<T> {
   /// List of model text field names searched by this filter.
@@ -192,6 +267,16 @@ class BloomSearchFilter<T extends Model> extends BloomFilterBackend<T> {
 
 /// Client-controlled ordering restricted to an allowlist (e.g. `?ordering=-created_at,title`).
 ///
+/// Parses comma-separated field tokens from the [orderingParam] query parameter.
+/// A leading `-` specifies descending order (e.g. `-created_at`). Only fields present
+/// in [orderableFields] and verified in [ModelMeta] are applied.
+///
+/// Example:
+/// ```dart
+/// final ordering = BloomOrderingFilter<Article>(['created_at', 'title', 'views']);
+/// final orderedQs = ordering.filterQuerySet(request, articleQs, Article.meta);
+/// ```
+///
 /// Mirrors `djangors_rest::OrderingFilter`.
 class BloomOrderingFilter<T extends Model> extends BloomFilterBackend<T> {
   /// List of field names allowed for client-requested ordering.
@@ -226,3 +311,4 @@ class BloomOrderingFilter<T extends Model> extends BloomFilterBackend<T> {
     return orderedQs;
   }
 }
+
