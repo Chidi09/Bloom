@@ -4,11 +4,44 @@ import 'package:bloom_server/bloom_server.dart';
 ///
 /// Compatible with AWS S3, Cloudflare R2, MinIO, Wasabi, Backblaze B2,
 /// and Supabase Storage S3 APIs.
+///
+/// Example (AWS S3):
+/// ```dart
+/// final awsConfig = BloomS3Config(
+///   accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+///   secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+///   bucket: 'my-app-uploads',
+///   region: 'us-east-1',
+/// );
+/// ```
+///
+/// Example (Cloudflare R2):
+/// ```dart
+/// final r2Config = BloomS3Config(
+///   accessKeyId: 'R2_ACCESS_KEY_ID',
+///   secretAccessKey: 'R2_SECRET_ACCESS_KEY',
+///   bucket: 'my-r2-bucket',
+///   region: 'auto',
+///   endpoint: 'https://<account_id>.r2.cloudflarestorage.com',
+///   publicUrlPrefix: 'https://pub-<hash>.r2.dev',
+/// );
+/// ```
+///
+/// Example (MinIO / Local S3 Emulator):
+/// ```dart
+/// final minioConfig = BloomS3Config(
+///   accessKeyId: 'minioadmin',
+///   secretAccessKey: 'minioadmin',
+///   bucket: 'local-bucket',
+///   endpoint: 'http://127.0.0.1:9000',
+///   forcePathStyle: true,
+/// );
+/// ```
 class BloomS3Config {
-  /// AWS access key ID / S3 API key.
+  /// AWS access key ID or compatible S3 API key identifier.
   final String accessKeyId;
 
-  /// AWS secret access key / S3 API secret.
+  /// AWS secret access key or compatible S3 API secret.
   final String secretAccessKey;
 
   /// The target object storage bucket name.
@@ -41,8 +74,8 @@ class BloomS3Config {
   /// - [region]: AWS region or provider region (defaults to `us-east-1`).
   /// - [endpoint]: Custom endpoint URL for providers like Cloudflare R2, MinIO, or Supabase Storage.
   /// - [forcePathStyle]: If `true`, addresses objects as `endpoint/bucket/key` rather than `bucket.endpoint/key`.
-  /// - [sessionToken]: Optional AWS STS session token.
-  /// - [publicUrlPrefix]: Optional CDN or custom domain prefix for generated file URLs.
+  /// - [sessionToken]: Optional AWS STS session token for temporary IAM credentials.
+  /// - [publicUrlPrefix]: Optional CDN or custom domain prefix for generated public file URLs.
   const BloomS3Config({
     required this.accessKeyId,
     required this.secretAccessKey,
@@ -62,9 +95,17 @@ class BloomS3Config {
   /// - `S3_BUCKET` or `AWS_BUCKET` (Required)
   /// - `S3_REGION` or `AWS_REGION` (Default: `us-east-1`)
   /// - `S3_ENDPOINT` or `AWS_ENDPOINT` (Optional)
-  /// - `S3_FORCE_PATH_STYLE` or `AWS_FORCE_PATH_STYLE` (Optional boolean, default: `false`)
+  /// - `S3_FORCE_PATH_STYLE` or `AWS_FORCE_PATH_STYLE` (Optional boolean, default: `false`, automatically `true` for localhost)
   /// - `S3_SESSION_TOKEN` or `AWS_SESSION_TOKEN` (Optional)
   /// - `S3_PUBLIC_URL_PREFIX` (Optional)
+  ///
+  /// Throws a [StateError] if any required variable ([accessKeyId], [secretAccessKey], [bucket]) is missing.
+  ///
+  /// Example:
+  /// ```dart
+  /// final config = BloomS3Config.fromEnv();
+  /// final backend = S3Backend(config: config);
+  /// ```
   factory BloomS3Config.fromEnv() {
     final accessKeyId = BloomEnv.getOrNull('S3_ACCESS_KEY_ID') ??
         BloomEnv.getOrNull('AWS_ACCESS_KEY_ID');

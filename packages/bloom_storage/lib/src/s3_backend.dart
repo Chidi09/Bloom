@@ -7,8 +7,41 @@ import 'storage_backend.dart';
 
 /// S3-compatible implementation of [BloomStorageBackend].
 ///
-/// Compatible with AWS S3, Cloudflare R2, MinIO, Supabase Storage S3 API,
-/// and other standard S3 object stores.
+/// Works seamlessly with AWS S3, Cloudflare R2, MinIO, Wasabi, Backblaze B2,
+/// and Supabase Storage S3 APIs using standard AWS SigV4 request signing.
+///
+/// Example:
+/// ```dart
+/// final backend = S3Backend(
+///   config: BloomS3Config(
+///     accessKeyId: 'AWS_ACCESS_KEY_ID',
+///     secretAccessKey: 'AWS_SECRET_ACCESS_KEY',
+///     bucket: 'production-assets',
+///     region: 'us-east-1',
+///   ),
+/// );
+///
+/// // Upload a file
+/// final url = await backend.upload(
+///   'documents/report.pdf',
+///   pdfBytes,
+///   contentType: 'application/pdf',
+/// );
+///
+/// // Download a file
+/// final bytes = await backend.download('documents/report.pdf');
+///
+/// // Generate a presigned URL
+/// final presigned = await backend.getSignedUrl(
+///   'documents/report.pdf',
+///   expiry: const Duration(minutes: 30),
+/// );
+///
+/// // Check existence and delete
+/// if (await backend.exists('documents/report.pdf')) {
+///   await backend.delete('documents/report.pdf');
+/// }
+/// ```
 class S3Backend implements BloomStorageBackend {
   /// S3 configuration options for credentials, bucket, and endpoint.
   final BloomS3Config config;
@@ -18,7 +51,18 @@ class S3Backend implements BloomStorageBackend {
   /// Creates an [S3Backend] using the given [config] and optional [httpClient].
   ///
   /// - [config]: S3 connection and bucket options ([BloomS3Config]).
-  /// - [httpClient]: Optional custom [http.Client] instance for making requests.
+  /// - [httpClient]: Optional custom [http.Client] instance for making HTTP requests (useful for mocking/testing).
+  ///
+  /// Example:
+  /// ```dart
+  /// final backend = S3Backend(
+  ///   config: BloomS3Config(
+  ///     accessKeyId: 'KEY',
+  ///     secretAccessKey: 'SECRET',
+  ///     bucket: 'my-bucket',
+  ///   ),
+  /// );
+  /// ```
   S3Backend({
     required this.config,
     http.Client? httpClient,
@@ -31,9 +75,16 @@ class S3Backend implements BloomStorageBackend {
           sessionToken: config.sessionToken,
         );
 
-  /// Constructs an [S3Backend] by loading credentials from [BloomEnv].
+  /// Constructs an [S3Backend] by loading credentials from [BloomEnv] environment variables.
   ///
   /// - [httpClient]: Optional custom [http.Client] instance.
+  ///
+  /// Throws [StateError] if required environment variables are not set.
+  ///
+  /// Example:
+  /// ```dart
+  /// final backend = S3Backend.fromEnv();
+  /// ```
   factory S3Backend.fromEnv({http.Client? httpClient}) {
     return S3Backend(
       config: BloomS3Config.fromEnv(),
@@ -71,6 +122,24 @@ class S3Backend implements BloomStorageBackend {
     }
   }
 
+  /// Uploads binary [bytes] to the S3 bucket at the specified [path].
+  ///
+  /// - [path]: Remote object key (e.g. `images/profile.png`).
+  /// - [bytes]: Binary content to upload.
+  /// - [contentType]: Optional MIME type header (defaults to `application/octet-stream`).
+  ///
+  /// Returns the target URL string (prefixed with [BloomS3Config.publicUrlPrefix] if configured, or the S3 URI).
+  /// Throws [BloomStorageAuthException] on HTTP 401 or 403 responses.
+  /// Throws [BloomStorageServerException] on unexpected server response status codes.
+  ///
+  /// Example:
+  /// ```dart
+  /// final url = await backend.upload(
+  ///   'avatars/u100.png',
+  ///   imageBytes,
+  ///   contentType: 'image/png',
+  /// );
+  /// ```
   @override
   Future<String> upload(
     String path,
@@ -123,6 +192,19 @@ class S3Backend implements BloomStorageBackend {
     );
   }
 
+  /// Downloads binary file content from the S3 bucket at the specified [path].
+  ///
+  /// - [path]: Remote object key to download.
+  ///
+  /// Returns the raw byte list of the object.
+  /// Throws [BloomFileNotFoundException] if the object does not exist (HTTP 404).
+  /// Throws [BloomStorageAuthException] on HTTP 401 or 403 responses.
+  /// Throws [BloomStorageServerException] on other non-200 HTTP responses.
+  ///
+  /// Example:
+  /// ```dart
+  /// final bytes = await backend.download('exports/report.csv');
+  /// ```
   @override
   Future<List<int>> download(String path) async {
     final uri = _buildObjectUri(path);
@@ -162,6 +244,18 @@ class S3Backend implements BloomStorageBackend {
     );
   }
 
+  /// Deletes the object at [path] from the S3 bucket.
+  ///
+  /// - [path]: Remote object key to delete.
+  ///
+  /// Throws [BloomFileNotFoundException] if the object does not exist (HTTP 404).
+  /// Throws [BloomStorageAuthException] on HTTP 401 or 403 responses.
+  /// Throws [BloomStorageServerException] on other non-2xx responses.
+  ///
+  /// Example:
+  /// ```dart
+  /// await backend.delete('temp/temp_123.tmp');
+  /// ```
   @override
   Future<void> delete(String path) async {
     final uri = _buildObjectUri(path);
@@ -201,6 +295,20 @@ class S3Backend implements BloomStorageBackend {
     );
   }
 
+  /// Checks if an object exists at [path] in the S3 bucket using an HTTP `HEAD` request.
+  ///
+  /// - [path]: Remote object key to check.
+  ///
+  /// Returns `true` if the object exists (HTTP 200), or `false` if missing (HTTP 404).
+  /// Throws [BloomStorageAuthException] on HTTP 401 or 403 responses.
+  /// Throws [BloomStorageServerException] on other non-200 responses.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (await backend.exists('avatars/user-99.png')) {
+  ///   print('Avatar exists');
+  /// }
+  /// ```
   @override
   Future<bool> exists(String path) async {
     final uri = _buildObjectUri(path);
@@ -238,6 +346,20 @@ class S3Backend implements BloomStorageBackend {
     );
   }
 
+  /// Generates an AWS SigV4 presigned URL allowing time-limited `GET` access to [path].
+  ///
+  /// - [path]: Remote object key to presign.
+  /// - [expiry]: Duration for which the presigned URL is valid (defaults to 15 minutes).
+  ///
+  /// Returns the complete presigned URL string with signature query parameters.
+  ///
+  /// Example:
+  /// ```dart
+  /// final presignedUrl = await backend.getSignedUrl(
+  ///   'private/contracts/contract_42.pdf',
+  ///   expiry: const Duration(hours: 2),
+  /// );
+  /// ```
   @override
   Future<String> getSignedUrl(
     String path, {
@@ -250,7 +372,12 @@ class S3Backend implements BloomStorageBackend {
     );
   }
 
-  /// Closes the underlying HTTP client.
+  /// Closes the underlying HTTP client and frees network resources.
+  ///
+  /// Example:
+  /// ```dart
+  /// backend.close();
+  /// ```
   void close() {
     _httpClient.close();
   }

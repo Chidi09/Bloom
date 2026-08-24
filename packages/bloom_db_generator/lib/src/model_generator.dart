@@ -5,14 +5,93 @@ import 'package:bloom_db/bloom_db.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 
-/// Code generator for classes annotated with [@BloomModel].
+/// Code generator that processes classes annotated with [@BloomModel].
+///
+/// [ModelGenerator] inspects Dart classes annotated with [BloomModel]
+/// and generates ORM boilerplate code into a part file (`.g.dart`).
+///
+/// ### Generated Code Components
+///
+/// For each annotated class (e.g. `User`), [ModelGenerator] produces:
+///
+/// 1. **Metadata Definition (`_$UserModelMeta`)**: A `const ModelMeta` instance
+///    capturing struct name, application namespace, table name, primary key ordering,
+///    and a list of [FieldMeta] descriptors (with columns, [FieldKind] mappings,
+///    nullability, primary key, auto-increment, unique, and index flags).
+/// 2. **ORM Mixin (`_$UserMixin`)**: A mixin implementing `Model` which defines
+///    abstract getters for every model field, provides [modelMeta], and implements
+///    `fieldValues()` and `toRow()`.
+/// 3. **ORM Extension (`UserOrmExtension`)**: An extension on `User` adding:
+///    - `static ModelMeta meta()`: Static metadata accessor.
+///    - `static List<String> fieldNames()`: List of field names in declaration order.
+///    - `static User fromRow(DbRow row)`: Type-safe instantiation from a database row.
+///    - `static QuerySet<User> objects()`: Creates a new [QuerySet] configured with model metadata and `fromRow`.
+///    - `Future<User> save(DbExecutor db)`: Inserts the record using `RETURNING *` and returns a refreshed instance.
+///    - `Future<void> update(DbExecutor db)`: Updates non-primary-key columns matching the record's primary key.
+///    - `Future<void> delete(DbExecutor db)`: Deletes the database row matching the record's primary key.
+///
+/// ### Field Discovery & Type Inference
+///
+/// Model fields are extracted from non-static, non-synthetic class fields. Column properties
+/// can be customized via `@BloomField`:
+///
+/// - **Column Name**: Uses `BloomField.column` or defaults to the field's snake_case name.
+/// - **Primary Key**: Uses `BloomField.primaryKey` or defaults to `true` if field name is `id`.
+/// - **Auto-increment**: Uses `BloomField.auto` or defaults to `true` for integer primary keys.
+/// - **Nullability**: Uses `BloomField.nullable` or checks the Dart type's nullability suffix.
+/// - **Field Kind**: Uses `BloomField.kind` or infers standard mappings:
+///   - `int` -> `FieldKind.bigInt`
+///   - `double` / `num` -> `FieldKind.float`
+///   - `bool` -> `FieldKind.boolean`
+///   - `DateTime` -> `FieldKind.dateTime`
+///   - `String` / other -> `FieldKind.text`
+///   - `decimal` -> `FieldKind.decimal(precision: ..., scale: ...)`
+///
+/// Example:
+/// ```dart
+/// import 'package:bloom_db/bloom_db.dart';
+///
+/// part 'user.g.dart';
+///
+/// @BloomModel(app: 'auth', tableName: 'auth_users')
+/// class User with _$UserMixin {
+///   @idField
+///   final int id;
+///
+///   final String name;
+///
+///   @BloomField(column: 'email_address', unique: true, dbIndex: true)
+///   final String email;
+///
+///   User({this.id = 0, required this.name, required this.email});
+/// }
+/// ```
 class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
   /// Creates a [ModelGenerator] instance.
+  ///
+  /// Can be passed directly to a [SharedPartBuilder] or used in custom
+  /// `build_runner` generator pipelines.
+  ///
+  /// Example:
+  /// ```dart
+  /// final generator = ModelGenerator();
+  /// ```
   const ModelGenerator();
 
+  /// Generates ORM metadata, mixins, and extensions for a single [@BloomModel] annotated [element].
+  ///
+  /// Inspects the [ClassElement] metadata and fields, resolves the application label
+  /// and database table name from [annotation] (falling back to package name inference and
+  /// snake_case class name), and produces the generated Dart source code string.
+  ///
+  /// Throws [InvalidGenerationSourceError] if [element] is not a [ClassElement] or
+  /// if no field on the class is designated as a primary key.
+  ///
+  /// - [element]: The annotated Dart AST element, which must be a [ClassElement].
+  /// - [annotation]: The constant representation of the `@BloomModel` annotation.
+  /// - [buildStep]: The current build execution context used for asset resolution.
   @override
   String generateForAnnotatedElement(
-
     Element element,
     ConstantReader annotation,
     BuildStep buildStep,

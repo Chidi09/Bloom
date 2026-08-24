@@ -1,37 +1,55 @@
 // lib/src/expr.dart
 
-/// A dynamic value type used in ORM expressions and query parameters.
+/// A dynamic, strongly-typed SQL value container used in ORM expressions, query filters, and parameters.
+///
+/// Encapsulates primitive Dart values (integers, doubles, strings, booleans, timestamps, lists, null)
+/// into a uniform AST node for SQL compilation and parameter sanitization.
 ///
 /// Mirrors `djangors_orm::expr::Value`.
+///
+/// Example:
+/// ```dart
+/// final v1 = BloomValue.from(42);
+/// final v2 = BloomValue.from('hello');
+/// final vList = BloomValue.from([1, 2, 3]);
+/// ```
 sealed class BloomValue {
   /// Base const constructor for ORM expression values.
   const BloomValue();
 
-  /// 64-bit integer value.
+  /// 64-bit integer value container wrapping [value].
   const factory BloomValue.i64(int value) = BloomI64Value;
 
-  /// 64-bit floating point value.
+  /// 64-bit floating point value container wrapping [value].
   const factory BloomValue.f64(double value) = BloomF64Value;
 
-  /// Text string value.
+  /// Text string value container wrapping [value].
   const factory BloomValue.text(String value) = BloomTextValue;
 
-  /// Boolean value.
+  /// Boolean value container wrapping [value].
   const factory BloomValue.boolVal(bool value) = BloomBoolValue;
 
-  /// UTC timestamp value.
+  /// UTC timestamp value container wrapping [value].
   const factory BloomValue.dateTime(DateTime value) = BloomDateTimeValue;
 
-  /// Database NULL value.
+  /// Database `NULL` value representation.
   const factory BloomValue.nullVal() = BloomNullValue;
 
-  /// A list of values, used as the right-hand side of an `__in` lookup.
+  /// A list of expression [items], used as the right-hand side of an `IN (...)` lookup.
   const factory BloomValue.list(List<BloomValue> items) = BloomListValue;
 
-  /// Unwraps the dynamic raw Dart value.
+  /// Unwraps the underlying raw Dart value (e.g. `int`, `String`, `List<dynamic>`, or `null`).
   dynamic get raw;
 
-  /// Converts an arbitrary Dart value into a [BloomValue].
+  /// Converts an arbitrary Dart value [val] into a strongly typed [BloomValue].
+  ///
+  /// Handles `null`, [BloomValue], `int`, `double`, `bool`, `String`, `DateTime`, and `List`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final val = BloomValue.from('active');
+  /// assert(val is BloomTextValue);
+  /// ```
   static BloomValue from(dynamic val) {
     if (val == null) return const BloomValue.nullVal();
     if (val is BloomValue) return val;
@@ -48,11 +66,17 @@ sealed class BloomValue {
 }
 
 /// 64-bit integer value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// const val = BloomI64Value(100);
+/// assert(val.raw == 100);
+/// ```
 class BloomI64Value extends BloomValue {
   /// The underlying 64-bit integer value.
   final int value;
 
-  /// Creates an integer [BloomValue].
+  /// Creates an integer [BloomValue] wrapping [value].
   const BloomI64Value(this.value);
 
   @override
@@ -70,11 +94,17 @@ class BloomI64Value extends BloomValue {
 }
 
 /// 64-bit floating point value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// const val = BloomF64Value(3.14);
+/// assert(val.raw == 3.14);
+/// ```
 class BloomF64Value extends BloomValue {
   /// The underlying floating point value.
   final double value;
 
-  /// Creates a floating point [BloomValue].
+  /// Creates a floating point [BloomValue] wrapping [value].
   const BloomF64Value(this.value);
 
   @override
@@ -92,11 +122,17 @@ class BloomF64Value extends BloomValue {
 }
 
 /// Text string value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// const val = BloomTextValue('active');
+/// assert(val.raw == 'active');
+/// ```
 class BloomTextValue extends BloomValue {
   /// The underlying text string value.
   final String value;
 
-  /// Creates a text [BloomValue].
+  /// Creates a text [BloomValue] wrapping [value].
   const BloomTextValue(this.value);
 
   @override
@@ -114,11 +150,17 @@ class BloomTextValue extends BloomValue {
 }
 
 /// Boolean value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// const val = BloomBoolValue(true);
+/// assert(val.raw == true);
+/// ```
 class BloomBoolValue extends BloomValue {
   /// The underlying boolean value.
   final bool value;
 
-  /// Creates a boolean [BloomValue].
+  /// Creates a boolean [BloomValue] wrapping [value].
   const BloomBoolValue(this.value);
 
   @override
@@ -136,11 +178,17 @@ class BloomBoolValue extends BloomValue {
 }
 
 /// UTC timestamp value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// final val = BloomDateTimeValue(DateTime.utc(2026, 1, 1));
+/// assert(val.raw.isUtc);
+/// ```
 class BloomDateTimeValue extends BloomValue {
-  /// The underlying timestamp value.
+  /// The underlying timestamp value in UTC.
   final DateTime value;
 
-  /// Creates a UTC timestamp [BloomValue].
+  /// Creates a UTC timestamp [BloomValue] wrapping [value].
   const BloomDateTimeValue(this.value);
 
   @override
@@ -158,9 +206,15 @@ class BloomDateTimeValue extends BloomValue {
   int get hashCode => value.hashCode;
 }
 
-/// Database NULL value expression wrapper.
+/// Database `NULL` value expression wrapper.
+///
+/// Example:
+/// ```dart
+/// const val = BloomNullValue();
+/// assert(val.raw == null);
+/// ```
 class BloomNullValue extends BloomValue {
-  /// Creates a database NULL [BloomValue].
+  /// Creates a database `NULL` [BloomValue].
   const BloomNullValue();
 
   @override
@@ -178,6 +232,12 @@ class BloomNullValue extends BloomValue {
 }
 
 /// List of expression values wrapper for `IN (...)` queries.
+///
+/// Example:
+/// ```dart
+/// final val = BloomListValue([BloomValue.i64(1), BloomValue.i64(2)]);
+/// assert(val.raw.length == 2);
+/// ```
 class BloomListValue extends BloomValue {
   /// The list of items contained in this value list.
   final List<BloomValue> items;
@@ -210,33 +270,35 @@ class BloomListValue extends BloomValue {
 
 /// Comparison operators for query filtering expressions.
 ///
+/// Used by [BloomCompareExpr], [UnresolvedCompare], and lookup suffixes in `.filter()`.
+///
 /// Mirrors `djangors_orm::expr::CompareOp`.
 enum CompareOp {
-  /// Exact equality comparison (`=`).
+  /// Exact equality comparison (`=`). Lookup suffix `eq`.
   eq,
 
-  /// Less-than comparison (`<`).
+  /// Less-than comparison (`<`). Lookup suffix `lt`.
   lt,
 
-  /// Less-than-or-equal comparison (`<=`).
+  /// Less-than-or-equal comparison (`<=`). Lookup suffix `lte`.
   lte,
 
-  /// Greater-than comparison (`>`).
+  /// Greater-than comparison (`>`). Lookup suffix `gt`.
   gt,
 
-  /// Greater-than-or-equal comparison (`>=`).
+  /// Greater-than-or-equal comparison (`>=`). Lookup suffix `gte`.
   gte,
 
-  /// Case-sensitive substring search (`LIKE '%val%'`).
+  /// Case-sensitive substring search (`LIKE '%val%'`). Lookup suffix `contains`.
   contains,
 
-  /// Case-insensitive substring search (`ILIKE '%val%'` or `LIKE '%val%'`).
+  /// Case-insensitive substring search (`ILIKE '%val%'` or `LIKE '%val%'`). Lookup suffix `icontains`.
   icontains,
 
-  /// Prefix string match (`LIKE 'val%'`).
+  /// Prefix string match (`LIKE 'val%'`). Lookup suffix `startswith`.
   startsWith,
 
-  /// Suffix string match (`LIKE '%val'`).
+  /// Suffix string match (`LIKE '%val'`). Lookup suffix `endswith`.
   endsWith,
 
   /// Inequality comparison (`<>`). Lookup suffix `ne`.
@@ -258,7 +320,9 @@ enum CompareOp {
   iregex,
 }
 
-/// Arithmetic operators for UPDATE set expressions.
+/// Arithmetic operators for in-database UPDATE set expressions.
+///
+/// Used with [F] field references to perform atomic database updates.
 ///
 /// Mirrors `djangors_orm::expr::ArithOp`.
 enum ArithOp {
@@ -275,36 +339,48 @@ enum ArithOp {
   div,
 }
 
-/// Resolved boolean expression tree for query WHERE clauses.
+/// Resolved boolean expression tree for query `WHERE` clauses.
+///
+/// Represents validated, column-mapped expressions that can be compiled to SQL.
 ///
 /// Mirrors `djangors_orm::expr::Expr`.
+///
+/// Example:
+/// ```dart
+/// final expr = BloomExpr.compare(
+///   field: 'age',
+///   op: CompareOp.gte,
+///   value: BloomValue.i64(18),
+/// );
+/// ```
 sealed class BloomExpr {
+  /// Base const constructor for resolved expressions.
   const BloomExpr();
 
-  /// Creates a single field comparison expression.
+  /// Creates a single field comparison expression between [field] and [value] using [op].
   const factory BloomExpr.compare({
     required String field,
     required CompareOp op,
     required BloomValue value,
   }) = BloomCompareExpr;
 
-  /// Creates a conjunction of multiple expressions (AND).
+  /// Creates a conjunction of multiple [exprs] combined with `AND`.
   const factory BloomExpr.and(List<BloomExpr> exprs) = BloomAndExpr;
 
-  /// Creates a disjunction of multiple expressions (OR).
+  /// Creates a disjunction of multiple [exprs] combined with `OR`.
   const factory BloomExpr.or(List<BloomExpr> exprs) = BloomOrExpr;
 
-  /// Creates a negation of an expression (NOT).
+  /// Creates a negation of the [inner] expression (`NOT`).
   const factory BloomExpr.not(BloomExpr inner) = BloomNotExpr;
 
-  /// Creates a comparison of one column against another on the same row.
+  /// Creates a comparison between [left] column and [right] column on the same row using [op].
   const factory BloomExpr.compareField({
     required String left,
     required CompareOp op,
     required String right,
   }) = BloomCompareFieldExpr;
 
-  /// Bitwise AND operator combining expressions.
+  /// Bitwise `AND` operator combining this expression with [rhs].
   BloomExpr operator &(BloomExpr rhs) {
     final leftList = this is BloomAndExpr
         ? (this as BloomAndExpr).exprs
@@ -314,7 +390,7 @@ sealed class BloomExpr {
     return BloomExpr.and([...leftList, ...rightList]);
   }
 
-  /// Bitwise OR operator combining expressions.
+  /// Bitwise `OR` operator combining this expression with [rhs].
   BloomExpr operator |(BloomExpr rhs) {
     final leftList =
         this is BloomOrExpr ? (this as BloomOrExpr).exprs : <BloomExpr>[this];
@@ -323,13 +399,22 @@ sealed class BloomExpr {
     return BloomExpr.or([...leftList, ...rightList]);
   }
 
-  /// Unary bitwise NOT operator negating this expression.
+  /// Unary bitwise `NOT` operator negating this expression.
   BloomExpr operator ~() => BloomExpr.not(this);
 }
 
-/// Resolved comparison expression between a field and a literal value.
+/// Resolved comparison expression between a database column [field] and a literal [value].
+///
+/// Example:
+/// ```dart
+/// final expr = BloomCompareExpr(
+///   field: 'score',
+///   op: CompareOp.gt,
+///   value: BloomValue.i64(50),
+/// );
+/// ```
 class BloomCompareExpr extends BloomExpr {
-  /// The field/column name to compare.
+  /// The database column name to compare.
   final String field;
 
   /// The comparison operator.
@@ -360,12 +445,17 @@ class BloomCompareExpr extends BloomExpr {
   int get hashCode => Object.hash(field, op, value);
 }
 
-/// Resolved conjunction of multiple expressions (AND).
+/// Resolved conjunction of multiple expressions combined with `AND`.
+///
+/// Example:
+/// ```dart
+/// final expr = BloomAndExpr([e1, e2]);
+/// ```
 class BloomAndExpr extends BloomExpr {
-  /// The child expressions combined with AND.
+  /// The child expressions combined with `AND`.
   final List<BloomExpr> exprs;
 
-  /// Creates a resolved AND conjunction of [exprs].
+  /// Creates a resolved `AND` conjunction of [exprs].
   const BloomAndExpr(this.exprs);
 
   @override
@@ -383,12 +473,17 @@ class BloomAndExpr extends BloomExpr {
   int get hashCode => Object.hashAll(exprs);
 }
 
-/// Resolved disjunction of multiple expressions (OR).
+/// Resolved disjunction of multiple expressions combined with `OR`.
+///
+/// Example:
+/// ```dart
+/// final expr = BloomOrExpr([e1, e2]);
+/// ```
 class BloomOrExpr extends BloomExpr {
-  /// The child expressions combined with OR.
+  /// The child expressions combined with `OR`.
   final List<BloomExpr> exprs;
 
-  /// Creates a resolved OR disjunction of [exprs].
+  /// Creates a resolved `OR` disjunction of [exprs].
   const BloomOrExpr(this.exprs);
 
   @override
@@ -406,12 +501,17 @@ class BloomOrExpr extends BloomExpr {
   int get hashCode => Object.hashAll(exprs);
 }
 
-/// Resolved negation of an expression (NOT).
+/// Resolved negation of an expression (`NOT`).
+///
+/// Example:
+/// ```dart
+/// final expr = BloomNotExpr(innerExpr);
+/// ```
 class BloomNotExpr extends BloomExpr {
   /// The inner expression being negated.
   final BloomExpr inner;
 
-  /// Creates a resolved NOT expression wrapping [inner].
+  /// Creates a resolved `NOT` expression wrapping [inner].
   const BloomNotExpr(this.inner);
 
   @override
@@ -427,6 +527,15 @@ class BloomNotExpr extends BloomExpr {
 }
 
 /// Resolved column-to-column comparison on the same database row.
+///
+/// Example:
+/// ```dart
+/// final expr = BloomCompareFieldExpr(
+///   left: 'updated_at',
+///   op: CompareOp.gt,
+///   right: 'created_at',
+/// );
+/// ```
 class BloomCompareFieldExpr extends BloomExpr {
   /// The left-hand column name.
   final String left;
@@ -459,31 +568,40 @@ class BloomCompareFieldExpr extends BloomExpr {
   int get hashCode => Object.hash(left, op, right);
 }
 
-/// Unresolved filter expression tree before model metadata validation.
+/// Unresolved filter expression AST before model metadata validation and column resolution.
+///
+/// Constructed via [Q] and [QF] helper functions or fluent operators (`&`, `|`, `~`).
+/// During query compilation, the [QuerySet] validates that all referenced fields exist on the model
+/// and transforms the tree into a resolved [BloomExpr].
 ///
 /// Mirrors `djangors_orm::expr::UnresolvedExpr`.
+///
+/// Example:
+/// ```dart
+/// final expr = Q('age__gte', 18) & (Q('is_active', true) | Q('is_staff', true));
+/// ```
 sealed class UnresolvedExpr {
   /// Base const constructor for unresolved expressions.
   const UnresolvedExpr();
 
-  /// Conjunction of unresolved field comparisons.
+  /// Conjunction of unresolved field comparisons between [field] and [value].
   const factory UnresolvedExpr.compare(String field, BloomValue value) =
       UnresolvedCompare;
 
-  /// Conjunction of column-to-column comparisons.
+  /// Conjunction of column-to-column comparisons between [left] and [right].
   const factory UnresolvedExpr.fieldCompare(String left, String right) =
       UnresolvedFieldCompare;
 
-  /// Conjunction of sub-expressions.
+  /// Conjunction of [nodes] combined with `AND`.
   const factory UnresolvedExpr.all(List<UnresolvedExpr> nodes) = UnresolvedAll;
 
-  /// Disjunction of sub-expressions.
+  /// Disjunction of [nodes] combined with `OR`.
   const factory UnresolvedExpr.any(List<UnresolvedExpr> nodes) = UnresolvedAny;
 
-  /// Negation of a sub-expression.
+  /// Negation of [inner] expression (`NOT`).
   const factory UnresolvedExpr.negate(UnresolvedExpr inner) = UnresolvedNegate;
 
-  /// Bitwise AND operator combining unresolved expressions.
+  /// Bitwise `AND` operator combining this expression with [rhs].
   UnresolvedExpr operator &(UnresolvedExpr rhs) {
     final l = this is UnresolvedAll
         ? (this as UnresolvedAll).nodes
@@ -494,7 +612,7 @@ sealed class UnresolvedExpr {
     return UnresolvedExpr.all([...l, ...r]);
   }
 
-  /// Bitwise OR operator combining unresolved expressions.
+  /// Bitwise `OR` operator combining this expression with [rhs].
   UnresolvedExpr operator |(UnresolvedExpr rhs) {
     final l = this is UnresolvedAny
         ? (this as UnresolvedAny).nodes
@@ -505,19 +623,26 @@ sealed class UnresolvedExpr {
     return UnresolvedExpr.any([...l, ...r]);
   }
 
-  /// Unary bitwise NOT operator negating this unresolved expression.
+  /// Unary bitwise `NOT` operator negating this unresolved expression.
   UnresolvedExpr operator ~() => UnresolvedExpr.negate(this);
 }
 
 /// Unresolved comparison node representing `field = value` or `field__lookup = value`.
+///
+/// Created by the [Q] helper function.
+///
+/// Example:
+/// ```dart
+/// final node = UnresolvedCompare('email__icontains', BloomValue.text('example.com'));
+/// ```
 class UnresolvedCompare extends UnresolvedExpr {
-  /// The field lookup string (e.g. `'age__gte'`).
+  /// The field lookup string (e.g. `'age__gte'`, `'name__icontains'`).
   final String field;
 
-  /// The value compared against.
+  /// The comparison value.
   final BloomValue value;
 
-  /// Creates an unresolved field comparison with [field] and [value].
+  /// Creates an unresolved field comparison with [field] lookup and [value].
   const UnresolvedCompare(this.field, this.value);
 
   @override
@@ -534,15 +659,22 @@ class UnresolvedCompare extends UnresolvedExpr {
   int get hashCode => Object.hash(field, value);
 }
 
-/// Unresolved column-to-column comparison node.
+/// Unresolved column-to-column comparison node on the same row.
+///
+/// Created by the [QF] helper function.
+///
+/// Example:
+/// ```dart
+/// final node = UnresolvedFieldCompare('created_at__lte', 'expires_at');
+/// ```
 class UnresolvedFieldCompare extends UnresolvedExpr {
-  /// The left-hand field lookup string.
+  /// The left-hand field lookup string (e.g. `'updated_at__gt'`).
   final String left;
 
   /// The right-hand field name.
   final String right;
 
-  /// Creates an unresolved column-to-column comparison with [left] and [right].
+  /// Creates an unresolved column-to-column comparison between [left] and [right].
   const UnresolvedFieldCompare(this.left, this.right);
 
   @override
@@ -559,12 +691,17 @@ class UnresolvedFieldCompare extends UnresolvedExpr {
   int get hashCode => Object.hash(left, right);
 }
 
-/// Unresolved conjunction of sub-expressions (AND).
+/// Unresolved conjunction of sub-expressions combined with `AND`.
+///
+/// Example:
+/// ```dart
+/// final allExpr = UnresolvedAll([q1, q2]);
+/// ```
 class UnresolvedAll extends UnresolvedExpr {
-  /// The child nodes combined with AND.
+  /// The child nodes combined with `AND`.
   final List<UnresolvedExpr> nodes;
 
-  /// Creates an unresolved AND conjunction of [nodes].
+  /// Creates an unresolved `AND` conjunction of [nodes].
   const UnresolvedAll(this.nodes);
 
   @override
@@ -582,12 +719,17 @@ class UnresolvedAll extends UnresolvedExpr {
   int get hashCode => Object.hashAll(nodes);
 }
 
-/// Unresolved disjunction of sub-expressions (OR).
+/// Unresolved disjunction of sub-expressions combined with `OR`.
+///
+/// Example:
+/// ```dart
+/// final anyExpr = UnresolvedAny([q1, q2]);
+/// ```
 class UnresolvedAny extends UnresolvedExpr {
-  /// The child nodes combined with OR.
+  /// The child nodes combined with `OR`.
   final List<UnresolvedExpr> nodes;
 
-  /// Creates an unresolved OR disjunction of [nodes].
+  /// Creates an unresolved `OR` disjunction of [nodes].
   const UnresolvedAny(this.nodes);
 
   @override
@@ -605,7 +747,12 @@ class UnresolvedAny extends UnresolvedExpr {
   int get hashCode => Object.hashAll(nodes);
 }
 
-/// Unresolved negation of a sub-expression (NOT).
+/// Unresolved negation of a sub-expression (`NOT`).
+///
+/// Example:
+/// ```dart
+/// final notExpr = UnresolvedNegate(q);
+/// ```
 class UnresolvedNegate extends UnresolvedExpr {
   /// The inner node being negated.
   final UnresolvedExpr inner;
@@ -625,17 +772,22 @@ class UnresolvedNegate extends UnresolvedExpr {
   int get hashCode => inner.hashCode;
 }
 
-/// Helper function to construct [UnresolvedExpr] filters — Django's `Q()`.
+/// Helper function to construct an [UnresolvedExpr] filter node — Django's `Q()` object.
+///
+/// Supports lookup suffixes such as `__gte`, `__lte`, `__icontains`, `__in`, `__isnull`, `__ne`, etc.
 ///
 /// Example:
 /// ```dart
 /// final expr = Q('age__gte', 18) & Q('is_active', true);
+/// final inExpr = Q('status__in', ['pending', 'approved']);
 /// ```
 UnresolvedExpr Q(String field, dynamic value) {
   return UnresolvedExpr.compare(field, BloomValue.from(value));
 }
 
-/// Helper function to construct column-to-column comparisons — Django's `q_f!`.
+/// Helper function to construct column-to-column comparisons on the same database row — Django's `q_f!`.
+///
+/// Compares [leftField] with [rightField], supporting lookup suffixes on [leftField].
 ///
 /// Example:
 /// ```dart
@@ -645,36 +797,57 @@ UnresolvedExpr QF(String leftField, String rightField) {
   return UnresolvedExpr.fieldCompare(leftField, rightField);
 }
 
-/// Expression specifying a value update in an UPDATE query.
+/// Expression specifying a value update in an `UPDATE` query.
+///
+/// Supports literal updates via [LiteralSetExpr] and in-database column arithmetic via [FieldOpSetExpr] (using [F]).
 ///
 /// Mirrors `djangors_orm::expr::SetExpr`.
+///
+/// Example:
+/// ```dart
+/// final lit = SetExpr.literal(BloomValue.i64(10));
+/// final fieldOp = F('count') + 1; // Produces FieldOpSetExpr
+/// ```
 sealed class SetExpr {
-  /// Base const constructor for UPDATE assignment expressions.
+  /// Base const constructor for `UPDATE` assignment expressions.
   const SetExpr();
 
-  /// A literal new value.
+  /// A literal new [value] assignment.
   const factory SetExpr.literal(BloomValue value) = LiteralSetExpr;
 
-  /// An in-database field arithmetic operation (e.g. `col = col + 1`).
+  /// An in-database field arithmetic operation on [field] with [op] and [operand].
   const factory SetExpr.fieldOp({
     required String field,
     required ArithOp op,
     required BloomValue operand,
   }) = FieldOpSetExpr;
 
-  /// Unwraps or wraps a dynamic value into a [SetExpr].
+  /// Converts or wraps an arbitrary dynamic value [val] into a [SetExpr].
+  ///
+  /// Returns [val] directly if already a [SetExpr], or wraps in [SetExpr.literal].
+  ///
+  /// Example:
+  /// ```dart
+  /// final s1 = SetExpr.from(42);
+  /// final s2 = SetExpr.from(F('views') + 1);
+  /// ```
   static SetExpr from(dynamic val) {
     if (val is SetExpr) return val;
     return SetExpr.literal(BloomValue.from(val));
   }
 }
 
-/// Literal value assignment in an UPDATE query.
+/// Literal value assignment in an `UPDATE` query (`col = $1`).
+///
+/// Example:
+/// ```dart
+/// final setExpr = LiteralSetExpr(BloomValue.text('Alice'));
+/// ```
 class LiteralSetExpr extends SetExpr {
   /// The literal value to assign.
   final BloomValue value;
 
-  /// Creates a literal update assignment.
+  /// Creates a literal update assignment with [value].
   const LiteralSetExpr(this.value);
 
   @override
@@ -690,6 +863,15 @@ class LiteralSetExpr extends SetExpr {
 }
 
 /// In-database field arithmetic update operation (e.g. `col = col + 1`).
+///
+/// Example:
+/// ```dart
+/// final setExpr = FieldOpSetExpr(
+///   field: 'views',
+///   op: ArithOp.add,
+///   operand: BloomValue.i64(1),
+/// );
+/// ```
 class FieldOpSetExpr extends SetExpr {
   /// The source field name for arithmetic.
   final String field;
@@ -722,12 +904,15 @@ class FieldOpSetExpr extends SetExpr {
   int get hashCode => Object.hash(field, op, operand);
 }
 
-/// Django's `F()` — a reference to a field's current value in the database.
+/// Django's `F()` expression — a reference to a field's existing value in the database.
 ///
-/// Used for database-side calculations in updates:
+/// Used for atomic database-side calculations in updates to avoid race conditions:
+///
+/// Example:
 /// ```dart
-/// await User.objects().filter(Q('id', 1)).update(db, {
+/// await queryset.filter(Q('id', 1)).update(db, {
 ///   'score': F('score') + 10,
+///   'attempts': F('attempts') + 1,
 /// });
 /// ```
 class F {
@@ -767,6 +952,15 @@ class F {
 }
 
 /// Splits a field lookup string (e.g. `"age__gte"`) into field name `"age"` and suffix `"gte"`.
+///
+/// Returns `(fieldName, suffix)` tuple. If no recognizable suffix is present, returns `(s, 'eq')`.
+///
+/// Example:
+/// ```dart
+/// final (field, suffix) = splitFieldLookup('age__gte');
+/// assert(field == 'age');
+/// assert(suffix == 'gte');
+/// ```
 (String, String) splitFieldLookup(String s) {
   final idx = s.lastIndexOf('__');
   if (idx != -1) {
@@ -796,7 +990,15 @@ class F {
   return (s, 'eq');
 }
 
-/// Converts a lookup suffix string into a [CompareOp].
+/// Converts a lookup suffix string (e.g. `'gte'`, `'icontains'`, `'in'`) into the corresponding [CompareOp].
+///
+/// Defaults to [CompareOp.eq] if the suffix is unrecognized.
+///
+/// Example:
+/// ```dart
+/// final op = suffixToOp('icontains');
+/// assert(op == CompareOp.icontains);
+/// ```
 CompareOp suffixToOp(String suffix) {
   switch (suffix) {
     case 'eq':
@@ -833,4 +1035,5 @@ CompareOp suffixToOp(String suffix) {
       return CompareOp.eq;
   }
 }
+
 

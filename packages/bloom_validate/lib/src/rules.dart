@@ -3,26 +3,98 @@ import 'errors.dart';
 import 'schema.dart';
 
 /// Mixin providing advanced HTTP body and DTO validation rules.
+///
+/// Implements declarative extraction and validation helpers for strings, numbers,
+/// enums, nested schemas, and lists from raw JSON payloads.
+///
+/// Classes using this mixin must implement [data], [validationErrors], and [fail],
+/// as well as the core primitives [requireString], [optionalString], [requireInt],
+/// and [optionalInt].
+///
+/// Example:
+/// ```dart
+/// class MySchema extends BloomRequestSchema {
+///   MySchema(super.data);
+///
+///   late final String email = requireEmail('email');
+///   late final int age = requireIntRange('age', min: 18, max: 120);
+///   late final Role role = requireEnum('role', Role.values);
+///
+///   @override
+///   void validate() {
+///     email;
+///     age;
+///     role;
+///   }
+/// }
+/// ```
 mixin BloomValidationRules {
   /// The underlying map of raw request data.
   Map<String, dynamic> get data;
 
-  /// List of accumulated validation errors.
+  /// List of accumulated validation errors collected during schema evaluation.
   List<String> get validationErrors;
 
-  /// Records a validation [error] message and throws a [BloomValidationException].
+  /// Records a validation [error] message and immediately throws a [BloomValidationException].
+  ///
+  /// Example:
+  /// ```dart
+  /// if (password != confirmPassword) {
+  ///   fail('Passwords do not match.');
+  /// }
+  /// ```
   Never fail(String error);
 
   /// Requires a non-empty string field [key].
+  ///
+  /// When [trim] is `true` (default), leading and trailing whitespace is stripped before checking.
+  /// An optional [description] provides additional human-readable context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if the field is missing, not a string, or empty.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String username = requireString('username', description: 'User account name');
+  /// ```
   String requireString(String key, {String? description, bool trim = true});
 
   /// Reads an optional string field [key] with fallback to [defaultValue].
+  ///
+  /// When [trim] is `true` (default), whitespace is trimmed. If the field is missing
+  /// or empty, returns [defaultValue] (which defaults to `null`).
+  ///
+  /// Throws a [BloomValidationException] if the field is present but not a string.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String? bio = optionalString('bio', description: 'User biography');
+  /// ```
   String? optionalString(String key, {String? defaultValue, String? description, bool trim = true});
 
   /// Requires a valid integer field [key].
+  ///
+  /// Accepts `int`, `num`, or parseable integer string representations.
+  /// An optional [description] provides additional human-readable context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if the field is missing, unparseable, or invalid.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final int count = requireInt('count', description: 'Item quantity');
+  /// ```
   int requireInt(String key, {String? description});
 
   /// Reads an optional integer field [key] with fallback to [defaultValue].
+  ///
+  /// Accepts `int`, `num`, or parseable numeric strings. If missing or empty string,
+  /// returns [defaultValue] (which defaults to `null`).
+  ///
+  /// Throws a [BloomValidationException] if the field is present but not parseable as an integer.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final int limit = optionalInt('limit', defaultValue: 20) ?? 20;
+  /// ```
   int? optionalInt(String key, {int? defaultValue, String? description});
 
   static final RegExp _emailRegExp = RegExp(
@@ -31,7 +103,15 @@ mixin BloomValidationRules {
 
   /// Requires a valid email address string for field [key].
   ///
-  /// Throws [BloomValidationException] if missing or not matching valid email syntax.
+  /// Validates the string format using standard RFC email syntax pattern matching.
+  /// An optional [description] provides additional human-readable context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, empty, or not matching valid email syntax.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String email = requireEmail('email', description: 'Primary contact email');
+  /// ```
   String requireEmail(String key, {String? description}) {
     final str = requireString(key, description: description);
     if (!_emailRegExp.hasMatch(str)) {
@@ -43,7 +123,15 @@ mixin BloomValidationRules {
 
   /// Reads an optional email address string for field [key] with fallback to [defaultValue].
   ///
-  /// Throws [BloomValidationException] if present but not matching email syntax.
+  /// Validates email syntax if present. If missing or empty, returns [defaultValue].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present but not matching valid email syntax.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String? recoveryEmail = optionalEmail('recoveryEmail');
+  /// ```
   String? optionalEmail(String key, {String? defaultValue, String? description}) {
     final str = optionalString(key, defaultValue: defaultValue, description: description);
     if (str == null || str.isEmpty) return defaultValue;
@@ -56,8 +144,15 @@ mixin BloomValidationRules {
 
   /// Requires a string field [key] satisfying optional [min] and [max] length constraints.
   ///
-  /// When [trim] is true (default), whitespace is trimmed before evaluating length.
-  /// Throws [BloomValidationException] if missing or length is outside specified bounds.
+  /// When [trim] is `true` (default), whitespace is trimmed before evaluating character length.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, not a string, or length is outside specified bounds.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String password = requireStringLength('password', min: 8, max: 128);
+  /// ```
   String requireStringLength(
     String key, {
     int? min,
@@ -78,8 +173,15 @@ mixin BloomValidationRules {
 
   /// Reads an optional string field [key] with optional [min] and [max] length constraints and [defaultValue].
   ///
-  /// When [trim] is true (default), whitespace is trimmed.
-  /// Throws [BloomValidationException] if present and length is outside specified bounds.
+  /// When [trim] is `true` (default), whitespace is trimmed. If absent or null, returns [defaultValue].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present and length is outside specified bounds.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final String? nickname = optionalStringLength('nickname', min: 2, max: 30);
+  /// ```
   String? optionalStringLength(
     String key, {
     int? min,
@@ -102,7 +204,15 @@ mixin BloomValidationRules {
 
   /// Requires an integer value for field [key] within an optional [min] and [max] range.
   ///
-  /// Throws [BloomValidationException] if missing, unparseable, or out of range.
+  /// Both [min] and [max] bounds are inclusive.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, unparseable as an integer, or out of range.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final int age = requireIntRange('age', min: 18, max: 120, description: 'User age in years');
+  /// ```
   int requireIntRange(
     String key, {
     int? min,
@@ -122,7 +232,15 @@ mixin BloomValidationRules {
 
   /// Reads an optional integer value for field [key] within an optional [min] and [max] range.
   ///
-  /// Throws [BloomValidationException] if present and out of range.
+  /// Both [min] and [max] bounds are inclusive. If absent or null, returns [defaultValue].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present and unparseable or out of range.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final int? priority = optionalIntRange('priority', min: 1, max: 5, defaultValue: 3);
+  /// ```
   int? optionalIntRange(
     String key, {
     int? min,
@@ -144,8 +262,18 @@ mixin BloomValidationRules {
 
   /// Requires a value matching one of [allowed] enum/constant options for field [key].
   ///
-  /// An optional [parser] function can convert raw input into [T].
-  /// Throws [BloomValidationException] if missing or not in [allowed].
+  /// Supports standard Dart enums (matched by enum name or exact instance) and plain values.
+  /// An optional [parser] function can convert raw input into [T] before matching.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing or not in [allowed].
+  ///
+  /// Example:
+  /// ```dart
+  /// enum Role { admin, member, viewer }
+  ///
+  /// late final Role role = requireEnum('role', Role.values);
+  /// ```
   T requireEnum<T>(
     String key,
     List<T> allowed, {
@@ -177,8 +305,16 @@ mixin BloomValidationRules {
 
   /// Reads an optional value matching one of [allowed] enum/constant options for field [key].
   ///
+  /// Supports standard Dart enums and plain values. If missing or empty, returns [defaultValue].
   /// An optional [parser] function can convert raw input into [T].
-  /// Throws [BloomValidationException] if present but not in [allowed].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present but not in [allowed].
+  ///
+  /// Example:
+  /// ```dart
+  /// late final Role? role = optionalEnum('role', Role.values, defaultValue: Role.member);
+  /// ```
   T? optionalEnum<T>(
     String key,
     List<T> allowed, {
@@ -210,8 +346,15 @@ mixin BloomValidationRules {
 
   /// Requires a nested JSON object at field [key] and instantiates a nested schema/model using [schema].
   ///
-  /// If the returned object is a [BloomRequestSchema], triggers [BloomRequestSchema.validate].
-  /// Throws [BloomValidationException] if missing, not a map, or nested validation fails.
+  /// If the returned object is a [BloomRequestSchema], automatically triggers its `validate()` method.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, not a map, or nested validation fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final AddressSchema address = requireNested('address', AddressSchema.new);
+  /// ```
   T requireNested<T>(
     String key,
     T Function(Map<String, dynamic> json) schema, {
@@ -243,8 +386,16 @@ mixin BloomValidationRules {
 
   /// Reads an optional nested JSON object at field [key] and instantiates it using [schema].
   ///
-  /// If the returned object is a [BloomRequestSchema], triggers [BloomRequestSchema.validate].
-  /// Throws [BloomValidationException] if present but not a map or nested validation fails.
+  /// If the returned object is a [BloomRequestSchema], automatically triggers its `validate()` method.
+  /// If absent or null, returns [defaultValue].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present but not a map or nested validation fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final MetadataSchema? metadata = optionalNested('metadata', MetadataSchema.new);
+  /// ```
   T? optionalNested<T>(
     String key,
     T Function(Map<String, dynamic> json) schema, {
@@ -276,9 +427,22 @@ mixin BloomValidationRules {
 
   /// Requires a list of JSON objects at field [key] parsed with [itemSchema].
   ///
-  /// Validates optional [minLength] and [maxLength] constraints. If elements are [BloomRequestSchema],
-  /// executes their validation.
-  /// Throws [BloomValidationException] if missing, not a list, length out of bounds, or item validation fails.
+  /// Validates optional [minLength] and [maxLength] item count constraints.
+  /// If elements are [BloomRequestSchema] instances, executes their validation automatically.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, not a list, length out of bounds,
+  /// items are not JSON maps, or item validation fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final List<LineItemSchema> items = requireList(
+  ///   'items',
+  ///   LineItemSchema.new,
+  ///   minLength: 1,
+  ///   description: 'Order line items',
+  /// );
+  /// ```
   List<T> requireList<T>(
     String key,
     T Function(Map<String, dynamic> item) itemSchema, {
@@ -328,7 +492,19 @@ mixin BloomValidationRules {
   /// Reads an optional list of JSON objects at field [key] parsed with [itemSchema].
   ///
   /// Validates optional [minLength] and [maxLength] constraints with fallback to [defaultValue].
-  /// Throws [BloomValidationException] if present and invalid.
+  /// If elements are [BloomRequestSchema] instances, executes their validation automatically.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present and invalid.
+  ///
+  /// Example:
+  /// ```dart
+  /// late final List<AttachmentSchema>? attachments = optionalList(
+  ///   'attachments',
+  ///   AttachmentSchema.new,
+  ///   maxLength: 10,
+  /// );
+  /// ```
   List<T>? optionalList<T>(
     String key,
     T Function(Map<String, dynamic> item) itemSchema, {
@@ -377,7 +553,14 @@ mixin BloomValidationRules {
   /// Requires a list of primitive items of type [T] (e.g. `String`, `int`, `double`, `bool`) at field [key].
   ///
   /// Validates optional [minLength] and [maxLength] bounds.
-  /// Throws [BloomValidationException] if missing, not a list, length is out of bounds, or items are not [T].
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if missing, not a list, length is out of bounds, or items are not [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// late final List<String> tags = requirePrimitiveList<String>('tags', minLength: 1, maxLength: 20);
+  /// ```
   List<T> requirePrimitiveList<T>(
     String key, {
     int? minLength,
@@ -412,7 +595,15 @@ mixin BloomValidationRules {
 
   /// Reads an optional list of primitive items of type [T] at field [key] with fallback to [defaultValue].
   ///
-  /// Throws [BloomValidationException] if present and invalid.
+  /// Validates optional [minLength] and [maxLength] bounds when present.
+  /// An optional [description] provides additional context in failure messages.
+  ///
+  /// Throws a [BloomValidationException] if present and not a list, length is out of bounds, or items are not [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// late final List<int>? ids = optionalPrimitiveList<int>('ids', maxLength: 100);
+  /// ```
   List<T>? optionalPrimitiveList<T>(
     String key, {
     List<T>? defaultValue,
