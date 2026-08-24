@@ -16,6 +16,7 @@ import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/explain_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/graph_command.dart';
+import '../lib/src/commands/insights_command.dart';
 import '../lib/src/commands/js_command.dart';
 import '../lib/src/commands/module_command.dart';
 import '../lib/src/commands/npm_command.dart';
@@ -61,6 +62,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(SecurityCommand())
     ..addCommand(DevCommand())
     ..addCommand(DoctorCommand())
+    ..addCommand(InsightsCommand())
     ..addCommand(GenerateCommand())
     ..addCommand(AnalyzeCommand())
     ..addCommand(TestCommand())
