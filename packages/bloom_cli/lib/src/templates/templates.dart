@@ -448,6 +448,75 @@ void main() {
 ''';
   }
 
+  /// `AGENTS.md` for a Bloom JS Native project — a discoverable entry point
+  /// for AI coding agents (and humans) so they read the cookbook and the
+  /// two-entry-point rule before writing code, instead of guessing.
+  static String jsNativeAgentsMd({required String projectName}) {
+    return '''# $projectName — Bloom JS Native
+
+This is a **Bloom JS Native** project: pure Dart, compiles to native
+JavaScript, no Flutter. Read this file before writing or editing any code.
+
+## Read first
+
+Full docs live at `packages/bloom_js_native/COOKBOOK.md` in the Bloom
+framework repo (or wherever your `bloom_js_native` package is vendored from —
+check `.dart_tool/package_config.json` for its path). It is task-oriented
+("How do I ...?") and has a section for every topic below.
+
+## The one rule that trips everyone up
+
+`bloom_js_native` has two entry points:
+
+- `package:bloom_js_native/bloom_js_native.dart` — the core. Descriptors
+  (`Div`, `Button`, `Live`, `Show`, `ForEach`), signals (`signal`, `computed`,
+  `effect`), forms, routing, i18n. Pure Dart — safe on the server, in tests,
+  in any shared/universal file.
+- `package:bloom_js_native/browser.dart` — browser-only. `mount()`,
+  `mountToElement()`, `hydrate()`, `BloomRouterController`, Web Component
+  interop. Depends on `package:web` and real DOM APIs.
+
+**`mount()` only exists in `browser.dart`.** If you import only
+`bloom_js_native.dart` and call `mount()`, you get
+`Error: Method not found: 'mount'.` Only `lib/main.dart` (the client entry
+point) should import `browser.dart`; every other file — components, routes,
+shared state — imports the base `bloom_js_native.dart`.
+
+## Project layout
+
+```
+lib/
+  main.dart          # entry point: builds the router, calls mount() — imports browser.dart
+  app.dart            # top-level shell + BloomRouter route list
+  routes/
+    <page>.dart          # one BloomNode-returning function per route
+  components/
+    <component>.dart      # shared, reusable descriptors
+  state/
+    <domain>.dart           # shared Signal<T> instances
+```
+
+See COOKBOOK.md Section 3 ("Project Structure & Multi-File Apps") for the
+full convention and examples. To add a page: create a file under
+`lib/routes/`, add a `BloomRoute` entry for it in `lib/app.dart`, and reuse
+anything already in `lib/components/` before writing a new descriptor.
+
+## Commands
+
+- `bloom js dev` — dev server with live reload, compiles `lib/main.dart`.
+- `bloom js build` — production bundle.
+- `dart test` — runs `test/`, which exercises SSR-safe code only (no
+  `browser.dart` import in test files — the Dart VM has no DOM).
+
+## Anti-fabrication note for AI agents
+
+Do not guess component parameter names or signatures. Every UI primitive
+(`button`, `dialog`, `select`, etc.) is documented with real, verified
+signatures in COOKBOOK.md Section 19 ("UI Component Primitives") — read the
+relevant recipe there before using one you haven't used before in this repo.
+''';
+  }
+
   /// `.gitignore` for a Bloom JS Native project.
   static String jsNativeGitignore() {
     return '''.dart_tool/
