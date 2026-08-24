@@ -5,3 +5,4 @@ export 'src/head.dart';
 export 'src/json_ld.dart';
 export 'src/sitemap.dart';
 export 'src/prerender.dart';
+export 'src/og_image_helper.dart';

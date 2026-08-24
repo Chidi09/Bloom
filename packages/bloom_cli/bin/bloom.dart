@@ -21,6 +21,7 @@ import '../lib/src/commands/insights_command.dart';
 import '../lib/src/commands/js_command.dart';
 import '../lib/src/commands/module_command.dart';
 import '../lib/src/commands/npm_command.dart';
+import '../lib/src/commands/og_command.dart';
 import '../lib/src/commands/prebuild_command.dart';
 import '../lib/src/commands/registry_command.dart';
 import '../lib/src/commands/remove_command.dart';
@@ -60,6 +61,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(SymbolsCommand())
     ..addCommand(AssetsCommand())
     ..addCommand(FontCommand())
+    ..addCommand(OgCommand())
     ..addCommand(AuditCommand())
     ..addCommand(SecurityCommand())
     ..addCommand(DevCommand())
