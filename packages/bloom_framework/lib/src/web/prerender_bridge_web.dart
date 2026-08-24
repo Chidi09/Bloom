@@ -1,4 +1,6 @@
-// lib/src/web/prerender_bridge_web.dart
+/// Browser implementation of the prerender signaling bridge using `dart:js_interop` and `package:web`.
+library;
+
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
@@ -6,7 +8,7 @@ import 'package:flutter/semantics.dart';
 import 'package:web/web.dart' as web;
 
 /// Enables Flutter semantics tree and signals to headless prerenderer
-/// that the initial frame has finished rendering.
+/// that the initial frame has finished rendering by setting `window.__BLOOM_PRERENDER_READY__ = true`.
 void signalPrerenderReady() {
   try {
     SemanticsBinding.instance.ensureSemantics();

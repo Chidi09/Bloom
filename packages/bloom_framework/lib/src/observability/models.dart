@@ -1,4 +1,6 @@
-// lib/src/observability/models.dart
+/// Data models and event representations for Bloom Error Observability and Crash Reporting.
+library;
+
 import 'dart:convert';
 
 /// Severity level for breadcrumb events.
@@ -15,7 +17,7 @@ enum BloomBreadcrumbLevel {
   /// Serializes level to JSON string.
   String toJson() => name;
 
-  /// Parses level from string value.
+  /// Parses level from string [value].
   static BloomBreadcrumbLevel fromJson(String value) {
     return BloomBreadcrumbLevel.values.firstWhere(
       (e) => e.name.toLowerCase() == value.toLowerCase(),
@@ -24,7 +26,7 @@ enum BloomBreadcrumbLevel {
   }
 }
 
-/// Severity level for telemetry / crash events.
+/// Severity level for telemetry and crash events.
 enum BloomErrorLevel {
   /// Fatal error causing app crash or unhandled termination.
   fatal,
@@ -38,7 +40,7 @@ enum BloomErrorLevel {
   /// Serializes error level to JSON string.
   String toJson() => name;
 
-  /// Parses error level from string value.
+  /// Parses error level from string [value].
   static BloomErrorLevel fromJson(String value) {
     return BloomErrorLevel.values.firstWhere(
       (e) => e.name.toLowerCase() == value.toLowerCase(),
@@ -48,6 +50,17 @@ enum BloomErrorLevel {
 }
 
 /// A structured breadcrumb recording a user action, network call, or state mutation.
+///
+/// Breadcrumbs provide chronological context immediately preceding an error or crash.
+///
+/// Example:
+/// ```dart
+/// final crumb = BloomBreadcrumb(
+///   category: 'auth',
+///   message: 'User tapped login button',
+///   level: BloomBreadcrumbLevel.info,
+/// );
+/// ```
 class BloomBreadcrumb {
   /// Category label (e.g. `'ui'`, `'navigation'`, `'http'`, `'state'`).
   final String category;
@@ -73,7 +86,7 @@ class BloomBreadcrumb {
     this.data,
   }) : timestamp = timestamp ?? DateTime.now().toUtc();
 
-  /// Serializes breadcrumb to JSON map.
+  /// Serializes breadcrumb to a JSON map.
   Map<String, dynamic> toJson() {
     return {
       'category': category,
@@ -84,7 +97,7 @@ class BloomBreadcrumb {
     };
   }
 
-  /// Constructs a [BloomBreadcrumb] from a JSON map.
+  /// Constructs a [BloomBreadcrumb] from a JSON [json] map.
   factory BloomBreadcrumb.fromJson(Map<String, dynamic> json) {
     return BloomBreadcrumb(
       category: json['category'] as String? ?? 'general',
@@ -104,6 +117,18 @@ class BloomBreadcrumb {
 }
 
 /// A complete structured crash / telemetry event payload.
+///
+/// Encapsulates exception details, stack traces, breadcrumb trails, environment tags,
+/// and device metadata.
+///
+/// Example:
+/// ```dart
+/// final event = BloomTelemetryEvent(
+///   eventId: 'err_123',
+///   exceptionType: 'NetworkException',
+///   message: 'Connection timeout',
+/// );
+/// ```
 class BloomTelemetryEvent {
   /// Unique event ID.
   final String eventId;
@@ -161,6 +186,7 @@ class BloomTelemetryEvent {
     this.device = const {},
   }) : timestamp = timestamp ?? DateTime.now().toUtc();
 
+  /// Serializes the event to a JSON map.
   Map<String, dynamic> toJson() {
     return {
       'eventId': eventId,
@@ -179,6 +205,7 @@ class BloomTelemetryEvent {
     };
   }
 
+  /// Constructs a [BloomTelemetryEvent] from a JSON [json] map.
   factory BloomTelemetryEvent.fromJson(Map<String, dynamic> json) {
     return BloomTelemetryEvent(
       eventId: json['eventId'] as String? ?? '',
@@ -204,5 +231,7 @@ class BloomTelemetryEvent {
     );
   }
 
+  /// Serializes the event to formatted, indented JSON.
   String toFormattedJson() => const JsonEncoder.withIndent('  ').convert(toJson());
 }
+

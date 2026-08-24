@@ -1,4 +1,17 @@
-// lib/bloom_modules.dart
+/// Native Module platform and DSL for Bloom applications.
+///
+/// Exports annotations, manifests, native module registries, and custom native view bindings
+/// for bridging platform-specific Swift, Kotlin, and C++ capabilities into Bloom.
+///
+/// Example:
+/// ```dart
+/// import 'package:bloom_framework/bloom_modules.dart';
+///
+/// @BloomModule(name: 'Biometrics')
+/// class BiometricsModule extends NativeModule {
+///   // Module implementation
+/// }
+/// ```
 library bloom_modules;
 
 export 'src/modules/annotations.dart';

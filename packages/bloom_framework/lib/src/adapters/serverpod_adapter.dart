@@ -1,3 +1,6 @@
+/// Serverpod client and CRUD repository adapters for Bloom.
+library;
+
 import 'dart:async';
 import '../core/logger.dart';
 import '../data/repository.dart';
@@ -14,6 +17,14 @@ enum BloomServerpodConnectionStatus {
 }
 
 /// A reactive signal bound to a real-time stream subscription with explicit lifecycle disposal.
+///
+/// Example:
+/// ```dart
+/// final streamSignal = client.signalFromStream(
+///   stream: myStream,
+///   initialValue: 0,
+/// );
+/// ```
 class BloomStreamSignal<T> {
   /// The underlying reactive [Signal].
   final Signal<T> signal;
@@ -34,13 +45,23 @@ class BloomStreamSignal<T> {
   /// Returns a read-only view of the underlying signal.
   ReadonlySignal<T> readonly() => signal.readonly();
 
-  /// Cancel stream subscription and release resources.
+  /// Cancels the stream subscription and releases resources.
   Future<void> dispose() async {
     await subscription.cancel();
   }
 }
 
 /// Official Bloom client adapter for Serverpod backend connections.
+///
+/// Provides connection state tracking, authentication key management, and stream signal bindings.
+///
+/// Example:
+/// ```dart
+/// final client = BloomServerpodClient(
+///   serverUrl: 'https://api.example.com',
+///   initialAuthKey: 'my-auth-key',
+/// );
+/// ```
 class BloomServerpodClient {
   /// Base URL of the Serverpod backend.
   final String serverUrl;
@@ -62,7 +83,7 @@ class BloomServerpodClient {
   /// Connection status.
   BloomServerpodConnectionStatus get status => _status;
 
-  /// Update connection status.
+  /// Updates connection status.
   void setStatus(BloomServerpodConnectionStatus newStatus) {
     _status = newStatus;
   }
@@ -70,13 +91,13 @@ class BloomServerpodClient {
   /// Active authentication key.
   String? get authKey => _authKey;
 
-  /// Update authentication key.
+  /// Updates authentication key.
   void setAuthKey(String? key) {
     _authKey = key;
     logger.debug('BloomServerpodClient: Updated authentication key.');
   }
 
-  /// Creates a reactive [BloomStreamSignal<T>] whose value updates automatically from a Serverpod streaming subscription.
+  /// Creates a reactive [BloomStreamSignal] whose value updates automatically from a Serverpod streaming [stream].
   BloomStreamSignal<T> signalFromStream<T>({
     required Stream<T> stream,
     required T initialValue,
@@ -91,6 +112,17 @@ class BloomServerpodClient {
 }
 
 /// CRUD repository adapter bridging Serverpod endpoint delegates to Bloom Data conventions.
+///
+/// Example:
+/// ```dart
+/// final repo = BloomServerpodRepository<User>(
+///   getAllDelegate: () => client.users.getAll(),
+///   getByIdDelegate: (id) => client.users.getById(id),
+///   insertDelegate: (u) => client.users.insert(u),
+///   updateDelegate: (id, u) => client.users.update(id, u),
+///   deleteDelegate: (id) => client.users.delete(id),
+/// );
+/// ```
 class BloomServerpodRepository<T> implements BloomCrudRepository<T, int> {
   /// Endpoint delegate fetching all records.
   final Future<List<T>> Function() getAllDelegate;
@@ -109,6 +141,7 @@ class BloomServerpodRepository<T> implements BloomCrudRepository<T, int> {
 
   /// Creates a [BloomServerpodRepository] wrapping Serverpod endpoint delegates.
   const BloomServerpodRepository({
+
     required this.getAllDelegate,
     required this.getByIdDelegate,
     required this.insertDelegate,

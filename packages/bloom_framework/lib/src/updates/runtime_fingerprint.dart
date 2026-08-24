@@ -1,4 +1,6 @@
-// lib/src/updates/runtime_fingerprint.dart
+/// Cryptographic Runtime Fingerprint generator and validator for OTA compatibility.
+library;
+
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import '../core/platform_info.dart';
@@ -7,6 +9,13 @@ import '../core/platform_info.dart';
 ///
 /// Ensures Over-The-Air (OTA) patches are only applied to native binaries
 /// with identical Dart SDK, Flutter engine, and native module capabilities.
+///
+/// Example:
+/// ```dart
+/// final fingerprint = BloomRuntimeFingerprint.current();
+/// final hash = fingerprint.computeHash();
+/// print('Binary fingerprint hash: $hash');
+/// ```
 class BloomRuntimeFingerprint {
   /// Bloom framework semantic version.
   final String bloomVersion;
@@ -104,7 +113,7 @@ class BloomRuntimeFingerprint {
     return computeHash().toLowerCase() == patchRuntimeFingerprint.trim().toLowerCase();
   }
 
-  /// Creates a fingerprint from raw manifest/lockfile JSON or Map data.
+  /// Creates a fingerprint from raw manifest/lockfile JSON or Map [map] data.
   factory BloomRuntimeFingerprint.fromMap(Map<String, dynamic> map) {
     final modules = <String, String>{};
     final rawModules = map['native_modules'] ?? map['nativeModuleFingerprints'];
@@ -135,3 +144,4 @@ class BloomRuntimeFingerprint {
     );
   }
 }
+

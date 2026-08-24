@@ -1,10 +1,7 @@
-// lib/src/server/bloom_request.dart
-//
-// Re-export shim, not a copy. The implementation lives exactly once in
-// `package:bloom_server`, which is Flutter-free so pure-Dart backends can
-// compile without the Flutter SDK.
-//
-// This file exists only so the files inside bloom_framework that import
-// 'bloom_request.dart' by relative path keep resolving. It holds no logic of
-// its own, so there is nothing here that can drift from the real definition.
+/// Re-export shim for [BloomRequest] from `package:bloom_server`.
+///
+/// Encapsulates incoming HTTP requests, headers, query parameters, path variables, and body parsers.
+library;
+
 export 'package:bloom_server/src/server/bloom_request.dart';
+

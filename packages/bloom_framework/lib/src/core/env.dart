@@ -1,10 +1,7 @@
-// lib/src/core/env.dart
-//
-// Re-export shim, not a copy. The implementation lives exactly once in
-// `package:bloom_server`, which is Flutter-free so pure-Dart backends can
-// compile without the Flutter SDK.
-//
-// This file exists only so the files inside bloom_framework that import
-// 'env.dart' by relative path keep resolving. It holds no logic of
-// its own, so there is nothing here that can drift from the real definition.
+/// Re-export shim for [BloomEnv] from `package:bloom_server`.
+///
+/// Provides environment variable parsing, retrieval, and schema validation.
+library;
+
 export 'package:bloom_server/src/core/env.dart';
+

@@ -1,7 +1,19 @@
 // lib/src/router/metadata.dart
+library;
+
 import 'dart:convert';
 
-/// OpenGraph metadata for social media previews.
+/// OpenGraph metadata configuration for rich social media previews.
+///
+/// Example:
+/// ```dart
+/// const og = OpenGraph(
+///   title: 'Bloom Framework',
+///   description: 'Full-stack reactive framework for Flutter and pure Dart',
+///   image: 'https://bloom.dev/og.png',
+///   type: 'website',
+/// );
+/// ```
 class OpenGraph {
   /// The title of the object as it should appear in the graph.
   final String? title;
@@ -32,7 +44,17 @@ class OpenGraph {
   });
 }
 
-/// Twitter Card metadata for Twitter social previews.
+/// Twitter Card metadata for rich Twitter social previews.
+///
+/// Example:
+/// ```dart
+/// const twitter = TwitterCard(
+///   card: 'summary_large_image',
+///   site: '@BloomFramework',
+///   title: 'Bloom Framework',
+///   description: 'Full-stack reactive framework',
+/// );
+/// ```
 class TwitterCard {
   /// The card type: `summary`, `summary_large_image`, `app`, or `player`.
   final String card; // summary, summary_large_image, app, player
@@ -63,18 +85,32 @@ class TwitterCard {
   });
 }
 
-/// Declarative SEO and OpenGraph metadata configuration for Bloom routes.
+/// Declarative SEO, OpenGraph, and Twitter Card metadata configuration for Bloom routes.
+///
+/// Used by SSR/SSG compilers to inject semantic `<meta>`, `<title>`, `<link rel="canonical">`,
+/// and JSON-LD structured `<script>` tags into the rendered HTML `<head>`.
+///
+/// Example:
+/// ```dart
+/// const metadata = BloomRouteMetadata(
+///   title: 'Documentation | Bloom',
+///   description: 'Learn how to build modern apps with Bloom',
+///   canonical: 'https://bloom.dev/docs',
+///   openGraph: OpenGraph(title: 'Bloom Docs'),
+/// );
+/// final htmlHeadTags = metadata.renderHtmlTags();
+/// ```
 class BloomRouteMetadata {
   /// Document title displayed in browser tab and search snippets.
   final String? title;
 
-  /// Meta description summary for SEO.
+  /// Meta description summary for search engine optimization.
   final String? description;
 
   /// Canonical URL for duplicate content indexing prevention.
   final String? canonical;
 
-  /// OpenGraph metadata for social platforms.
+  /// OpenGraph metadata for social media platforms.
   final OpenGraph? openGraph;
 
   /// Twitter Card metadata configuration.

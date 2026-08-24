@@ -1,4 +1,22 @@
-// lib/bloom.dart
+/// Comprehensive, all-in-one Flutter application barrel for the Bloom framework.
+///
+/// Exports all core modules, state management signals, dependency injection,
+/// full-stack data/query utilities, routing, native platform bridges, devtools,
+/// over-the-air updates, observability, and UI widgets for building complete Bloom applications.
+///
+/// Example:
+/// ```dart
+/// import 'package:bloom_framework/bloom.dart';
+///
+/// void main() async {
+///   await Bloom.boot(
+///     appName: 'MyApp',
+///     builder: (context) => const BloomApp(
+///       title: 'My Bloom App',
+///     ),
+///   );
+/// }
+/// ```
 library bloom;
 
 // Core

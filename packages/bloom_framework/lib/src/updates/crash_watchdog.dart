@@ -1,8 +1,10 @@
-// lib/src/updates/crash_watchdog.dart
+/// Self-healing startup watchdog and crash loop prevention engine for OTA updates.
+library;
+
 import 'dart:async';
 import '../core/logger.dart';
 
-/// Delegate interface for persisting watchdog crash counts and active patch states.
+/// Delegate interface for persisting watchdog crash counts and active patch states across restarts.
 abstract class WatchdogStorage {
   /// Returns the consecutive crash count for the given [patchId].
   int getConsecutiveCrashes(String patchId);
@@ -14,7 +16,7 @@ abstract class WatchdogStorage {
   void clearPatch(String patchId);
 }
 
-/// In-memory default implementation of WatchdogStorage.
+/// In-memory default implementation of [WatchdogStorage] (useful for testing).
 class InMemoryWatchdogStorage implements WatchdogStorage {
   final Map<String, int> _crashes = {};
 
@@ -37,6 +39,22 @@ class InMemoryWatchdogStorage implements WatchdogStorage {
 
 /// Self-healing startup watchdog that detects crash loops on downloaded OTA patches
 /// and automatically falls back to the embedded base binary.
+///
+/// If an app crashes consecutively [maxCrashThreshold] times during the initial
+/// [healthyThresholdDuration] launch window, the watchdog triggers [onRollbackTriggered]
+/// to purge the faulty patch.
+///
+/// Example:
+/// ```dart
+/// final watchdog = StartupCrashWatchdog(
+///   maxCrashThreshold: 2,
+///   healthyThresholdDuration: const Duration(seconds: 5),
+///   onRollbackTriggered: (patchId, reason) {
+///     print('Rolling back faulty patch $patchId: $reason');
+///   },
+/// );
+/// watchdog.recordAppLaunch('patch_12');
+/// ```
 class StartupCrashWatchdog {
   /// Persistence storage delegate for crash metrics.
   final WatchdogStorage storage;
@@ -61,6 +79,7 @@ class StartupCrashWatchdog {
     this.healthyThresholdDuration = const Duration(seconds: 5),
     this.onRollbackTriggered,
   }) : storage = storage ?? InMemoryWatchdogStorage();
+
 
   /// Whether current startup has stabilized and reached healthy state.
   bool get isHealthy => _isHealthy;

@@ -1,15 +1,29 @@
-// lib/src/observability/navigation_observer.dart
+/// Automated navigation breadcrumb tracking observer for Flutter's Navigator.
+library;
+
 import 'package:flutter/widgets.dart';
 import 'models.dart';
 import 'observability.dart';
 
-/// NavigatorObserver that automatically records route transition breadcrumbs.
+/// [NavigatorObserver] that automatically records route transition breadcrumbs.
+///
+/// Attaches to `GoRouter` or standard Flutter `Navigator` to log pushes, pops,
+/// replacements, and route removals directly into the breadcrumb ring buffer.
+///
+/// Example:
+/// ```dart
+/// final router = BloomRouter.create(
+///   routes: [...],
+///   observers: [BloomObservabilityNavigatorObserver()],
+/// );
+/// ```
 class BloomObservabilityNavigatorObserver extends NavigatorObserver {
-  /// Category label applied to recorded navigation breadcrumbs (default: `'navigation'`).
+  /// Category label applied to recorded navigation breadcrumbs (defaults to `'navigation'`).
   final String category;
 
   /// Creates a [BloomObservabilityNavigatorObserver].
   BloomObservabilityNavigatorObserver({this.category = 'navigation'});
+
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
