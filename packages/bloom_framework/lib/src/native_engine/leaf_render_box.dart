@@ -3,11 +3,26 @@ import 'package:flutter/widgets.dart';
 import 'package:signals/signals.dart';
 import 'style_resolver.dart';
 
-/// High-performance LeafRenderObjectWidget that binds directly to a signal function.
+/// High-performance LeafRenderObjectWidget that binds directly to a signal-backed text evaluation function.
+///
+/// Bypasses widget element tree reconstruction by using a direct [RenderBloomLeafText]
+/// with fine-grained reactivity subscriptions via signals effects.
+///
+/// Example:
+/// ```dart
+/// BloomLeafTextWidget(
+///   textFn: () => 'Count: ${counterSignal.value}',
+///   style: BloomComputedStyle()..textColor = Colors.white,
+/// )
+/// ```
 class BloomLeafTextWidget extends LeafRenderObjectWidget {
+  /// Closure returning the current text string.
   final String Function() textFn;
+
+  /// Computed typography and color styling rules.
   final BloomComputedStyle style;
 
+  /// Creates a [BloomLeafTextWidget] instance.
   const BloomLeafTextWidget({
     super.key,
     required this.textFn,
@@ -27,6 +42,7 @@ class BloomLeafTextWidget extends LeafRenderObjectWidget {
   }
 }
 
+/// Custom leaf [RenderBox] that directly paints text using [TextPainter] with fine-grained signal subscriptions.
 class RenderBloomLeafText extends RenderBox {
   String Function() _textFn;
   BloomComputedStyle _style;
@@ -34,6 +50,7 @@ class RenderBloomLeafText extends RenderBox {
   late TextPainter _textPainter;
   String _cachedText = '';
 
+  /// Creates a [RenderBloomLeafText] render object with [textFn] and [style].
   RenderBloomLeafText({
     required String Function() textFn,
     required BloomComputedStyle style,
@@ -42,6 +59,7 @@ class RenderBloomLeafText extends RenderBox {
     _initTextPainter();
   }
 
+  /// The active text evaluation closure.
   String Function() get textFn => _textFn;
   set textFn(String Function() value) {
     if (_textFn != value) {
@@ -50,6 +68,7 @@ class RenderBloomLeafText extends RenderBox {
     }
   }
 
+  /// The computed typography styling.
   BloomComputedStyle get style => _style;
   set style(BloomComputedStyle value) {
     if (_style != value) {

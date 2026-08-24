@@ -7,23 +7,40 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 /// A cross-platform bridge widget for hosting hardware-accelerated native views
-/// (e.g. Camera Preview, MapKit/GoogleMap, AR views, WebViews) declared in Bloom Modules.
+/// (e.g. Camera Preview, MapKit/Google Maps, AR views, WebViews) declared in Bloom Modules.
+///
+/// On Android, hosts an `AndroidViewSurface` via `PlatformViewsService`.
+/// On iOS, hosts an `UiKitView`.
+/// On Web and in Flutter test environments, renders a graceful [fallback] widget.
+///
+/// Example:
+/// ```dart
+/// BloomNativeView(
+///   viewType: 'BloomCameraView',
+///   props: {'lensFacing': 'back', 'flashMode': 'auto'},
+///   onEvent: (name, payload) {
+///     print('Event from native view: $name -> $payload');
+///   },
+///   fallback: Text('Camera not supported on this platform'),
+/// )
+/// ```
 class BloomNativeView extends StatefulWidget {
-  /// The registered view identifier matching the native ViewFactory name.
+  /// The registered view identifier matching the native ViewFactory name on the host platform.
   final String viewType;
 
-  /// Declarative properties passed to the native view.
+  /// Declarative properties passed to the native view during creation and updates.
   final Map<String, dynamic> props;
 
-  /// Event callback invoked when the native view emits a platform event.
+  /// Event callback invoked when the native view emits a platform event across the method channel.
   final void Function(String eventName, dynamic payload)? onEvent;
 
-  /// Custom fallback widget rendered on unsupported platforms or during widget testing.
+  /// Custom fallback widget rendered on unsupported platforms (such as Web) or during widget testing.
   final Widget? fallback;
 
-  /// Custom layout gesture recognizers.
+  /// Custom layout gesture recognizers forwarded to the native platform view.
   final Set<Factory<OneSequenceGestureRecognizer>>? gestureRecognizers;
 
+  /// Creates a [BloomNativeView] widget.
   const BloomNativeView({
     super.key,
     required this.viewType,

@@ -3,6 +3,22 @@ import 'package:bloom_server/bloom_server.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 
 /// Exception thrown when session token verification fails.
+///
+/// Indicates an invalid HMAC signature, expired session lifespan, malformed payload structure,
+/// or token type mismatch (e.g. attempting to use a reset token as a session token).
+///
+/// Example:
+/// ```dart
+/// try {
+///   final claims = verifySessionToken(bearerToken);
+/// } on SessionTokenException catch (e) {
+///   if (e.isExpired) {
+///     print('Session has expired. Prompting user to re-authenticate.');
+///   } else {
+///     print('Invalid token: ${e.message}');
+///   }
+/// }
+/// ```
 class SessionTokenException implements Exception {
   /// Description of the error.
   final String message;
@@ -26,6 +42,19 @@ class SessionTokenException implements Exception {
 }
 
 /// Strongly-typed claims extracted from an authenticated session token.
+///
+/// Encapsulates user identity ([userId], [email]), authorization privileges ([roles]),
+/// token lifetime timestamps ([issuedAt], [expiresAt]), and any arbitrary application metadata
+/// in [customClaims].
+///
+/// Example:
+/// ```dart
+/// final claims = verifySessionToken(token);
+/// print('User: ${claims.userId}');
+/// if (claims.hasRole('admin')) {
+///   // Grant administrative access
+/// }
+/// ```
 class BloomAuthClaims {
   /// The unique identifier of the authenticated user.
   final String userId;
@@ -55,7 +84,25 @@ class BloomAuthClaims {
     this.customClaims = const {},
   });
 
-  /// Factory constructor to parse claims from a decoded JWT payload.
+  /// Factory constructor to parse claims from a decoded JWT payload [payload].
+  ///
+  /// Extracts the subject (`sub` or `userId`), optional `email`, `roles` (or single `role`),
+  /// timestamps (`iat`, `exp`), and partitions any non-reserved claims into [customClaims].
+  ///
+  /// Throws [SessionTokenException] if neither `sub` nor `userId` is present.
+  ///
+  /// Example:
+  /// ```dart
+  /// final claims = BloomAuthClaims.fromJwtPayload({
+  ///   'sub': 'usr_456',
+  ///   'email': 'dev@example.com',
+  ///   'roles': ['editor'],
+  ///   'iat': 1700000000,
+  ///   'exp': 1700604800,
+  ///   'orgId': 'org_99',
+  /// });
+  /// print(claims.customClaims['orgId']); // 'org_99'
+  /// ```
   factory BloomAuthClaims.fromJwtPayload(Map<String, dynamic> payload) {
     final sub = payload['sub']?.toString() ?? payload['userId']?.toString();
     if (sub == null || sub.isEmpty) {
@@ -108,14 +155,34 @@ class BloomAuthClaims {
     );
   }
 
-  /// Whether this user has a specific role.
+  /// Whether this user has a specific [role].
+  ///
+  /// Example:
+  /// ```dart
+  /// if (claims.hasRole('admin')) {
+  ///   // User is an administrator
+  /// }
+  /// ```
   bool hasRole(String role) => roles.contains(role);
 
-  /// Whether this user has any of the specified roles.
+  /// Whether this user has any of the specified [requiredRoles].
+  ///
+  /// Example:
+  /// ```dart
+  /// if (claims.hasAnyRole(['admin', 'superadmin', 'owner'])) {
+  ///   // User possesses at least one authorized role
+  /// }
+  /// ```
   bool hasAnyRole(Iterable<String> requiredRoles) =>
       requiredRoles.any((r) => roles.contains(r));
 
-  /// Converts claims to a JSON-serializable Map.
+  /// Converts claims to a JSON-serializable [Map].
+  ///
+  /// Example:
+  /// ```dart
+  /// final claimsMap = claims.toMap();
+  /// print(claimsMap['userId']);
+  /// ```
   Map<String, dynamic> toMap() => {
         'userId': userId,
         if (email != null) 'email': email,
@@ -132,7 +199,18 @@ class BloomAuthClaims {
 /// Resolves the HMAC signing secret from parameter or [BloomEnv].
 /// Never hardcodes fallback secrets in production.
 ///
+/// Priority order:
+/// 1. Explicit [secret] argument passed to the function.
+/// 2. `BLOOM_AUTH_SECRET` environment variable via [BloomEnv].
+/// 3. `JWT_SECRET` environment variable via [BloomEnv].
+/// 4. `AUTH_SECRET` environment variable via [BloomEnv].
+///
 /// Throws [StateError] if no secret argument is supplied and none is found in [BloomEnv].
+///
+/// Example:
+/// ```dart
+/// final signingSecret = resolveAuthSecret();
+/// ```
 String resolveAuthSecret([String? secret]) {
   if (secret != null && secret.isNotEmpty) {
     return secret;
@@ -158,10 +236,22 @@ String resolveAuthSecret([String? secret]) {
 /// explicitly tagged with `token_type: 'session'` to prevent token substitution attacks.
 ///
 /// [ttl] defines token lifespan (defaults to 7 days).
-/// [secret] defaults to `BloomEnv.get('BLOOM_AUTH_SECRET')`.
+/// [issuer] sets the JWT `iss` claim (defaults to `'bloom-auth-server'`).
+/// [secret] defaults to resolving via [resolveAuthSecret].
 ///
 /// Throws [ArgumentError] if [userId] is empty.
 /// Throws [StateError] if no secret is provided and none is found via [BloomEnv].
+///
+/// Example:
+/// ```dart
+/// final token = issueSessionToken(
+///   userId: 'usr_123',
+///   email: 'alex@example.com',
+///   roles: ['admin', 'editor'],
+///   customClaims: {'tenantId': 'tenant_abc'},
+///   ttl: const Duration(hours: 24),
+/// );
+/// ```
 String issueSessionToken({
   required String userId,
   String? email,
@@ -195,10 +285,23 @@ String issueSessionToken({
 
 /// Verifies an HMAC-SHA256 JWT session token and returns decoded [BloomAuthClaims].
 ///
-/// Ensures the token signature is valid, unexpired, and explicitly marked as `token_type: 'session'`.
+/// Ensures the token signature is valid, unexpired, matches [issuer] if provided,
+/// and is explicitly marked as `token_type: 'session'`.
 ///
-/// Throws [SessionTokenException] if verification fails or if the token is empty.
+/// [secret] defaults to resolving via [resolveAuthSecret].
+///
+/// Throws [SessionTokenException] if verification fails or if [token] is empty.
 /// Throws [StateError] if no secret is provided and none is found via [BloomEnv].
+///
+/// Example:
+/// ```dart
+/// try {
+///   final claims = verifySessionToken(tokenString);
+///   print('Authenticated userId: ${claims.userId}');
+/// } on SessionTokenException catch (e) {
+///   print('Authentication failed: ${e.message}');
+/// }
+/// ```
 BloomAuthClaims verifySessionToken(
   String token, {
   String? secret,
@@ -254,6 +357,18 @@ BloomAuthClaims verifySessionToken(
 }
 
 /// Attempts to verify a session token, returning `null` instead of throwing on invalid/expired tokens.
+///
+/// Convenient for optional authentication flows where unauthenticated requests are permitted.
+///
+/// Example:
+/// ```dart
+/// final claims = tryVerifySessionToken(bearerToken);
+/// if (claims != null) {
+///   // User is authenticated
+/// } else {
+///   // Anonymous visitor
+/// }
+/// ```
 BloomAuthClaims? tryVerifySessionToken(
   String? token, {
   String? secret,
@@ -266,3 +381,4 @@ BloomAuthClaims? tryVerifySessionToken(
     return null;
   }
 }
+

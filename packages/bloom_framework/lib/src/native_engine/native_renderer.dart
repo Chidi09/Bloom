@@ -7,10 +7,30 @@ import 'leaf_render_box.dart';
 import 'style_resolver.dart';
 import 'virtual_list.dart';
 
-/// Full Fabric-grade Native AST Renderer for Bloom JS Native descriptors.
+/// Fabric-grade Native AST Renderer translating pure Dart [BloomNode] descriptors into Flutter widgets and render boxes.
+///
+/// Handles:
+/// - [TextNode] ➔ Direct [BloomLeafTextWidget] for zero-overhead text painting
+/// - [LiveNode] ➔ Reactive `Watch` widget rebuilding when subscribed signals change
+/// - [ShowNode] ➔ Conditional reactive branch switching with optional fallback
+/// - [ForEachNode] ➔ Virtualized sliver recycling via [BloomVirtualList]
+/// - [FragmentNode] ➔ Flat linear widget lists
+/// - [ElNode] ➔ Native [BloomFlexLayout], [BloomNativeInputHost], and styled containers
+///
+/// Example:
+/// ```dart
+/// BloomNativeRenderer(
+///   node: Div(
+///     className: 'p-4 bg-zinc-900 text-white rounded-lg',
+///     text: 'Hello from Bloom JS Native!',
+///   ),
+/// )
+/// ```
 class BloomNativeRenderer extends StatelessWidget {
+  /// The root [BloomNode] AST descriptor to render.
   final BloomNode node;
 
+  /// Creates a [BloomNativeRenderer] widget for the specified [node].
   const BloomNativeRenderer({super.key, required this.node});
 
   @override

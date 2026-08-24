@@ -4,9 +4,25 @@ import 'package:flutter/widgets.dart';
 import 'style_resolver.dart';
 
 /// MultiChildRenderObjectWidget implementing standard CSS Flexbox for native mobile.
+///
+/// Lays out child render boxes horizontally or vertically according to the resolved
+/// [BloomComputedStyle] flex direction, main/cross alignment, and gap.
+///
+/// Example:
+/// ```dart
+/// BloomFlexLayout(
+///   style: BloomStyleResolver.resolve('flex flex-row items-center gap-4'),
+///   children: [
+///     childWidget1,
+///     childWidget2,
+///   ],
+/// )
+/// ```
 class BloomFlexLayout extends MultiChildRenderObjectWidget {
+  /// The computed styling rules for this flex container.
   final BloomComputedStyle style;
 
+  /// Creates a [BloomFlexLayout] widget with the specified computed [style] and [children].
   const BloomFlexLayout({
     super.key,
     required this.style,
@@ -24,19 +40,26 @@ class BloomFlexLayout extends MultiChildRenderObjectWidget {
   }
 }
 
+/// Parent data used by [RenderBloomFlex] to store flex layout properties per child.
 class BloomFlexParentData extends ContainerBoxParentData<RenderBox> {
+  /// Flex grow factor for this child (defaults to 0).
   int flexGrow = 0;
+
+  /// Flex shrink factor for this child (defaults to 1).
   int flexShrink = 1;
 }
 
+/// Custom [RenderBox] executing CSS flexbox layout calculations for native rendering.
 class RenderBloomFlex extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, BloomFlexParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, BloomFlexParentData> {
   BloomComputedStyle _style;
 
+  /// Creates a [RenderBloomFlex] render object with initial [style].
   RenderBloomFlex({required BloomComputedStyle style}) : _style = style;
 
+  /// The active computed styling applied to this flex container.
   BloomComputedStyle get style => _style;
   set style(BloomComputedStyle value) {
     if (_style != value) {

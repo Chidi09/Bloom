@@ -2,23 +2,37 @@
 import 'package:yaml/yaml.dart';
 
 /// Configuration for a specific application build flavor (e.g. `staging`, `production`).
+///
+/// Flavors define environment-specific overrides for application name, bundle/package ID,
+/// environment files, and custom configuration parameters.
+///
+/// Example:
+/// ```dart
+/// final stagingFlavor = BloomFlavorConfig(
+///   name: 'staging',
+///   appName: 'Bloom App (Staging)',
+///   appId: 'com.example.bloom.staging',
+///   envFile: '.env.staging',
+///   custom: {'apiUrl': 'https://staging.api.example.com'},
+/// );
+/// ```
 class BloomFlavorConfig {
-  /// Flavor name identifier.
+  /// Unique flavor name identifier (e.g. `'staging'`, `'production'`).
   final String name;
 
-  /// Display name override for this flavor.
+  /// Display name override for this flavor displayed on user devices.
   final String? appName;
 
-  /// Application bundle / package ID override for this flavor.
+  /// Application bundle / package ID override for this flavor (e.g. `'com.example.app.staging'`).
   final String? appId;
 
-  /// Path to the environment `.env` file for this flavor.
+  /// Path to the environment `.env` file loaded for this flavor (e.g. `'.env.staging'`).
   final String? envFile;
 
   /// Custom flavor-specific configuration key-value properties.
   final Map<String, dynamic> custom;
 
-  /// Creates a [BloomFlavorConfig].
+  /// Creates a [BloomFlavorConfig] instance.
   const BloomFlavorConfig({
     required this.name,
     this.appName,
@@ -27,7 +41,10 @@ class BloomFlavorConfig {
     this.custom = const {},
   });
 
-  /// Constructs a [BloomFlavorConfig] from a map.
+  /// Constructs a [BloomFlavorConfig] from a parsed map and [name] identifier.
+  ///
+  /// Extracts known keys (`app_name`, `appName`, `app_id`, `appId`, `env_file`, `envFile`)
+  /// and places all other key-value pairs into the [custom] map.
   factory BloomFlavorConfig.fromMap(String name, Map<dynamic, dynamic> map) {
     const knownKeys = {'app_name', 'appName', 'app_id', 'appId', 'env_file', 'envFile'};
     final customMap = <String, dynamic>{};
@@ -48,20 +65,33 @@ class BloomFlavorConfig {
 }
 
 /// Deep link URL scheme and universal link domain configuration.
+///
+/// Defines the custom URI schemes, universal/app link domains, and route mappings
+/// parsed from `bloom.yaml`.
+///
+/// Example:
+/// ```dart
+/// final deepLinks = BloomDeepLinksConfig(
+///   enabled: true,
+///   schemes: ['bloom', 'myapp'],
+///   domains: ['app.example.com'],
+///   routeMappings: {'/invite': '/auth/register'},
+/// );
+/// ```
 class BloomDeepLinksConfig {
-  /// Whether deep linking support is enabled.
+  /// Whether deep linking support is enabled for the application.
   final bool enabled;
 
-  /// Custom URI schemes (e.g. `myapp://`).
+  /// Custom URI schemes handled by the application (e.g. `['bloom', 'myapp']`).
   final List<String> schemes;
 
-  /// Associated universal link HTTP domains.
+  /// Associated universal link HTTP/HTTPS domains (e.g. `['app.example.com']`).
   final List<String> domains;
 
-  /// Route path mapping rules.
+  /// Route path mapping rules translating incoming link paths to internal routes.
   final Map<String, String> routeMappings;
 
-  /// Creates a [BloomDeepLinksConfig].
+  /// Creates a [BloomDeepLinksConfig] instance.
   const BloomDeepLinksConfig({
     this.enabled = false,
     this.schemes = const [],
@@ -69,7 +99,7 @@ class BloomDeepLinksConfig {
     this.routeMappings = const {},
   });
 
-  /// Constructs a [BloomDeepLinksConfig] from a map.
+  /// Constructs a [BloomDeepLinksConfig] from a configuration [map].
   factory BloomDeepLinksConfig.fromMap(Map<dynamic, dynamic> map) {
     final schemesList = map['schemes'] is List ? List<String>.from(map['schemes']) : <String>[];
     final domainsList = <String>[];
@@ -93,21 +123,33 @@ class BloomDeepLinksConfig {
   }
 }
 
-/// Shorebird OTA Deployment Configuration in `bloom.yaml`.
+/// Shorebird OTA (Over-The-Air) deployment configuration declared in `bloom.yaml`.
+///
+/// Controls live code-push update behavior, application identifiers, and per-flavor mapping.
+///
+/// Example:
+/// ```dart
+/// final shorebird = BloomShorebirdConfig(
+///   enabled: true,
+///   appId: 'auto',
+///   autoCheckUpdate: true,
+///   flavors: {'production': 'shorebird-app-id-123'},
+/// );
+/// ```
 class BloomShorebirdConfig {
-  /// Whether Shorebird code-push is enabled.
+  /// Whether Shorebird code-push updates are enabled.
   final bool enabled;
 
-  /// Shorebird application ID.
+  /// Shorebird application ID identifier or `'auto'`.
   final String appId;
 
-  /// Whether to automatically check for OTA updates on startup.
+  /// Whether to automatically check for OTA updates on application startup.
   final bool autoCheckUpdate;
 
-  /// Flavor-specific Shorebird app ID mappings.
+  /// Flavor-specific Shorebird application ID mappings.
   final Map<String, String> flavors;
 
-  /// Creates a [BloomShorebirdConfig].
+  /// Creates a [BloomShorebirdConfig] instance.
   const BloomShorebirdConfig({
     this.enabled = false,
     this.appId = 'auto',
@@ -115,7 +157,7 @@ class BloomShorebirdConfig {
     this.flavors = const {},
   });
 
-  /// Constructs a [BloomShorebirdConfig] from a map.
+  /// Constructs a [BloomShorebirdConfig] from a configuration [map].
   factory BloomShorebirdConfig.fromMap(Map<dynamic, dynamic> map) {
     final flavorsMap = <String, String>{};
     if (map['flavors'] is Map) {
@@ -135,17 +177,26 @@ class BloomShorebirdConfig {
   }
 }
 
-/// Deployment block in `bloom.yaml`.
+/// Deployment block configuration in `bloom.yaml`.
+///
+/// Encapsulates OTA update providers and cloud deployment parameters.
+///
+/// Example:
+/// ```dart
+/// final deployment = BloomDeploymentConfig(
+///   shorebird: BloomShorebirdConfig(enabled: true),
+/// );
+/// ```
 class BloomDeploymentConfig {
-  /// Shorebird OTA configuration settings.
+  /// Shorebird OTA code-push configuration settings.
   final BloomShorebirdConfig shorebird;
 
-  /// Creates a [BloomDeploymentConfig].
+  /// Creates a [BloomDeploymentConfig] instance.
   const BloomDeploymentConfig({
     this.shorebird = const BloomShorebirdConfig(),
   });
 
-  /// Constructs a [BloomDeploymentConfig] from a map.
+  /// Constructs a [BloomDeploymentConfig] from a configuration [map].
   factory BloomDeploymentConfig.fromMap(Map<dynamic, dynamic> map) {
     final shorebirdMap = map['shorebird'] is Map ? map['shorebird'] as Map : {};
     return BloomDeploymentConfig(
@@ -155,11 +206,26 @@ class BloomDeploymentConfig {
 }
 
 /// Strongly typed configuration model mapping directly to `bloom.yaml`.
+///
+/// Defines project metadata, platform SDK versions, feature toggles, environment files,
+/// deep linking, build flavors, and deployment options.
+///
+/// Example:
+/// ```dart
+/// const yamlContent = '''
+/// name: my_bloom_app
+/// version: 1.0.0
+/// build_number: 42
+/// mode: managed
+/// ''';
+/// final config = BloomConfig.fromYaml(yamlContent);
+/// print(config.name); // 'my_bloom_app'
+/// ```
 class BloomConfig {
-  /// Schema format version number.
+  /// Schema format version number (defaults to 1).
   final int schema;
 
-  /// Application name identifier.
+  /// Application name identifier (e.g. `'bloom_app'`).
   final String name;
 
   /// Application version string (e.g. `'1.0.0'`).
@@ -216,7 +282,9 @@ class BloomConfig {
     this.custom = const {},
   });
 
-  /// Parse from YAML string.
+  /// Parses a [BloomConfig] from a raw YAML string.
+  ///
+  /// Returns a default [BloomConfig] if [yamlString] is empty or does not represent a YAML map.
   factory BloomConfig.fromYaml(String yamlString) {
     if (yamlString.trim().isEmpty) return const BloomConfig();
     final doc = loadYaml(yamlString);
@@ -224,7 +292,7 @@ class BloomConfig {
     return BloomConfig.fromMap(Map<String, dynamic>.from(doc));
   }
 
-  /// Parse from Map.
+  /// Constructs a [BloomConfig] from a configuration [map].
   factory BloomConfig.fromMap(Map<dynamic, dynamic> map) {
     final platformsMap = map['platforms'] is Map ? map['platforms'] as Map : {};
     final featuresMap = map['features'] is Map ? map['features'] as Map : {};
@@ -318,27 +386,41 @@ class BloomConfig {
   }
 }
 
-/// Target platforms configuration in `bloom.yaml`.
+/// Target platforms configuration declared in `bloom.yaml`.
+///
+/// Contains SDK targets, package identifiers, and platform metadata for Android, iOS, and Web.
+///
+/// Example:
+/// ```dart
+/// final platforms = BloomPlatforms(
+///   androidMinSdk: 24,
+///   androidTargetSdk: 34,
+///   androidPackage: 'com.example.app',
+///   iosMinVersion: '15.0',
+///   iosBundleIdentifier: 'com.example.app',
+///   webTitle: 'Bloom App',
+/// );
+/// ```
 class BloomPlatforms {
-  /// Android minimum SDK version.
+  /// Android minimum supported SDK version (defaults to 24).
   final int androidMinSdk;
 
-  /// Android target SDK version.
+  /// Android target SDK compilation version (defaults to 34).
   final int androidTargetSdk;
 
   /// Android application package name (e.g. `'com.example.app'`).
   final String? androidPackage;
 
-  /// iOS minimum deployment target version (e.g. `'15.0'`).
+  /// iOS minimum deployment target version (defaults to `'15.0'`).
   final String iosMinVersion;
 
-  /// iOS bundle identifier (e.g. `'com.example.app'`).
+  /// iOS application bundle identifier (e.g. `'com.example.app'`).
   final String? iosBundleIdentifier;
 
-  /// Default title for web application.
+  /// Default document title for web application builds.
   final String webTitle;
 
-  /// Creates a [BloomPlatforms] configuration.
+  /// Creates a [BloomPlatforms] configuration with platform defaults.
   const BloomPlatforms({
     this.androidMinSdk = 24,
     this.androidTargetSdk = 34,
@@ -348,7 +430,7 @@ class BloomPlatforms {
     this.webTitle = 'Bloom App',
   });
 
-  /// Constructs a [BloomPlatforms] configuration from a map.
+  /// Constructs a [BloomPlatforms] configuration from a parsed [map].
   factory BloomPlatforms.fromMap(Map<dynamic, dynamic> map) {
     final android = map['android'] is Map ? map['android'] as Map : {};
     final ios = map['ios'] is Map ? map['ios'] as Map : {};
@@ -372,18 +454,31 @@ class BloomPlatforms {
   }
 }
 
-/// Feature flags declared in `bloom.yaml`.
+/// Feature flags and subsystem toggles declared in `bloom.yaml`.
+///
+/// Controls which core framework modules (routing, signals state, data queries, native plugins)
+/// are enabled for the application build.
+///
+/// Example:
+/// ```dart
+/// final features = BloomFeatures(
+///   routing: true,
+///   state: true,
+///   data: true,
+///   native: true,
+/// );
+/// ```
 class BloomFeatures {
-  /// Whether routing module is enabled.
+  /// Whether the declarative routing module is enabled.
   final bool routing;
 
-  /// Whether state/signals module is enabled.
+  /// Whether the reactive signals state module is enabled.
   final bool state;
 
-  /// Whether data/query module is enabled.
+  /// Whether the data querying and caching module is enabled.
   final bool data;
 
-  /// Whether native features module is enabled.
+  /// Whether the native hardware bridge module is enabled.
   final bool native;
 
   /// Creates a [BloomFeatures] configuration.
@@ -394,7 +489,7 @@ class BloomFeatures {
     this.native = false,
   });
 
-  /// Constructs a [BloomFeatures] configuration from a map.
+  /// Constructs a [BloomFeatures] configuration from a parsed [map].
   factory BloomFeatures.fromMap(Map<dynamic, dynamic> map) {
     return BloomFeatures(
       routing: map['routing'] is bool ? map['routing'] as bool : true,

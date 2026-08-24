@@ -5,13 +5,23 @@ import '../state/signals.dart';
 import 'cache.dart';
 
 /// Lifecycle execution status of a [BloomMutation].
+///
+/// Example:
+/// ```dart
+/// if (postMutation.status.value == MutationStatus.pending) {
+///   // show spinner
+/// }
+/// ```
 enum MutationStatus {
   /// Mutation has not been executed yet or has been reset.
   idle,
+
   /// Mutation execution is currently in progress.
   pending,
+
   /// Mutation executed successfully.
   success,
+
   /// Mutation execution encountered an error.
   error,
 }
@@ -35,6 +45,21 @@ typedef OnSettledCallback<T, P> = FutureOr<void> Function(T? data, Object? error
 typedef OptimisticUpdater<T, P> = T? Function(P params, T? oldData);
 
 /// Asynchronous mutation manager with automated optimistic updates, automatic rollback, and cache invalidation.
+///
+/// Encapsulates execution state signals ([data], [status], [error]), executes optimistic updates
+/// against [BloomData] query cache, rolls back automatically on error, and invalidates target query keys.
+///
+/// Example:
+/// ```dart
+/// final createPost = BloomMutation<Post, Map<String, dynamic>>(
+///   mutateFn: (params) => api.createPost(params),
+///   optimisticKey: ['posts'],
+///   optimisticData: (params, oldPosts) => [Post.fromMap(params), ...?oldPosts],
+///   invalidateKeys: [['posts']],
+/// );
+///
+/// await createPost.mutate({'title': 'New Article'});
+/// ```
 class BloomMutation<T, P> {
   /// The underlying mutation execution function.
   final MutationFn<T, P> mutateFn;
@@ -80,19 +105,19 @@ class BloomMutation<T, P> {
     _error = signal<Object?>(null, debugLabel: 'mutation.error');
   }
 
-  /// Reactive signal holding the latest successful result data.
+  /// Reactive signal holding the latest successful result data, or `null`.
   ReadonlySignal<T?> get data => _data.readonly();
 
   /// Reactive signal indicating the current mutation lifecycle status.
   ReadonlySignal<MutationStatus> get status => _status.readonly();
 
-  /// Reactive signal holding any error thrown during execution.
+  /// Reactive signal holding any error thrown during execution, or `null`.
   ReadonlySignal<Object?> get error => _error.readonly();
 
   /// Whether the mutation is in [MutationStatus.idle] status.
   bool get isIdle => _status.value == MutationStatus.idle;
 
-  /// Whether the mutation is actively executing.
+  /// Whether the mutation is actively executing in background.
   bool get isPending => _status.value == MutationStatus.pending;
 
   /// Whether the mutation succeeded.
@@ -101,8 +126,14 @@ class BloomMutation<T, P> {
   /// Whether the mutation failed with an error.
   bool get isError => _status.value == MutationStatus.error;
 
-  /// Safely execute mutation with parameters [params].
-  /// Catches errors and returns `null` on failure (state flags are updated).
+  /// Safely executes mutation with parameters [params].
+  ///
+  /// Catches errors and returns `null` on failure (state signals are updated with the error).
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = await createPost.mutate({'title': 'Hello'});
+  /// ```
   Future<T?> mutate(P params) async {
     try {
       return await mutateAsync(params);
@@ -111,7 +142,16 @@ class BloomMutation<T, P> {
     }
   }
 
-  /// Execute mutation returning the resolved data or rethrowing the error.
+  /// Executes mutation returning the resolved data [T] or rethrowing the caught error.
+  ///
+  /// Example:
+  /// ```dart
+  /// try {
+  ///   final post = await createPost.mutateAsync({'title': 'Hello'});
+  /// } catch (e) {
+  ///   print('Failed: $e');
+  /// }
+  /// ```
   Future<T> mutateAsync(P params) async {
     _status.value = MutationStatus.pending;
     _error.value = null;
@@ -180,7 +220,12 @@ class BloomMutation<T, P> {
     }
   }
 
-  /// Reset mutation state to idle.
+  /// Resets mutation state signals to [MutationStatus.idle] and clears data and error.
+  ///
+  /// Example:
+  /// ```dart
+  /// createPost.reset();
+  /// ```
   void reset() {
     _data.value = null;
     _status.value = MutationStatus.idle;
@@ -188,7 +233,15 @@ class BloomMutation<T, P> {
   }
 }
 
-/// Create a declarative mutation with optional automated optimistic rollback and cache invalidation.
+/// Creates a declarative mutation with optional automated optimistic rollback and cache invalidation.
+///
+/// Example:
+/// ```dart
+/// final deleteItem = mutation<bool, int>(
+///   mutate: (id) => api.deleteItem(id),
+///   invalidateKeys: [['items']],
+/// );
+/// ```
 BloomMutation<T, P> mutation<T, P>({
   required MutationFn<T, P> mutate,
   List<dynamic>? optimisticKey,

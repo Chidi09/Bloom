@@ -3,20 +3,41 @@ import 'dart:async';
 import 'native_module.dart';
 
 /// Application lifecycle events forwarded to registered Bloom Native Modules.
+///
+/// Mirrors Flutter and host OS application lifecycle transitions.
+///
+/// Example:
+/// ```dart
+/// BloomModuleRegistry().dispatchLifecycle(BloomLifecycleEvent.resumed);
+/// ```
 enum BloomLifecycleEvent {
-  /// App resumed into foreground.
+  /// App entered foreground and is visible and interactive.
   resumed,
-  /// App became inactive.
+
+  /// App became inactive and is not receiving user input.
   inactive,
-  /// App entered background paused state.
+
+  /// App entered background and is in a paused state.
   paused,
-  /// App detached from host view hierarchy.
+
+  /// App view is detached from host view hierarchy.
   detached,
-  /// App views hidden.
+
+  /// App views are hidden from display.
   hidden,
 }
 
-/// Central registry managing the lifecycle, registration, and discovery of Bloom Native Modules.
+/// Central singleton registry managing the lifecycle, registration, and discovery of Bloom Native Modules.
+///
+/// Modules register on startup or on demand, and automatically receive application lifecycle
+/// notifications ([BloomLifecycleEvent.resumed], [BloomLifecycleEvent.paused]) dispatched by the host.
+///
+/// Example:
+/// ```dart
+/// final registry = BloomModuleRegistry();
+/// await registry.registerModule(myCameraModule);
+/// final camera = registry.getModule<CameraModule>('BloomCamera');
+/// ```
 class BloomModuleRegistry {
   static final BloomModuleRegistry _instance = BloomModuleRegistry._internal();
 
@@ -27,16 +48,26 @@ class BloomModuleRegistry {
   final Map<String, BloomNativeModule> _modules = {};
   final StreamController<BloomLifecycleEvent> _lifecycleStream = StreamController<BloomLifecycleEvent>.broadcast();
 
-  /// Total number of active registered modules.
+  /// Total number of active registered modules in this registry.
   int get moduleCount => _modules.length;
 
-  /// Registers a native module and initializes its runtime hooks.
+  /// Registers a native [module] and executes its asynchronous [BloomNativeModule.onInit] lifecycle hook.
+  ///
+  /// Example:
+  /// ```dart
+  /// await BloomModuleRegistry().registerModule(myModule);
+  /// ```
   Future<void> registerModule(BloomNativeModule module) async {
     _modules[module.name] = module;
     await module.onInit();
   }
 
-  /// Unregisters and disposes a native module by name.
+  /// Unregisters and disposes a native module identified by [name], invoking [BloomNativeModule.onDispose].
+  ///
+  /// Example:
+  /// ```dart
+  /// await BloomModuleRegistry().unregisterModule('BloomCamera');
+  /// ```
   Future<void> unregisterModule(String name) async {
     final module = _modules.remove(name);
     if (module != null) {
@@ -44,7 +75,12 @@ class BloomModuleRegistry {
     }
   }
 
-  /// Retrieves a registered module by name, or throws [StateError] if missing.
+  /// Retrieves a registered module by [name], or throws [StateError] if missing.
+  ///
+  /// Example:
+  /// ```dart
+  /// final camera = BloomModuleRegistry().getModule<BloomCameraModule>('BloomCamera');
+  /// ```
   T getModule<T extends BloomNativeModule>(String name) {
     final module = _modules[name];
     if (module == null) {
@@ -53,18 +89,29 @@ class BloomModuleRegistry {
     return module as T;
   }
 
-  /// Retrieves an optional registered module by name, returning null if missing.
+  /// Retrieves an optional registered module by [name], returning `null` if not registered.
+  ///
+  /// Example:
+  /// ```dart
+  /// final location = BloomModuleRegistry().getModuleOrNull<LocationModule>('BloomLocation');
+  /// if (location != null) {
+  ///   // use location module
+  /// }
+  /// ```
   T? getModuleOrNull<T extends BloomNativeModule>(String name) {
     return _modules[name] as T?;
   }
 
-  /// Checks if a module is registered.
+  /// Checks whether a module identified by [name] is currently registered.
   bool hasModule(String name) => _modules.containsKey(name);
 
-  /// Returns an unmodifiable list of all active modules.
+  /// Returns an unmodifiable list of all currently active registered modules.
   List<BloomNativeModule> getAllModules() => List.unmodifiable(_modules.values);
 
-  /// Forwards an application lifecycle transition to all registered native modules.
+  /// Forwards an application lifecycle transition [event] to all registered native modules.
+  ///
+  /// Calls [BloomNativeModule.onHostResume] when [event] is [BloomLifecycleEvent.resumed],
+  /// and [BloomNativeModule.onHostPause] when [event] is [BloomLifecycleEvent.paused].
   void dispatchLifecycle(BloomLifecycleEvent event) {
     _lifecycleStream.add(event);
     for (final module in _modules.values) {
@@ -76,7 +123,7 @@ class BloomModuleRegistry {
     }
   }
 
-  /// Synchronously resets all registered modules and triggers disposal.
+  /// Synchronously resets all registered modules and triggers asynchronous background disposal.
   void resetSync() {
     final modulesToDispose = List<BloomNativeModule>.from(_modules.values);
     _modules.clear();
@@ -85,7 +132,9 @@ class BloomModuleRegistry {
     }
   }
 
-  /// Completely clears and resets all registered modules (used between test runs).
+  /// Completely clears and resets all registered modules, awaiting [BloomNativeModule.onDispose] on each.
+  ///
+  /// Used primarily between unit and widget test runs to ensure isolation.
   Future<void> reset() async {
     final modulesToDispose = List<BloomNativeModule>.from(_modules.values);
     _modules.clear();

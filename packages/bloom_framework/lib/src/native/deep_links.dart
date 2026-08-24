@@ -5,9 +5,27 @@ import '../core/logger.dart';
 import '../router/router.dart';
 
 /// Handler callback signature invoked when a deep link URI is received.
+///
+/// Example:
+/// ```dart
+/// void onLinkReceived(Uri uri) {
+///   print('Received deep link: ${uri.path}');
+/// }
+/// ```
 typedef DeepLinkHandler = FutureOr<void> Function(Uri uri);
 
 /// Cross-platform deep linking and Universal / App Links controller.
+///
+/// Handles cold-start deep links (when the application is launched from a link),
+/// runtime background/foreground incoming links, and automated routing via `BloomRouter`.
+///
+/// Example:
+/// ```dart
+/// await BloomDeepLinks.initialize(
+///   routeMappings: {'/invite': '/auth/register'},
+///   onLink: (uri) => print('Deep link: $uri'),
+/// );
+/// ```
 class BloomDeepLinks {
   static const MethodChannel _channel = MethodChannel('bloom/deep_links');
   static const EventChannel _eventChannel = EventChannel('bloom/deep_links_events');
@@ -17,10 +35,19 @@ class BloomDeepLinks {
   static Map<String, String> _routeMappings = {};
   static Uri? _pendingInitialUri;
 
-  /// Pending cold-start URI waiting for router creation.
+  /// Pending cold-start URI waiting for router creation and mounting.
   static Uri? get pendingInitialUri => _pendingInitialUri;
 
-  /// Initialize deep link listening.
+  /// Initializes deep link listening across cold-start and runtime event channels.
+  ///
+  /// Optionally configures a custom [onLink] callback handler and [routeMappings] table.
+  ///
+  /// Example:
+  /// ```dart
+  /// await BloomDeepLinks.initialize(
+  ///   routeMappings: {'help': '/support'},
+  /// );
+  /// ```
   static Future<void> initialize({
     DeepLinkHandler? onLink,
     Map<String, String> routeMappings = const {},
@@ -59,10 +86,17 @@ class BloomDeepLinks {
     } catch (_) {}
   }
 
-  /// Resolve and navigate a deep link URI.
+  /// Resolves and navigates a deep link [uri] immediately or invokes the custom handler.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomDeepLinks.dispatch(Uri.parse('myapp://dashboard/profile?tab=settings'));
+  /// ```
   static void dispatch(Uri uri) => _dispatch(uri);
 
-  /// Drain and navigate pending cold-start deep link once router is mounted.
+  /// Drains and navigates any pending cold-start deep link buffered before the router was mounted.
+  ///
+  /// Invoked automatically by the Bloom router initialization lifecycle.
   static void drainPending() {
     if (_pendingInitialUri != null) {
       final uri = _pendingInitialUri!;
@@ -111,7 +145,7 @@ class BloomDeepLinks {
     }
   }
 
-  /// Dispose and cancel active link subscriptions.
+  /// Disposes and cancels active runtime deep link subscriptions.
   static void dispose() {
     _linkSubscription?.cancel();
     _linkSubscription = null;

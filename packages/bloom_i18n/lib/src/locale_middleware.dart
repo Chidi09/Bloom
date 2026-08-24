@@ -11,18 +11,30 @@ final Expando<ResolvedLocale> _resolvedLocaleExpando =
 final Expando<BloomLocales> _localesRegistryExpando =
     Expando<BloomLocales>('BloomLocalesRegistry');
 
-/// Request wrapper carrying the resolved BCP-47 locale string.
+/// An immutable value object encapsulating a resolved BCP-47 language tag.
 ///
-/// Mirrors `ResolvedLocale` from `djangors-i18n`.
+/// Attached to [BloomRequest] instances by [BloomLocaleMiddleware] to represent
+/// the negotiation result between client preferences and server support.
+///
+/// ### Example
+///
+/// ```dart
+/// const resolved = ResolvedLocale('en-US');
+/// print(resolved.languageTag); // "en-US"
+/// print(resolved.toString()); // "en-US"
+/// ```
 class ResolvedLocale {
   /// The resolved BCP-47 language tag (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
   final String languageTag;
 
+  /// Creates a [ResolvedLocale] instance holding the given [languageTag].
   const ResolvedLocale(this.languageTag);
 
+  /// Returns the [languageTag] string representation.
   @override
   String toString() => languageTag;
 
+  /// Compares this [ResolvedLocale] to [other] by case-insensitive [languageTag] equality.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -34,7 +46,19 @@ class ResolvedLocale {
   int get hashCode => languageTag.toLowerCase().hashCode;
 }
 
-/// A parsed entry from an HTTP `Accept-Language` header with quality weighting.
+/// A parsed entry from an HTTP `Accept-Language` header with quality weighting (`q=`).
+///
+/// Implements [Comparable] to sort entries in descending order of [quality]
+/// (highest quality preferences first).
+///
+/// ### Example
+///
+/// ```dart
+/// const entry = AcceptLanguageEntry('fr-CH', 0.8);
+/// print(entry.tag); // "fr-CH"
+/// print(entry.quality); // 0.8
+/// print(entry.toString()); // "fr-CH;q=0.8"
+/// ```
 class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
   /// The BCP-47 language tag or subtag (e.g. `'fr'`, `'en-US'`).
   final String tag;
@@ -43,9 +67,11 @@ class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
   final double quality;
 
   /// Creates an [AcceptLanguageEntry] with the given language [tag] and [quality] weighting.
+  ///
+  /// [quality] defaults to `1.0` if not specified.
   const AcceptLanguageEntry(this.tag, [this.quality = 1.0]);
 
-
+  /// Compares this entry with [other] to sort by [quality] in descending order.
   @override
   int compareTo(AcceptLanguageEntry other) {
     // Descending order of quality value (highest quality first)
@@ -54,15 +80,26 @@ class AcceptLanguageEntry implements Comparable<AcceptLanguageEntry> {
     return 0;
   }
 
+  /// Formats this entry as an `Accept-Language` token (e.g. `'en-US;q=0.9'`).
   @override
   String toString() => '$tag;q=$quality';
 }
 
-/// Parses the first valid BCP-47 language tag from an `Accept-Language` header value.
+/// Parses the first valid BCP-47 language tag from an `Accept-Language` [header] value.
 ///
-/// Faithfully ports `first_locale_tag` from `djangors-i18n`: extracts the first
-/// comma-separated tag, strips parameters (such as `;q=...`), trims whitespace,
-/// filters out empty strings and wildcard `*`, and normalizes the tag.
+/// Extracts the first comma-separated tag, strips parameters (such as `;q=...`),
+/// trims whitespace, filters out empty strings and wildcards (`*`), and validates
+/// basic BCP-47 formatting.
+///
+/// Returns `null` if [header] is null, empty, or contains no valid tag.
+///
+/// ### Example
+///
+/// ```dart
+/// print(firstLocaleTag('fr-CH, fr;q=0.9, en;q=0.8')); // "fr-CH"
+/// print(firstLocaleTag('*;q=0.5')); // null
+/// print(firstLocaleTag(null)); // null
+/// ```
 String? firstLocaleTag(String? header) {
   if (header == null) return null;
   final firstPart = header.split(',').firstOrNull;
@@ -76,8 +113,25 @@ String? firstLocaleTag(String? header) {
   return _isValidLanguageTag(tag) ? tag : null;
 }
 
-/// Parses an entire `Accept-Language` header, sorting entries by quality weight (`q=`)
-/// in descending order and filtering out `q=0` and wildcards `*`.
+/// Parses an entire `Accept-Language` [header] string into a list of [AcceptLanguageEntry] objects.
+///
+/// Entries are sorted in descending order of quality value (`q=`), with entries having `q=0`
+/// and wildcards (`*`) omitted.
+///
+/// Returns an empty list if [header] is null or contains no valid entries.
+///
+/// ### Example
+///
+/// ```dart
+/// final entries = parseAcceptLanguage('da, en-gb;q=0.8, en;q=0.7');
+/// for (final e in entries) {
+///   print('${e.tag}: ${e.quality}');
+/// }
+/// // Output:
+/// // da: 1.0
+/// // en-gb: 0.8
+/// // en: 0.7
+/// ```
 List<AcceptLanguageEntry> parseAcceptLanguage(String? header) {
   if (header == null || header.trim().isEmpty) return const [];
 
@@ -122,28 +176,71 @@ bool _isValidLanguageTag(String tag) {
 
 /// Bloom server middleware resolving the request locale into request context.
 ///
-/// Mirrors `LocaleLayer` from `djangors-i18n`. Inspects incoming HTTP requests for:
-/// 1. Query parameter overrides (`?locale=` or `?lang=`)
-/// 2. Header `Accept-Language` (evaluated by quality values or first tag)
-/// 3. Configured [defaultLocale] (or `BloomEnv` fallback)
+/// Inspects incoming HTTP requests in order of priority:
+/// 1. Query parameter overrides (`?locale=`, `?lang=`, or `?hl=`)
+/// 2. `Accept-Language` HTTP request header (sorted by RFC quality weights `q=`)
+/// 3. Environment default from `BloomEnv.getOrNull('DEFAULT_LOCALE')`
+/// 4. Configured [defaultLocale]
 ///
-/// Attaches [ResolvedLocale] to the [BloomRequest] context for handlers to read.
+/// When a locale is resolved:
+/// - Attaches [ResolvedLocale] to [request.resolvedLocale] via request context.
+/// - Injects the resolved tag into `request.params['locale']`.
+/// - Attaches the optional [locales] registry to [request.locales] for `request.t()` calls.
+/// - Appends `Content-Language: <resolvedTag>` to the outgoing [BloomResponse] headers.
+///
+/// ### Example
+///
+/// ```dart
+/// import 'package:bloom_server/bloom_server.dart';
+/// import 'package:bloom_i18n/bloom_i18n.dart';
+///
+/// void main() {
+///   final locales = BloomLocales(defaultLocale: 'en-US');
+///   locales.addLocale('en-US', {'msg': 'Hello!'});
+///   locales.addLocale('es-ES', {'msg': '¡Hola!'});
+///
+///   final server = BloomServer();
+///   server.use(BloomLocaleMiddleware(
+///     defaultLocale: 'en-US',
+///     supportedLocales: ['en-US', 'es-ES'],
+///     locales: locales,
+///   ));
+///
+///   server.get('/message', (req) {
+///     return BloomResponse.ok(req.t('msg'));
+///   });
+/// }
+/// ```
 class BloomLocaleMiddleware implements BloomMiddleware {
-  /// Default fallback locale if no matching locale is found.
+  /// Default fallback locale if no matching locale is found in request headers or query params.
   final String defaultLocale;
 
-  /// Optional list of supported locales to restrict resolution against.
+  /// Optional list of supported BCP-47 locale tags to restrict resolution against.
+  ///
+  /// If provided, unsupported locales requested by the client will be ignored in
+  /// favor of base language subtags or [defaultLocale].
   final List<String>? supportedLocales;
 
-  /// Optional [BloomLocales] registry attached to requests.
+  /// Optional [BloomLocales] registry attached to requests for `request.t()` lookup.
   final BloomLocales? locales;
 
-  /// Whether to use full RFC quality weighting when matching `Accept-Language` header.
+  /// Whether to evaluate RFC quality weighting (`q=`) when parsing `Accept-Language` headers.
+  ///
+  /// Defaults to `true`. If `false`, only the first tag in the header is considered.
   final bool useQualityValues;
 
-  /// Parameter name for query overrides (e.g. `?locale=es`). Defaults to `'locale'`.
+  /// Parameter name checked for URL query overrides (e.g. `?locale=fr`).
+  ///
+  /// Defaults to `'locale'`. Falls back to checking `?lang=` and `?hl=`.
   final String queryParam;
 
+  /// Creates a [BloomLocaleMiddleware] instance.
+  ///
+  /// - [defaultLocale]: Fallback locale tag (defaults to `'en-US'`).
+  /// - [supportedLocales]: Optional whitelist of supported locale tags.
+  /// - [locales]: Optional [BloomLocales] translation registry to attach to requests.
+  /// - [useQualityValues]: Whether to respect `q=` weights (defaults to `true`).
+  /// - [queryParam]: Query parameter name for locale override (defaults to `'locale'`).
   const BloomLocaleMiddleware({
     this.defaultLocale = 'en-US',
     this.supportedLocales,
@@ -152,6 +249,8 @@ class BloomLocaleMiddleware implements BloomMiddleware {
     this.queryParam = 'locale',
   });
 
+  /// Intercepts [request], resolves its client locale, attaches context, and sets
+  /// the `Content-Language` header on the outgoing response.
   @override
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
     final effectiveDefault = _resolveDefaultLocale();
@@ -239,7 +338,17 @@ class BloomLocaleMiddleware implements BloomMiddleware {
   }
 }
 
-/// Convenience extensions on [BloomRequest] for reading the active locale.
+/// Convenience extensions on [BloomRequest] for reading the active locale and translating messages.
+///
+/// ### Example
+///
+/// ```dart
+/// server.get('/dashboard', (req) {
+///   print('Client locale: ${req.locale}');
+///   final greeting = req.t('welcome_back', args: {'user': 'Alex'});
+///   return BloomResponse.ok(greeting);
+/// });
+/// ```
 extension BloomLocaleRequestExtension on BloomRequest {
   /// Returns the [ResolvedLocale] attached by [BloomLocaleMiddleware], or `null` if absent.
   ResolvedLocale? get resolvedLocale => _resolvedLocaleExpando[this];
@@ -250,7 +359,15 @@ extension BloomLocaleRequestExtension on BloomRequest {
   /// Returns the [BloomLocales] registry attached by [BloomLocaleMiddleware], if configured.
   BloomLocales? get locales => _localesRegistryExpando[this];
 
-  /// Translates [messageId] for this request's resolved locale.
+  /// Translates [messageId] for this request's resolved [locale], interpolating optional [args].
+  ///
+  /// If no [BloomLocales] registry is attached to the request, returns the raw [messageId].
+  ///
+  /// Example:
+  /// ```dart
+  /// final title = req.t('dashboard.title');
+  /// final welcome = req.t('dashboard.welcome', args: {'name': 'Sam'});
+  /// ```
   String t(String messageId, {Map<String, Object>? args}) {
     final registry = locales;
     if (registry == null) return messageId;

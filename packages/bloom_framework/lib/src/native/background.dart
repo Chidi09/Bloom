@@ -5,9 +5,22 @@ import 'package:flutter/services.dart';
 import '../core/logger.dart';
 
 /// Callback signature for asynchronous background task execution.
+///
+/// Returns `true` if the background task completed successfully, or `false` on failure.
+///
+/// Example:
+/// ```dart
+/// Future<bool> mySyncTask(Map<String, dynamic> data) async {
+///   await syncPendingData();
+///   return true;
+/// }
+/// ```
 typedef BackgroundTaskCallback = FutureOr<bool> Function(Map<String, dynamic> data);
 
-/// Top-level background callback dispatcher for native background execution.
+/// Top-level background callback dispatcher for native OS background execution.
+///
+/// Registered as an entry point via `@pragma('vm:entry-point')` so host OS task runners
+/// (WorkManager on Android, BGTaskScheduler on iOS) can invoke Dart execution in background isolates.
 @pragma('vm:entry-point')
 void bloomBackgroundCallbackDispatcher() {
   const MethodChannel backgroundChannel = MethodChannel('bloom/background_dispatcher');
@@ -23,19 +36,54 @@ void bloomBackgroundCallbackDispatcher() {
 }
 
 /// Manages background task execution and background periodic synchronization.
+///
+/// Integrates with native platform task schedulers (WorkManager on Android,
+/// BGTaskScheduler on iOS) to run background sync, cache invalidation, and data prefetching.
+///
+/// Example:
+/// ```dart
+/// BloomBackground.registerTask('syncData', (data) async {
+///   return await syncLatestUpdates();
+/// });
+///
+/// await BloomBackground.schedulePeriodicTask(
+///   taskId: 'syncData',
+///   frequency: const Duration(hours: 1),
+///   requiresNetwork: true,
+/// );
+/// ```
 class BloomBackground {
   static const MethodChannel _channel = MethodChannel('bloom/background');
   static final Map<String, BackgroundTaskCallback> _registeredTasks =
       HashMap<String, BackgroundTaskCallback>();
 
-  /// Register a named background task handler.
+  /// Registers a named background task [callback] handler matching [taskId].
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomBackground.registerTask('dataSync', (data) async {
+  ///   // Perform background fetch
+  ///   return true;
+  /// });
+  /// ```
   static void registerTask(String taskId, BackgroundTaskCallback callback) {
     _registeredTasks[taskId] = callback;
     logger.debug('BloomBackground: Registered task handler for "$taskId"');
   }
 
-  /// Schedule a periodic background task with native OS task schedulers.
-  /// Returns `true` if scheduled, `false` if unsupported or failed.
+  /// Schedules a periodic background task with native OS task schedulers.
+  ///
+  /// Returns `true` if successfully scheduled, `false` if unsupported or rejected by host OS.
+  ///
+  /// Example:
+  /// ```dart
+  /// final scheduled = await BloomBackground.schedulePeriodicTask(
+  ///   taskId: 'syncTasks',
+  ///   frequency: const Duration(minutes: 15),
+  ///   requiresNetwork: true,
+  ///   requiresCharging: false,
+  /// );
+  /// ```
   static Future<bool> schedulePeriodicTask({
     required String taskId,
     required Duration frequency,
@@ -59,7 +107,12 @@ class BloomBackground {
     }
   }
 
-  /// Cancel a scheduled background task by ID.
+  /// Cancels a scheduled background task by [taskId].
+  ///
+  /// Example:
+  /// ```dart
+  /// await BloomBackground.cancelTask('syncTasks');
+  /// ```
   static Future<void> cancelTask(String taskId) async {
     logger.debug('BloomBackground: Cancelling background task "$taskId"');
     try {
@@ -69,7 +122,14 @@ class BloomBackground {
     }
   }
 
-  /// Execute a registered background task.
+  /// Executes a registered background task handler directly by [taskId] with optional [data].
+  ///
+  /// Returns the boolean status returned by the registered handler, or `false` if no handler exists or an error occurred.
+  ///
+  /// Example:
+  /// ```dart
+  /// final success = await BloomBackground.executeTask('syncTasks', {'scope': 'all'});
+  /// ```
   static Future<bool> executeTask(String taskId, [Map<String, dynamic> data = const {}]) async {
     final handler = _registeredTasks[taskId];
     if (handler == null) {
