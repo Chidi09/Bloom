@@ -588,6 +588,16 @@ void main() {
       expect(cpHtml, contains('stroke-dasharray'));
       expect(cpHtml, contains('stroke-dashoffset'));
     });
+
+    test('fontStylesheetLink renders stylesheet link element with default and custom href', () {
+      final defaultLinkHtml = renderToHtml(fontStylesheetLink());
+      expect(defaultLinkHtml, contains('<link'));
+      expect(defaultLinkHtml, contains('rel="stylesheet"'));
+      expect(defaultLinkHtml, contains('href="/generated/fonts/fonts.g.css"'));
+
+      final customLinkHtml = renderToHtml(fontStylesheetLink(href: '/assets/custom-fonts.css'));
+      expect(customLinkHtml, contains('href="/assets/custom-fonts.css"'));
+    });
   });
 }
 
