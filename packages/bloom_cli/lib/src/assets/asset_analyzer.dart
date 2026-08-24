@@ -4,11 +4,18 @@ import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Information about a discovered asset file and its usage across the project.
 class AssetFileInfo {
+  /// Relative path of the asset from the project root.
   final String relativePath;
+
+  /// Size of the asset file in bytes.
   final int sizeBytes;
+
+  /// Whether this asset is referenced in project source code.
   final bool isUsed;
 
+  /// Creates an asset file descriptor with path, size, and usage status.
   AssetFileInfo({
     required this.relativePath,
     required this.sizeBytes,
@@ -16,12 +23,21 @@ class AssetFileInfo {
   });
 }
 
+/// Aggregated results from analyzing project asset references.
 class AssetAnalysisResult {
+  /// All discovered physical asset files in the project.
   final List<AssetFileInfo> allAssets;
+
+  /// Discovered asset files not referenced in any project Dart source.
   final List<AssetFileInfo> unusedAssets;
+
+  /// Total size in bytes of all discovered assets.
   final int totalAssetBytes;
+
+  /// Total size in bytes of all unused/unreferenced assets.
   final int unusedAssetBytes;
 
+  /// Creates an analysis result summary with asset counts and byte metrics.
   AssetAnalysisResult({
     required this.allAssets,
     required this.unusedAssets,
@@ -32,10 +48,19 @@ class AssetAnalysisResult {
 
 /// Static analyzer to detect orphaned or unreferenced assets across Dart sources.
 class AssetAnalyzer {
+  /// The target Bloom project.
   final BloomProject project;
+
+  /// Directory containing project asset files (defaults to `assets/`).
   final Directory assetsDir;
+
+  /// Directory containing Dart source code to scan (defaults to `lib/`).
   final Directory libDir;
 
+  /// Creates an asset analyzer for [project].
+  ///
+  /// Scans [assetsDir] (defaulting to `<project>/assets`) against Dart sources
+  /// found in [libDir] (defaulting to `<project>/lib`).
   AssetAnalyzer({
     required this.project,
     Directory? assetsDir,

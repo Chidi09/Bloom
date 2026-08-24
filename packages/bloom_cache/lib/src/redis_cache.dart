@@ -6,11 +6,37 @@ import 'cache.dart';
 /// A distributed [BloomCache] implementation backed by Redis via the official
 /// `package:redis` client.
 ///
-/// Features:
-/// - Native Redis key expiration with millisecond precision (`PX` flag).
-/// - Automatic JSON serialization and deserialization for stored values.
-/// - Optional key prefix namespacing to isolate cache spaces within a single Redis instance.
-/// - Lazy connection initialization and lifecycle management.
+/// ### Key Features
+/// - **Native TTL**: High-precision key expiration using Redis `PX` (millisecond) flags.
+/// - **JSON Serialization**: Automatic encoding/decoding for primitives, maps, and lists.
+/// - **Prefix Namespacing**: Optional [prefix] prepended to all keys (e.g. `'staging:cache'`),
+///   preventing collisions in shared Redis environments.
+/// - **Tag-Based Invalidation**: Uses dedicated Redis SETs (`__tags:<tag>`) to track and
+///   invalidate all keys associated with specific tags in O(N) where N is the number of keys.
+/// - **Lazy Connection**: Automatically initializes the Redis connection upon first command execution.
+///
+/// Example:
+/// ```dart
+/// // Connect via URL
+/// final cache = RedisCache.fromUrl('redis://:secret@127.0.0.1:6379/0', prefix: 'myapp');
+///
+/// // Store with 1-hour TTL and tags
+/// await cache.set(
+///   'product:99',
+///   {'name': 'Mechanical Keyboard', 'price': 149.99},
+///   ttl: const Duration(hours: 1),
+///   tags: ['products', 'hardware'],
+/// );
+///
+/// final product = await cache.get<Map<String, dynamic>>('product:99');
+/// print(product?['name']); // "Mechanical Keyboard"
+///
+/// // Invalidate all products
+/// await cache.invalidateTag('products');
+///
+/// // Cleanup connection on shutdown
+/// await cache.close();
+/// ```
 class RedisCache extends BloomCache {
   /// The Redis server hostname.
   final String host;
@@ -18,16 +44,16 @@ class RedisCache extends BloomCache {
   /// The Redis server port.
   final int port;
 
-  /// Optional password used to authenticate against Redis.
+  /// Optional password used to authenticate against Redis (`AUTH`).
   final String? password;
 
-  /// Optional database index to select after connecting.
+  /// Optional database index to select (`SELECT`) after connecting.
   final int? db;
 
   /// Whether to connect using TLS/SSL (`rediss://`).
   final bool secure;
 
-  /// Optional key prefix prepended to all cache keys.
+  /// Optional key prefix prepended to all cache keys and tag sets.
   final String prefix;
 
   RedisConnection? _connection;
@@ -36,6 +62,19 @@ class RedisCache extends BloomCache {
   /// Creates a [RedisCache] by configuring connection parameters.
   ///
   /// The connection to Redis will be established lazily upon the first cache operation.
+  ///
+  /// Parameters:
+  /// - [host]: Redis server hostname. Defaults to `'localhost'`.
+  /// - [port]: Redis server port. Defaults to `6379`.
+  /// - [password]: Optional authentication password.
+  /// - [db]: Optional database numerical index (0-15).
+  /// - [secure]: If `true`, initiates a TLS/SSL connection. Defaults to `false`.
+  /// - [prefix]: Optional prefix prepended to all keys. Defaults to `''`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cache = RedisCache(host: 'redis.internal', port: 6379, prefix: 'bloom');
+  /// ```
   RedisCache({
     this.host = 'localhost',
     this.port = 6379,
@@ -47,7 +86,20 @@ class RedisCache extends BloomCache {
 
   /// Creates a [RedisCache] by parsing a standard Redis connection URL string.
   ///
-  /// Example: `redis://:secret@localhost:6379/0` or `rediss://...` (TLS).
+  /// Supports both plaintext (`redis://`) and TLS (`rediss://`) URI schemes.
+  /// URI format: `redis[s]://[:password@]host[:port][/db]`
+  ///
+  /// Parameters:
+  /// - [url]: The full Redis connection URL.
+  /// - [prefix]: Optional key prefix prepended to all cache keys. Defaults to `''`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cache = RedisCache.fromUrl(
+  ///   'redis://:mypassword@cache.example.com:6380/1',
+  ///   prefix: 'v1',
+  /// );
+  /// ```
   factory RedisCache.fromUrl(String url, {String prefix = ''}) {
     final uri = Uri.parse(url);
     final isSecure = uri.scheme == 'rediss';
@@ -79,6 +131,12 @@ class RedisCache extends BloomCache {
   }
 
   /// Creates a [RedisCache] wrapping an already established `package:redis` [Command] interface.
+  ///
+  /// Useful when sharing a pre-existing connection or mock instance across components.
+  ///
+  /// Parameters:
+  /// - [command]: The initialized [Command] instance.
+  /// - [prefix]: Optional key prefix prepended to all cache keys. Defaults to `''`.
   RedisCache.fromCommand(Command command, {this.prefix = ''})
       : host = '',
         port = 0,
@@ -110,6 +168,11 @@ class RedisCache extends BloomCache {
     return cmd;
   }
 
+  /// Retrieves the value associated with [key] from Redis.
+  ///
+  /// Sends a `GET` command to Redis. If the key exists and has not expired,
+  /// deserializes and casts the stored JSON string to [T].
+  /// Returns `null` if the key does not exist or has expired.
   @override
   Future<T?> get<T>(String key) async {
     final cmd = await _getCommand();
@@ -123,6 +186,11 @@ class RedisCache extends BloomCache {
     return decodeCacheValue<T>(rawString);
   }
 
+  /// Stores [value] under [key] in Redis with optional [ttl] and [tags].
+  ///
+  /// Executes a `SET` command with optional `PX` (millisecond) expiration flag.
+  /// Cleans up any prior tag associations for this key and adds the key to the
+  /// corresponding Redis tag sets (`SADD`).
   @override
   Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
     final cmd = await _getCommand();
@@ -147,6 +215,9 @@ class RedisCache extends BloomCache {
     }
   }
 
+  /// Deletes the cache entry associated with [key] from Redis.
+  ///
+  /// Sends a `DEL` command and removes [key] from any tag sets it belonged to.
   @override
   Future<void> delete(String key) async {
     final cmd = await _getCommand();
@@ -175,9 +246,16 @@ class RedisCache extends BloomCache {
     }
   }
 
+  /// Removes every entry labelled with [tag].
+  ///
+  /// Delegates to [invalidateTags] with a single-element list.
   @override
   Future<void> invalidateTag(String tag) => invalidateTags([tag]);
 
+  /// Removes every entry labelled with ANY of the given [tags].
+  ///
+  /// Queries each tag's Redis SET (`SMEMBERS`) to resolve all associated keys,
+  /// deletes those keys via a single batch `DEL`, and removes the tag sets themselves.
   @override
   Future<void> invalidateTags(List<String> tags) async {
     if (tags.isEmpty) return;
@@ -207,6 +285,11 @@ class RedisCache extends BloomCache {
     await cmd.send_object(['DEL', ...tagSetKeys]);
   }
 
+  /// Clears entries from Redis.
+  ///
+  /// If [prefix] is empty, executes `FLUSHDB` to flush the active Redis database.
+  /// If [prefix] is set, finds and deletes all keys matching `$prefix:*` while leaving
+  /// unrelated keys untouched.
   @override
   Future<void> clear() async {
     final cmd = await _getCommand();
@@ -222,6 +305,14 @@ class RedisCache extends BloomCache {
   }
 
   /// Closes the underlying Redis connection if it was initialized by this cache.
+  ///
+  /// Subsequent calls after closing will automatically re-open a new connection
+  /// on the next command execution.
+  ///
+  /// Example:
+  /// ```dart
+  /// await cache.close();
+  /// ```
   Future<void> close() async {
     if (_connection != null) {
       await _connection!.close();
@@ -230,3 +321,4 @@ class RedisCache extends BloomCache {
     }
   }
 }
+

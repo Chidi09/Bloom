@@ -23,6 +23,16 @@ const List<String> _corePackages = [
 
 const List<String> _devOnlyPackages = ['bloom_db_generator'];
 
+/// Parent command to scaffold and manage Bloom Server (backend) projects, Django-style.
+///
+/// Provides subcommands: `create`, `startapp`, and `run`.
+///
+/// Example:
+/// ```
+/// bloom server create my_api --db postgres
+/// bloom server startapp orders
+/// bloom server run
+/// ```
 class ServerCommand extends Command<int> {
   @override
   final String name = 'server';

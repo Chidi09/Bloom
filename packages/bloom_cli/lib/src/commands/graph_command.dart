@@ -5,6 +5,16 @@ import '../explain/graph_generator.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that renders the architectural dependency graph (Routes ➔ Controllers ➔ Repositories ➔ Services).
+///
+/// Supports text tree, Mermaid markdown diagram, and Graphviz DOT formats.
+///
+/// Example:
+/// ```
+/// bloom graph
+/// bloom graph --format mermaid
+/// bloom graph --format dot --project-dir ./my_app
+/// ```
 class GraphCommand extends Command<int> {
   @override
   final String name = 'graph';

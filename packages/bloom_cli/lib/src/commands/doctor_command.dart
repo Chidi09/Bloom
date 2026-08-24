@@ -12,6 +12,17 @@ import '../utils/project.dart';
 
 const _bloomCliVersion = '0.4.0';
 
+/// Command that validates environment, toolchain, project configuration, and CI health.
+///
+/// Inspects Dart and Flutter SDKs, native mobile toolchains, mDNS network interfaces,
+/// dependency CVEs, secret leaks, and upgrade breaking-change compatibility.
+///
+/// Example:
+/// ```
+/// bloom doctor
+/// bloom doctor --ci
+/// bloom doctor --upgrade
+/// ```
 class DoctorCommand extends Command<int> {
   @override
   final String name = 'doctor';

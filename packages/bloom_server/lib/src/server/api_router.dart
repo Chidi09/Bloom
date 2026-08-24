@@ -10,6 +10,15 @@ import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_seo/bloom_seo.dart';
 
 /// Handler function signature for Bloom server route endpoints.
+///
+/// Accepts an incoming [request] and asynchronously produces a [BloomResponse].
+///
+/// ### Example
+/// ```dart
+/// BloomRouteHandler healthHandler = (request) async {
+///   return BloomResponse.json({'status': 'healthy'});
+/// };
+/// ```
 typedef BloomRouteHandler = FutureOr<BloomResponse> Function(BloomRequest request);
 
 class _PayloadTooLargeException implements Exception {
@@ -43,7 +52,7 @@ class _RouteEntry {
 /// High-performance server router for Bloom API routes, WebSocket gateways, and SSR endpoints.
 ///
 /// ### Architectural Contract
-/// - Provides unified route registration (`get`, `post`, `put`, `delete`, `patch`, `all`) with nested
+/// - Provides unified route registration ([get], [post], [put], [delete], [patch], [all]) with nested
 ///   or route-scoped middleware pipelines and global pipeline hooks ([use]).
 /// - Supports path parameter matching (`/api/tasks/:id`), wildcard captures (`/*`), and automatic
 ///   OpenAPI 3.1 schema specification generation and interactive Scalar / Swagger UI mounting ([enableOpenApi]).
@@ -51,15 +60,37 @@ class _RouteEntry {
 ///
 /// ### Concurrency & Shutdown Model
 /// - Non-blocking asynchronous request handling across server isolates.
-/// - Tracks active requests via `_inFlightRequests` completers to support graceful zero-downtime shutdown
+/// - Tracks active requests via in-flight request completers to support graceful zero-downtime shutdown
 ///   via [close], draining active connections within a configurable timeout before force-closing sockets.
 /// - Rejects incoming requests with HTTP 503 Service Unavailable during shutdown drain phase.
 ///
-/// ### Non-Obvious Design Decisions
-/// - **Specificity-Based Route Sorting**: Routes are sorted by specificity score (exact static matches >
-///   parameterized segments > wildcard routes) so registration order does not cause unintentional route shadowing.
-/// - **Streaming Body Size Guards**: [handleIoRequest] checks byte stream length against [maxRequestBodyBytes]
-///   before buffering full payloads, short-circuiting large payload attacks with 413 Payload Too Large.
+/// ### Specificity-Based Route Sorting
+/// Routes are sorted by specificity score (exact static matches > parameterized segments > wildcard routes)
+/// so registration order does not cause unintentional route shadowing.
+///
+/// ### Streaming Request Guards & Response Backpressure
+/// - [handleIoRequest] checks byte stream length against [maxRequestBodyBytes] before buffering full payloads,
+///   short-circuiting oversized payload attacks with HTTP 413 Payload Too Large.
+/// - Incremental responses use `addStream` to propagate backpressure from the client socket directly to
+///   the byte producer.
+///
+/// ### Example
+/// ```dart
+/// final router = BloomApiRouter();
+///
+/// // Global middleware
+/// router.use(BloomCorsMiddleware());
+///
+/// // Route definitions
+/// router.get('/api/health', (req) async => BloomResponse.json({'status': 'ok'}));
+/// router.get('/api/users/:id', (req) async {
+///   final id = req.params['id']!;
+///   return BloomResponse.json({'id': id, 'name': 'User $id'});
+/// });
+///
+/// // Bind and listen
+/// final server = await router.serve(port: 8080);
+/// ```
 class BloomApiRouter {
   final List<BloomMiddleware> _globalMiddlewares = [];
   final List<_RouteEntry> _routes = [];
@@ -67,37 +98,77 @@ class BloomApiRouter {
   final Set<Completer<void>> _inFlightRequests = {};
   bool _isClosing = false;
 
-  /// Adds a global middleware executed before all routes.
+  /// Registers a global [middleware] executed before all route handlers in this router.
+  ///
+  /// Global middlewares execute in the order they are registered.
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.use(BloomCorsMiddleware());
+  /// ```
   void use(BloomMiddleware middleware) {
     _globalMiddlewares.add(middleware);
   }
 
-  /// Registers a GET route.
+  /// Registers a `GET` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.get('/api/items', (req) async => BloomResponse.json(items));
+  /// ```
   void get(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('GET', path, handler, middlewares);
   }
 
-  /// Registers a POST route.
+  /// Registers a `POST` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.post('/api/items', (req) async {
+  ///   final payload = req.json();
+  ///   return BloomResponse.json(payload, statusCode: 201);
+  /// });
+  /// ```
   void post(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('POST', path, handler, middlewares);
   }
 
-  /// Registers a PUT route.
+  /// Registers a `PUT` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.put('/api/items/:id', (req) async => BloomResponse.json({'updated': req.params['id']}));
+  /// ```
   void put(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('PUT', path, handler, middlewares);
   }
 
-  /// Registers a DELETE route.
+  /// Registers a `DELETE` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.delete('/api/items/:id', (req) async => BloomResponse.noContent());
+  /// ```
   void delete(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('DELETE', path, handler, middlewares);
   }
 
-  /// Registers a PATCH route.
+  /// Registers a `PATCH` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.patch('/api/items/:id', (req) async => BloomResponse.json({'patched': req.params['id']}));
+  /// ```
   void patch(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('PATCH', path, handler, middlewares);
   }
 
-  /// Registers a route matching all HTTP methods.
+  /// Registers a route for [path] matching all HTTP methods (GET, POST, PUT, DELETE, PATCH, OPTIONS, etc.).
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.all('/api/proxy/*', (req) async => proxyHandler(req));
+  /// ```
   void all(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('*', path, handler, middlewares);
   }
@@ -105,6 +176,15 @@ class BloomApiRouter {
   /// Mounts a high-performance Server-Side Rendered (SSR) endpoint using [BloomNode].
   ///
   /// Executes pure-Dart [builder] in <1ms without JavaScript engine overhead.
+  /// Automatically wraps the resulting HTML using [layout], [head], or a default HTML5 template.
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.ssr('/dashboard', (req) => Div(
+  ///   classes: 'p-6 max-w-4xl mx-auto',
+  ///   children: [H1(text: 'Welcome back')],
+  /// ));
+  /// ```
   void ssr(
     String path,
     BloomNode Function(BloomRequest request) builder, {
@@ -182,10 +262,25 @@ class BloomApiRouter {
     _routes.sort((a, b) => b.specificity.compareTo(a.specificity));
   }
 
-  /// Dispatches and processes an incoming [BloomRequest].
+  /// Dispatches and processes an incoming [BloomRequest] through the middleware and route pipeline.
+  ///
+  /// Alias for [handleRequest].
   Future<BloomResponse> handle(BloomRequest request) => handleRequest(request);
 
-  /// Dispatches and processes an incoming [BloomRequest].
+  /// Dispatches and processes an incoming [BloomRequest] through global middlewares and matching routes.
+  ///
+  /// Matches routes based on specificity order. If a matching route is found, executes the
+  /// route's scoped middleware chain followed by its handler. Handles `HEAD` requests by executing
+  /// the matching `GET` handler and safely canceling any resulting body stream without sending body bytes.
+  ///
+  /// Returns a 404 Not Found [BloomResponse] if no registered route matches [request].
+  ///
+  /// ### Example
+  /// ```dart
+  /// final req = BloomRequest(method: 'GET', uri: Uri.parse('http://localhost/api/health'));
+  /// final res = await router.handleRequest(req);
+  /// expect(res.statusCode, equals(200));
+  /// ```
   Future<BloomResponse> handleRequest(BloomRequest request) async {
     return _executePipeline(_globalMiddlewares, request, () async {
       final method = request.method.toUpperCase();
@@ -245,10 +340,25 @@ class BloomApiRouter {
     return await next();
   }
 
-  /// Binds to a real dart:io [HttpServer] and serves API / SSR requests.
+  /// Binds to a native `dart:io` [HttpServer] and begins serving API and SSR requests.
   ///
-  /// Supports optional [securityContext] for TLS/HTTPS binding via [HttpServer.bindSecure],
-  /// and optional [maxRequestBodyBytes] to enforce streaming request body size limits.
+  /// Listens on [address] (defaults to [InternetAddress.anyIPv4]) and [port] (default 8080).
+  /// If [securityContext] is provided, uses [HttpServer.bindSecure] for TLS/HTTPS termination.
+  ///
+  /// [maxRequestBodyBytes] optionally enforces a strict size limit on incoming request bodies,
+  /// short-circuiting oversized payloads with an HTTP 413 response before full buffering.
+  ///
+  /// Tracks active in-flight requests to support graceful zero-downtime shutdown via [close].
+  ///
+  /// ### Example
+  /// ```dart
+  /// final server = await router.serve(
+  ///   address: InternetAddress.loopbackIPv4,
+  ///   port: 3000,
+  ///   maxRequestBodyBytes: 10 * 1024 * 1024, // 10MB limit
+  /// );
+  /// print('Server running on port ${server.port}');
+  /// ```
   Future<HttpServer> serve({
     InternetAddress? address,
     int port = 8080,
@@ -291,11 +401,21 @@ class BloomApiRouter {
     return server;
   }
 
-  /// Gracefully closes active HTTP server(s) and drains in-flight requests.
+  /// Gracefully closes all active [HttpServer] instances and drains in-flight requests.
   ///
-  /// Stops accepting new connections immediately, waits up to [gracePeriod]
-  /// (default 30 seconds) for in-flight requests to complete, and then force-closes
-  /// any remaining active connections.
+  /// 1. Stops accepting new socket connections immediately on all bound servers.
+  /// 2. Waits up to [gracePeriod] (default 30 seconds) for in-flight requests to complete.
+  /// 3. Rejects new incoming requests during drain with HTTP 503 Service Unavailable.
+  /// 4. Force-closes any sockets remaining open when [gracePeriod] expires.
+  ///
+  /// ### Example
+  /// ```dart
+  /// ProcessSignal.sigterm.watch().listen((_) async {
+  ///   print('Shutting down gracefully...');
+  ///   await router.close(gracePeriod: Duration(seconds: 15));
+  ///   exit(0);
+  /// });
+  /// ```
   Future<void> close({Duration gracePeriod = const Duration(seconds: 30)}) async {
     _isClosing = true;
 
@@ -329,10 +449,16 @@ class BloomApiRouter {
     _isClosing = false;
   }
 
-  /// Bridges standard dart:io [HttpRequest] to [handleRequest].
+  /// Bridges a native `dart:io` [HttpRequest] to the Bloom router pipeline.
   ///
-  /// Rejects requests exceeding [maxRequestBodyBytes] with a 413 Payload Too Large
-  /// response before buffering the entire body into memory.
+  /// Converts [ioReq] into a typed [BloomRequest], executes the matching route handler
+  /// and middleware chain, and streams or buffers the resulting [BloomResponse] back
+  /// to the underlying [HttpResponse] socket.
+  ///
+  /// If [maxRequestBodyBytes] is exceeded, responds with HTTP 413 Payload Too Large.
+  /// If an uncaught exception occurs, responds with HTTP 500 Internal Server Error.
+  /// If a streaming response encounters a failure mid-stream, the socket connection
+  /// is aborted to notify the client of incomplete transmission.
   Future<void> handleIoRequest(HttpRequest ioReq, {int? maxRequestBodyBytes}) async {
     try {
       final bodyBytes = await _readStreamBytes(ioReq, maxBytes: maxRequestBodyBytes);
@@ -412,6 +538,20 @@ class BloomApiRouter {
 
   /// Automatically generates an OpenAPI 3.1 specification and mounts interactive
   /// Scalar and Swagger UI documentation endpoints.
+  ///
+  /// Mounts:
+  /// - [schemaPath] (default `'/api/openapi.json'`): The raw OpenAPI 3.1 JSON specification.
+  /// - [docsPath] (default `'/api/docs'`): Modern dark-themed Scalar API reference explorer.
+  /// - [swaggerPath] (default `'/api/swagger'`): Interactive Swagger UI test console.
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.enableOpenApi(
+  ///   title: 'E-Commerce API',
+  ///   version: '2.1.0',
+  ///   description: 'Public storefront and admin REST endpoints',
+  /// );
+  /// ```
   void enableOpenApi({
     String title = 'Bloom API',
     String version = '1.0.0',
@@ -431,6 +571,11 @@ class BloomApiRouter {
   }
 
   /// Generates an OpenAPI 3.1 specification map from all registered routes.
+  ///
+  /// Converts parameterized path patterns (`/api/tasks/:id` -> `/api/tasks/{id}`),
+  /// extracts path parameters, infers tags from URL segments, and configures JSON request/response schemas.
+  ///
+  /// Returns a standard OpenAPI 3.1.0 compliant [Map].
   Map<String, dynamic> toOpenApiSpec({
     String title = 'Bloom API',
     String version = '1.0.0',

@@ -5,6 +5,17 @@ import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command to manage and add Bloom UI primitives (shadcn-inspired Flutter UI library).
+///
+/// Provides subcommands: `add`, `list`, and `init`.
+///
+/// Example:
+/// ```
+/// bloom ui list
+/// bloom ui init
+/// bloom ui add button
+/// bloom ui add all --overwrite
+/// ```
 class UiCommand extends Command<int> {
   @override
   final String name = 'ui';
@@ -24,6 +35,12 @@ class UiCommand extends Command<int> {
   }
 }
 
+/// Subcommand that lists all available Bloom UI primitives grouped by category.
+///
+/// Example:
+/// ```
+/// bloom ui list
+/// ```
 class UiListCommand extends Command<int> {
   @override
   final String name = 'list';
@@ -48,6 +65,14 @@ class UiListCommand extends Command<int> {
   }
 }
 
+/// Subcommand that adds a Bloom UI primitive to your project via copy-paste architecture.
+///
+/// Example:
+/// ```
+/// bloom ui add button
+/// bloom ui add dialog --overwrite
+/// bloom ui add all
+/// ```
 class UiAddCommand extends Command<int> {
   @override
   final String name = 'add';
@@ -156,6 +181,12 @@ class UiAddCommand extends Command<int> {
   }
 }
 
+/// Subcommand that initializes Bloom UI design tokens and theme configuration in your project.
+///
+/// Example:
+/// ```
+/// bloom ui init
+/// ```
 class UiInitCommand extends Command<int> {
   @override
   final String name = 'init';

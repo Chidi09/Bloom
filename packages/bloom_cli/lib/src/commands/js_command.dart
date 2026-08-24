@@ -14,6 +14,16 @@ import '../utils/project.dart';
 import '../dev/server_supervisor.dart';
 
 /// Top-level command `bloom js` for Bloom JS Native web apps.
+///
+/// Manages fine-grained reactive web applications through subcommands: `dev`, `build`, `vendor`, and `create`.
+///
+/// Example:
+/// ```
+/// bloom js dev
+/// bloom js build
+/// bloom js vendor
+/// bloom js create CounterButton
+/// ```
 class JsCommand extends Command<int> {
   @override
   final String name = 'js';
@@ -36,7 +46,13 @@ class JsCommand extends Command<int> {
   }
 }
 
-/// `bloom js dev` — starts hot live-reloading dev server.
+/// Subcommand `bloom js dev` that starts the native Bloom JS dev server with live reload and automatic compilation.
+///
+/// Example:
+/// ```
+/// bloom js dev --port 3000 --host 0.0.0.0
+/// bloom js dev --entry lib/custom_entry.dart
+/// ```
 class JsDevCommand extends Command<int> {
   @override
   final String name = 'dev';
@@ -241,7 +257,13 @@ class JsDevCommand extends Command<int> {
   }
 }
 
-/// `bloom js build` — production optimizer.
+/// Subcommand `bloom js build` that compiles the Bloom JS application for production with -O4 tree-shaking and minification.
+///
+/// Example:
+/// ```
+/// bloom js build
+/// bloom js build --output build/web/app.js --entry lib/main.dart
+/// ```
 class JsBuildCommand extends Command<int> {
   @override
   final String name = 'build';
@@ -344,7 +366,12 @@ class JsBuildCommand extends Command<int> {
   }
 }
 
-/// `bloom js vendor` — sync NPM packages.
+/// Subcommand `bloom js vendor` that downloads, bundles, and vendors NPM packages declared in bloom.yaml.
+///
+/// Example:
+/// ```
+/// bloom js vendor
+/// ```
 class JsVendorCommand extends Command<int> {
   @override
   final String name = 'vendor';
@@ -366,8 +393,14 @@ class JsVendorCommand extends Command<int> {
   }
 }
 
-/// `bloom js create <name>` — scaffolds a new Bloom JS Native component
-/// file with boilerplate, plus a matching test file.
+/// Subcommand `bloom js create` that scaffolds a new Bloom JS Native component, page, or route guard with a test.
+///
+/// Example:
+/// ```
+/// bloom js create Counter
+/// bloom js create Profile --page
+/// bloom js create Auth --guard
+/// ```
 class JsCreateCommand extends Command<int> {
   @override
   final String name = 'create';

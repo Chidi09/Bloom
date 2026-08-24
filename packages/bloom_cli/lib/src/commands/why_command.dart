@@ -5,6 +5,13 @@ import '../native/dependency_graph.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that explains why a native module or Dart package is included in the project.
+///
+/// Example:
+/// ```
+/// bloom why bloom_camera
+/// bloom why camera --project-dir ./my_app
+/// ```
 class WhyCommand extends Command<int> {
   @override
   final String name = 'why';

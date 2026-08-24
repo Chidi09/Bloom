@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 - 2026-08-24
+
+### Added
+* Tag-based cache invalidation.
+
 ## 0.2.0 - 2026-08-23
 
 ### Breaking

@@ -5,6 +5,15 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../utils/ansi.dart';
 
+/// Parent command for native module authoring, isolated sandbox dev runner, and multi-platform testing.
+///
+/// Provides subcommands: `dev` and `test`.
+///
+/// Example:
+/// ```
+/// bloom module dev --dry-run
+/// bloom module test --module-dir ./packages/my_module
+/// ```
 class ModuleCommand extends Command<int> {
   @override
   final String name = 'module';

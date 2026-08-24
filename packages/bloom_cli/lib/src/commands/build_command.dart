@@ -12,12 +12,25 @@ import '../utils/project.dart';
 import '../web/ssg_engine.dart';
 import '../web/ssr_engine.dart';
 
+/// Command that compiles production artifacts with Bloom environment injection and flavor profiles.
+///
+/// Supports Flutter native targets (`apk`, `ipa`, `appbundle`), pure Dart web (`web_dom`),
+/// static site generation (`--static`), server bundles (`--server`), and build provenance generation.
+///
+/// Example:
+/// ```
+/// bloom build web --static
+/// bloom build web --server --flavor production
+/// bloom build apk --flavor staging --env-file .env.staging
+/// bloom build provenance
+/// ```
 class BuildCommand extends Command<int> {
   @override
   final String name = 'build';
   @override
   final String description = 'Compiles production artifacts with Bloom environment injection and flavor profiles.';
 
+  /// Process runner function used for executing underlying compilation commands.
   final Future<ProcessResult> Function(
     String executable,
     List<String> arguments, {
@@ -28,6 +41,7 @@ class BuildCommand extends Command<int> {
     ProcessStartMode mode,
   }) processRunner;
 
+  /// Creates a build command, optionally with a custom [processRunner].
   BuildCommand({
     this.processRunner = _defaultProcessRunner,
   }) {

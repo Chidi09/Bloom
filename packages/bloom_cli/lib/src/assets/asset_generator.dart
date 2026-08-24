@@ -6,10 +6,18 @@ import '../utils/project.dart';
 
 /// Generates strongly-typed asset accessor constants (`lib/generated/assets.g.dart`).
 class AssetGenerator {
+  /// The target Bloom project.
   final BloomProject project;
+
+  /// Directory containing assets to generate references for (defaults to `assets/`).
   final Directory assetsDir;
+
+  /// Target output file for generated Dart code (defaults to `lib/generated/assets.g.dart`).
   final File outputFile;
 
+  /// Creates an asset code generator for [project].
+  ///
+  /// Optionally overrides the source [assetsDir] and destination [outputFile].
   AssetGenerator({
     required this.project,
     Directory? assetsDir,
@@ -18,7 +26,7 @@ class AssetGenerator {
         outputFile = outputFile ??
             File(p.join(project.rootDir.path, 'lib', 'generated', 'assets.g.dart'));
 
-  /// Generates the strongly typed Dart file.
+  /// Generates the strongly typed Dart file and returns the written [File].
   File generate() {
     print(Ansi.boldText('\n⚡ Generating Typed Asset References...'));
 

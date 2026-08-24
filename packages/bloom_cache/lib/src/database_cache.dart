@@ -9,6 +9,35 @@ import 'cache.dart';
 /// Works seamlessly with both PostgreSQL ([PostgresDbExecutor]) and SQLite ([SqliteDbExecutor]).
 /// Stored values are encoded as JSON strings, and entry expiration timestamps are stored
 /// in a timezone-aware timestamp column.
+///
+/// ### Tag-Based Invalidation Model
+/// In addition to the primary cache table ([tableName]), this backend creates and maintains
+/// a companion tag association table ([tagTableName], defaulting to `${tableName}_tags`).
+/// Each entry tagged during [set] produces rows in [tagTableName] mapping the cache `key`
+/// to each `tag`. A dedicated index (`${tagTableName}_tag_idx`) ensures O(1) indexed lookups
+/// during [invalidateTag] and [invalidateTags].
+///
+/// When a key is overwritten with new tags, its previous tag associations are wiped
+/// and replaced to prevent stale tag associations.
+///
+/// Example:
+/// ```dart
+/// final db = SqliteDbExecutor.openInMemory();
+/// final cache = DatabaseCache(db, tableName: 'app_cache');
+///
+/// await cache.set(
+///   'user:42',
+///   {'name': 'Alice', 'role': 'admin'},
+///   ttl: const Duration(days: 1),
+///   tags: ['users', 'role:admin'],
+/// );
+///
+/// final user = await cache.get<Map<String, dynamic>>('user:42');
+/// print(user?['name']); // "Alice"
+///
+/// // Invalidate all entries tagged with 'role:admin'
+/// await cache.invalidateTag('role:admin');
+/// ```
 class DatabaseCache extends BloomCache {
   /// The underlying database executor from `package:bloom_db`.
   final DbExecutor db;
@@ -18,18 +47,33 @@ class DatabaseCache extends BloomCache {
 
   /// The companion table associating cache keys with their tags.
   ///
-  /// Derived from [tableName] so a caller that renames the cache table gets a
-  /// matching tag table rather than two unrelated caches sharing one.
+  /// Derived from [tableName] (`'${tableName}_tags'`) so a caller that renames
+  /// the cache table gets an isolated tag table rather than multiple caches
+  /// sharing the same tag namespace.
   String get tagTableName => '${tableName}_tags';
 
   bool _initialized = false;
 
   /// Creates a [DatabaseCache] using the provided [db] executor.
   ///
-  /// [tableName] defaults to `'bloom_cache_entries'`.
+  /// Parameters:
+  /// - [db]: The database executor connected to PostgreSQL or SQLite.
+  /// - [tableName]: Custom table name for cache storage. Defaults to `'bloom_cache_entries'`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cache = DatabaseCache(db, tableName: 'session_cache');
+  /// ```
   DatabaseCache(this.db, {this.tableName = 'bloom_cache_entries'});
 
-  /// Lazily ensures that the cache table exists in the database.
+  /// Lazily ensures that both the cache table and tag association table exist in the database.
+  ///
+  /// Creates:
+  /// 1. `$tableName (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at TIMESTAMP)`
+  /// 2. `$tagTableName (key TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (key, tag))`
+  /// 3. Index `${tagTableName}_tag_idx` ON `$tagTableName (tag)`
+  ///
+  /// Called automatically before any database operation; explicit invocation is optional.
   Future<void> ensureTable() async {
     if (_initialized) return;
 
@@ -56,6 +100,11 @@ class DatabaseCache extends BloomCache {
     _initialized = true;
   }
 
+  /// Retrieves the value associated with [key] from the database table.
+  ///
+  /// Checks whether the entry's `expires_at` timestamp is in the past. If expired,
+  /// the entry is eagerly deleted via [delete] and `null` is returned.
+  /// Otherwise, the JSON string in the `value` column is deserialized to [T].
   @override
   Future<T?> get<T>(String key) async {
     await ensureTable();
@@ -81,6 +130,12 @@ class DatabaseCache extends BloomCache {
     return decodeCacheValue<T>(rawValue);
   }
 
+  /// Stores [value] under [key] with optional [ttl] and [tags].
+  ///
+  /// Performs an SQL UPSERT (`INSERT INTO ... ON CONFLICT (key) DO UPDATE`) to persist
+  /// the JSON payload and computed `expires_at` timestamp.
+  ///
+  /// Replaces existing tag associations for [key] in [tagTableName] with the new [tags].
   @override
   Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
     await ensureTable();
@@ -119,6 +174,7 @@ class DatabaseCache extends BloomCache {
     }
   }
 
+  /// Deletes the cache entry associated with [key] and removes all its tag associations.
   @override
   Future<void> delete(String key) async {
     await ensureTable();
@@ -129,6 +185,7 @@ class DatabaseCache extends BloomCache {
     await db.execute('DELETE FROM $tagTableName WHERE key = $p1', [key]);
   }
 
+  /// Clears all entries from both the cache table and the companion tag table.
   @override
   Future<void> clear() async {
     await ensureTable();
@@ -138,9 +195,16 @@ class DatabaseCache extends BloomCache {
     await db.execute('DELETE FROM $tagTableName');
   }
 
+  /// Removes every entry labelled with [tag].
+  ///
+  /// Delegates to [invalidateTags] with a single-element list.
   @override
   Future<void> invalidateTag(String tag) => invalidateTags([tag]);
 
+  /// Removes every entry labelled with ANY of the given [tags].
+  ///
+  /// Queries [tagTableName] for all keys tagged with any of the requested [tags],
+  /// then deletes each matched key from both [tableName] and [tagTableName].
   @override
   Future<void> invalidateTags(List<String> tags) async {
     if (tags.isEmpty) return;
@@ -166,7 +230,15 @@ class DatabaseCache extends BloomCache {
     }
   }
 
-  /// Deletes all expired entries from the cache table in a single query.
+  /// Deletes all expired entries from the cache table in a single SQL query.
+  ///
+  /// Returns the total number of expired rows removed from [tableName].
+  ///
+  /// Example:
+  /// ```dart
+  /// final prunedCount = await cache.pruneExpired();
+  /// print('Pruned $prunedCount expired entries');
+  /// ```
   Future<int> pruneExpired() async {
     await ensureTable();
 
@@ -175,3 +247,4 @@ class DatabaseCache extends BloomCache {
     return await db.execute(sql, [DateTime.now().toUtc()]);
   }
 }
+

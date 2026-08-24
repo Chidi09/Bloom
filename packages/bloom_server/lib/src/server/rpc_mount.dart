@@ -11,15 +11,36 @@ import 'bloom_response.dart';
 
 /// Mounts a [BloomRpcRouter] onto a [BloomApiRouter] under [basePath].
 ///
+/// This provides Backend-for-Frontend (BFF) RPC support, bridging typed [BloomRpcContract]
+/// definitions from `package:bloom_js_native` directly onto the server's HTTP router.
+///
 /// ### Architectural Contract
-/// - Translates incoming [BloomRequest] instances into [BloomRpcServerRequest] values,
-///   dispatches them to matching typed [BloomRpcBinding] handlers registered in [rpcRouter],
-///   and converts the returned [BloomRpcServerResponse] back into a [BloomResponse].
-/// - Maps strongly-typed RPC error exceptions ([BloomRpcValidationErrors] -> 422,
-///   [BloomRpcHttpException] -> `statusCode`, unknown exceptions -> 500) without leaking
-///   Dart stack traces in production HTTP response bodies.
-/// - Registers every bound contract endpoint explicitly with [router] so they appear in
-///   OpenAPI 3.1 specifications generated via [BloomApiRouter.toOpenApiSpec].
+/// - **Request Translation**: Adapts incoming [BloomRequest] instances into [BloomRpcServerRequest]
+///   values, extracting query parameters, headers, and decoded JSON or text bodies.
+/// - **Contract Dispatch**: Dispatches requests to matching typed [BloomRpcBinding] handlers registered
+///   in [rpcRouter], and converts the returned [BloomRpcServerResponse] back into a [BloomResponse].
+/// - **Error Mapping & Safety**: Maps strongly-typed RPC errors cleanly without leaking internal stack traces:
+///   - [BloomRpcValidationErrors] -> HTTP 422 Unprocessable Entity with structured field errors.
+///   - [BloomRpcHttpException] -> Specified `statusCode` and JSON payload.
+///   - Unhandled exceptions -> HTTP 500 Internal Server Error with sanitized error message.
+/// - **OpenAPI Integration**: Registers every bound RPC contract explicitly on [router], ensuring they
+///   are fully documented in OpenAPI 3.1 specifications generated via [BloomApiRouter.toOpenApiSpec].
+/// - **Fallback Routing**: Automatically registers a catch-all route under `$basePath/*` so unhandled
+///   sub-paths return HTTP 404 without leaking server internals.
+///
+/// ### Example
+/// ```dart
+/// final rpcRouter = BloomRpcRouter();
+///
+/// // Bind typed RPC contracts
+/// rpcRouter.bind(getTaskContract, (ctx, input) async {
+///   final taskId = ctx.pathParams['id']!;
+///   return taskService.getTask(taskId);
+/// });
+///
+/// final router = BloomApiRouter();
+/// mountBloomRpc(router, rpcRouter, basePath: '/api/rpc');
+/// ```
 void mountBloomRpc(
   BloomApiRouter router,
   BloomRpcRouter rpcRouter, {
@@ -172,14 +193,17 @@ BloomResponse _toBloomResponse(BloomRpcServerResponse rpcResponse) {
 
 /// Extension on [BloomApiRouter] providing fluent RPC router mounting.
 extension BloomRpcMountExtension on BloomApiRouter {
-  /// Mounts a [BloomRpcRouter] under [basePath] (default `'/api/rpc'`).
+  /// Mounts a [BloomRpcRouter] under [basePath] (default `'/api/rpc'`) with optional [middlewares].
   ///
+  /// Convenience method that delegates to [mountBloomRpc].
+  ///
+  /// ### Example
   /// ```dart
   /// final rpcRouter = BloomRpcRouter();
   /// rpcRouter.bind(getTaskContract, (ctx, input) async => taskDb.find(ctx.pathParams['id']!));
   ///
   /// final apiRouter = BloomApiRouter();
-  /// apiRouter.mountRpc(rpcRouter);
+  /// apiRouter.mountRpc(rpcRouter, basePath: '/api/v1/rpc');
   /// ```
   void mountRpc(
     BloomRpcRouter rpcRouter, {
@@ -189,3 +213,4 @@ extension BloomRpcMountExtension on BloomApiRouter {
     mountBloomRpc(this, rpcRouter, basePath: basePath, middlewares: middlewares);
   }
 }
+

@@ -9,6 +9,9 @@
 /// Note: This is an optional convenience helper and is NOT forcibly coupled
 /// to `HeadManager`.
 ///
+/// - [slug]: The route or page identifier (e.g. `'home'`, `'/blog/post-1'`).
+/// - [base]: The base directory path for generated OG images (defaults to `'/generated/og'`).
+///
 /// Example:
 /// ```dart
 /// head.ogImage.value = ogImagePath(slug: 'home');

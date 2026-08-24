@@ -9,6 +9,16 @@ import '../npm/importmap_manager.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that removes a Bloom native plugin or NPM web package from the project.
+///
+/// Cleans up configuration in `bloom.yaml`, deletes vendored assets and generated Dart bindings,
+/// and re-synchronizes the native prebuild and importmap configurations.
+///
+/// Example:
+/// ```
+/// bloom remove camera
+/// bloom remove gsap
+/// ```
 class RemoveCommand extends Command<int> {
   @override
   final String name = 'remove';

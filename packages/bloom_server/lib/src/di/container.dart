@@ -38,8 +38,41 @@ class _Binding<T> {
 }
 
 /// Lightweight, high-performance Dependency Injection container for Bloom.
+///
+/// ### Architecture & Scoping Model
+/// [BloomContainer] supports three binding lifecycles:
+/// 1. **Transient** ([provide]): The factory is executed every time [inject] is called,
+///    producing a fresh instance each time.
+/// 2. **Singleton** ([provideSingleton]): The factory is executed once, and the resulting
+///    instance is cached and reused across all subsequent [inject] calls. Can be created
+///    lazily on first resolution (default) or eagerly upon registration (`lazy: false`).
+/// 3. **Value** ([provideValue]): An already-instantiated object is registered directly.
+///
+/// ### Hierarchical Resolution
+/// Containers can be nested with an optional [parent]. When resolving a type [T]:
+/// 1. The container checks for local test overrides ([override] / [overrideType]).
+/// 2. The container checks its own local bindings.
+/// 3. If not found locally and [parent] exists, resolution delegates up to the [parent].
+/// 4. If nowhere found, [inject] throws a descriptive [StateError] (or [injectOrNull] returns `null`).
+///
+/// ### Testing & Overrides
+/// Test harnesses can register overrides via [override] or [BloomTestScope] that take
+/// precedence over existing bindings without altering production container setup.
+///
+/// ### Example
+/// ```dart
+/// final container = BloomContainer();
+///
+/// // Register services
+/// container.provideSingleton<DatabaseService>(() => PostgresService());
+/// container.provide<UserRepository>(() => UserRepository(container.inject<DatabaseService>()));
+/// container.provideValue<String>('https://api.example.com');
+///
+/// // Resolve dependencies
+/// final userRepo = container.inject<UserRepository>();
+/// ```
 class BloomContainer {
-  /// Optional parent container for hierarchical dependency lookup.
+  /// Optional parent container for hierarchical dependency lookup cascades.
   final BloomContainer? parent;
   final Map<Type, _Binding<dynamic>> _bindings = HashMap<Type, _Binding<dynamic>>();
   final Map<Type, dynamic> _overrides = HashMap<Type, dynamic>();
@@ -47,37 +80,79 @@ class BloomContainer {
   /// Creates a [BloomContainer] with an optional [parent] container.
   BloomContainer({this.parent});
 
-  /// Register a transient factory. A new instance is created on each `inject<T>()`.
+  /// Registers a transient [factory] for type [T].
+  ///
+  /// A new instance is constructed on every call to [inject] or [injectOrNull].
+  ///
+  /// ### Example
+  /// ```dart
+  /// container.provide<RandomGenerator>(() => RandomGenerator());
+  /// ```
   void provide<T>(FactoryFunc<T> factory) {
     _bindings[T] = _Binding<T>.transient(factory);
   }
 
-  /// Register a singleton factory. The instance is created once and reused.
+  /// Registers a singleton [factory] for type [T].
+  ///
+  /// The [factory] creates a single instance that is cached and returned for all
+  /// future resolutions of [T].
+  ///
+  /// If [lazy] is `true` (the default), the instance is created on first [inject].
+  /// If [lazy] is `false`, the instance is instantiated immediately upon registration.
+  ///
+  /// ### Example
+  /// ```dart
+  /// container.provideSingleton<AuthService>(() => AuthService(), lazy: true);
+  /// ```
   void provideSingleton<T>(FactoryFunc<T> factory, {bool lazy = true}) {
     _bindings[T] = _Binding<T>.singleton(factory, lazy: lazy);
   }
 
-  /// Register an existing value instance.
+  /// Registers an existing [value] instance for type [T].
+  ///
+  /// Useful for configuration objects, pre-constructed clients, or constant values.
+  ///
+  /// ### Example
+  /// ```dart
+  /// container.provideValue<AppConfig>(loadedConfig);
+  /// ```
   void provideValue<T>(T value) {
     _bindings[T] = _Binding<T>.value(value);
   }
 
-  /// Override a dependency with a concrete generic type [T].
+  /// Overrides dependency resolution for generic type [T] with a mock/stub [instance].
+  ///
+  /// Overrides take highest precedence in resolution, superseding any registered bindings.
+  ///
+  /// ### Example
+  /// ```dart
+  /// container.override<EmailService>(MockEmailService());
+  /// ```
   void override<T>(T instance) {
     _overrides[T] = instance;
   }
 
-  /// Override a dependency with an explicit [type].
+  /// Overrides dependency resolution for an explicit runtime [type] with [instance].
+  ///
+  /// Useful for dynamic or reflection-free runtime override registration.
   void overrideType(Type type, dynamic instance) {
     _overrides[type] = instance;
   }
 
-  /// Remove a test override by generic type or explicit [type].
+  /// Removes an active test override for type [T] (or explicitly specified [type]).
   void removeOverride<T>([Type? type]) {
     _overrides.remove(type ?? T);
   }
 
-  /// Resolve dependency of type [T]. Throws [StateError] if unregistered.
+  /// Resolves the dependency of type [T].
+  ///
+  /// Checks overrides first, then local bindings, and finally cascades to [parent].
+  /// Throws [StateError] if no provider or override is registered for [T].
+  ///
+  /// ### Example
+  /// ```dart
+  /// final db = container.inject<DatabaseService>();
+  /// ```
   T inject<T>() {
     if (_overrides.containsKey(T)) {
       return _overrides[T] as T;
@@ -98,7 +173,15 @@ class BloomContainer {
     );
   }
 
-  /// Resolve dependency of type [T], or return `null` if not registered.
+  /// Resolves the dependency of type [T], or returns `null` if not registered.
+  ///
+  /// Checks overrides first, then local bindings, and cascades to [parent].
+  ///
+  /// ### Example
+  /// ```dart
+  /// final analytics = container.injectOrNull<AnalyticsService>();
+  /// analytics?.logEvent('app_start');
+  /// ```
   T? injectOrNull<T>() {
     if (_overrides.containsKey(T)) {
       return _overrides[T] as T?;
@@ -113,13 +196,17 @@ class BloomContainer {
     return null;
   }
 
-  /// Check if a dependency of type [T] is registered.
+  /// Checks whether a dependency of type [T] is registered in this container,
+  /// its overrides, or any ancestor [parent] container.
   bool has<T>() =>
       _overrides.containsKey(T) ||
       _bindings.containsKey(T) ||
       (parent?.has<T>() ?? false);
 
-  /// Dump container registrations for DevTools visual inspection.
+  /// Dumps container registrations, bindings, and active overrides for DevTools inspection.
+  ///
+  /// Returns a structured map containing binding counts, types, lifecycles, instantiation states,
+  /// active override names, and parent status.
   Map<String, dynamic> dumpContainer() {
     final bindingsList = <Map<String, dynamic>>[];
     _bindings.forEach((type, binding) {
@@ -141,7 +228,7 @@ class BloomContainer {
     };
   }
 
-  /// Clear all local registrations and overrides.
+  /// Clears all local bindings and active overrides from this container.
   void reset() {
     _bindings.clear();
     _overrides.clear();
@@ -151,32 +238,66 @@ class BloomContainer {
 /// Global active container used by the framework.
 BloomContainer _activeContainer = BloomContainer();
 
-/// Access the global active Bloom DI container.
+/// Accesses the global active Bloom DI container.
 BloomContainer get globalContainer => _activeContainer;
 
-/// Set the currently active container (used by BloomTestScope for test isolation).
+/// Sets the currently active global container (used by [BloomTestScope] for test isolation).
 void setActiveContainer(BloomContainer container) {
   _activeContainer = container;
 }
 
-/// Reset active container to a fresh instance.
+/// Resets the global active container to a fresh, empty [BloomContainer] instance.
 void resetActiveContainer() {
   _activeContainer.reset();
   _activeContainer = BloomContainer();
 }
 
-/// Resolve a dependency from the global Bloom container.
+/// Resolves a dependency of type [T] from the global active Bloom container.
+///
+/// Throws [StateError] if [T] has not been registered.
+///
+/// ### Example
+/// ```dart
+/// final logger = inject<BloomLogger>();
+/// ```
 T inject<T>() => globalContainer.inject<T>();
 
-/// Resolve a dependency from the global Bloom container, or return `null` if not registered.
+/// Resolves an optional dependency of type [T] from the global active Bloom container,
+/// or returns `null` if not registered.
+///
+/// ### Example
+/// ```dart
+/// final metrics = injectOrNull<MetricsCollector>();
+/// ```
 T? injectOrNull<T>() => globalContainer.injectOrNull<T>();
 
-/// Register a transient factory on the global Bloom container.
+/// Registers a transient [factory] on the global active Bloom container.
+///
+/// A fresh instance of [T] is created each time [inject] is called.
+///
+/// ### Example
+/// ```dart
+/// provide<PaymentGateway>(() => StripeGateway());
+/// ```
 void provide<T>(FactoryFunc<T> factory) => globalContainer.provide<T>(factory);
 
-/// Register a singleton on the global Bloom container.
+/// Registers a singleton [factory] on the global active Bloom container.
+///
+/// The instance is created once and reused across all subsequent resolutions.
+/// If [lazy] is `true` (default), instantiation is deferred until first resolution.
+///
+/// ### Example
+/// ```dart
+/// provideSingleton<DatabaseClient>(() => DatabaseClient());
+/// ```
 void provideSingleton<T>(FactoryFunc<T> factory, {bool lazy = true}) =>
     globalContainer.provideSingleton<T>(factory, lazy: lazy);
 
-/// Register an existing instance value on the global Bloom container.
+/// Registers an existing instance [value] on the global active Bloom container.
+///
+/// ### Example
+/// ```dart
+/// provideValue<ServerConfig>(config);
+/// ```
 void provideValue<T>(T value) => globalContainer.provideValue<T>(value);
+

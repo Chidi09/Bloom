@@ -8,6 +8,17 @@ import '../npm/importmap_manager.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that adds and configures Bloom plugins or NPM web packages.
+///
+/// Resolves native mobile plugins from the catalog or downloads NPM ESM packages,
+/// generates Dart interop bindings, and updates project configuration.
+///
+/// Example:
+/// ```
+/// bloom add camera
+/// bloom add npm:three
+/// bloom add npm:gsap@3.12.5
+/// ```
 class AddCommand extends Command<int> {
   @override
   final String name = 'add';

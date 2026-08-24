@@ -6,6 +6,14 @@ import '../assets/font_optimizer.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command to download, self-host, and optimize web fonts.
+///
+/// Provides the `optimize` subcommand to fetch Google Fonts at build time.
+///
+/// Example:
+/// ```
+/// bloom fonts optimize --family Inter --weight 400 --weight 700
+/// ```
 class FontCommand extends Command<int> {
   @override
   final String name = 'fonts';

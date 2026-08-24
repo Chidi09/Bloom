@@ -7,6 +7,16 @@ import '../utils/ansi.dart';
 import '../utils/project.dart';
 import 'create_module_command.dart';
 
+/// Command that creates a new standardized Bloom application or native module.
+///
+/// Scaffolds directory hierarchy, core files (`bloom.yaml`, `.env`, `routes.g.dart`),
+/// injects framework dependencies, and initializes git and pub configuration.
+///
+/// Example:
+/// ```
+/// bloom create my_app --org com.mycompany --description "My Bloom app"
+/// bloom create module my_sensor --org dev.bloom
+/// ```
 class CreateCommand extends Command<int> {
   @override
   final String name = 'create';

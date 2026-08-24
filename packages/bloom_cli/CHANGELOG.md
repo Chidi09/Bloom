@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-08-24
+
+### Added
+* **`bloom typegen`**: compile-checked, typed route builder generation from route annotations.
+* **`bloom insights`**: live dev-server request log (`GET /__insights` on the dev server; `--url`/`--json`/`--limit` flags, with port auto-discovery when `--url` is omitted).
+* **`bloom doctor`**: new System Information section (OS/CPU/CLI process memory) and a best-effort Version Check against pub.dev.
+* **Open in editor**: dev error overlay entries now have an "Open `file:line`" button that launches `$VISUAL`/`$EDITOR` (or `code --goto`) at the exact error location, with path-containment and shell-injection guards.
+* **`bloom fonts optimize`**: self-hosts Google Fonts `.woff2` files at build time and generates `fonts.g.css` with a CLS-mitigation fallback face.
+* **`bloom og generate`**: build-time Open Graph social card PNG generator (1200x630).
+* Server-side image optimizer for responsive variants.
+* Production deployment for web targets.
+
 ## 0.4.0 - 2026-08-23
 
 - Bun vendoring, SSR router endpoint, and SSG prerendering delivered end to end.

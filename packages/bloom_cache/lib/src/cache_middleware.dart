@@ -54,32 +54,82 @@ class _CachedResponse {
 /// Mirrors the design of `djangors-cache`'s `CacheLayer` / `CacheService`:
 /// - Intercepts incoming `GET` requests only; non-`GET` requests pass through untouched.
 /// - Caches entire HTTP responses (status code, headers, and body payload) under a key
-///   derived from the request path and query parameters (`path?query`).
+///   derived from the request path and query parameters (`$keyPrefix:path?query`).
 /// - On cache hits, returns the cached [BloomResponse] immediately with `x-bloom-cache: HIT`.
-/// - Supports multiple opt-out mechanisms:
-///   - Route handlers can send `x-bloom-no-cache: true` or `cache-control: no-store` / `no-cache`.
-///   - Responses that set cookies (`set-cookie` header) are never cached to avoid leaking session data.
-///   - Configurable [excludePaths] prefix list and custom [shouldCache] filter predicate.
+/// - On cache misses, passes down to the downstream handler, caches eligible responses, and
+///   attaches `x-bloom-cache: MISS`.
+///
+/// ### Caching Eligibility & Opt-Out Rules
+/// A response is cached only if ALL of the following criteria are met:
+/// 1. HTTP method is `GET`.
+/// 2. Request path does not match any prefix in [excludePaths].
+/// 3. Custom [shouldCache] filter returns `true` (if provided).
+/// 4. Response status code is in the 2xx range (200-299).
+/// 5. Response does NOT set cookies (no `Set-Cookie` header).
+/// 6. Response does NOT include `x-bloom-no-cache: true` or `1`.
+/// 7. Response `Cache-Control` header does NOT contain `no-store`, `no-cache`, or `private`.
+/// 8. If [requireExplicitCacheable] is `true`, response MUST include `x-bloom-cacheable: true`.
+///
+/// Example:
+/// ```dart
+/// final app = BloomServer();
+/// final cache = InMemoryCache(maxCapacity: 1000);
+///
+/// app.use(BloomCacheMiddleware(
+///   cache: cache,
+///   ttl: const Duration(minutes: 10),
+///   excludePaths: ['/api/auth', '/api/checkout'],
+/// ));
+/// ```
 class BloomCacheMiddleware implements BloomMiddleware {
   /// The [BloomCache] backend where responses are stored.
   final BloomCache cache;
 
   /// Time-to-live duration for cached responses.
+  ///
+  /// Defaults to 5 minutes.
   final Duration ttl;
 
-  /// Key prefix for cached HTTP responses.
+  /// Key prefix for cached HTTP responses in [cache].
+  ///
+  /// Defaults to `'http_cache'`.
   final String keyPrefix;
 
-  /// List of URL paths that should be excluded from caching.
+  /// List of URL path prefixes that should be excluded from caching.
+  ///
+  /// A path matches if it is identical to an exclusion entry or starts with `$path/`.
+  /// Defaults to an empty list.
   final List<String> excludePaths;
 
-  /// Custom filter function to determine whether a given request should be cached.
+  /// Optional custom filter predicate to determine whether a given [request] should be cached.
+  ///
+  /// If provided and returns `false`, caching is bypassed for this request.
   final bool Function(BloomRequest request)? shouldCache;
 
-  /// If true, only responses with `x-bloom-cacheable: true` header will be cached.
+  /// Whether responses require an explicit `x-bloom-cacheable: true` header to be cached.
+  ///
+  /// When `true`, opt-in mode is enabled. Defaults to `false` (opt-out mode).
   final bool requireExplicitCacheable;
 
   /// Creates a [BloomCacheMiddleware] instance.
+  ///
+  /// Parameters:
+  /// - [cache]: The underlying cache backend ([InMemoryCache], [DatabaseCache], or [RedisCache]).
+  /// - [ttl]: Duration before cached responses expire. Defaults to 5 minutes.
+  /// - [keyPrefix]: Cache key namespace. Defaults to `'http_cache'`.
+  /// - [excludePaths]: Path prefixes to skip caching. Defaults to `[]`.
+  /// - [shouldCache]: Custom request predicate to dynamically skip caching.
+  /// - [requireExplicitCacheable]: If `true`, only responses with `x-bloom-cacheable: true` are cached.
+  ///
+  /// Example:
+  /// ```dart
+  /// final middleware = BloomCacheMiddleware(
+  ///   cache: InMemoryCache(maxCapacity: 500),
+  ///   ttl: const Duration(minutes: 15),
+  ///   keyPrefix: 'v1_api',
+  ///   excludePaths: ['/auth', '/admin'],
+  /// );
+  /// ```
   const BloomCacheMiddleware({
     required this.cache,
     this.ttl = const Duration(minutes: 5),
@@ -90,11 +140,24 @@ class BloomCacheMiddleware implements BloomMiddleware {
   });
 
   /// Computes the unique cache key for a given [request].
+  ///
+  /// Formats key as: `$keyPrefix:${request.path}?${request.uri.query}`
+  /// (query string is omitted if empty).
+  ///
+  /// Example:
+  /// ```dart
+  /// // Produces 'http_cache:/api/users?page=2'
+  /// final key = middleware.cacheKeyFor(request);
+  /// ```
   String cacheKeyFor(BloomRequest request) {
     final query = request.uri.hasQuery ? '?${request.uri.query}' : '';
     return '$keyPrefix:${request.path}$query';
   }
 
+  /// Processes the incoming [request] through the cache layer.
+  ///
+  /// Returns a cached [BloomResponse] on cache hit, or executes [next] and caches
+  /// the returned response if eligible.
   @override
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
     // 1. Only GET requests are eligible for caching
@@ -179,3 +242,4 @@ class BloomCacheMiddleware implements BloomMiddleware {
     return true;
   }
 }
+

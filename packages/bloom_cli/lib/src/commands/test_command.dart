@@ -4,6 +4,14 @@ import 'package:args/command_runner.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that runs unit, widget, and integration tests across the Bloom project.
+///
+/// Example:
+/// ```
+/// bloom test
+/// bloom test --coverage
+/// bloom test --name "auth"
+/// ```
 class TestCommand extends Command<int> {
   @override
   final String name = 'test';

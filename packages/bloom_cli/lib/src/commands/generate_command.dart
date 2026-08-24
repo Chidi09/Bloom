@@ -7,6 +7,20 @@ import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command that generates routes, pages, controllers, models, services, environments, and module bridges.
+///
+/// Manages code generation across all architectural layers of a Bloom application.
+///
+/// Example:
+/// ```
+/// bloom generate page users/[id]
+/// bloom generate controller Auth --feature auth
+/// bloom generate model User
+/// bloom generate service Api
+/// bloom generate router
+/// bloom generate env
+/// bloom generate api items
+/// ```
 class GenerateCommand extends Command<int> {
   @override
   final String name = 'generate';
