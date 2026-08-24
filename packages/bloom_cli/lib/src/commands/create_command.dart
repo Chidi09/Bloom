@@ -281,6 +281,9 @@ class CreateCommand extends Command<int> {
     File(p.join(targetDir.path, '.gitignore')).writeAsStringSync(
       BloomTemplates.jsNativeGitignore(),
     );
+    File(p.join(targetDir.path, 'AGENTS.md')).writeAsStringSync(
+      BloomTemplates.jsNativeAgentsMd(projectName: appName),
+    );
 
     print(Ansi.step('3/4 Resolving project dependencies...'));
     final pubGet = await Process.run('dart', ['pub', 'get'], workingDirectory: targetDir.path);
