@@ -40,6 +40,11 @@ class CreateCommand extends Command<int> {
       ..addOption(
         'framework-path',
         help: 'Local path to bloom_framework package (for local development).',
+      )
+      ..addFlag(
+        'js-native',
+        help: 'Scaffold a Flutter-free Bloom JS Native web project instead of a Flutter app.',
+        negatable: false,
       );
   }
 
@@ -83,6 +88,14 @@ class CreateCommand extends Command<int> {
     if (targetDir.existsSync() && targetDir.listSync().isNotEmpty) {
       print(Ansi.error('Directory "${targetDir.path}" already exists and is not empty.'));
       return 1;
+    }
+
+    if (argResults?['js-native'] as bool? ?? false) {
+      return _createJsNativeProject(
+        appName: appName,
+        description: description,
+        targetDir: targetDir,
+      );
     }
 
     print(Ansi.boldText('\n🌱 Creating Bloom application: ${Ansi.cyan}$appName${Ansi.reset}\n'));
@@ -223,6 +236,65 @@ class CreateCommand extends Command<int> {
     print('  ${Ansi.cyan}cd $appName${Ansi.reset}');
     print('  ${Ansi.cyan}bloom dev${Ansi.reset}      (Launch development server)');
     print('  ${Ansi.cyan}bloom doctor${Ansi.reset}   (Check environment health)\n');
+
+    return 0;
+  }
+
+  /// Scaffolds a Flutter-free Bloom JS Native project: no `flutter create`,
+  /// no `bloom_framework` dependency, no Flutter-shaped directories. Just a
+  /// correct, working `pubspec.yaml` + `bloom.yaml` (`type: js_native`) +
+  /// `web/index.html` + `lib/main.dart` that compiles and runs via
+  /// `bloom js dev` / `bloom js build` out of the box.
+  Future<int> _createJsNativeProject({
+    required String appName,
+    required String description,
+    required Directory targetDir,
+  }) async {
+    print(Ansi.boldText('\n🌱 Creating Bloom JS Native application: ${Ansi.cyan}$appName${Ansi.reset}\n'));
+
+    print(Ansi.step('1/4 Creating project directories...'));
+    targetDir.createSync(recursive: true);
+    Directory(p.join(targetDir.path, 'lib')).createSync(recursive: true);
+    Directory(p.join(targetDir.path, 'web')).createSync(recursive: true);
+    Directory(p.join(targetDir.path, 'test')).createSync(recursive: true);
+
+    print(Ansi.step('2/4 Generating manifests and entry point...'));
+    File(p.join(targetDir.path, 'bloom.yaml')).writeAsStringSync(
+      BloomTemplates.jsNativeBloomYaml(name: appName, description: description),
+    );
+    File(p.join(targetDir.path, 'pubspec.yaml')).writeAsStringSync(
+      BloomTemplates.jsNativePubspec(
+        name: appName,
+        description: description,
+        bloomJsNativeVersion: '0.3.0',
+      ),
+    );
+    File(p.join(targetDir.path, 'web', 'index.html')).writeAsStringSync(
+      BloomTemplates.jsNativeIndexHtml(name: appName),
+    );
+    File(p.join(targetDir.path, 'lib', 'main.dart')).writeAsStringSync(
+      BloomTemplates.jsNativeMainDart(projectName: appName),
+    );
+    File(p.join(targetDir.path, 'test', 'smoke_test.dart')).writeAsStringSync(
+      BloomTemplates.jsNativeSmokeTest(projectName: appName),
+    );
+    File(p.join(targetDir.path, '.gitignore')).writeAsStringSync(
+      BloomTemplates.jsNativeGitignore(),
+    );
+
+    print(Ansi.step('3/4 Resolving project dependencies...'));
+    final pubGet = await Process.run('dart', ['pub', 'get'], workingDirectory: targetDir.path);
+    if (pubGet.exitCode != 0) {
+      print(Ansi.warn('Warning: dart pub get completed with warnings:'));
+      print(pubGet.stderr);
+    }
+
+    print(Ansi.step('4/4 Done.'));
+    print('\n${Ansi.success('Bloom JS Native application "$appName" created successfully!')}\n');
+    print('Next steps:');
+    print('  ${Ansi.cyan}cd $appName${Ansi.reset}');
+    print('  ${Ansi.cyan}bloom js dev${Ansi.reset}     (Launch dev server with live reload)');
+    print('  ${Ansi.cyan}bloom js build${Ansi.reset}   (Compile a production bundle)\n');
 
     return 0;
   }
