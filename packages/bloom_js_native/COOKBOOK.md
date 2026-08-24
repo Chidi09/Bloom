@@ -1867,3 +1867,1294 @@ void main() {
   final publicMap = BloomEnv.publicVariables;
 }
 ```
+
+---
+
+## 18. UI Component Primitives
+
+Bloom provides a comprehensive, 47-component UI primitives library (`package:bloom_js_native/bloom_js_native.dart`) inspired by modern design systems like shadcn/ui. Every primitive is built on pure Dart AST descriptors (`BloomNode`), styled with CSS custom property design tokens (`var(--primary)`, `var(--card)`, etc.), and adheres to strict accessibility semantics (`role`, `aria-*`).
+
+Because components are pure `BloomNode` descriptor trees, they render identically during Server-Side Rendering (SSR) and in client browsers. All UI primitives are exported directly from `package:bloom_js_native/bloom_js_native.dart`.
+
+### State Ownership Model in Bloom UI
+Before using the components, understand how state is partitioned across three categories of primitives:
+1. **Plain Stateless Descriptors**: Most components (e.g. `button`, `badge`, `card`, `table`, `formField`, `skeleton`, `aspectRatio`, `hoverCard`, `tooltip`) are pure descriptor functions that transform parameters into immutable `BloomNode` AST trees.
+2. **Components with Internal Local Signals**: Components like `accordion()`, `popover()`, `dropdownMenu()`, `contextMenu()`, and `resizablePanels()` manage their own private reactive state (such as open/collapsed flags or split ratios) using internal signals. The caller does **not** need to create or pass a `Signal`.
+3. **Components Requiring Caller-Owned State**: Components like `tabs()`, `calendar()`, `radioGroup()`, `switchToggle()`, `slider()`, `inputOtp()`, `toggle()`, `toggleGroupSingle()`, and `toggleGroupMultiple()` require the caller to own and pass reactive state (`value`, `onChange`, `activeKey`). Wrap these in `Live(() => ...)` boundaries so the UI automatically updates when your signals change.
+4. **Global Overlay Viewports**: Overlays such as `dialog` (`openDialog`), `sheet` (`openSheet`), `drawer` (`openDrawer`), `command` (`openCommandPalette`), and `sonner` (`showToast`) use global signals and viewport components (`dialogViewport()`, `sheetViewport()`, `drawerViewport()`, `commandViewport()`, `toastViewport()`). Mount these viewports once near your application root.
+
+---
+
+### How do I configure Bloom UI design tokens and customize the theme?
+Bloom UI primitives use CSS custom properties for theming (`--primary`, `--bg`, `--card`, `--border`, `--text`, `--radius-md`, etc.). The framework exports `uiTokensCss`, which provides a complete slate/indigo light and dark theme (with automatic `@media (prefers-color-scheme: dark)` and `[data-theme="dark"]` support).
+
+Consuming applications can inject `uiTokensCss` into their root document or override specific tokens in their own global CSS.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Inject default Bloom UI design tokens into your root HTML template
+String renderRootDocument(BloomNode bodyContent) {
+  return '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>$uiTokensCss</style>
+  <style>
+    /* Custom brand override */
+    :root {
+      --primary: #4f46e5;
+      --radius: 10px;
+    }
+  </style>
+</head>
+<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
+  ${renderToHtml(bodyContent)}
+</body>
+</html>
+''';
+}
+```
+
+---
+
+### How do I render vector SVG icons and combine dynamic classes?
+Bloom avoids toy emojis and external icon font dependencies by providing clean, built-in vector SVG icons via `uiIcon()` and `iconSvgString()`. Class names can be dynamically merged using `cn()`, which strips null and false values.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode iconAndClassDemo({required bool isActive, required bool isPending}) {
+  return Div(
+    className: cn([
+      'flex items-center gap-2 p-3 rounded-[var(--radius-md)] border select-none',
+      isActive ? 'border-[var(--primary)] bg-[var(--primary)]/10' : 'border-[var(--border)] bg-[var(--card)]',
+      isPending && 'opacity-60 pointer-events-none',
+    ]),
+    children: [
+      uiIcon('search', className: 'w-4 h-4 text-[var(--primary)]'),
+      Span(text: 'Search records'),
+      if (isPending)
+        uiIcon('spinner', className: 'w-4 h-4 animate-spin text-[var(--text-muted)] ml-auto')
+      else
+        uiIcon('chevron-right', className: 'w-4 h-4 text-[var(--text-muted)] ml-auto'),
+    ],
+  );
+}
+```
+
+---
+
+### How do I use buttons with variants, sizes, loading states, and links?
+The `button()` primitive supports six stylistic variants (`ButtonVariant.primary`, `secondary`, `outline`, `ghost`, `destructive`, `link`), four sizes (`ButtonSize.sm`, `md`, `lg`, `icon`), built-in icon integration, and automatic link rendering when `href` is supplied.
+
+You can also use `buttonClasses()` directly if you need to apply the button style rules to custom elements.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode buttonDemo(Signal<bool> isSaving) {
+  return Div(
+    className: 'flex items-center gap-3 flex-wrap',
+    children: [
+      // Primary button with icon and event handler
+      button(
+        text: 'Save Changes',
+        icon: 'check',
+        variant: ButtonVariant.primary,
+        size: ButtonSize.md,
+        onClick: (_) => print('Saved!'),
+      ),
+      // Destructive button
+      button(
+        text: 'Delete',
+        icon: 'x',
+        variant: ButtonVariant.destructive,
+        size: ButtonSize.sm,
+      ),
+      // Ghost button
+      button(
+        text: 'Cancel',
+        variant: ButtonVariant.ghost,
+        size: ButtonSize.sm,
+      ),
+      // Link button that renders an <a> tag
+      button(
+        text: 'Documentation',
+        href: '/docs',
+        variant: ButtonVariant.link,
+      ),
+      // Reactive button reflecting loading state
+      Live(() => button(
+        text: isSaving.value ? 'Saving...' : 'Submit',
+        loading: isSaving.value,
+        variant: ButtonVariant.secondary,
+        onClick: (_) => isSaving.value = true,
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I display status badges with variants and dismiss actions?
+The `badge()` primitive provides compact status indicators supporting seven visual variants (`BadgeVariant.defaultVariant`, `secondary`, `destructive`, `outline`, `success`, `warning`, `info`), optional icons, and interactive dismiss buttons (`onDismiss`).
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode badgeDemo(Signal<List<String>> tags) {
+  return Div(
+    className: 'flex items-center gap-2 flex-wrap',
+    children: [
+      badge(
+        label: 'Production',
+        variant: BadgeVariant.success,
+        icon: 'check',
+      ),
+      badge(
+        label: 'Requires Attention',
+        variant: BadgeVariant.warning,
+        icon: 'alert',
+      ),
+      badge(
+        label: 'Archived',
+        variant: BadgeVariant.outline,
+      ),
+      // Reactive dismissible badges
+      Live(() => Fragment(
+        children: tags.value.map((tag) {
+          return badge(
+            label: tag,
+            variant: BadgeVariant.secondary,
+            onDismiss: () {
+              tags.value = tags.value.where((t) => t != tag).toList();
+            },
+          );
+        }).toList(),
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I render user avatars and overlapping avatar groups?
+The `avatar()` primitive displays user profile images with automatic fallback text (initials) when an image is missing or loading. It also supports corner status `badge` nodes. Use `avatarGroup()` to neatly overlap multiple avatars.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode avatarDemo() {
+  return Div(
+    className: 'flex items-center gap-6',
+    children: [
+      // Avatar with image and online status indicator badge
+      avatar(
+        src: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96',
+        alt: 'Sarah Connor',
+        size: AvatarSize.lg,
+        badge: Span(className: 'w-2.5 h-2.5 rounded-full bg-emerald-500'),
+      ),
+      // Fallback initials avatar
+      avatar(
+        fallbackText: 'SC',
+        size: AvatarSize.md,
+      ),
+      // Overlapping avatar group
+      avatarGroup(
+        children: [
+          avatar(fallbackText: 'AL', size: AvatarSize.md),
+          avatar(fallbackText: 'BK', size: AvatarSize.md),
+          avatar(fallbackText: 'CM', size: AvatarSize.md),
+          avatar(fallbackText: '+5', size: AvatarSize.md),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I display skeleton loaders, separators, and aspect ratios?
+Use `skeleton()` for pulse-animated loading placeholders, `separator()` for horizontal and vertical content dividers, and `aspectRatio()` to lock children (images, video embeds, charts) to fixed proportions (e.g. `16 / 9`, `4 / 3`, `1 / 1`).
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode displayHelpersDemo() {
+  return Div(
+    className: 'flex flex-col gap-4 max-w-sm',
+    children: [
+      // 16:9 media container
+      aspectRatio(
+        ratio: 16 / 9,
+        child: skeleton(extraClassName: 'w-full h-full'),
+      ),
+      // Horizontal divider
+      separator(),
+      // Skeleton card placeholder
+      Div(
+        className: 'flex items-center gap-3',
+        children: [
+          skeleton(extraClassName: 'w-10 h-10 rounded-full'),
+          Div(
+            className: 'flex flex-col gap-2 flex-1',
+            children: [
+              skeleton(extraClassName: 'h-4 w-3/4'),
+              skeleton(extraClassName: 'h-3 w-1/2'),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I structure content cards with headers, bodies, and footers?
+The `card()` primitive provides a composite container decomposed into `cardHeader()`, `cardTitle()`, `cardDescription()`, `cardContent()`, and `cardFooter()`.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode cardDemo() {
+  return card(
+    extraClassName: 'max-w-md',
+    children: [
+      cardHeader(
+        children: [
+          cardTitle(text: 'Deploy Project'),
+          cardDescription(text: 'Deploy your new Bloom application to edge infrastructure.'),
+        ],
+      ),
+      cardContent(
+        children: [
+          P(
+            className: 'text-sm text-[var(--text-muted)] leading-relaxed',
+            text: 'Your application will be built as a native WebAssembly bundle with SSR enabled.',
+          ),
+        ],
+      ),
+      cardFooter(
+        extraClassName: 'justify-end gap-2',
+        children: [
+          button(text: 'Cancel', variant: ButtonVariant.ghost),
+          button(text: 'Deploy Now', variant: ButtonVariant.primary),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I render semantic, scrollable data tables?
+The `table()` component family (`table`, `tableHeader`, `tableBody`, `tableFooter`, `tableRow`, `tableHead`, `tableCell`, `tableCaption`) builds fully responsive HTML `<table>` elements enclosed in horizontal overflow viewports.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode tableDemo() {
+  final invoices = [
+    (id: 'INV-001', status: 'Paid', method: 'Credit Card', amount: '\$250.00'),
+    (id: 'INV-002', status: 'Pending', method: 'PayPal', amount: '\$150.00'),
+    (id: 'INV-003', status: 'Unpaid', method: 'Bank Transfer', amount: '\$450.00'),
+  ];
+
+  return table(
+    children: [
+      tableCaption(text: 'A list of your recent invoices.'),
+      tableHeader(
+        children: [
+          tableRow(
+            children: [
+              tableHead(text: 'Invoice'),
+              tableHead(text: 'Status'),
+              tableHead(text: 'Method'),
+              tableHead(text: 'Amount'),
+            ],
+          ),
+        ],
+      ),
+      tableBody(
+        children: invoices.map((inv) {
+          return tableRow(
+            children: [
+              tableCell(text: inv.id),
+              tableCell(
+                children: [
+                  badge(
+                    label: inv.status,
+                    variant: inv.status == 'Paid'
+                        ? BadgeVariant.success
+                        : inv.status == 'Pending'
+                            ? BadgeVariant.warning
+                            : BadgeVariant.destructive,
+                  ),
+                ],
+              ),
+              tableCell(text: inv.method),
+              tableCell(text: inv.amount),
+            ],
+          );
+        }).toList(),
+      ),
+      tableFooter(
+        children: [
+          tableRow(
+            children: [
+              tableCell(text: 'Total Invoiced', colSpan: 3),
+              tableCell(text: '\$850.00'),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I display breadcrumb navigation paths?
+The `breadcrumb()` primitive renders an accessible `<nav aria-label="Breadcrumb">` hierarchy with chevron separators, linking ancestor pages and styling the active leaf item.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode breadcrumbDemo() {
+  return breadcrumb([
+    (label: 'Dashboard', href: '/dashboard'),
+    (label: 'Projects', href: '/dashboard/projects'),
+    (label: 'Bloom Web', href: '/dashboard/projects/bloom-web'),
+    (label: 'Settings', href: null), // Current active page
+  ]);
+}
+```
+
+---
+
+### How do I build text inputs, textareas, and input groups?
+Use `textInput()` for single-line text/password/email fields (supporting leading/trailing icons via `prefixNode`/`suffixNode` and error styling via `hasError`), `textarea()` for multi-line inputs, and `inputGroup()` with `inputGroupAddon()` / `inputGroupText()` for compound inputs.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode textInputsDemo(Signal<String> query, Signal<String> notes) {
+  return Div(
+    className: 'flex flex-col gap-4 max-w-md',
+    children: [
+      // Text input with search icon prefix
+      textInput(
+        id: 'search-input',
+        placeholder: 'Search documentation...',
+        prefixNode: uiIcon('search', className: 'w-4 h-4'),
+        onInput: (e) => query.value = e.value ?? '',
+      ),
+      // Compound input group with prefix and suffix addons
+      inputGroup(
+        children: [
+          inputGroupAddon(
+            align: 'left',
+            children: [inputGroupText(text: 'https://')],
+          ),
+          textInput(
+            id: 'subdomain-input',
+            placeholder: 'my-workspace',
+            extraClassName: 'border-0 rounded-none shadow-none focus:ring-0',
+          ),
+          inputGroupAddon(
+            align: 'right',
+            children: [inputGroupText(text: '.bloom.app')],
+          ),
+        ],
+      ),
+      // Multi-line textarea
+      textarea(
+        id: 'notes-input',
+        placeholder: 'Enter additional deployment notes...',
+        rows: 4,
+        onInput: (e) => notes.value = e.value ?? '',
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I structure forms with labels, fieldsets, and validation messages?
+Use `label()` for standalone accessible form labels, `formField()` to bind a control with label, required asterisk, help text, and error messages, `fieldSet()` for semantic fieldsets with legends, and `fieldGroup()` to stack fields.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode formStructureDemo({
+  required Signal<String> email,
+  required Signal<String?> emailError,
+}) {
+  return fieldSet(
+    legend: 'Account Settings',
+    children: [
+      fieldGroup(
+        children: [
+          Live(() => formField(
+            id: 'email-input',
+            label: 'Email Address',
+            required: true,
+            error: emailError.value,
+            help: 'We will send transaction receipts to this address.',
+            control: textInput(
+              id: 'email-input',
+              type: 'email',
+              placeholder: 'alex@example.com',
+              hasError: emailError.value != null,
+              onInput: (e) {
+                email.value = e.value ?? '';
+                emailError.value = null;
+              },
+            ),
+          )),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I handle checkboxes, toggle switches, and radio groups?
+The `checkbox()`, `switchToggle()`, and `radioGroup()` primitives are controlled components where the caller passes current values and change handlers. Wrap their invocations in `Live(() => ...)` to re-render reactively.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode selectionControlsDemo({
+  required Signal<bool> agreeTerms,
+  required Signal<bool> enableDarkTheme,
+  required Signal<String> plan,
+}) {
+  return Div(
+    className: 'flex flex-col gap-5 max-w-sm',
+    children: [
+      // Checkbox with label
+      Live(() => checkbox(
+        id: 'terms-check',
+        label: 'I accept the terms of service',
+        checked: agreeTerms.value,
+        onCheckedChange: (checked) => agreeTerms.value = checked,
+      )),
+      // Toggle Switch
+      Live(() => Div(
+        className: 'flex items-center justify-between',
+        children: [
+          label(text: 'Dark Mode', htmlFor: 'dark-theme-switch'),
+          switchToggle(
+            id: 'dark-theme-switch',
+            checked: enableDarkTheme.value,
+            onChange: (checked) => enableDarkTheme.value = checked,
+          ),
+        ],
+      )),
+      // Radio Group
+      Live(() => radioGroup(
+        name: 'pricing-tier',
+        value: plan.value,
+        options: [
+          (value: 'hobby', label: 'Hobby (Free)'),
+          (value: 'pro', label: 'Pro (\$20/mo)'),
+          (value: 'enterprise', label: 'Enterprise (Custom)'),
+        ],
+        onChange: (val) => plan.value = val,
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I use select dropdowns and range sliders?
+Use `selectInput()` for styled native `<select>` dropdowns and `slider()` for accessible range slider inputs. Both are controlled components that bind directly to signals inside `Live()` blocks.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode selectAndSliderDemo({
+  required Signal<String> region,
+  required Signal<double> memoryLimit,
+}) {
+  return Div(
+    className: 'flex flex-col gap-4 max-w-sm',
+    children: [
+      // Styled select dropdown
+      Live(() => selectInput(
+        id: 'region-select',
+        value: region.value,
+        placeholder: 'Select deployment region...',
+        options: [
+          (value: 'us-east', label: 'US East (N. Virginia)'),
+          (value: 'eu-west', label: 'EU West (Frankfurt)'),
+          (value: 'ap-southeast', label: 'AP Southeast (Singapore)'),
+        ],
+        onValueChange: (val) => region.value = val,
+      )),
+      // Range slider with readout
+      Live(() => Div(
+        className: 'flex flex-col gap-2',
+        children: [
+          Div(
+            className: 'flex justify-between text-xs text-[var(--text-muted)]',
+            children: [
+              Span(text: 'Memory Allocation'),
+              Span(text: '${memoryLimit.value.round()} MB'),
+            ],
+          ),
+          slider(
+            value: memoryLimit.value,
+            min: 128,
+            max: 2048,
+            step: 128,
+            onChange: (val) => memoryLimit.value = val,
+          ),
+        ],
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I build one-time password (OTP) / PIN inputs?
+The `inputOtp()` primitive creates individual segmented numeric input slots with automatic backspace navigation and character advance.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode otpVerificationDemo(Signal<String> pin) {
+  return Div(
+    className: 'flex flex-col items-center gap-3 p-4',
+    children: [
+      P(
+        className: 'text-xs text-[var(--text-muted)]',
+        text: 'Enter your 6-digit authentication PIN:',
+      ),
+      Live(() => inputOtp(
+        length: 6,
+        value: pin.value,
+        onChange: (val) {
+          pin.value = val;
+          if (val.length == 6) {
+            print('PIN complete: $val');
+          }
+        },
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I trigger modal dialogs and alert confirmations?
+Modal dialogs in Bloom use a decoupled viewport architecture: mount `dialogViewport()` once near your application root, and imperatively trigger modals anywhere in your codebase using `openDialog()`, `openConfirmDialog()`, or `openAlertDialog()`.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Mount dialogViewport() once at the root of your app
+BloomNode appRootWithDialogs() {
+  return Div(
+    children: [
+      dialogViewport(), // Subscribes to global activeDialog signal
+      Div(
+        className: 'flex gap-3',
+        children: [
+          button(
+            text: 'Delete Cluster',
+            variant: ButtonVariant.destructive,
+            onClick: (_) {
+              openAlertDialog(
+                title: 'Delete Kubernetes Cluster?',
+                description: 'This action is irreversible and will terminate all running pods.',
+                confirmLabel: 'Yes, Delete Cluster',
+                cancelLabel: 'Cancel',
+                destructive: true,
+                onConfirm: () => print('Cluster deleted'),
+              );
+            },
+          ),
+          button(
+            text: 'Invite Member',
+            variant: ButtonVariant.outline,
+            onClick: (_) {
+              openDialog(
+                title: 'Invite Team Member',
+                description: 'Enter an email to send an invite link.',
+                body: textInput(id: 'invite-email', placeholder: 'colleague@company.com'),
+                confirmLabel: 'Send Invitation',
+                cancelLabel: 'Cancel',
+                onConfirm: () => print('Invitation sent'),
+              );
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I open slide-over sheets and mobile bottom drawers?
+Slide-over panels and mobile drawers use `openSheet()` / `closeSheet()` and `openDrawer()` / `closeDrawer()`. Mount `sheetViewport()` (or its alias `drawerViewport()`) once at the application root. Sheets support `'right'`, `'left'`, `'top'`, and `'bottom'` docking.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Mount sheetViewport() once at application root
+BloomNode appRootWithSheets() {
+  return Div(
+    children: [
+      sheetViewport(), // Subscribes to global activeSheet signal
+      Div(
+        className: 'flex gap-3',
+        children: [
+          button(
+            text: 'Open Settings Panel',
+            variant: ButtonVariant.secondary,
+            onClick: (_) {
+              openSheet(
+                title: 'Project Settings',
+                description: 'Adjust environment variables and build pipelines.',
+                side: 'right', // 'right' | 'left' | 'top' | 'bottom'
+                body: P(text: 'Settings panel body content...'),
+              );
+            },
+          ),
+          button(
+            text: 'Open Bottom Drawer',
+            variant: ButtonVariant.outline,
+            onClick: (_) {
+              openDrawer(
+                title: 'Quick Actions',
+                body: P(text: 'Mobile drawer content...'),
+              );
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I use popovers, hover cards, and tooltips?
+- `popover()` wraps a trigger and floating content card, managing its own internal `isOpen` signal and dismiss backdrop.
+- `hoverCard()` provides pure-CSS preview cards on hover/focus.
+- `tooltip()` provides pure-CSS hover/focus tooltips without JavaScript listeners.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode overlaysDemo() {
+  return Div(
+    className: 'flex items-center gap-6',
+    children: [
+      // Popover with internal click-toggle and backdrop state
+      popover(
+        align: 'left',
+        trigger: button(text: 'Filter', icon: 'chevron-down', variant: ButtonVariant.outline),
+        content: Div(
+          className: 'flex flex-col gap-2 w-48',
+          children: [
+            Span(className: 'font-semibold text-xs', text: 'Status Filter'),
+            checkbox(id: 'f-active', label: 'Active'),
+            checkbox(id: 'f-paused', label: 'Paused'),
+          ],
+        ),
+      ),
+      // Pure-CSS Hover Card preview
+      hoverCard(
+        side: 'bottom',
+        trigger: Span(className: 'underline font-medium cursor-pointer', text: '@bloom_framework'),
+        content: Div(
+          className: 'flex flex-col gap-1',
+          children: [
+            H4(className: 'font-semibold text-xs', text: 'Bloom Framework'),
+            P(className: 'text-xs text-[var(--text-muted)]', text: 'Pure Dart web UI compiler with signals and SSR.'),
+          ],
+        ),
+      ),
+      // Pure-CSS Tooltip
+      tooltip(
+        label: 'Copy commit SHA',
+        side: 'top',
+        child: button(text: 'Copy SHA', variant: ButtonVariant.ghost, size: ButtonSize.sm),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I create dropdown menus and right-click context menus?
+Both `dropdownMenu()` and `contextMenu()` take a list of `MenuItemConfig` items and manage their own internal open state and backdrop dismissal. `contextMenu()` captures the browser `contextmenu` event and positions the menu at pointer coordinates.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode menusDemo() {
+  final menuItems = [
+    MenuItemConfig(
+      label: 'Edit Configuration',
+      icon: 'search',
+      onClick: () => print('Editing...'),
+    ),
+    const MenuItemConfig(
+      label: 'Documentation',
+      href: '/docs',
+    ),
+    const MenuItemConfig(
+      label: 'Delete Record',
+      icon: 'x',
+      destructive: true,
+    ),
+  ];
+
+  return Div(
+    className: 'flex items-center gap-6',
+    children: [
+      // Dropdown menu on button trigger
+      dropdownMenu(
+        trigger: button(text: 'Actions', icon: 'chevron-down', variant: ButtonVariant.outline),
+        items: menuItems,
+        align: 'right',
+      ),
+      // Context menu on target surface
+      contextMenu(
+        items: menuItems,
+        child: Div(
+          className: 'p-6 border border-dashed border-[var(--border)] rounded-[var(--radius-md)] text-xs text-[var(--text-muted)] select-none',
+          text: 'Right-click inside this card for context actions',
+        ),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I implement tabbed views?
+The `tabs()` primitive renders a segmented tablist and renders the active panel using a `content(key)` builder closure. Because the active tab is controlled, the caller owns the active key in a `Signal` and wraps `tabs()` in a `Live()` boundary.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode tabsDemo(Signal<String> activeTab) {
+  return Live(() => tabs(
+    items: [
+      (key: 'overview', label: 'Overview'),
+      (key: 'deployments', label: 'Deployments'),
+      (key: 'settings', label: 'Settings'),
+    ],
+    activeKey: activeTab.value,
+    onChange: (key) => activeTab.value = key,
+    content: (key) => switch (key) {
+      'overview' => P(text: 'Overview metrics, analytics, and service health.'),
+      'deployments' => P(text: 'Recent deployment logs and rollout history.'),
+      'settings' => P(text: 'Domain aliases and environment configuration.'),
+      _ => const Fragment(children: []),
+    },
+  ));
+}
+```
+
+---
+
+### How do I build navigation bars and desktop menubars?
+- `navigationMenu()` renders horizontal navigation bars with direct routes (`href`) and dropdown flyout panels (`content`).
+- `menubar()` renders classic desktop application menu bars composed of multi-level dropdowns.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode navigationAndMenubarDemo() {
+  return Div(
+    className: 'flex flex-col gap-6',
+    children: [
+      // Horizontal navigation bar
+      navigationMenu(
+        items: [
+          const NavMenuItem(label: 'Home', href: '/', active: true),
+          NavMenuItem(
+            label: 'Solutions',
+            content: Div(
+              className: 'w-60 p-3 flex flex-col gap-1',
+              children: [
+                H4(className: 'font-semibold text-xs', text: 'Edge SSR'),
+                P(className: 'text-xs text-[var(--text-muted)]', text: 'Ultra-fast sub-millisecond server rendering.'),
+              ],
+            ),
+          ),
+          const NavMenuItem(label: 'Pricing', href: '/pricing'),
+        ],
+      ),
+      // Desktop application menubar
+      menubar(
+        menus: [
+          (
+            label: 'File',
+            items: [
+              MenuItemConfig(label: 'New File', onClick: () => print('New File')),
+              MenuItemConfig(label: 'Save Project', onClick: () => print('Saved')),
+            ],
+          ),
+          (
+            label: 'Edit',
+            items: [
+              MenuItemConfig(label: 'Undo', onClick: () => print('Undo')),
+              MenuItemConfig(label: 'Redo', onClick: () => print('Redo')),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I implement cursor-based pagination?
+The `paginationBar()` component renders previous/next links and page position summaries using cursor navigation helpers (`nextPageHref`, `prevPageHref`). It manages cursor history directly via URL query parameters.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode paginationDemo({
+  required String currentPath,
+  required Map<String, String> queryParams,
+  required int totalItems,
+  required int pageSize,
+  String? nextCursor,
+}) {
+  return paginationBar(
+    currentPath: currentPath,
+    currentQuery: queryParams,
+    total: totalItems,
+    itemCount: pageSize,
+    nextCursor: nextCursor,
+    pageSize: pageSize,
+  );
+}
+```
+
+---
+
+### How do I display contextual alert banners?
+The `alert()` primitive displays static inline banners across four semantic variants (`AlertVariant.info`, `AlertVariant.success`, `AlertVariant.warning`, `AlertVariant.destructive`) with support for custom icons and trailing action buttons.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode alertBannersDemo() {
+  return Div(
+    className: 'flex flex-col gap-3 max-w-lg',
+    children: [
+      alert(
+        title: 'Update Available',
+        description: 'A new version of Bloom JS Native is available.',
+        variant: AlertVariant.info,
+      ),
+      alert(
+        title: 'Build Succeeded',
+        description: 'Your application was compiled and deployed in 420ms.',
+        variant: AlertVariant.success,
+      ),
+      alert(
+        title: 'Session Expired',
+        description: 'Please sign in again to continue managing your resources.',
+        variant: AlertVariant.destructive,
+        action: button(text: 'Sign In', size: ButtonSize.sm, variant: ButtonVariant.destructive),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I show determinate linear and circular progress indicators?
+Use `progress()` for linear horizontal progress bars and `circularProgress()` for smooth SVG-based radial progress gauges.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode progressIndicatorsDemo(Signal<double> uploadProgress) {
+  return Div(
+    className: 'flex flex-col gap-6 max-w-sm',
+    children: [
+      // Linear progress bar with percentage label
+      Live(() => progress(
+        value: uploadProgress.value,
+        max: 100.0,
+        label: 'Uploading bundle...',
+        showValue: true,
+      )),
+      // Circular progress gauges
+      Live(() => Div(
+        className: 'flex items-center gap-6 justify-center',
+        children: [
+          circularProgress(
+            value: uploadProgress.value,
+            max: 100,
+            size: 48,
+            showValue: true,
+            label: 'Upload',
+          ),
+          circularProgress(
+            value: 85,
+            size: 36,
+            color: 'var(--success)',
+            strokeWidth: 4,
+          ),
+        ],
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I dispatch and display toast notifications (Sonner)?
+Bloom UI provides a global toast notification system (Sonner-style). Mount `toastViewport()` once near your application root, and call `showToast()` or `dismissToast()` from any event handler or asynchronous workflow.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Mount toastViewport() once at application root
+BloomNode rootAppWithToasts() {
+  return Div(
+    children: [
+      toastViewport(), // Subscribes to global toastList signal
+      Div(
+        className: 'flex gap-2 flex-wrap',
+        children: [
+          button(
+            text: 'Trigger Success Toast',
+            variant: ButtonVariant.outline,
+            onClick: (_) => showToast(
+              'Database migration completed successfully.',
+              variant: ToastVariant.success,
+              actionLabel: 'View Logs',
+              onAction: () => print('Viewing migration logs'),
+            ),
+          ),
+          button(
+            text: 'Trigger Error Toast',
+            variant: ButtonVariant.destructive,
+            onClick: (_) => showToast(
+              'Could not connect to Redis cache.',
+              variant: ToastVariant.error,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I create collapsible accordions?
+The `accordion()` primitive renders expandable FAQ-style disclosure sections. It manages its own internal `openIds` signal, so the caller does **not** need to create or pass a `Signal`. Use `allowMultiple: true` to permit multiple open sections, and `initialOpen` to specify initial active items.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Accordion manages its own open/close state internally
+BloomNode accordionDemo() {
+  return accordion(
+    allowMultiple: false,
+    initialOpen: {'faq-1'},
+    items: [
+      (
+        id: 'faq-1',
+        title: 'Is Bloom JS Native compatible with SSR?',
+        content: P(text: 'Yes. All components compile to pure BloomNode AST descriptors that render to HTML in <1ms on the server.'),
+      ),
+      (
+        id: 'faq-2',
+        title: 'Does it require Flutter?',
+        content: P(text: 'No. Bloom JS Native has zero Flutter dependencies and compiles directly to native JS and Wasm.'),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I build single and multi-select toggle button groups?
+Use `toggle()` for two-state buttons (`aria-pressed`), `toggleGroupSingle<T>()` for single-choice option sets (like text alignment), and `toggleGroupMultiple<T>()` for multi-selection sets (like font styling).
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode toggleGroupsDemo({
+  required Signal<bool> isBold,
+  required Signal<String> alignment,
+  required Signal<Set<String>> formatting,
+}) {
+  return Div(
+    className: 'flex items-center gap-4 flex-wrap',
+    children: [
+      // Single toggle button
+      Live(() => toggle(
+        pressed: isBold.value,
+        onChange: (pressed) => isBold.value = pressed,
+        variant: ToggleVariant.outline,
+        child: Span(className: 'font-bold px-1', text: 'B'),
+      )),
+      // Single-select toggle group
+      Live(() => toggleGroupSingle<String>(
+        value: alignment.value,
+        onChange: (val) => alignment.value = val,
+        items: [
+          (value: 'left', child: Span(text: 'Left'), ariaLabel: 'Align left'),
+          (value: 'center', child: Span(text: 'Center'), ariaLabel: 'Align center'),
+          (value: 'right', child: Span(text: 'Right'), ariaLabel: 'Align right'),
+        ],
+      )),
+      // Multi-select toggle group
+      Live(() => toggleGroupMultiple<String>(
+        value: formatting.value,
+        onChange: (val) => formatting.value = val,
+        items: [
+          (value: 'italic', child: Span(className: 'italic px-1', text: 'I'), ariaLabel: 'Italic'),
+          (value: 'underline', child: Span(className: 'underline px-1', text: 'U'), ariaLabel: 'Underline'),
+          (value: 'strike', child: Span(className: 'line-through px-1', text: 'S'), ariaLabel: 'Strikethrough'),
+        ],
+      )),
+    ],
+  );
+}
+```
+
+---
+
+### How do I implement a command palette (Cmd+K modal)?
+Command palettes provide searchable, keyboard-navigable action lists. Mount `commandViewport()` once at the root of your application, and invoke `openCommandPalette()` or `openCommandPaletteDetailed()` to display the palette.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// Mount commandViewport() once at root
+BloomNode rootAppWithCommandPalette() {
+  return Div(
+    children: [
+      commandViewport(), // Subscribes to global activeCommandPalette signal
+      button(
+        text: 'Quick Commands (Cmd+K)',
+        icon: 'search',
+        variant: ButtonVariant.outline,
+        onClick: (_) {
+          openCommandPaletteDetailed(
+            placeholder: 'Type a command or search...',
+            items: [
+              CommandItemConfig(
+                label: 'Create Workspace',
+                group: 'Actions',
+                icon: 'plus',
+                shortcut: '⌘N',
+                onSelect: () => print('Creating workspace...'),
+              ),
+              CommandItemConfig(
+                label: 'View Analytics',
+                group: 'Navigation',
+                icon: 'search',
+                shortcut: '⌘G',
+                onSelect: () => print('Opening analytics...'),
+              ),
+              CommandItemConfig(
+                label: 'Sign Out',
+                group: 'Account',
+                icon: 'x',
+                onSelect: () => print('Signing out...'),
+              ),
+            ],
+          );
+        },
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I render an interactive calendar date picker?
+The `calendar()` primitive renders a month-grid date selector. The caller owns both the displayed month and the selected date signals.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode calendarDemo({
+  required Signal<DateTime> activeMonth,
+  required Signal<DateTime?> selectedDate,
+}) {
+  return Live(() => calendar(
+    month: activeMonth.value,
+    selected: selectedDate.value,
+    onSelect: (date) {
+      selectedDate.value = date;
+      print('Selected date: ${date.toIso8601String()}');
+    },
+    onMonthChange: (month) {
+      activeMonth.value = month;
+    },
+  ));
+}
+```
+
+---
+
+### How do I render pure-SVG bar charts and sparklines?
+Bloom includes lightweight, dependency-free SVG data visualization primitives:
+- `barChart()`: Computes relative heights, bottom axis baselines, and labels for bar chart data points.
+- `sparkline()`: Generates responsive polyline trend graphs from raw numeric series.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode dataChartsDemo() {
+  final chartData = <ChartDataPoint>[
+    (label: 'Mon', value: 120.0),
+    (label: 'Tue', value: 240.0),
+    (label: 'Wed', value: 180.0),
+    (label: 'Thu', value: 320.0),
+    (label: 'Fri', value: 290.0),
+    (label: 'Sat', value: 150.0),
+    (label: 'Sun', value: 90.0),
+  ];
+
+  return Div(
+    className: 'flex flex-col gap-6 max-w-lg',
+    children: [
+      // Bar Chart
+      barChart(
+        data: chartData,
+        height: 160,
+        color: 'var(--primary)',
+      ),
+      // Sparkline trend indicator card
+      Div(
+        className: 'flex items-center justify-between p-3 border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)]',
+        children: [
+          Div(
+            className: 'flex flex-col',
+            children: [
+              Span(className: 'text-xs text-[var(--text-muted)]', text: 'Throughput'),
+              Span(className: 'text-lg font-semibold', text: '3,842 req/s'),
+            ],
+          ),
+          sparkline(
+            values: [10, 15, 12, 28, 24, 42, 35, 50, 48, 62],
+            width: 120,
+            height: 32,
+            color: 'var(--success)',
+          ),
+        ],
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I build resizable split-pane layouts and custom scroll areas?
+- `resizablePanels()` divides two panes horizontally or vertically with an interactive separator handle.
+- `scrollArea()` wraps scrollable content with customized, lightweight scrollbar styling without external JavaScript libraries.
+
+> **SSR note**: `resizablePanels()` renders the initial split ratio during SSR. Live pointer drag resizing activates exclusively in browser builds.
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode splitLayoutDemo() {
+  return Div(
+    className: 'h-96 w-full border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden',
+    children: [
+      resizablePanels(
+        initialSplit: 0.3,
+        minSplit: 0.15,
+        maxSplit: 0.85,
+        withHandle: true,
+        first: scrollArea(
+          maxHeight: 384,
+          child: Div(
+            className: 'p-4 flex flex-col gap-2',
+            children: List.generate(25, (i) => P(className: 'text-xs', text: 'Sidebar item #$i')),
+          ),
+        ),
+        second: scrollArea(
+          maxHeight: 384,
+          child: Div(
+            className: 'p-4 flex flex-col gap-2',
+            children: List.generate(25, (i) => P(className: 'text-xs', text: 'Main content line #$i')),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+```
+
+---
+
+### How do I link self-hosted optimized fonts?
+The `fontStylesheetLink()` helper emits a `<link rel="stylesheet" href="...">` node pointing to self-hosted fonts optimized and generated by the Bloom CLI (`bloom fonts optimize`).
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+// In server SSR or root HTML template generation:
+String renderHtmlDocument(BloomNode rootNode) {
+  final fontLink = renderToHtml(fontStylesheetLink());
+  final appHtml = renderToHtml(rootNode);
+
+  return '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>$uiTokensCss</style>
+  $fontLink
+</head>
+<body class="bg-[var(--bg)] text-[var(--text)]">
+  <div id="app">$appHtml</div>
+</body>
+</html>
+''';
+}
+```
