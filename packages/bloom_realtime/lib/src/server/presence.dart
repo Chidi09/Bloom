@@ -3,7 +3,19 @@ import 'dart:io';
 import '../protocol.dart';
 import 'channel_hub.dart';
 
-/// Representation of a user's presence in a channel.
+/// Representation of a user's presence state in a channel.
+///
+/// Encapsulates the user's connection ID, custom profile metadata map,
+/// and join timestamp.
+///
+/// ### Example
+/// ```dart
+/// final user = PresenceUser(
+///   connectionId: 'conn_123',
+///   info: {'userId': 'u_42', 'name': 'Alice', 'avatar': 'https://...'},
+/// );
+/// print('User ${user.info['name']} joined at ${user.joinedAt}');
+/// ```
 class PresenceUser {
   /// Unique connection ID associated with this user session.
   final String connectionId;
@@ -16,16 +28,29 @@ class PresenceUser {
 
   /// Creates a [PresenceUser] instance.
   ///
-  /// - [connectionId]: Connection ID string.
+  /// - [connectionId]: Unique connection ID string.
   /// - [info]: User metadata map.
-  /// - [joinedAt]: Optional join timestamp override (defaults to current time).
+  /// - [joinedAt]: Optional join timestamp override (defaults to [DateTime.now]).
+  ///
+  /// Example:
+  /// ```dart
+  /// final user = PresenceUser(
+  ///   connectionId: 'conn_abc',
+  ///   info: {'name': 'Bob'},
+  /// );
+  /// ```
   PresenceUser({
     required this.connectionId,
     required this.info,
     DateTime? joinedAt,
   }) : joinedAt = joinedAt ?? DateTime.now();
 
-  /// Serializes presence user data to JSON map.
+  /// Serializes presence user data to a JSON-compatible map.
+  ///
+  /// Example:
+  /// ```dart
+  /// final map = user.toJson();
+  /// ```
   Map<String, dynamic> toJson() {
     return {
       'connectionId': connectionId,
@@ -35,6 +60,15 @@ class PresenceUser {
   }
 
   /// Deserializes a [PresenceUser] from a JSON map.
+  ///
+  /// Example:
+  /// ```dart
+  /// final user = PresenceUser.fromJson({
+  ///   'connectionId': 'conn_abc',
+  ///   'info': {'name': 'Alice'},
+  ///   'joinedAt': '2026-08-24T00:00:00.000Z',
+  /// });
+  /// ```
   factory PresenceUser.fromJson(Map<String, dynamic> json) {
     return PresenceUser(
       connectionId: json['connectionId'] as String? ?? '',
@@ -53,7 +87,28 @@ class PresenceUser {
 /// Simple presence tracker layered on top of [BloomChannelHub].
 ///
 /// Tracks which connection IDs and associated user metadata are present in channels,
-/// and automatically broadcasts join, leave, and state events.
+/// and automatically broadcasts join, leave, and state snapshot events.
+///
+/// ### Lifecycle Automation
+/// Automatically intercepts [BloomChannelHub.onConnectionClosed] and
+/// [BloomChannelHub.onUnsubscribed] to broadcast `presence_leave` events and prune
+/// presence stores when connections disconnect or unsubscribe.
+///
+/// ### Example
+/// ```dart
+/// final hub = BloomChannelHub();
+/// final tracker = BloomPresenceTracker(hub: hub);
+///
+/// // Join presence
+/// tracker.join('room:1', connId, {'name': 'Alice'});
+///
+/// // Query active presences
+/// final active = tracker.getPresences('room:1');
+/// print('${active.length} users online');
+///
+/// // Leave presence
+/// tracker.leave('room:1', connId);
+/// ```
 class BloomPresenceTracker {
   /// Underlying [BloomChannelHub] managing WebSocket subscriptions.
   final BloomChannelHub hub;
@@ -61,7 +116,12 @@ class BloomPresenceTracker {
   /// channel -> { connectionId: PresenceUser }
   final Map<String, Map<String, PresenceUser>> _presences = {};
 
-  /// Creates a [BloomPresenceTracker] backed by [hub].
+  /// Creates a [BloomPresenceTracker] backed by [hub] and hooks disconnect lifecycles.
+  ///
+  /// Example:
+  /// ```dart
+  /// final tracker = BloomPresenceTracker(hub: hub);
+  /// ```
   BloomPresenceTracker({required this.hub}) {
     // Automatically listen to hub connection disconnects to trigger presence leave
     final originalOnClosed = hub.onConnectionClosed;
@@ -77,15 +137,22 @@ class BloomPresenceTracker {
     };
   }
 
-  /// Track a user joining a [channel] with metadata.
+  /// Tracks a user joining [channel] with metadata.
   ///
   /// Subscribes the connection to the hub channel, records user presence,
-  /// sends the current full presence state to the joining connection, and broadcasts
-  /// a `presence_join` event to everyone in the channel.
+  /// sends the current full presence state snapshot to the joining connection,
+  /// and broadcasts a `presence_join` event to everyone in the channel.
   ///
   /// - [channel]: Target channel name.
   /// - [socketOrId]: [WebSocket] instance or connection ID string.
-  /// - [userInfo]: User metadata payload (e.g. name, user ID).
+  /// - [userInfo]: User metadata payload map (e.g. name, avatar, user ID).
+  ///
+  /// Returns `true` if successfully joined, or `false` if the connection could not be resolved.
+  ///
+  /// Example:
+  /// ```dart
+  /// tracker.join('chat:lobby', connId, {'userId': '123', 'name': 'Bob'});
+  /// ```
   bool join(
     String channel,
     dynamic socketOrId,
@@ -123,10 +190,17 @@ class BloomPresenceTracker {
     return true;
   }
 
-  /// Remove a user from a [channel]'s presence list and broadcast `presence_leave`.
+  /// Removes a user from a [channel]'s presence list and broadcasts `presence_leave`.
   ///
   /// - [channel]: Target channel name.
   /// - [socketOrId]: [WebSocket] instance or connection ID string.
+  ///
+  /// Returns `true` if the user was present and removed, or `false` otherwise.
+  ///
+  /// Example:
+  /// ```dart
+  /// tracker.leave('chat:lobby', connId);
+  /// ```
   bool leave(String channel, dynamic socketOrId) {
     final connectionId = _resolveConnectionId(socketOrId);
     if (connectionId == null) return false;
@@ -155,26 +229,52 @@ class BloomPresenceTracker {
 
   /// Returns all users currently present in [channel].
   ///
+  /// Returns an empty list if the channel has no active presences.
+  ///
   /// - [channel]: Target channel name.
+  ///
+  /// Example:
+  /// ```dart
+  /// final users = tracker.getPresences('chat:lobby');
+  /// for (final u in users) {
+  ///   print('${u.connectionId}: ${u.info}');
+  /// }
+  /// ```
   List<PresenceUser> getPresences(String channel) {
     final map = _presences[channel];
     if (map == null) return const [];
     return List<PresenceUser>.from(map.values);
   }
 
-  /// Check if a connection is present in [channel].
+  /// Checks if a connection is currently present in [channel].
   ///
   /// - [channel]: Target channel name.
   /// - [socketOrId]: [WebSocket] instance or connection ID string.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (tracker.isPresent('chat:lobby', connId)) {
+  ///   print('User is in lobby');
+  /// }
+  /// ```
   bool isPresent(String channel, dynamic socketOrId) {
     final connectionId = _resolveConnectionId(socketOrId);
     if (connectionId == null) return false;
     return _presences[channel]?.containsKey(connectionId) ?? false;
   }
 
-  /// Automatically attaches protocol handling to a [socket] for presence events.
+  /// Automatically attaches protocol handling to a [socket] for presence and pub/sub events.
+  ///
+  /// Listens to incoming [RealtimeMessage] packets and invokes the corresponding
+  /// subscribe, unsubscribe, presence join/leave, broadcast, and ping/pong handlers.
   ///
   /// - [socket]: Upgraded `dart:io` [WebSocket] connection.
+  ///
+  /// Example:
+  /// ```dart
+  /// final socket = await BloomChannelHub.upgrade(request);
+  /// tracker.attachProtocolHandler(socket);
+  /// ```
   void attachProtocolHandler(WebSocket socket) {
     final id = hub.registerConnection(socket, autoHandleProtocol: false);
 

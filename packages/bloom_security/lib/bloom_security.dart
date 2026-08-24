@@ -4,6 +4,7 @@
 /// security headers ([BloomSecurityHeadersMiddleware]), concurrency-safe sliding-window rate limiting
 /// ([BloomRateLimitMiddleware]), and dual HTTP / WebSocket upgrade routing ([BloomWebSocketServer]).
 ///
+/// ### Example
 /// ```dart
 /// import 'package:bloom_server/bloom_server.dart';
 /// import 'package:bloom_security/bloom_security.dart';

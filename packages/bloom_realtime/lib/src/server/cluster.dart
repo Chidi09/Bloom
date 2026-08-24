@@ -42,12 +42,36 @@ class _ClusterWorkerInit {
 ///
 /// Distributes incoming WebSocket connections across multiple CPU cores using
 /// kernel-level port sharing (`shared: true`), synchronizing pub/sub broadcasts
-/// in-memory via high-speed isolate `SendPort` event channels.
+/// in-memory across isolates via high-speed isolate `SendPort` mesh routing.
+///
+/// ### Architecture
+/// - Each isolate worker runs an independent [BloomChannelHub] and `HttpServer`.
+/// - Kernel load-balances incoming TCP connections across isolate worker sockets.
+/// - Whenever a client or server broadcasts on any worker, the payload is forwarded
+///   across isolate `SendPort` peer links so all subscribers across all cores receive the update.
+///
+/// ### Example
+/// ```dart
+/// void main() async {
+///   final cluster = await BloomRealtimeCluster.bind(
+///     port: 8080,
+///     wsPath: '/ws/realtime',
+///     workers: 4,
+///   );
+///   print('Realtime cluster running with ${cluster.workerCount} workers on port ${cluster.port}');
+///
+///   // Broadcast from cluster master
+///   cluster.broadcast('system:alerts', {'message': 'Maintenance in 5 minutes'});
+///
+///   // Gracefully shut down
+///   // cluster.close();
+/// }
+/// ```
 class BloomRealtimeCluster {
   /// Number of active worker isolates running in the cluster.
   final int workerCount;
 
-  /// Listening port for the cluster.
+  /// Listening TCP port for the cluster.
   final int port;
 
   final List<Isolate> _isolates;
@@ -66,12 +90,24 @@ class BloomRealtimeCluster {
 
   /// Spawns and starts a multi-isolate realtime cluster.
   ///
-  /// - [address]: Loopback or bind IP (defaults to `'0.0.0.0'`).
+  /// - [address]: Loopback or bind IP string (defaults to `'0.0.0.0'`).
   /// - [port]: TCP port to listen on (defaults to `8080`).
   /// - [wsPath]: HTTP path prefix for WebSocket upgrade (defaults to `'/ws'`).
-  /// - [workers]: Number of isolate workers (defaults to [Platform.numberOfProcessors]).
+  /// - [workers]: Number of isolate workers (defaults to [Platform.numberOfProcessors] or `2`).
   /// - [compression]: WebSocket compression options (defaults to [CompressionOptions.compressionOff]).
-  /// - [tcpNoDelay]: Sets `TCP_NODELAY` on sockets (defaults to `true`).
+  /// - [tcpNoDelay]: Sets `TCP_NODELAY` on accepted sockets (defaults to `true`).
+  ///
+  /// Returns a [Future] completing with the running [BloomRealtimeCluster] once all workers are ready.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cluster = await BloomRealtimeCluster.bind(
+  ///   address: '127.0.0.1',
+  ///   port: 9000,
+  ///   wsPath: '/realtime',
+  ///   workers: 2,
+  /// );
+  /// ```
   static Future<BloomRealtimeCluster> bind({
     String address = '0.0.0.0',
     int port = 8080,
@@ -130,6 +166,15 @@ class BloomRealtimeCluster {
   }
 
   /// Broadcasts an event across all cluster workers and connected WebSocket clients.
+  ///
+  /// - [channel]: Target channel name.
+  /// - [payload]: Map payload data to broadcast.
+  /// - [asBinary]: When `true`, serializes directly to pre-encoded UTF-8 byte array.
+  ///
+  /// Example:
+  /// ```dart
+  /// cluster.broadcast('notifications', {'title': 'System update'});
+  /// ```
   void broadcast(String channel, Map<String, dynamic> payload, {bool asBinary = false}) {
     final msg = _ClusterBroadcastMessage(
       channel: channel,
@@ -141,7 +186,12 @@ class BloomRealtimeCluster {
     }
   }
 
-  /// Shuts down all worker isolates and releases listening ports.
+  /// Shuts down all worker isolates, closes HTTP servers, and releases listening ports.
+  ///
+  /// Example:
+  /// ```dart
+  /// cluster.close();
+  /// ```
   void close() {
     for (final wp in _workerPorts) {
       wp.send('shutdown');

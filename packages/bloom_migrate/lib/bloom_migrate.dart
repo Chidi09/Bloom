@@ -1,8 +1,22 @@
-/// Database migrations CLI and runtime library for Bloom applications built on `bloom_db`.
+/// Database migrations runtime and schema generation library for Bloom applications.
 ///
-/// Generates dialect-accurate DDL SQL files (`-- up` and `-- down` sections) from `@BloomModel` / [ModelMeta]
-/// definitions and provides a transactional migration runner with migration tracking.
+/// The `bloom_migrate` package provides transactional database migration capabilities,
+/// schema diffing and SQL generation from `bloom_db` models, automated migration file
+/// parsing, and migration rollback support.
 ///
+/// ### Overview
+/// - **Schema Generation**: Converts [ModelMeta] entity descriptors into dialect-accurate
+///   DDL statements (PostgreSQL, SQLite) including tables, constraints, foreign keys,
+///   many-to-many join tables, and indexes using [generateMigrationFileContent] or [generateCreateTableSql].
+/// - **Topological Sorting**: Resolves foreign key dependency graphs automatically using
+///   [sortModelsTopologically] to ensure parent tables are created before child tables and
+///   dropped in reverse order.
+/// - **File Conventions**: Parses and formats SQL migration files following the standard
+///   `migrations/<app>/NNNN_name.sql` pattern with `-- up` and `-- down` (or `-- no-down`) blocks.
+/// - **Transactional Runner**: [MigrationRunner] manages the `bloom_migrations` tracking table,
+///   discovers pending migrations on disk, and applies or rolls them back inside isolated database transactions.
+///
+/// ### Running Migrations
 /// ```dart
 /// import 'package:bloom_db/bloom_db.dart';
 /// import 'package:bloom_migrate/bloom_migrate.dart';
@@ -12,10 +26,28 @@
 ///     db: db,
 ///     migrationsDirectory: 'migrations',
 ///   );
+///
+///   final pending = await runner.getPendingMigrations();
+///   print('Pending migrations: ${pending.length}');
+///
 ///   final applied = await runner.migrate();
-///   for (final m in applied) {
-///     print('Applied startup migration: ${m.app}/${m.name}');
+///   for (final record in applied) {
+///     print('Applied: ${record.app}/${record.name} at ${record.appliedAt}');
 ///   }
+/// }
+/// ```
+///
+/// ### Generating SQL from Models
+/// ```dart
+/// import 'package:bloom_db/bloom_db.dart';
+/// import 'package:bloom_migrate/bloom_migrate.dart';
+///
+/// void generateSql(List<ModelMeta> models, Dialect dialect) {
+///   final sql = generateMigrationFileContent(
+///     models: models,
+///     dialect: dialect,
+///   );
+///   print(sql);
 /// }
 /// ```
 library bloom_migrate;

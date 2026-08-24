@@ -6,6 +6,17 @@ import 'errors.dart';
 import 'migration_file.dart';
 
 /// Represents a migration record stored in the `bloom_migrations` tracking table.
+///
+/// Records which migration file was applied, its application namespace, and the UTC timestamp
+/// of its execution.
+///
+/// Example:
+/// ```dart
+/// final applied = await runner.getAppliedMigrations();
+/// for (final record in applied) {
+///   print('Migration #${record.id}: ${record.app}/${record.name} on ${record.appliedAt}');
+/// }
+/// ```
 class AppliedMigration {
   /// The auto-increment primary key ID in the tracking table.
   final int id;
@@ -19,6 +30,7 @@ class AppliedMigration {
   /// The timestamp when this migration was executed.
   final DateTime appliedAt;
 
+  /// Creates an [AppliedMigration] descriptor.
   const AppliedMigration({
     required this.id,
     required this.app,
@@ -31,6 +43,28 @@ class AppliedMigration {
 }
 
 /// The database migration engine for Bloom applications.
+///
+/// [MigrationRunner] handles discovery of `.sql` migration files on disk,
+/// tracks execution state in the `bloom_migrations` database table, and executes
+/// forward migrations or rollbacks inside transactional boundaries (`BEGIN` / `COMMIT` / `ROLLBACK`).
+///
+/// Example:
+/// ```dart
+/// final runner = MigrationRunner(
+///   db: dbExecutor,
+///   migrationsDirectory: 'migrations',
+/// );
+///
+/// // Check pending migrations
+/// final pending = await runner.getPendingMigrations();
+/// print('Found ${pending.length} pending migrations.');
+///
+/// // Run forward migrations
+/// final applied = await runner.migrate();
+///
+/// // Roll back the last migration if needed
+/// await runner.rollback(count: 1);
+/// ```
 class MigrationRunner {
   /// The database executor connected to the target database.
   final DbExecutor db;
@@ -38,15 +72,24 @@ class MigrationRunner {
   /// The base directory path where migrations are stored (defaults to `migrations`).
   final String migrationsDirectory;
 
-  /// The tracking table name.
+  /// The name of the database table used to track executed migrations.
   static const String trackingTableName = 'bloom_migrations';
 
+  /// Creates a [MigrationRunner] bound to the given [db] executor and optional [migrationsDirectory].
   MigrationRunner({
     required this.db,
     this.migrationsDirectory = 'migrations',
   });
 
   /// Ensures that the migration history tracking table `bloom_migrations` exists in the database.
+  ///
+  /// Automatically adjusts primary key, text, and timestamp column types according to the active [db] dialect.
+  /// Safe to call multiple times (`CREATE TABLE IF NOT EXISTS`).
+  ///
+  /// Example:
+  /// ```dart
+  /// await runner.ensureTrackingTable();
+  /// ```
   Future<void> ensureTrackingTable() async {
     final dialect = db.dialect;
     final isPostgres = dialect.type == DialectType.postgres;
@@ -68,6 +111,13 @@ class MigrationRunner {
   }
 
   /// Fetches all applied migration records from the tracking table, ordered by ID ascending.
+  ///
+  /// When [app] is provided, only migrations matching that application namespace are returned.
+  ///
+  /// Example:
+  /// ```dart
+  /// final applied = await runner.getAppliedMigrations(app: 'auth');
+  /// ```
   Future<List<AppliedMigration>> getAppliedMigrations({String? app}) async {
     await ensureTrackingTable();
     final dialect = db.dialect;
@@ -100,10 +150,21 @@ class MigrationRunner {
     }).toList();
   }
 
-  /// Discovers all `.sql` migration files in the configured migrations directory tree.
+  /// Discovers all `.sql` migration files in the configured [migrationsDirectory] tree.
   ///
   /// Automatically discovers files formatted as `migrations/<app>/NNNN_name.sql`
-  /// or directly inside `migrations/NNNN_name.sql`.
+  /// or directly inside `migrations/NNNN_name.sql`. Returns discovered migrations sorted
+  /// by app name, sequence number, and file stem.
+  ///
+  /// When [app] is provided, only migrations for that application are returned.
+  ///
+  /// Example:
+  /// ```dart
+  /// final migrations = runner.discoverMigrations();
+  /// for (final m in migrations) {
+  ///   print('${m.app}/${m.name} (#${m.number})');
+  /// }
+  /// ```
   List<BloomMigration> discoverMigrations({String? app}) {
     final baseDir = Directory(migrationsDirectory);
     if (!baseDir.existsSync()) {
@@ -152,6 +213,17 @@ class MigrationRunner {
   }
 
   /// Returns all discovered migrations that have not yet been applied to the database.
+  ///
+  /// Compares local files found via [discoverMigrations] with database records
+  /// retrieved from [getAppliedMigrations]. When [app] is provided, limits check to that app.
+  ///
+  /// Example:
+  /// ```dart
+  /// final pending = await runner.getPendingMigrations();
+  /// if (pending.isNotEmpty) {
+  ///   print('Need to apply ${pending.length} migrations.');
+  /// }
+  /// ```
   Future<List<BloomMigration>> getPendingMigrations({String? app}) async {
     final applied = await getAppliedMigrations(app: app);
     final appliedSet = {for (final m in applied) '${m.app}:${m.name}'};
@@ -162,7 +234,19 @@ class MigrationRunner {
         .toList();
   }
 
-  /// Applies a single migration file in a dedicated database transaction.
+  /// Applies a single [migration] file in a dedicated database transaction.
+  ///
+  /// Executes each SQL statement in [BloomMigration.upStatements] sequentially inside `BEGIN` ... `COMMIT`.
+  /// Upon successful completion, inserts a record into [trackingTableName].
+  ///
+  /// If any statement fails, rolls back the transaction and throws a [MigrationExecutionException].
+  ///
+  /// Example:
+  /// ```dart
+  /// final migration = runner.discoverMigrations().first;
+  /// final record = await runner.applyMigration(migration);
+  /// print('Applied at ${record.appliedAt}');
+  /// ```
   Future<AppliedMigration> applyMigration(BloomMigration migration) async {
     await ensureTrackingTable();
     final dialect = db.dialect;
@@ -209,7 +293,15 @@ VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)})''';
 
   /// Applies all pending migrations in chronological order.
   ///
-  /// If [limit] is provided, applies at most [limit] migrations.
+  /// If [app] is specified, only pending migrations for that application are applied.
+  /// If [limit] is provided, applies at most [limit] pending migrations.
+  /// Returns the list of newly [AppliedMigration] records.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Apply at most 2 pending migrations for the 'billing' app
+  /// final applied = await runner.migrate(app: 'billing', limit: 2);
+  /// ```
   Future<List<AppliedMigration>> migrate({
     String? app,
     int? limit,
@@ -230,7 +322,19 @@ VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)})''';
     return results;
   }
 
-  /// Rolls back a single applied migration using its `-- down` section within a transaction.
+  /// Rolls back a single applied [migration] using its `-- down` section within a transaction.
+  ///
+  /// Executes each SQL statement in [BloomMigration.downStatements] sequentially inside `BEGIN` ... `COMMIT`
+  /// and removes the corresponding row from [trackingTableName].
+  ///
+  /// Throws a [MigrationNonInvertibleException] if [migration] does not define a down SQL section.
+  /// Throws a [MigrationExecutionException] if statement execution fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// final reverted = await runner.rollbackMigration(lastMigration);
+  /// print('Reverted: ${reverted.name}');
+  /// ```
   Future<BloomMigration> rollbackMigration(BloomMigration migration) async {
     if (!migration.hasDown) {
       throw MigrationNonInvertibleException('${migration.app}/${migration.name}');
@@ -273,6 +377,23 @@ WHERE app = ${dialect.placeholder(1)} AND name = ${dialect.placeholder(2)}''';
   }
 
   /// Rolls back the most recent [count] applied migrations.
+  ///
+  /// Lookups applied migration history, locates the corresponding migration file on disk,
+  /// and invokes [rollbackMigration] in reverse order.
+  ///
+  /// When [app] is specified, only migrations for that app are rolled back.
+  /// Returns the list of rolled-back [BloomMigration] descriptors.
+  ///
+  /// Throws a [MigrationFileNotFoundException] if the disk migration file corresponding
+  /// to an applied record cannot be found.
+  ///
+  /// Example:
+  /// ```dart
+  /// final rolledBack = await runner.rollback(count: 2);
+  /// for (final m in rolledBack) {
+  ///   print('Rolled back: ${m.app}/${m.name}');
+  /// }
+  /// ```
   Future<List<BloomMigration>> rollback({
     String? app,
     int count = 1,

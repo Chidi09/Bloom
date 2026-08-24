@@ -4,18 +4,32 @@ import 'package:bloom_db/bloom_db.dart';
 
 /// Accumulates field-level and non-field validation errors.
 ///
+/// Maps field names to lists of human-readable error messages. Non-field errors
+/// (such as invalid root JSON types) are stored under `'non_field_errors'`.
+///
+/// Example:
+/// ```dart
+/// final errors = BloomValidationErrors();
+/// errors.add('email', 'Invalid email format');
+/// errors.add('password', 'Must be at least 8 characters');
+/// if (errors.isNotEmpty) {
+///   print(errors.toJson());
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::ValidationErrors`.
 class BloomValidationErrors {
   final Map<String, List<String>> _errors = {};
 
+  /// Creates an empty [BloomValidationErrors] container.
   BloomValidationErrors();
 
-  /// Adds an error message for [field].
+  /// Adds an error [message] for the specified [field].
   void add(String field, String message) {
     _errors.putIfAbsent(field, () => []).add(message);
   }
 
-  /// Merges errors from another [BloomValidationErrors] instance.
+  /// Merges errors from [other] into this error container.
   void merge(BloomValidationErrors other) {
     for (final entry in other._errors.entries) {
       _errors.putIfAbsent(entry.key, () => []).addAll(entry.value);
@@ -28,10 +42,10 @@ class BloomValidationErrors {
   /// Whether at least one error has been recorded.
   bool get isNotEmpty => _errors.isNotEmpty;
 
-  /// Returns the underlying error map.
+  /// Returns an unmodifiable map of field names to their recorded error message lists.
   Map<String, List<String>> toMap() => Map.unmodifiable(_errors);
 
-  /// Returns a simplified map where single errors are flattened to strings.
+  /// Returns a simplified map where single errors are flattened to strings and multiple errors remain lists.
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};
     for (final entry in _errors.entries) {
@@ -50,6 +64,20 @@ class BloomValidationErrors {
 
 /// Controls which fields cross the wire, in each direction.
 ///
+/// Configures field visibility for serialization (reads) and deserialization (writes):
+/// - [only]: If specified, restricts read/write to this exact allowlist.
+/// - [exclude]: Fields completely barred from reads and writes.
+/// - [readOnly]: Fields emitted in responses but rejected on writes (e.g. `id`, `created_at`).
+/// - [writeOnly]: Fields accepted in requests but omitted from responses (e.g. `password`).
+///
+/// Example:
+/// ```dart
+/// final fields = BloomFieldSet.all()
+///     .withReadOnly(['id', 'created_at', 'updated_at'])
+///     .withWriteOnly(['password_hash'])
+///     .excluding(['internal_secret']);
+/// ```
+///
 /// Mirrors `djangors_rest::FieldSet`.
 class BloomFieldSet {
   /// When non-empty, only these fields are emitted or accepted.
@@ -65,6 +93,7 @@ class BloomFieldSet {
   /// Fields accepted on write but never emitted (e.g. `password`).
   final List<String> writeOnly;
 
+  /// Creates a [BloomFieldSet] with explicit lists for [only], [exclude], [readOnly], and [writeOnly].
   const BloomFieldSet({
     this.only = const [],
     this.exclude = const [],
@@ -75,11 +104,11 @@ class BloomFieldSet {
   /// An unrestricted field set: every model field, both directions.
   factory BloomFieldSet.all() => const BloomFieldSet();
 
-  /// Restrict to exactly these fields.
+  /// Restrict to exactly these [fields].
   factory BloomFieldSet.onlyFields(List<String> fields) =>
       BloomFieldSet(only: List.unmodifiable(fields));
 
-  /// Exclude these fields entirely.
+  /// Exclude these [fields] entirely from both reading and writing.
   BloomFieldSet excluding(List<String> fields) => BloomFieldSet(
         only: only,
         exclude: [...exclude, ...fields],
@@ -87,7 +116,7 @@ class BloomFieldSet {
         writeOnly: writeOnly,
       );
 
-  /// Mark these fields read-only: emitted, never accepted on write.
+  /// Mark these [fields] read-only: emitted on reads, rejected on writes.
   BloomFieldSet withReadOnly(List<String> fields) => BloomFieldSet(
         only: only,
         exclude: exclude,
@@ -95,7 +124,7 @@ class BloomFieldSet {
         writeOnly: writeOnly,
       );
 
-  /// Mark these fields write-only: accepted on write, never emitted.
+  /// Mark these [fields] write-only: accepted on writes, never emitted in responses.
   BloomFieldSet withWriteOnly(List<String> fields) => BloomFieldSet(
         only: only,
         exclude: exclude,
@@ -110,18 +139,20 @@ class BloomFieldSet {
     return only.isEmpty || only.contains(field);
   }
 
-  /// Whether the field appears in serialized output.
+  /// Whether [field] appears in serialized output.
   bool isReadable(String field) {
     return _inScope(field) && !writeOnly.contains(field);
   }
 
-  /// Whether the field is accepted from client input.
+  /// Whether [field] is accepted from client input.
   bool isWritable(String field) {
     return _inScope(field) && !readOnly.contains(field);
   }
 }
 
-/// Validator callback on field values.
+/// Validator callback on parsed field values.
+///
+/// Receives the coerced column [values] map and an [errors] accumulator.
 typedef BloomValidator = void Function(
   Map<String, dynamic> values,
   BloomValidationErrors errors,
@@ -129,24 +160,51 @@ typedef BloomValidator = void Function(
 
 /// Converts between a model [T] and its wire representation, with validation.
 ///
+/// Defines the serialization protocol:
+/// - [toRepresentation]: converts a model instance to a JSON map.
+/// - [toInternalValue]: parses and validates request payloads.
+/// - [validate]: executes cross-field or object-level validation rules.
+///
+/// Example:
+/// ```dart
+/// class CustomArticleSerializer extends BloomSerializer<Article> {
+///   @override
+///   Map<String, dynamic> toRepresentation(Article instance) => {
+///     'id': instance.id,
+///     'title': instance.title,
+///   };
+///
+///   @override
+///   (Map<String, dynamic>?, BloomValidationErrors?) toInternalValue(
+///     dynamic data, {
+///     bool partial = false,
+///   }) {
+///     if (data is! Map) return (null, BloomValidationErrors()..add('non_field_errors', 'Expected map'));
+///     return (Map<String, dynamic>.from(data), null);
+///   }
+/// }
+/// ```
+///
 /// Mirrors `djangors_rest::Serializer<M>`.
 abstract class BloomSerializer<T extends Model> {
-  /// Render a model instance for the response body.
+  /// Render a model [instance] for the response body.
   Map<String, dynamic> toRepresentation(T instance);
 
-  /// Parse and validate a request body into column values ready for `insertRaw` / `update`.
+  /// Parse and validate a request body [data] into column values ready for `insertRaw` / `update`.
   ///
-  /// When [partial] is true (PATCH), omitted fields are ignored.
-  /// When [partial] is false (POST / PUT), missing required fields are flagged as errors.
+  /// When [partial] is `true` (PATCH), omitted fields are ignored.
+  /// When [partial] is `false` (POST / PUT), missing required fields are flagged as errors.
   (Map<String, dynamic>?, BloomValidationErrors?) toInternalValue(
     dynamic data, {
     bool partial = false,
   });
 
   /// Object-level rules run after fields parse successfully.
+  ///
+  /// Adds errors to [errors] if constraints on [values] are violated.
   void validate(Map<String, dynamic> values, BloomValidationErrors errors) {}
 
-  /// Render an instance with pre-fetched related objects embedded in place of raw FK ids.
+  /// Render an [instance] with pre-fetched [related] objects embedded in place of raw FK ids.
   Map<String, dynamic> toRepresentationNested(
     T instance,
     Map<String, dynamic> related,
@@ -161,12 +219,14 @@ abstract class BloomSerializer<T extends Model> {
     return map;
   }
 
-  /// Render a collection of model instances.
+  /// Render a collection of model [instances].
   List<Map<String, dynamic>> toRepresentationMany(List<T> instances) {
     return instances.map(toRepresentation).toList();
   }
 
-  /// Parse request body and apply object-level [validate].
+  /// Parse request body [data] and apply object-level [validate].
+  ///
+  /// Returns a tuple containing the valid column map, or [BloomValidationErrors] if validation fails.
   (Map<String, dynamic>?, BloomValidationErrors?) parse(
     dynamic data, {
     bool partial = false,
@@ -191,6 +251,9 @@ abstract class BloomSerializer<T extends Model> {
 }
 
 /// Converts a single ORM [BloomValue] into a JSON-compatible dynamic value.
+///
+/// Formats [BloomDateTimeValue] as UTC ISO-8601 strings and unpacks numeric, boolean,
+/// string, null, and list variants.
 dynamic bloomValueToJson(BloomValue value) {
   return switch (value) {
     BloomI64Value(:final value) => value,
@@ -203,7 +266,7 @@ dynamic bloomValueToJson(BloomValue value) {
   };
 }
 
-/// Serializes any [Model]'s `fieldValues()` into a Map.
+/// Serializes any [Model]'s `fieldValues()` into a JSON-ready Map.
 Map<String, dynamic> serializeModel(Model instance) {
   final map = <String, dynamic>{};
   for (final (name, value) in instance.fieldValues()) {
@@ -214,6 +277,21 @@ Map<String, dynamic> serializeModel(Model instance) {
 
 /// The default [BloomSerializer]: derives its behaviour from [ModelMeta],
 /// narrowed by a [BloomFieldSet].
+///
+/// Automatically handles type coercion, required-field checks, foreign key parsing,
+/// and field set exclusions.
+///
+/// Example:
+/// ```dart
+/// final serializer = BloomModelSerializer<Article>(
+///   meta: Article.meta,
+///   fields: BloomFieldSet.all().withReadOnly(['id', 'created_at']),
+/// ).withValidator((values, errors) {
+///   if (values['title'] == 'forbidden') {
+///     errors.add('title', 'This title is not allowed');
+///   }
+/// });
+/// ```
 ///
 /// Mirrors `djangors_rest::ModelSerializer<M>`.
 class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
@@ -230,7 +308,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
     BloomFieldSet? fields,
   }) : fields = fields ?? BloomFieldSet.all();
 
-  /// Attach an object-level validator rule.
+  /// Attaches an object-level [validator] rule executed during [validate].
   BloomModelSerializer<T> withValidator(BloomValidator validator) {
     _validators.add(validator);
     return this;
@@ -464,6 +542,15 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
 /// Composes two serializers so a relation renders as a nested object instead of
 /// a bare foreign-key ID.
 ///
+/// Example:
+/// ```dart
+/// final serializer = BloomNestedSerializer<Article, Author>(
+///   base: BloomModelSerializer<Article>(meta: Article.meta),
+///   relation: 'author',
+///   inner: BloomModelSerializer<Author>(meta: Author.meta),
+/// );
+/// ```
+///
 /// Mirrors `djangors_rest::NestedSerializer<M, R>`.
 class BloomNestedSerializer<T extends Model, R extends Model>
     extends BloomSerializer<T> {
@@ -483,7 +570,7 @@ class BloomNestedSerializer<T extends Model, R extends Model>
     required this.inner,
   });
 
-  /// Renders [instance], embedding [related] at the configured relation field.
+  /// Renders [instance], embedding [related] at the configured [relation] field.
   Map<String, dynamic> render(T instance, R? related) {
     if (related == null) {
       return base.toRepresentation(instance);
@@ -494,7 +581,7 @@ class BloomNestedSerializer<T extends Model, R extends Model>
     return base.toRepresentationNested(instance, relatedMap);
   }
 
-  /// Renders a collection of (instance, related) pairs.
+  /// Renders a collection of ([T], [R]?) model pairs into JSON maps.
   List<Map<String, dynamic>> renderMany(List<(T, R?)> rows) {
     return rows.map((pair) => render(pair.$1, pair.$2)).toList();
   }
@@ -517,3 +604,4 @@ class BloomNestedSerializer<T extends Model, R extends Model>
     base.validate(values, errors);
   }
 }
+

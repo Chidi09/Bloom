@@ -16,9 +16,28 @@ class _HubConnection {
 
 /// In-process registry and pub/sub broadcaster of WebSocket connections grouped by channel name.
 ///
-/// NOTE: This hub is an in-memory, single-process implementation. If your Bloom API server
+/// Manages connection lifecycles, channel subscription indices, and dead-socket pruned broadcasts.
+/// Incoming messages can be automatically parsed as [RealtimeMessage] envelopes or handled manually.
+///
+/// ### Horizontal Scaling Note
+/// This hub is an in-memory, single-process implementation. If your Bloom API server
 /// is horizontally scaled across multiple processes or containers, broadcast events are local
-/// to the current process unless bridged via an external broker (e.g., Redis pub/sub).
+/// to the current process unless bridged via [BloomRealtimeCluster] or an external broker (e.g. Redis pub/sub).
+///
+/// ### Example
+/// ```dart
+/// final hub = BloomChannelHub();
+///
+/// // Listen to connection events
+/// hub.onSubscribed = (connId, channel) => print('$connId joined $channel');
+/// hub.onBroadcast = (channel, payload) => print('Broadcast on $channel: $payload');
+///
+/// // Register a newly upgraded socket
+/// final connId = hub.registerConnection(socket);
+///
+/// // Broadcast to all subscribers of a channel
+/// final count = hub.broadcast('chat:lobby', {'text': 'Welcome!'});
+/// ```
 class BloomChannelHub {
   final Map<String, _HubConnection> _connections = {};
   final Map<String, Set<_HubConnection>> _channelSubscribers = {};
@@ -26,34 +45,57 @@ class BloomChannelHub {
   int _idCounter = 0;
 
   /// Optional callback invoked when a connection is subscribed to a channel.
+  ///
+  /// Receives the `connectionId` and the `channel` name.
   void Function(String connectionId, String channel)? onSubscribed;
 
   /// Optional callback invoked when a connection is unsubscribed from a channel.
+  ///
+  /// Receives the `connectionId` and the `channel` name.
   void Function(String connectionId, String channel)? onUnsubscribed;
 
   /// Optional callback invoked when a connection is closed and cleaned up.
+  ///
+  /// Receives the `connectionId`.
   void Function(String connectionId)? onConnectionClosed;
 
   /// Optional callback invoked when a broadcast payload is dispatched to a channel.
+  ///
+  /// Receives the `channel` name and the broadcast `payload` map.
   void Function(String channel, Map<String, dynamic> payload)? onBroadcast;
 
-  /// Number of active connections.
+  /// Number of active connections currently registered in the hub.
   int get activeConnectionCount => _connections.length;
 
-  /// Number of unique channels currently containing subscribers.
+  /// Number of unique channels currently containing at least one subscriber.
   int get activeChannelCount => _channelSubscribers.length;
 
-  /// Get subscriber count for a specific [channel].
+  /// Returns the subscriber count for a specific [channel].
+  ///
+  /// Returns `0` if the channel does not exist or has no active subscribers.
+  ///
+  /// Example:
+  /// ```dart
+  /// final listeners = hub.channelSubscriberCount('chat:lobby');
+  /// ```
   int channelSubscriberCount(String channel) =>
       _channelSubscribers[channel]?.length ?? 0;
 
   /// High-performance WebSocket upgrader with optimal production defaults:
   /// - Disables `permessage-deflate` by default ([CompressionOptions.compressionOff]) to save CPU on small JSON events.
-  /// - Automatically completes RFC 6455 upgrade handshake.
+  /// - Automatically completes the RFC 6455 upgrade handshake.
   ///
   /// - [request]: The incoming [HttpRequest].
   /// - [compression]: Compression strategy (defaults to [CompressionOptions.compressionOff]).
-  /// - [protocol]: Optional subprotocol string.
+  /// - [protocol]: Optional WebSocket subprotocol string.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (WebSocketTransformer.isUpgradeRequest(request)) {
+  ///   final socket = await BloomChannelHub.upgrade(request);
+  ///   hub.registerConnection(socket);
+  /// }
+  /// ```
   static Future<WebSocket> upgrade(
     HttpRequest request, {
     CompressionOptions compression = CompressionOptions.compressionOff,
@@ -68,12 +110,20 @@ class BloomChannelHub {
 
   /// Registers and attaches a newly upgraded [WebSocket] connection to the hub.
   ///
-  /// Automatically listens to socket messages (handling standard [RealtimeMessage] protocol),
-  /// and automatically cleans up channels and resources on socket close or error.
+  /// Automatically listens to socket messages (handling standard [RealtimeMessage] protocol
+  /// when [autoHandleProtocol] is `true`), and automatically cleans up channels and resources
+  /// on socket close or error.
   ///
   /// - [socket]: Upgraded `dart:io` [WebSocket] connection.
-  /// - [connectionId]: Optional custom connection ID string.
-  /// - [autoHandleProtocol]: If `true`, automatically parses incoming wire messages.
+  /// - [connectionId]: Optional custom connection ID string. If omitted, generates a unique ID.
+  /// - [autoHandleProtocol]: If `true` (default), automatically parses incoming wire messages.
+  ///
+  /// Returns the assigned connection ID string.
+  ///
+  /// Example:
+  /// ```dart
+  /// final connId = hub.registerConnection(socket);
+  /// ```
   String registerConnection(
     WebSocket socket, {
     String? connectionId,
@@ -120,6 +170,14 @@ class BloomChannelHub {
   ///
   /// - [channelName]: Name of the channel to join.
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string.
+  ///
+  /// Returns `true` if successfully subscribed, or `false` if the connection is unknown,
+  /// disposed, or already closed.
+  ///
+  /// Example:
+  /// ```dart
+  /// hub.subscribe('chat:lobby', connId);
+  /// ```
   bool subscribe(String channelName, dynamic socketOrId) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null || conn.isDisposed) return false;
@@ -140,6 +198,13 @@ class BloomChannelHub {
   ///
   /// - [channelName]: Name of the channel to leave.
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string.
+  ///
+  /// Returns `true` if unsubscribed, or `false` if the connection was not found.
+  ///
+  /// Example:
+  /// ```dart
+  /// hub.unsubscribe('chat:lobby', connId);
+  /// ```
   bool unsubscribe(String channelName, dynamic socketOrId) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null) return false;
@@ -158,12 +223,20 @@ class BloomChannelHub {
 
   /// Broadcasts [payload] to all active subscribers of [channelName].
   ///
-  /// Dead or closing sockets are actively detected, dropped from the subscriber set,
-  /// and cleaned up from the hub without throwing or leaking memory.
+  /// Dead or closing sockets are actively detected during transmission, dropped from the
+  /// subscriber set, and cleaned up from the hub without throwing or leaking memory.
   ///
   /// - [channelName]: Target channel name.
   /// - [payload]: Map payload data to broadcast.
   /// - [asBinary]: When `true`, serializes directly to pre-encoded UTF-8 byte array for binary framing.
+  ///
+  /// Returns the number of connections to which the message was successfully delivered.
+  ///
+  /// Example:
+  /// ```dart
+  /// final sent = hub.broadcast('alerts', {'level': 'warning', 'msg': 'Disk full'});
+  /// print('Broadcast sent to $sent clients');
+  /// ```
   int broadcast(String channelName, Map<String, dynamic> payload, {bool asBinary = false}) {
     final subs = _channelSubscribers[channelName];
     if (subs == null || subs.isEmpty) return 0;
@@ -203,7 +276,14 @@ class BloomChannelHub {
   ///
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string.
   /// - [message]: Message envelope to send.
-  /// - [asBinary]: When `true`, sends binary frame.
+  /// - [asBinary]: When `true`, sends binary UTF-8 byte frame.
+  ///
+  /// Returns `true` if delivered successfully, or `false` if the connection is closed or not found.
+  ///
+  /// Example:
+  /// ```dart
+  /// hub.sendTo(connId, RealtimeMessage.pong());
+  /// ```
   bool sendTo(dynamic socketOrId, RealtimeMessage message, {bool asBinary = false}) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null || conn.isDisposed) return false;
@@ -226,6 +306,11 @@ class BloomChannelHub {
   /// and closes its socket if still open.
   ///
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string to remove.
+  ///
+  /// Example:
+  /// ```dart
+  /// hub.removeConnection(connId);
+  /// ```
   void removeConnection(dynamic socketOrId) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null) return;
@@ -268,16 +353,33 @@ class BloomChannelHub {
   /// Returns a list of channel names that [socketOrId] is currently subscribed to.
   ///
   /// - [socketOrId]: Target [WebSocket] instance or connection ID string.
+  ///
+  /// Returns an empty list if the connection is not found.
+  ///
+  /// Example:
+  /// ```dart
+  /// final channels = hub.getSubscribedChannels(connId);
+  /// ```
   List<String> getSubscribedChannels(dynamic socketOrId) {
     final conn = _resolveConnection(socketOrId);
     if (conn == null) return const [];
     return List<String>.from(conn.subscribedChannels);
   }
 
-  /// Returns the connection ID for a given [socket], if registered.
+  /// Returns the connection ID for a given [socket], or `null` if not registered.
+  ///
+  /// Example:
+  /// ```dart
+  /// final id = hub.getConnectionId(socket);
+  /// ```
   String? getConnectionId(WebSocket socket) => _socketToId[socket];
 
   /// Disposes the hub, closing all registered WebSocket connections and releasing memory.
+  ///
+  /// Example:
+  /// ```dart
+  /// hub.dispose();
+  /// ```
   void dispose() {
     final allIds = List<String>.from(_connections.keys);
     for (final id in allIds) {

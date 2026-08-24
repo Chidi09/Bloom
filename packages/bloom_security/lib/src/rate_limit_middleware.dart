@@ -1,10 +1,37 @@
 import 'dart:async';
 import 'package:bloom_server/bloom_server.dart';
 
-/// Function signature for extracting a rate-limiting key from a request.
+/// Function signature for extracting a rate-limiting key from an incoming [BloomRequest].
+///
+/// The returned string serves as the bucket identifier (e.g. client IP address, API key,
+/// or authenticated user ID).
+///
+/// Example:
+/// ```dart
+/// String apiKeyExtractor(BloomRequest request) {
+///   return request.headers['x-api-key'] ?? 'anonymous';
+/// }
+/// ```
 typedef BloomRateLimitKeyExtractor = String Function(BloomRequest request);
 
-/// Function signature for building a custom response when rate limit is exceeded.
+/// Function signature for building a custom [BloomResponse] when a rate limit is exceeded.
+///
+/// Receives the incoming [request], the [retryAfter] duration before requests may resume,
+/// and the maximum request [limit] configured for the window.
+///
+/// Example:
+/// ```dart
+/// BloomResponse customRateLimitHandler(
+///   BloomRequest request,
+///   Duration retryAfter,
+///   int limit,
+/// ) {
+///   return BloomResponse.json(
+///     {'error': 'quota_exceeded', 'retry_in_seconds': retryAfter.inSeconds},
+///     statusCode: 429,
+///   );
+/// }
+/// ```
 typedef BloomRateLimitExceededHandler = BloomResponse Function(
   BloomRequest request,
   Duration retryAfter,
@@ -19,6 +46,16 @@ typedef BloomRateLimitExceededHandler = BloomResponse Function(
 /// - Default client IP extraction with proxy/CDN header awareness (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`).
 /// - Standard rate-limiting headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`).
 /// - Automatic periodic memory cleanup of idle client buckets.
+///
+/// Example:
+/// ```dart
+/// final rateLimiter = BloomRateLimitMiddleware(
+///   maxRequests: 100,
+///   window: const Duration(minutes: 1),
+///   whitelist: {'127.0.0.1'},
+/// );
+/// router.use(rateLimiter);
+/// ```
 class BloomRateLimitMiddleware implements BloomMiddleware {
   /// Maximum number of allowed requests within the time [window].
   final int maxRequests;
@@ -26,13 +63,13 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
   /// Time duration of the sliding window.
   final Duration window;
 
-  /// Custom key extractor function. Defaults to client IP address.
+  /// Custom key extractor function. Defaults to client IP address extracted from reverse-proxy headers.
   final BloomRateLimitKeyExtractor keyExtractor;
 
-  /// Custom handler when rate limit is exceeded.
+  /// Custom handler returning a custom [BloomResponse] when rate limit is exceeded.
   final BloomRateLimitExceededHandler? onRateLimitExceeded;
 
-  /// Set of keys or IP addresses that bypass rate limiting.
+  /// Set of keys or IP addresses that bypass rate limiting completely.
   final Set<String> whitelist;
 
   /// Whether to include `X-RateLimit-*` headers in all responses.
@@ -44,13 +81,21 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
 
   /// Creates a sliding-window rate limiter middleware.
   ///
-  /// - [maxRequests]: Maximum requests permitted within [window] duration per client key.
+  /// - [maxRequests]: Maximum requests permitted within [window] duration per client key (defaults to 60).
   /// - [window]: Sliding window duration (defaults to 1 minute).
   /// - [keyExtractor]: Custom function to extract a unique client key (defaults to client IP / reverse proxy headers).
   /// - [onRateLimitExceeded]: Optional handler returning a custom [BloomResponse] when rate limit is exceeded.
   /// - [whitelist]: Set of keys or IPs that are exempt from rate limiting.
-  /// - [includeHeaders]: Whether to emit `X-RateLimit-*` and `Retry-After` headers on responses.
-  /// - [cleanupInterval]: Frequency at which idle client buckets are purged from memory.
+  /// - [includeHeaders]: Whether to emit `X-RateLimit-*` and `Retry-After` headers on responses (defaults to `true`).
+  /// - [cleanupInterval]: Frequency at which idle client buckets are purged from memory (defaults to 5 minutes).
+  ///
+  /// Example:
+  /// ```dart
+  /// final limiter = BloomRateLimitMiddleware(
+  ///   maxRequests: 30,
+  ///   window: const Duration(seconds: 30),
+  /// );
+  /// ```
   BloomRateLimitMiddleware({
     this.maxRequests = 60,
     this.window = const Duration(minutes: 1),
@@ -63,18 +108,28 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
     _cleanupTimer = Timer.periodic(cleanupInterval, (_) => _pruneAllStaleBuckets());
   }
 
-  /// Cancels background cleanup timers.
+  /// Cancels background cleanup timers and clears all in-memory rate-limit buckets.
+  ///
+  /// Call when shutting down the server or disposing of the middleware.
   void dispose() {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
     _buckets.clear();
   }
 
-  /// Resets all rate-limit buckets.
+  /// Resets all rate-limit buckets, clearing all tracked request timestamps.
   void reset() {
     _buckets.clear();
   }
 
+  /// Intercepts the incoming [request] and enforces rate limits against the client key.
+  ///
+  /// If the client key is present in [whitelist], requests pass through immediately to [next].
+  ///
+  /// When [maxRequests] is exceeded within [window], returns a 429 Too Many Requests response
+  /// (or invokes [onRateLimitExceeded]) along with `Retry-After` and `X-RateLimit-*` headers without invoking [next].
+  ///
+  /// Otherwise, records the request timestamp, executes [next], and optionally attaches rate limit headers.
   @override
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
     final key = keyExtractor(request);
