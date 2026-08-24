@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 - 2026-08-24
+
+### Added
+* **COOKBOOK.md**: new "Project Structure & Multi-File Apps" section (recommended `lib/routes/`, `lib/components/`, `lib/state/` layout) and a "UI Component Primitives" section covering all 47+ exports from `lib/src/ui.dart`.
+
 ## 0.3.0 - 2026-08-24
 
 ### Added

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 - 2026-08-24
+
+### Added
+* **`bloom create <name> --js-native`**: scaffolds a Flutter-free Bloom JS Native project (pubspec.yaml with no `flutter` dependency, `bloom.yaml`, `web/index.html`, `lib/main.dart` correctly importing `browser.dart` for `mount()`, a smoke test, and a generated `AGENTS.md`) instead of shelling out to `flutter create`.
+
+### Fixed
+* `bloom --version` / `bloom -v` printed a stale hardcoded `0.1.0` regardless of the installed release; now kept in sync with `pubspec.yaml`.
+
 ## 0.5.0 - 2026-08-24
 
 ### Added
