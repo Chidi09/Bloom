@@ -2,11 +2,44 @@
 import 'dart:collection';
 import '../config/env_schema.dart';
 
-/// Environment configuration parser and type-safe reader.
+/// Environment configuration parser, store, and type-safe reader.
+///
+/// [BloomEnv] provides a centralized, in-memory environment configuration store:
+/// - **Parsing**: Load configuration from raw `.env` files via [loadContent] or from Dart maps via [loadMap].
+/// - **Compile-Time Defines**: Seed `--dart-define` constants using [loadDartDefines].
+/// - **Type-Safe Accessors**: Retrieve values typed as [String], [int], [double], or [bool]
+///   with optional defaults or strict exception throwing on missing values.
+/// - **Schema Validation**: Validate strongly-typed configurations with [validate] and [BloomEnvironmentSchema].
+///
+/// ### Example
+/// ```dart
+/// // 1. Load from .env text
+/// BloomEnv.loadContent('''
+///   APP_PORT=8080
+///   DEBUG=true
+///   DB_HOST=127.0.0.1
+/// ''');
+///
+/// // 2. Read typed values
+/// final port = BloomEnv.getInt('APP_PORT', defaultValue: 3000);
+/// final isDebug = BloomEnv.getBool('DEBUG');
+/// final dbHost = BloomEnv.get('DB_HOST');
+/// ```
 class BloomEnv {
   static final Map<String, String> _env = HashMap<String, String>();
 
-  /// Load and parse `.env` formatted content string.
+  /// Parses and loads environment variables from a raw `.env` formatted [content] string.
+  ///
+  /// Ignores blank lines and comments starting with `#`. Strips surrounding single
+  /// (`'`) or double (`"`) quotes from values.
+  ///
+  /// If [overwrite] is `true` (the default), existing keys are overwritten; otherwise,
+  /// previously loaded values are preserved.
+  ///
+  /// ### Example
+  /// ```dart
+  /// BloomEnv.loadContent('PORT=8080\nAPI_KEY="secret_key"');
+  /// ```
   static void loadContent(String content, {bool overwrite = true}) {
     final lines = content.split('\n');
     for (var line in lines) {
@@ -33,7 +66,14 @@ class BloomEnv {
     }
   }
 
-  /// Populate environment variables directly from a Map.
+  /// Populates environment variables directly from a [map] of key-value pairs.
+  ///
+  /// If [overwrite] is `true` (the default), existing keys are overwritten.
+  ///
+  /// ### Example
+  /// ```dart
+  /// BloomEnv.loadMap({'PORT': '8080', 'HOST': '0.0.0.0'});
+  /// ```
   static void loadMap(Map<String, String> map, {bool overwrite = true}) {
     map.forEach((k, v) {
       if (overwrite || !_env.containsKey(k)) {
@@ -42,26 +82,37 @@ class BloomEnv {
     });
   }
 
-  /// Seeds `--dart-define` values into the runtime map.
+  /// Seeds `--dart-define` values into the runtime environment map.
   ///
   /// `String.fromEnvironment`/`bool.hasEnvironment` are const constructors —
   /// Dart only resolves them for literal keys known at compile time, so
-  /// `BloomEnv` cannot look a dart-define up generically by a runtime [key].
-  /// Callers declare their known dart-define keys as literals here (see
-  /// `boot.dart`'s `BLOOM_FLAVOR` handling for the pattern), and every other
-  /// `BloomEnv` accessor then reads them back out of the ordinary runtime map:
+  /// `BloomEnv` cannot look a dart-define up generically by a runtime [defines] key.
+  /// Callers declare their known dart-define keys as literals here, and every other
+  /// `BloomEnv` accessor can then read them back out of the ordinary runtime map.
   ///
+  /// If [overwrite] is `true`, passed definitions override existing keys (default is `false`).
+  ///
+  /// ### Example
   /// ```dart
   /// BloomEnv.loadDartDefines({
   ///   if (const bool.hasEnvironment('APP_ENV'))
   ///     'APP_ENV': const String.fromEnvironment('APP_ENV'),
+  ///   if (const bool.hasEnvironment('PORT'))
+  ///     'PORT': const String.fromEnvironment('PORT'),
   /// });
   /// ```
   static void loadDartDefines(Map<String, String> defines, {bool overwrite = false}) =>
       loadMap(defines, overwrite: overwrite);
 
-  /// Validates a typed [BloomEnvironmentSchema] against current environment variables.
-  /// Throws [BloomEnvironmentException] if any required keys are missing or malformed.
+  /// Validates a typed [BloomEnvironmentSchema] instance against the currently loaded environment variables.
+  ///
+  /// Calls [BloomEnvironmentSchema.validate] and returns the [schema] instance if valid.
+  /// Throws [BloomEnvironmentException] if any required keys are missing or unparseable.
+  ///
+  /// ### Example
+  /// ```dart
+  /// final config = BloomEnv.validate(MyConfigSchema());
+  /// ```
   static T validate<T extends BloomEnvironmentSchema>(T schema) {
     schema.validate();
     if (schema.validationErrors.isNotEmpty) {
@@ -73,7 +124,10 @@ class BloomEnv {
     return schema;
   }
 
-  /// Get environment variable string, fallback to compile-time define if not in map, or throw if absent.
+  /// Retrieves the string value for [key].
+  ///
+  /// Returns [defaultValue] if [key] is absent and [defaultValue] is provided.
+  /// Throws [StateError] if [key] is not found and no [defaultValue] is given.
   static String get(String key, {String? defaultValue}) {
     if (_env.containsKey(key)) {
       return _env[key]!;
@@ -84,10 +138,14 @@ class BloomEnv {
     throw StateError('BloomEnv: Missing required environment variable "$key".');
   }
 
-  /// Get environment variable string, or return `null` if not found.
+  /// Retrieves the string value for [key], or returns `null` if not found.
   static String? getOrNull(String key) => _env[key];
 
-  /// Get integer value.
+  /// Retrieves the integer value for [key].
+  ///
+  /// Parses the string value as an [int]. Returns [defaultValue] if [key] is absent.
+  /// Throws [StateError] if [key] is absent and no [defaultValue] is provided, or if
+  /// the value cannot be parsed as an integer.
   static int getInt(String key, {int? defaultValue}) {
     if (_env.containsKey(key)) {
       final parsed = int.tryParse(_env[key]!);
@@ -97,7 +155,11 @@ class BloomEnv {
     throw StateError('BloomEnv: Missing required integer environment variable "$key".');
   }
 
-  /// Get double value.
+  /// Retrieves the double value for [key].
+  ///
+  /// Parses the string value as a [double]. Returns [defaultValue] if [key] is absent.
+  /// Throws [StateError] if [key] is absent and no [defaultValue] is provided, or if
+  /// the value cannot be parsed as a double.
   static double getDouble(String key, {double? defaultValue}) {
     if (_env.containsKey(key)) {
       final parsed = double.tryParse(_env[key]!);
@@ -107,7 +169,13 @@ class BloomEnv {
     throw StateError('BloomEnv: Missing required double environment variable "$key".');
   }
 
-  /// Get boolean value.
+  /// Retrieves the boolean value for [key].
+  ///
+  /// Accepts `'true'`, `'1'`, `'yes'` (case-insensitive) as `true`,
+  /// and `'false'`, `'0'`, `'no'` as `false`.
+  /// Returns [defaultValue] if [key] is absent.
+  /// Throws [StateError] if [key] is absent and no [defaultValue] is provided, or if
+  /// the value cannot be parsed as a valid boolean representation.
   static bool getBool(String key, {bool? defaultValue}) {
     if (_env.containsKey(key)) {
       final val = _env[key]!;
@@ -119,15 +187,18 @@ class BloomEnv {
     throw StateError('BloomEnv: Missing required boolean environment variable "$key".');
   }
 
-  /// Check if environment variable exists in the runtime map.
+  /// Checks whether an environment variable exists in the runtime store for [key].
   static bool contains(String key) => _env.containsKey(key);
 
-  /// Check if environment variable exists (alias for contains).
+  /// Checks whether an environment variable exists in the runtime store for [key].
+  ///
+  /// Alias for [contains].
   static bool has(String key) => contains(key);
 
-  /// Clear all loaded environment variables.
+  /// Clears all loaded environment variables from the internal in-memory store.
   static void clear() => _env.clear();
 
-  /// Read-only snapshot of all currently loaded environment variables.
+  /// A read-only snapshot map of all currently loaded environment variables.
   static Map<String, String> get all => UnmodifiableMapView(_env);
 }
+

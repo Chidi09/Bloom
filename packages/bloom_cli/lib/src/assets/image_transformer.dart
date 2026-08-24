@@ -7,16 +7,33 @@ import 'package:image/image.dart' as img;
 /// ?w=1,2,3... and pins every core re-encoding images forever.
 const List<int> kBloomImageWidths = [640, 750, 828, 1080, 1200, 1920, 2048, 3840];
 
+/// Default quality level (80) used when encoding JPEG image variants.
 const int kBloomImageJpegQuality = 80;
 
-enum BloomImageFormat { jpeg, png }
+/// Output formats supported by [BloomImageTransformer].
+enum BloomImageFormat {
+  /// JPEG format, used for opaque photographic images.
+  jpeg,
 
+  /// PNG format, used for images containing an alpha channel.
+  png,
+}
+
+/// Result of an image transformation operation.
 class BloomImageTransformResult {
+  /// The encoded image bytes (JPEG or PNG).
   final Uint8List bytes;
+
+  /// The output format selected based on source image properties.
   final BloomImageFormat format;
+
+  /// The resulting width in pixels.
   final int width;
+
+  /// The resulting height in pixels.
   final int height;
 
+  /// Creates a container for the transformed image bytes and metadata.
   BloomImageTransformResult({
     required this.bytes,
     required this.format,
@@ -25,6 +42,7 @@ class BloomImageTransformResult {
   });
 }
 
+/// Build-time and runtime image transformer for generating optimized responsive variants.
 class BloomImageTransformer {
   /// Resizes [sourceBytes] to [width] and re-encodes it.
   ///

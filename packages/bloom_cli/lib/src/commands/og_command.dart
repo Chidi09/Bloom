@@ -6,6 +6,15 @@ import '../assets/og_image_generator.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command for Open Graph and social share image generation utilities.
+///
+/// Provides the `generate` subcommand to create social card PNG images at build time.
+///
+/// Example:
+/// ```
+/// bloom og generate --title "Bloom Framework" --subtitle "Next-gen full-stack Dart" --theme dark
+/// bloom og generate --title "Docs" --eyebrow "Guide" --out lib/generated/og/docs.png
+/// ```
 class OgCommand extends Command<int> {
   @override
   final String name = 'og';

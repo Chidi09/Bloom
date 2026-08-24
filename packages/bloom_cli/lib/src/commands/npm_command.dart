@@ -7,6 +7,16 @@ import '../npm/npm_vendor_assembler.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command to manage and discover NPM web packages for Bloom JS Native projects.
+///
+/// Provides subcommands: `list`, `sync`, and `search`.
+///
+/// Example:
+/// ```
+/// bloom npm list
+/// bloom npm sync
+/// bloom npm search chart.js
+/// ```
 class NpmCommand extends Command<int> {
   @override
   final String name = 'npm';
@@ -26,6 +36,12 @@ class NpmCommand extends Command<int> {
   }
 }
 
+/// Subcommand that searches the live NPM registry for packages to install with `bloom add`.
+///
+/// Example:
+/// ```
+/// bloom npm search three
+/// ```
 class NpmSearchCommand extends Command<int> {
   @override
   final String name = 'search';
@@ -65,6 +81,12 @@ class NpmSearchCommand extends Command<int> {
   }
 }
 
+/// Subcommand that lists all installed NPM packages and their vendor file sizes.
+///
+/// Example:
+/// ```
+/// bloom npm list
+/// ```
 class NpmListCommand extends Command<int> {
   @override
   final String name = 'list';
@@ -102,6 +124,12 @@ class NpmListCommand extends Command<int> {
   }
 }
 
+/// Subcommand that re-downloads missing vendor files and rebuilds the importmap in `web/index.html`.
+///
+/// Example:
+/// ```
+/// bloom npm sync
+/// ```
 class NpmSyncCommand extends Command<int> {
   @override
   final String name = 'sync';

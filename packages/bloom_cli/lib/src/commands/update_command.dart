@@ -9,15 +9,19 @@ import '../utils/project.dart';
 
 /// Helper to load and persist OTA update manifests locally or on CDN storage.
 class UpdateManifestStorage {
+  /// The target Bloom project.
   final BloomProject project;
 
+  /// Creates a manifest storage manager for [project].
   UpdateManifestStorage(this.project);
 
+  /// Target JSON file where update manifests are persisted.
   File get storageFile {
     final dir = Directory(p.join(project.rootDir.path, '.bloom', 'updates'))..createSync(recursive: true);
     return File(p.join(dir.path, 'manifests.json'));
   }
 
+  /// Loads all persisted update manifests.
   List<Map<String, dynamic>> loadManifests() {
     final file = storageFile;
     if (!file.existsSync()) return [];
@@ -30,10 +34,12 @@ class UpdateManifestStorage {
     return [];
   }
 
+  /// Writes [manifests] to disk as formatted JSON.
   void saveManifests(List<Map<String, dynamic>> manifests) {
     storageFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(manifests));
   }
 
+  /// Saves or replaces an update [manifest].
   void saveUpdate(Map<String, dynamic> manifest) {
     final list = loadManifests();
     list.removeWhere((m) => m['id'] == manifest['id']);
@@ -41,6 +47,7 @@ class UpdateManifestStorage {
     saveManifests(list);
   }
 
+  /// Finds a stored update manifest by [id].
   Map<String, dynamic>? findUpdate(String id) {
     final list = loadManifests();
     for (final m in list) {
@@ -49,6 +56,7 @@ class UpdateManifestStorage {
     return null;
   }
 
+  /// Finds the latest active update manifest for the specified [channel] and [branch].
   Map<String, dynamic>? findActiveUpdate({required String channel, required String branch}) {
     final list = loadManifests();
     for (final m in list.reversed) {
@@ -60,6 +68,18 @@ class UpdateManifestStorage {
   }
 }
 
+/// Parent command for enterprise OTA update platform management.
+///
+/// Provides subcommands: `check`, `publish`, `rollout`, `rollback`, and `fingerprint`.
+///
+/// Example:
+/// ```
+/// bloom update check --channel production
+/// bloom update publish --channel production --rollout 25 --notes "Hotfix"
+/// bloom update rollout --id upd_1234 --percentage 100
+/// bloom update rollback --channel production
+/// bloom update fingerprint
+/// ```
 class UpdateCommand extends Command<int> {
   @override
   final String name = 'update';

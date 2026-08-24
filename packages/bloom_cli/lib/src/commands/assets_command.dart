@@ -7,6 +7,16 @@ import '../assets/asset_optimizer.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command for asset optimization, dead asset analysis, and type-safe code generation.
+///
+/// Manages project assets through subcommands: `optimize`, `analyze`, and `generate`.
+///
+/// Example:
+/// ```
+/// bloom assets optimize
+/// bloom assets analyze
+/// bloom assets generate --project-dir ./my_app
+/// ```
 class AssetsCommand extends Command<int> {
   @override
   final String name = 'assets';

@@ -6,12 +6,22 @@ import '../generator/module_generator.dart';
 import '../templates/module_templates.dart';
 import '../utils/ansi.dart';
 
+/// Command that scaffolds a new publishable Bloom Native Module.
+///
+/// Generates cross-platform directory architecture, `@BloomModule` DSL definitions,
+/// Android Kotlin bridge, iOS Swift bridge, and unit test scaffold.
+///
+/// Example:
+/// ```
+/// bloom create-module sensor_kit --org dev.bloom
+/// ```
 class CreateModuleCommand extends Command<int> {
   @override
   final String name = 'create-module';
   @override
   final String description = 'Creates a new publishable Bloom Native Module.';
 
+  /// Creates a module scaffolding command with organization, description, and framework-path options.
   CreateModuleCommand() {
     argParser
       ..addOption(
@@ -55,6 +65,7 @@ class CreateModuleCommand extends Command<int> {
     );
   }
 
+  /// Scaffolds a complete native module project inside a directory named [moduleName].
   static Future<int> executeScaffold({
     required String moduleName,
     required String org,

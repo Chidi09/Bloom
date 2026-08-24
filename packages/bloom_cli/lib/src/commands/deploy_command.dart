@@ -10,8 +10,13 @@ import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Supported mobile targets for OTA patching and binary releases.
 const List<String> supportedMobileTargets = ['android', 'ios', 'aar', 'ios-framework'];
+
+/// Supported web targets for hosting deployment.
 const List<String> supportedWebTargets = ['web', 'web-container'];
+
+/// All supported deployment target platforms.
 const List<String> supportedTargets = [
   'android',
   'ios',
@@ -21,6 +26,17 @@ const List<String> supportedTargets = [
   'web-container',
 ];
 
+/// Command that deploys web hosting configurations or OTA mobile patches using Shorebird.
+///
+/// Supports static web hosting targets (Netlify, Vercel, Nginx, Docker) and mobile
+/// Over-The-Air code patches or base binary releases across Android and iOS.
+///
+/// Example:
+/// ```
+/// bloom deploy --target web --host-format netlify --host-format vercel
+/// bloom deploy --target android --flavor production --patch --channel production
+/// bloom deploy --target ios --release --flavor staging --dry-run
+/// ```
 class DeployCommand extends Command<int> {
   @override
   final String name = 'deploy';

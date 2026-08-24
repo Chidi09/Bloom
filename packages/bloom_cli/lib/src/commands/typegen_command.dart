@@ -6,6 +6,16 @@ import '../generator/route_typegen.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that generates typed, compile-checked route builder functions from registered routes.
+///
+/// Parses route declarations in entry files and filesystem routes to generate
+/// type-safe route URLs and parameter helpers.
+///
+/// Example:
+/// ```
+/// bloom typegen
+/// bloom typegen --entry lib/main.dart --out lib/generated/routes.g.dart
+/// ```
 class TypegenCommand extends Command<int> {
   @override
   final String name = 'typegen';

@@ -5,6 +5,15 @@ import '../security/secret_scanner.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command for security diagnostic, secret scanning, and token leak prevention.
+///
+/// Provides the `scan` subcommand to detect hardcoded secrets, private keys, and tokens.
+///
+/// Example:
+/// ```
+/// bloom security scan
+/// bloom security scan --project-dir ./my_app
+/// ```
 class SecurityCommand extends Command<int> {
   @override
   final String name = 'security';

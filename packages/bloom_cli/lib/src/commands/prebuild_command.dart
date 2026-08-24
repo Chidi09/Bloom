@@ -4,6 +4,15 @@ import '../native/prebuild_engine.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that generates and validates native platform configurations from `bloom.yaml`.
+///
+/// Synchronizes native Android Gradle and Manifest configurations and iOS Podfile
+/// and Info.plist configurations without requiring manual project edits.
+///
+/// Example:
+/// ```
+/// bloom prebuild
+/// ```
 class PrebuildCommand extends Command<int> {
   @override
   final String name = 'prebuild';

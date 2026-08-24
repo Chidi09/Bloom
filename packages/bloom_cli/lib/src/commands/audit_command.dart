@@ -8,11 +8,18 @@ import '../security/vulnerability_db.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Represents a specific security vulnerability detected in a package dependency.
 class AuditFinding {
+  /// Name of the affected package.
   final String package;
+
+  /// Installed version of the package.
   final String version;
+
+  /// Vulnerability details from the advisory database.
   final PackageVulnerability vulnerability;
 
+  /// Creates a vulnerability finding record.
   AuditFinding({
     required this.package,
     required this.version,
@@ -20,24 +27,46 @@ class AuditFinding {
   });
 }
 
+/// Aggregated report produced by a dependency security audit.
 class AuditReport {
+  /// All discovered vulnerability findings.
   final List<AuditFinding> findings;
+
+  /// License risk evaluation for discovered packages.
   final List<PackageLicenseResult> licenses;
+
+  /// Total count of packages inspected during the audit.
   final int totalScannedPackages;
 
+  /// Creates an audit report containing findings, licenses, and scan counts.
   AuditReport({
     required this.findings,
     required this.licenses,
     required this.totalScannedPackages,
   });
 
+  /// True if any vulnerabilities were found.
   bool get hasVulnerabilities => findings.isNotEmpty;
+
+  /// Count of critical severity vulnerabilities.
   int get criticalCount =>
       findings.where((f) => f.vulnerability.severity == VulnerabilitySeverity.critical).length;
+
+  /// Count of high severity vulnerabilities.
   int get highCount =>
       findings.where((f) => f.vulnerability.severity == VulnerabilitySeverity.high).length;
 }
 
+/// Command that scans project dependencies for security vulnerabilities and license risks.
+///
+/// Inspects `pubspec.lock` dependencies against a known CVE vulnerability database
+/// and evaluates dependency license compliance.
+///
+/// Example:
+/// ```
+/// bloom audit
+/// bloom audit --project-dir ./my_app
+/// ```
 class AuditCommand extends Command<int> {
   @override
   final String name = 'audit';
@@ -46,8 +75,10 @@ class AuditCommand extends Command<int> {
   final String description =
       'Scans Dart and native dependencies for known CVE vulnerabilities and license compliance risks.';
 
+  /// Optional custom vulnerability database for testing or offline audits.
   final VulnerabilityDatabase? customDb;
 
+  /// Creates an audit command with an optional custom [customDb].
   AuditCommand({this.customDb}) {
     argParser.addOption(
       'project-dir',
@@ -99,6 +130,7 @@ class AuditCommand extends Command<int> {
     return 0;
   }
 
+  /// Executes a dependency security and license compliance audit on [project].
   static AuditReport runAudit(BloomProject project, {VulnerabilityDatabase? db}) {
     final database = db ?? VulnerabilityDatabase();
     final lockFile = File(p.join(project.rootDir.path, 'pubspec.lock'));

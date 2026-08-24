@@ -5,6 +5,13 @@ import '../native/dependency_graph.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that inspects and visualizes the resolved Dart and native module dependency tree.
+///
+/// Example:
+/// ```
+/// bloom deps
+/// bloom deps --project-dir ./my_app
+/// ```
 class DepsCommand extends Command<int> {
   @override
   final String name = 'deps';

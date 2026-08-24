@@ -4,6 +4,13 @@ import 'package:args/command_runner.dart';
 import '../templates/template_registry.dart';
 import '../utils/ansi.dart';
 
+/// Command that searches and lists official and community Bloom starter templates.
+///
+/// Example:
+/// ```
+/// bloom templates
+/// bloom templates --json
+/// ```
 class TemplatesCommand extends Command<int> {
   @override
   final String name = 'templates';

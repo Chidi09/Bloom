@@ -6,6 +6,17 @@ import '../native/workspace_manager.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command for monorepo and workspace coordination across multiple apps and modules.
+///
+/// Provides subcommands: `status`, `deps`, `prebuild`, and `test`.
+///
+/// Example:
+/// ```
+/// bloom workspace status
+/// bloom workspace deps
+/// bloom workspace prebuild
+/// bloom workspace test
+/// ```
 class WorkspaceCommand extends Command<int> {
   @override
   final String name = 'workspace';

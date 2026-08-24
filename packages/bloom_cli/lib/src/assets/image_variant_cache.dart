@@ -6,9 +6,12 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'image_transformer.dart';
 
+/// Filesystem cache for generated image variants, indexed by content hash and dimensions.
 class BloomImageVariantCache {
   final Directory _cacheDir;
 
+  /// Creates an image variant cache.
+  ///
   /// Root defaults to `.dart_tool/bloom/image_cache` under [projectRoot].
   BloomImageVariantCache({required Directory projectRoot, Directory? cacheDir})
       : _cacheDir = cacheDir ?? Directory(p.join(projectRoot.path, '.dart_tool', 'bloom', 'image_cache'));

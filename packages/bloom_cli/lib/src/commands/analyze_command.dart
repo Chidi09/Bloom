@@ -4,6 +4,15 @@ import 'package:args/command_runner.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that runs static analysis and convention checks across the project.
+///
+/// Invokes `flutter analyze` on the target Bloom project directory to verify
+/// adherence to framework conventions and code quality rules.
+///
+/// Example:
+/// ```
+/// bloom analyze
+/// ```
 class AnalyzeCommand extends Command<int> {
   @override
   final String name = 'analyze';

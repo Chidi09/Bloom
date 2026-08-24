@@ -5,6 +5,16 @@ import 'package:args/command_runner.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that queries and displays recent HTTP request logs and timing insights from a running Bloom dev server.
+///
+/// Can query a running dev server on localhost or a remote instance via `--url`.
+///
+/// Example:
+/// ```
+/// bloom insights
+/// bloom insights --limit 50 --json
+/// bloom insights --url http://localhost:8080
+/// ```
 class InsightsCommand extends Command<int> {
   @override
   final String name = 'insights';

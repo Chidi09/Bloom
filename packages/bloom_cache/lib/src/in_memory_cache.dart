@@ -34,6 +34,15 @@ class _MemoryEntry {
 /// - Time-to-live (TTL) expiration is actively enforced on [get] reads, returning `null` and
 ///   evicting stale entries.
 /// - Tag-to-keys reverse index enables O(1) tag-based invalidation.
+///
+/// Example:
+/// ```dart
+/// final cache = InMemoryCache(maxCapacity: 1000);
+///
+/// await cache.set('config:theme', 'dark', ttl: const Duration(hours: 1));
+/// final theme = await cache.get<String>('config:theme');
+/// print(theme); // "dark"
+/// ```
 class InMemoryCache extends BloomCache {
   /// Maximum number of items this cache can hold before LRU eviction occurs.
   final int maxCapacity;
@@ -46,7 +55,15 @@ class InMemoryCache extends BloomCache {
 
   /// Creates a new [InMemoryCache] instance.
   ///
-  /// [maxCapacity] defaults to 10,000 entries.
+  /// Parameters:
+  /// - [maxCapacity]: The upper bound on stored entries. Must be greater than 0. Defaults to 10,000.
+  ///
+  /// Throws an [ArgumentError] if [maxCapacity] is less than or equal to 0.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cache = InMemoryCache(maxCapacity: 5000);
+  /// ```
   InMemoryCache({this.maxCapacity = 10000}) {
     if (maxCapacity <= 0) {
       throw ArgumentError.value(maxCapacity, 'maxCapacity', 'maxCapacity must be greater than 0');
@@ -54,11 +71,21 @@ class InMemoryCache extends BloomCache {
   }
 
   /// Current number of entries currently stored in the cache (including unpruned expired ones).
+  ///
+  /// To remove expired entries before querying size, call [pruneExpired].
   int get size => _entries.length;
 
   /// Returns an unmodifiable snapshot of keys currently in the cache, ordered from LRU to MRU.
+  ///
+  /// The first key corresponds to the least recently accessed entry (next in line for LRU eviction),
+  /// and the last key corresponds to the most recently accessed entry.
   List<String> get keys => List.unmodifiable(_entries.keys);
 
+  /// Retrieves the value associated with [key] if present and not expired.
+  ///
+  /// If the entry exists and has not expired, promotes the entry to the MRU position
+  /// and returns the deserialized value of type [T].
+  /// If the entry has expired, it is eagerly evicted and `null` is returned.
   @override
   Future<T?> get<T>(String key) async {
     final entry = _entries[key];
@@ -79,6 +106,11 @@ class InMemoryCache extends BloomCache {
     return decodeCacheValue<T>(entry.jsonPayload);
   }
 
+  /// Stores [value] under [key] with optional [ttl] and [tags].
+  ///
+  /// If [key] already exists, overwrites its value and replaces its previous tag associations.
+  /// If inserting a new key causes the cache to exceed [maxCapacity], the least recently used
+  /// (LRU) entry at the head of the map is evicted in O(1) time.
   @override
   Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
     final payload = jsonEncode(value);
@@ -102,22 +134,28 @@ class InMemoryCache extends BloomCache {
     _addTagAssociations(key, tagSet);
   }
 
+  /// Deletes the cache entry associated with [key] and removes it from tag indices.
   @override
   Future<void> delete(String key) async {
     _removeEntry(key);
   }
 
+  /// Clears all entries and resets the tag index.
   @override
   Future<void> clear() async {
     _entries.clear();
     _tagIndex.clear();
   }
 
+  /// Removes every entry labelled with [tag].
+  ///
+  /// Uses the internal reverse tag index to resolve and delete matching keys.
   @override
   Future<void> invalidateTag(String tag) async {
     await invalidateTags([tag]);
   }
 
+  /// Removes every entry labelled with ANY of the given [tags].
   @override
   Future<void> invalidateTags(List<String> tags) async {
     final keysToRemove = <String>{};
@@ -161,6 +199,16 @@ class InMemoryCache extends BloomCache {
   }
 
   /// Actively scans and evicts all expired entries from memory.
+  ///
+  /// While [get] automatically evicts individual expired entries upon access,
+  /// calling [pruneExpired] performs a full garbage collection sweep across all stored
+  /// entries to reclaim memory occupied by unaccessed expired entries.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Run periodically in a background timer
+  /// Timer.periodic(const Duration(minutes: 5), (_) => cache.pruneExpired());
+  /// ```
   void pruneExpired() {
     final expiredKeys = <String>[];
     for (final entry in _entries.entries) {
@@ -173,3 +221,4 @@ class InMemoryCache extends BloomCache {
     }
   }
 }
+

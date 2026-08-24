@@ -1,6 +1,6 @@
 name: bloom_seo
 description: Reactive document metadata, JSON-LD structured data, XML sitemaps, and SSG prerendering for Bloom JS Native and server.
-version: 0.1.1
+version: 0.2.0
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -16,7 +16,7 @@ environment:
 dependencies:
   # See the note in bloom_js_native/pubspec.yaml: signals pulls in the Flutter SDK.
   signals_core: ^5.5.0
-  bloom_js_native: ^0.2.0
+  bloom_js_native: ^0.3.0
 
 dev_dependencies:
   lints: ^5.0.0

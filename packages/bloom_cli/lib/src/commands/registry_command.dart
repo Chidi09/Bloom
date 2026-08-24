@@ -4,6 +4,16 @@ import 'package:args/command_runner.dart';
 import '../registry/package_registry.dart';
 import '../utils/ansi.dart';
 
+/// Parent command to search, discover, and inspect verified Bloom ecosystem packages and plugins.
+///
+/// Provides subcommands: `search` and `info`.
+///
+/// Example:
+/// ```
+/// bloom registry search camera
+/// bloom registry search --json
+/// bloom registry info camera
+/// ```
 class RegistryCommand extends Command<int> {
   @override
   final String name = 'registry';

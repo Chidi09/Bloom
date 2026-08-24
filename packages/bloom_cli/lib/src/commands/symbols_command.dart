@@ -8,6 +8,15 @@ import '../symbolication/symbol_packager.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command to manage crash symbolication artifacts, dSYM, ProGuard mappings, and source maps.
+///
+/// Provides subcommands: `package` and `upload`.
+///
+/// Example:
+/// ```
+/// bloom symbols package
+/// bloom symbols upload --endpoint https://telemetry.bloom.dev/symbols/upload
+/// ```
 class SymbolsCommand extends Command<int> {
   @override
   final String name = 'symbols';

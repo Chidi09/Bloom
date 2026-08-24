@@ -6,12 +6,21 @@ import 'package:path/path.dart' as p;
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Describes a single asset file optimized by [AssetOptimizer].
 class OptimizedAssetEntry {
+  /// Relative source path of the unoptimized asset.
   final String sourcePath;
+
+  /// Relative target path of the optimized output file.
   final String targetPath;
+
+  /// Original file size in bytes before optimization.
   final int originalBytes;
+
+  /// Optimized file size in bytes.
   final int optimizedBytes;
 
+  /// Creates a record describing an individual asset optimization operation.
   OptimizedAssetEntry({
     required this.sourcePath,
     required this.targetPath,
@@ -19,31 +28,48 @@ class OptimizedAssetEntry {
     required this.optimizedBytes,
   });
 
+  /// Ratio of saved bytes to original size (from `0.0` to `1.0`).
   double get savingsRatio =>
       originalBytes > 0 ? (originalBytes - optimizedBytes) / originalBytes : 0.0;
 }
 
+/// Summary result of an asset optimization batch.
 class AssetOptimizationResult {
+  /// All individually optimized asset entries.
   final List<OptimizedAssetEntry> optimizedFiles;
+
+  /// Total size in bytes of all assets before optimization.
   final int totalOriginalBytes;
+
+  /// Total size in bytes of all assets after optimization.
   final int totalOptimizedBytes;
 
+  /// Creates a summary of optimization results across all processed assets.
   AssetOptimizationResult({
     required this.optimizedFiles,
     required this.totalOriginalBytes,
     required this.totalOptimizedBytes,
   });
 
+  /// Total number of bytes saved across all optimized assets.
   int get totalSavedBytes => totalOriginalBytes - totalOptimizedBytes;
+
+  /// Overall ratio of bytes saved relative to original total size.
   double get overallSavingsRatio =>
       totalOriginalBytes > 0 ? totalSavedBytes / totalOriginalBytes : 0.0;
 }
 
-/// Real image optimization and WebP conversion engine.
+/// Real image optimization and variant generation engine.
 class AssetOptimizer {
+  /// The target Bloom project.
   final BloomProject project;
+
+  /// Directory containing assets to optimize (defaults to `assets/`).
   final Directory assetsDir;
 
+  /// Creates an asset optimizer for [project].
+  ///
+  /// Optionally overrides the source [assetsDir].
   AssetOptimizer({
     required this.project,
     Directory? assetsDir,

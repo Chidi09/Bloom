@@ -11,6 +11,16 @@ import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that starts the interactive development server with hot reload, QR pairing, and diagnostics.
+///
+/// Discovers LAN interfaces, broadcasts mDNS presence, manages hot reloading and restarting,
+/// and streams filtered runtime logs.
+///
+/// Example:
+/// ```
+/// bloom dev
+/// bloom dev --port 3000 --flavor staging --wireless
+/// ```
 class DevCommand extends Command<int> {
   @override
   final String name = 'dev';

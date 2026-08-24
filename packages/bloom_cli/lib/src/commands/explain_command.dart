@@ -5,6 +5,15 @@ import '../explain/explain_engine.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Parent command that explains architectural decisions, routing resolutions, and dependency chains.
+///
+/// Provides subcommands: `route` and `config`.
+///
+/// Example:
+/// ```
+/// bloom explain route /users/[id]
+/// bloom explain config
+/// ```
 class ExplainCommand extends Command<int> {
   @override
   final String name = 'explain';

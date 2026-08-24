@@ -5,6 +5,14 @@ import '../upgrade/upgrade_engine.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that upgrades Bloom framework dependencies and schemas with automated AST migrations.
+///
+/// Example:
+/// ```
+/// bloom upgrade
+/// bloom upgrade --target 2.0.0 --dry-run
+/// bloom upgrade --project-dir ./my_app
+/// ```
 class UpgradeCommand extends Command<int> {
   @override
   final String name = 'upgrade';

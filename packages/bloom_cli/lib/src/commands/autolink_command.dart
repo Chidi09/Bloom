@@ -5,6 +5,16 @@ import '../native/autolink_engine.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Command that discovers native Bloom modules and links Android and iOS platform targets.
+///
+/// Automatically generates platform bridge bindings and `bloom.lock` manifest
+/// without requiring manual modifications to Gradle or Xcode project files.
+///
+/// Example:
+/// ```
+/// bloom autolink
+/// bloom autolink --project-dir ./my_app
+/// ```
 class AutolinkCommand extends Command<int> {
   @override
   final String name = 'autolink';
