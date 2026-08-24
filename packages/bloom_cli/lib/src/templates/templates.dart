@@ -331,4 +331,133 @@ void main() {
 }
 ''';
   }
+
+  /// `bloom.yaml` for a Flutter-free Bloom JS Native project.
+  static String jsNativeBloomYaml({
+    required String name,
+    String version = '0.1.0',
+    String description = 'A modern application built with Bloom JS Native',
+  }) {
+    return '''# Bloom Application Manifest
+schema: 1
+
+name: $name
+version: $version
+description: "$description"
+type: js_native
+
+web:
+  title: "$name"
+  entry: lib/main.dart
+  out: web/main.js
+
+features:
+  routing: false
+  state: true
+  data: false
+  native: false
+''';
+  }
+
+  /// `pubspec.yaml` for a Flutter-free Bloom JS Native project. No `flutter:`
+  /// SDK dependency — `bloom js dev`/`bloom js build` compile with
+  /// `dart compile js`, not the Flutter toolchain.
+  static String jsNativePubspec({
+    required String name,
+    required String description,
+    required String bloomJsNativeVersion,
+  }) {
+    return '''name: $name
+description: "$description"
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_js_native: ^$bloomJsNativeVersion
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
+''';
+  }
+
+  /// `web/index.html` for a Bloom JS Native project. Loads the compiled
+  /// `main.js` produced by `bloom js dev` / `bloom js build`.
+  static String jsNativeIndexHtml({required String name}) {
+    return '''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$name</title>
+</head>
+<body>
+  <div id="app"></div>
+  <!-- Compiled by `bloom js dev` / `bloom js build` from lib/main.dart -->
+  <script src="main.js" defer></script>
+</body>
+</html>
+''';
+  }
+
+  /// `lib/main.dart` for a Bloom JS Native project. Imports `browser.dart`
+  /// (not the bare `bloom_js_native.dart` entry point) since `mount()` is
+  /// browser-only — a common mistake that fails with
+  /// "Error: Method not found: 'mount'." if omitted.
+  static String jsNativeMainDart({required String projectName}) {
+    return '''import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/browser.dart';
+
+void main() {
+  final count = signal(0);
+
+  final app = Div(
+    className: 'app',
+    children: [
+      H1(text: 'Welcome to $projectName'),
+      Live(() => P(text: 'Count: \${count.value}')),
+      Button(
+        text: 'Increment',
+        onClick: (_) => count.value++,
+      ),
+    ],
+  );
+
+  mount(app, '#app');
+}
+''';
+  }
+
+  /// `test/smoke_test.dart` for a Bloom JS Native project — a plain `dart
+  /// test` unit test against the SSR-safe core, not a browser test.
+  static String jsNativeSmokeTest({required String projectName}) {
+    return '''import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:test/test.dart';
+
+void main() {
+  test('count signal starts at 0 and increments', () {
+    final count = signal(0);
+    expect(count.value, 0);
+    count.value++;
+    expect(count.value, 1);
+  });
+}
+''';
+  }
+
+  /// `.gitignore` for a Bloom JS Native project.
+  static String jsNativeGitignore() {
+    return '''.dart_tool/
+.packages
+pubspec.lock
+web/main.js
+web/main.js.map
+web/main.js.deps
+web/vendor/
+web/importmap.json
+''';
+  }
 }

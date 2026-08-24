@@ -38,7 +38,11 @@ import '../lib/src/commands/why_command.dart';
 import '../lib/src/commands/workspace_command.dart';
 import '../lib/src/utils/ansi.dart';
 
-const String bloomVersion = '0.1.0';
+// Must match the `version:` field in pubspec.yaml — this is compiled into
+// the executable snapshot, so it cannot be read from pubspec.yaml at
+// runtime once `dart pub global activate` has installed it. Bump this on
+// every release alongside pubspec.yaml.
+const String bloomVersion = '0.5.0';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<int>(
