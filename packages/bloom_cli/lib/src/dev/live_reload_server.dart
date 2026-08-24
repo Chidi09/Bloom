@@ -77,6 +77,7 @@ class BloomLiveReloadServer {
         copy: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>',
         check: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>',
         close: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>',
+        editor: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>',
       };
       const svg = svgEl('svg', {
         viewBox: '0 0 24 24',
@@ -531,6 +532,32 @@ class BloomLiveReloadServer {
         background: #3f3f46;
         color: #ffffff;
       }
+      .bloom-error-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-top: 2px;
+      }
+      .bloom-open-btn {
+        padding: 3px 8px;
+        font-size: 10.5px;
+        font-family: inherit;
+        border-radius: 4px;
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        background: rgba(99, 102, 241, 0.15);
+        color: #a5b4fc;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 120ms, color 120ms, border-color 120ms;
+      }
+      .bloom-open-btn:hover {
+        background: rgba(99, 102, 241, 0.28);
+        border-color: rgba(99, 102, 241, 0.6);
+        color: #ffffff;
+      }
       .bloom-item {
         display: flex;
         align-items: center;
@@ -880,6 +907,32 @@ class BloomLiveReloadServer {
               pre.className = 'bloom-error-pre';
               pre.textContent = err.message;
 
+              const errFooter = document.createElement('div');
+              errFooter.className = 'bloom-error-footer';
+
+              const locMatch = (err.message || '').match(/([\w./-]+\.dart):(\d+)(?::\d+)?/);
+              if (locMatch) {
+                const capturedFile = locMatch[1];
+                const capturedLine = parseInt(locMatch[2], 10);
+                const shortFileName = capturedFile.split('/').pop() || capturedFile;
+
+                const openBtn = document.createElement('button');
+                openBtn.className = 'bloom-open-btn';
+                openBtn.appendChild(svgIcon('editor', 11));
+                const openText = document.createElement('span');
+                openText.textContent = 'Open ' + shortFileName + ':' + capturedLine;
+                openBtn.appendChild(openText);
+
+                openBtn.onclick = () => {
+                  fetch('/__open-in-editor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file: capturedFile, line: capturedLine }),
+                  }).catch(() => {});
+                };
+                errFooter.appendChild(openBtn);
+              }
+
               const copyErrBtn = document.createElement('button');
               copyErrBtn.className = 'bloom-copy-btn';
               copyErrBtn.appendChild(svgIcon('copy', 11));
@@ -892,10 +945,11 @@ class BloomLiveReloadServer {
                   setTimeout(() => { copyErrText.textContent = 'Copy'; }, 1500);
                 });
               };
+              errFooter.appendChild(copyErrBtn);
 
               errCard.appendChild(errHeader);
               errCard.appendChild(pre);
-              errCard.appendChild(copyErrBtn);
+              errCard.appendChild(errFooter);
               body.appendChild(errCard);
             });
           }
@@ -1342,7 +1396,31 @@ class BloomLiveReloadServer {
       return;
     }
 
-    // 2. Dev Proxy Rules (Longest prefix matched first)
+    // 2. Open in Editor Endpoint
+    if (path == '/__open-in-editor') {
+      req.response.headers.add('Access-Control-Allow-Origin', '*');
+      req.response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      req.response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+      if (req.method == 'OPTIONS') {
+        req.response.statusCode = HttpStatus.ok;
+        await req.response.close();
+        return;
+      }
+
+      if (req.method != 'POST') {
+        req.response.statusCode = HttpStatus.methodNotAllowed;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'Method not allowed'}));
+        await req.response.close();
+        return;
+      }
+
+      await _handleOpenInEditor(req);
+      return;
+    }
+
+    // 3. Dev Proxy Rules (Longest prefix matched first)
     for (final rule in _sortedProxyRules) {
       if (rule.matches(path)) {
         await _proxy.forward(req, rule);
@@ -1416,5 +1494,145 @@ class BloomLiveReloadServer {
       'woff' => 'font/woff',
       _ => 'application/octet-stream',
     };
+  }
+
+  Future<void> _handleOpenInEditor(HttpRequest req) async {
+    try {
+      final bodyStr = await utf8.decodeStream(req);
+      final dynamic decoded;
+      try {
+        decoded = jsonDecode(bodyStr);
+      } catch (e) {
+        req.response.statusCode = HttpStatus.badRequest;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'Malformed JSON body: $e'}));
+        await req.response.close();
+        return;
+      }
+
+      if (decoded is! Map<String, dynamic>) {
+        req.response.statusCode = HttpStatus.badRequest;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'Invalid JSON body: expected an object'}));
+        await req.response.close();
+        return;
+      }
+
+      final rawFile = decoded['file'];
+      final rawLine = decoded['line'];
+
+      if (rawFile is! String || rawFile.trim().isEmpty) {
+        req.response.statusCode = HttpStatus.badRequest;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'Missing or invalid "file" parameter'}));
+        await req.response.close();
+        return;
+      }
+
+      final int line;
+      if (rawLine is int) {
+        line = rawLine;
+      } else if (rawLine is String) {
+        final parsed = int.tryParse(rawLine);
+        if (parsed == null) {
+          req.response.statusCode = HttpStatus.badRequest;
+          req.response.headers.contentType = ContentType.json;
+          req.response.write(jsonEncode({'error': 'Invalid "line" parameter: integer expected'}));
+          await req.response.close();
+          return;
+        }
+        line = parsed;
+      } else {
+        line = 1;
+      }
+
+      final canonicalWebDir = p.canonicalize(webDir.path);
+      final targetPath = p.isAbsolute(rawFile)
+          ? p.canonicalize(rawFile)
+          : p.canonicalize(p.join(canonicalWebDir, rawFile));
+
+      // Security boundary 1: Project path containment
+      final isInside = targetPath == canonicalWebDir || p.isWithin(canonicalWebDir, targetPath);
+      if (!isInside) {
+        req.response.statusCode = HttpStatus.badRequest;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'Path escapes project directory: $rawFile'}));
+        await req.response.close();
+        return;
+      }
+
+      final fileEntity = File(targetPath);
+      if (!fileEntity.existsSync() || FileSystemEntity.isDirectorySync(targetPath)) {
+        req.response.statusCode = HttpStatus.badRequest;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': 'File does not exist: $rawFile'}));
+        await req.response.close();
+        return;
+      }
+
+      // Security boundary 2: Separate process arguments (no shell injection)
+      final result = await _launchEditor(targetPath, line);
+      req.response.statusCode = HttpStatus.ok;
+      req.response.headers.contentType = ContentType.json;
+      req.response.write(jsonEncode(result));
+      await req.response.close();
+    } catch (e) {
+      try {
+        req.response.statusCode = HttpStatus.internalServerError;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'error': e.toString()}));
+        await req.response.close();
+      } catch (_) {}
+    }
+  }
+
+  Future<Map<String, dynamic>> _launchEditor(String absoluteFilePath, int line) async {
+    final envEditor = Platform.environment['VISUAL'] ?? Platform.environment['EDITOR'];
+
+    String editorBin;
+    List<String> args;
+
+    if (envEditor != null && envEditor.trim().isNotEmpty) {
+      final parts = envEditor.trim().split(RegExp(r'\s+'));
+      editorBin = parts.first;
+      final binName = p.basename(editorBin).toLowerCase();
+
+      if (binName.contains('code') || binName.contains('cursor')) {
+        args = ['--goto', '$absoluteFilePath:$line'];
+      } else if (binName.contains('subl')) {
+        args = ['$absoluteFilePath:$line'];
+      } else if (binName.contains('vim') || binName.contains('nvim')) {
+        args = ['+$line', absoluteFilePath];
+      } else {
+        args = ['$absoluteFilePath:$line'];
+      }
+    } else {
+      editorBin = 'code';
+      args = ['--goto', '$absoluteFilePath:$line'];
+    }
+
+    try {
+      final processResult = await Process.run(editorBin, args);
+      if (processResult.exitCode == 0) {
+        return {'opened': true};
+      } else {
+        final stderrStr = processResult.stderr.toString().trim();
+        final errReason = stderrStr.isNotEmpty
+            ? stderrStr
+            : 'Editor process exited with code ${processResult.exitCode}';
+        return {'opened': false, 'error': errReason};
+      }
+    } catch (e) {
+      if (envEditor == null || envEditor.trim().isEmpty) {
+        return {
+          'opened': false,
+          'error': 'No known editor found. Set \$EDITOR or \$VISUAL, or install VS Code (`code` command).',
+        };
+      }
+      return {
+        'opened': false,
+        'error': 'Failed to launch editor "$editorBin": $e',
+      };
+    }
   }
 }
