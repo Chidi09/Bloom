@@ -1,4 +1,5 @@
 // lib/src/commands/doctor_command.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../commands/audit_command.dart';
@@ -8,6 +9,8 @@ import '../security/secret_scanner.dart';
 import '../upgrade/breaking_change_analyzer.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
+
+const _bloomCliVersion = '0.4.0';
 
 class DoctorCommand extends Command<int> {
   @override
@@ -132,6 +135,26 @@ class DoctorCommand extends Command<int> {
       print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(LAN IP: ${localIpResult.ip})')}');
     }
 
+    // System Information
+    print(Ansi.boldText('\n💻 System Information\n'));
+
+    stdout.write('  Checking Operating System... ');
+    print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(${Platform.operatingSystem}, ${Platform.operatingSystemVersion})')}');
+
+    stdout.write('  Checking CPU Cores... ');
+    print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(${Platform.numberOfProcessors} cores)')}');
+
+    stdout.write('  Checking Process Memory... ');
+    final rssMb = (ProcessInfo.currentRss / (1024 * 1024)).toStringAsFixed(1);
+    print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(current CLI process RSS: ${rssMb} MB)')}');
+
+    stdout.write('  Checking Dart Executable... ');
+    print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(${Platform.resolvedExecutable})')}');
+
+    // Version Check
+    print(Ansi.boldText('\n📦 Version Check\n'));
+    await _checkBloomCliVersion();
+
     // Project-level diagnostic
     if (project != null) {
       print(Ansi.boldText('\n📁 Project Configuration (${project.projectName})'));
@@ -168,6 +191,43 @@ class DoctorCommand extends Command<int> {
       print(Ansi.warn('Some checks did not pass. Please resolve above items.\n'));
       return 1;
     }
+  }
+
+  Future<void> _checkBloomCliVersion() async {
+    stdout.write('  Checking bloom_cli version... ');
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      try {
+        final request = await client
+            .getUrl(Uri.parse('https://pub.dev/api/packages/bloom_cli'))
+            .timeout(const Duration(seconds: 3));
+        final response = await request.close().timeout(const Duration(seconds: 3));
+        if (response.statusCode == 200) {
+          final body = await response
+              .transform(utf8.decoder)
+              .join()
+              .timeout(const Duration(seconds: 3));
+          final data = jsonDecode(body);
+          if (data is Map<String, dynamic>) {
+            final latest = data['latest'];
+            if (latest is Map<String, dynamic>) {
+              final latestVersion = latest['version'] as String?;
+              if (latestVersion != null && latestVersion.isNotEmpty) {
+                if (latestVersion == _bloomCliVersion) {
+                  print('${Ansi.green}✔ Up to date${Ansi.reset} ${Ansi.dimText('(v$_bloomCliVersion)')}');
+                } else {
+                  print('${Ansi.yellow}⚠ Update available${Ansi.reset} ${Ansi.dimText('(installed v$_bloomCliVersion, latest v$latestVersion)')}');
+                }
+                return;
+              }
+            }
+          }
+        }
+      } finally {
+        client.close(force: true);
+      }
+    } catch (_) {}
+    print(Ansi.dimText('ℹ Unable to check for updates (offline or not published) (installed v$_bloomCliVersion)'));
   }
 
   Future<int> _runCiDoctor(BloomProject? project, Directory projectDir) async {
