@@ -4,6 +4,13 @@ import 'package:crypto/crypto.dart';
 import 'session_token.dart';
 
 /// Exception thrown when a password reset token is invalid, expired, or tampered with.
+///
+/// Example:
+/// ```dart
+/// if (!verifyPasswordResetToken(token: token, userId: userId, currentPasswordHash: hash)) {
+///   throw const PasswordResetException('Password reset token is invalid or has expired');
+/// }
+/// ```
 class PasswordResetException implements Exception {
   /// Description of the error.
   final String message;
@@ -16,6 +23,19 @@ class PasswordResetException implements Exception {
 }
 
 /// Parsed metadata extracted from a password reset token.
+///
+/// Contains the [userId] and [expiryUnixSeconds] parsed from the unverified token
+/// payload. This enables looking up the user in a database prior to cryptographic
+/// verification via [verifyPasswordResetToken].
+///
+/// Example:
+/// ```dart
+/// final payload = parsePasswordResetToken(token);
+/// if (payload != null && !payload.isExpired) {
+///   print('Reset requested for user: ${payload.userId}');
+///   print('Expires at: ${payload.expiresAt}');
+/// }
+/// ```
 class PasswordResetTokenPayload {
   /// The user identifier encoded in the reset token.
   final String userId;
@@ -48,11 +68,21 @@ class PasswordResetTokenPayload {
 ///    separation — ensuring reset tokens cannot be accepted as bearer session tokens.
 /// 3. Returns a URL-safe token format: `rst.<b64_user_id>.<b64_expiry>.<b64_mac>`.
 ///
-/// [ttl] defaults to 1 hour.
-/// [secret] defaults to `BloomEnv.get('BLOOM_AUTH_SECRET')`.
+/// [ttl] defines token lifespan (defaults to 1 hour).
+/// [secret] defaults to `BloomEnv.get('BLOOM_AUTH_SECRET')` via [resolveAuthSecret].
 ///
 /// Throws [ArgumentError] if [userId] or [currentPasswordHash] is empty.
 /// Throws [StateError] if no secret is provided and none is configured in `BloomEnv`.
+///
+/// Example:
+/// ```dart
+/// final token = generatePasswordResetToken(
+///   userId: user.id,
+///   currentPasswordHash: user.passwordHash,
+///   ttl: const Duration(minutes: 30),
+/// );
+/// await emailService.sendPasswordResetEmail(user.email, token);
+/// ```
 String generatePasswordResetToken({
   required String userId,
   required String currentPasswordHash,
@@ -92,6 +122,27 @@ String generatePasswordResetToken({
 ///
 /// Use this to extract [userId] in order to look up the user and retrieve their
 /// current password hash before calling [verifyPasswordResetToken].
+///
+/// Returns `null` if the [token] string is malformed or lacks the `rst.` prefix.
+///
+/// Example:
+/// ```dart
+/// final payload = parsePasswordResetToken(token);
+/// if (payload == null || payload.isExpired) {
+///   return BloomResponse.badRequest('Invalid or expired reset token');
+/// }
+///
+/// final user = await userDb.findById(payload.userId);
+/// if (user == null) {
+///   return BloomResponse.badRequest('User not found');
+/// }
+///
+/// final isValid = verifyPasswordResetToken(
+///   token: token,
+///   userId: user.id,
+///   currentPasswordHash: user.passwordHash,
+/// );
+/// ```
 PasswordResetTokenPayload? parsePasswordResetToken(String token) {
   try {
     final parts = token.split('.');
@@ -124,7 +175,23 @@ PasswordResetTokenPayload? parsePasswordResetToken(String token) {
 /// 2. The token has not expired.
 /// 3. The token was generated for the specified [userId].
 /// 4. The user's password hash has not changed since the token was issued.
-/// 5. The HMAC signature matches using the server secret.
+/// 5. The HMAC-SHA256 signature matches using the server [secret].
+///
+/// Uses constant-time string comparison to prevent timing attacks.
+///
+/// Example:
+/// ```dart
+/// final isValid = verifyPasswordResetToken(
+///   token: token,
+///   userId: user.id,
+///   currentPasswordHash: user.passwordHash,
+/// );
+/// if (!isValid) {
+///   return BloomResponse.badRequest('Reset token is invalid, expired, or already used');
+/// }
+///
+/// // Update user password in database...
+/// ```
 bool verifyPasswordResetToken({
   required String token,
   required String userId,

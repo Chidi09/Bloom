@@ -4,12 +4,27 @@ import 'package:flutter/services.dart';
 import 'annotations.dart';
 import 'exceptions.dart';
 
-/// Base class for all native Bloom modules.
+/// Base class for all native Bloom modules bridging Dart to host iOS/Android platforms.
 ///
 /// Encapsulates platform channel dispatching, synchronous state cache,
-/// long-running hardware event streams, and lifecycle notifications.
+/// long-running hardware event streams, typed exception translation, and lifecycle notifications.
+///
+/// Example:
+/// ```dart
+/// class BloomDeviceModule extends BloomNativeModule {
+///   BloomDeviceModule() : super(name: 'BloomDevice');
+///
+///   Future<String> getDeviceModel() async {
+///     final result = await invokeAsync<String>('getDeviceModel');
+///     return result ?? 'Unknown';
+///   }
+/// }
+/// ```
 abstract class BloomNativeModule {
+  /// The unique module name identifier (e.g. `'BloomCamera'`, `'BloomLocation'`).
   final String name;
+
+  /// Semantic version of the native module contract (defaults to `'1.0.0'`).
   final String version;
   MethodChannel? _methodChannel;
   EventChannel? _eventChannel;
@@ -18,6 +33,10 @@ abstract class BloomNativeModule {
   final Map<String, dynamic> _constants = {};
   bool _isInitialized = false;
 
+  /// Creates a [BloomNativeModule] instance.
+  ///
+  /// Automatically configures underlying [MethodChannel] (`'dev.bloom.modules/$name'`)
+  /// and [EventChannel] (`'dev.bloom.modules/$name/events'`) unless custom channels are provided.
   BloomNativeModule({
     required this.name,
     this.version = '1.0.0',
@@ -28,10 +47,10 @@ abstract class BloomNativeModule {
     _eventChannel = customEventChannel ?? EventChannel('dev.bloom.modules/$name/events');
   }
 
-  /// Underlying method channel for this native module.
+  /// Underlying method channel for dispatching calls to the host platform.
   MethodChannel? get methodChannel => _methodChannel;
 
-  /// Underlying event channel for this native module.
+  /// Underlying event channel for streaming continuous events from the host platform.
   EventChannel? get eventChannel => _eventChannel;
 
   /// Whether the module is initialized and ready for platform calls.
@@ -41,17 +60,22 @@ abstract class BloomNativeModule {
   Map<String, dynamic> get constants => Map.unmodifiable(_constants);
 
   /// Invoked when the module is registered into [BloomModuleRegistry].
+  ///
+  /// Subclasses may override this method to perform asynchronous initialization,
+  /// query host constants, or acquire native resources.
   Future<void> onInit() async {
     _isInitialized = true;
   }
 
-  /// Invoked when the host application resumes from background.
+  /// Invoked when the host application resumes from background into foreground.
   void onHostResume() {}
 
   /// Invoked when the host application transitions to background.
   void onHostPause() {}
 
-  /// Invoked when the module is unregistered or disposed.
+  /// Invoked when the module is unregistered from the registry or explicitly disposed.
+  ///
+  /// Cancels all active event stream subscriptions and closes stream controllers.
   Future<void> onDispose() async {
     for (final sub in _nativeSubscriptions.values) {
       await sub.cancel();
@@ -66,6 +90,14 @@ abstract class BloomNativeModule {
   }
 
   /// Invokes an asynchronous native method across the platform boundary.
+  ///
+  /// Maps raw platform errors into typed [BloomNativeException] variants
+  /// ([BloomNativePermissionDeniedException], [BloomNativeHardwareUnavailableException], etc.).
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = await invokeAsync<Map<String, dynamic>>('fetchDetails', {'id': 42});
+  /// ```
   Future<T?> invokeAsync<T>(
     String method, [
     Map<String, dynamic>? args,
@@ -89,17 +121,29 @@ abstract class BloomNativeModule {
     }
   }
 
-  /// Synchronously returns a local cached property or constant.
+  /// Synchronously returns a locally cached property or constant.
+  ///
+  /// Example:
+  /// ```dart
+  /// final maxQuality = getProperty<int>('MAX_QUALITY') ?? 100;
+  /// ```
   T? getProperty<T>(String key) {
     return _constants[key] as T?;
   }
 
-  /// Sets a local constant or property.
+  /// Sets a local constant or cached property in this module.
   void setConstant(String key, dynamic value) {
     _constants[key] = value;
   }
 
   /// Subscribes to a long-running native hardware stream or event channel.
+  ///
+  /// Returns a broadcast [Stream] emitting typed data [T] from the host platform.
+  ///
+  /// Example:
+  /// ```dart
+  /// final locationStream = subscribeStream<Map<String, double>>('onLocationUpdate');
+  /// ```
   Stream<T> subscribeStream<T>(String streamName, [Map<String, dynamic>? args]) {
     if (!_streamControllers.containsKey(streamName)) {
       final controller = StreamController<dynamic>.broadcast();
@@ -141,6 +185,8 @@ abstract class BloomNativeModule {
   }
 
   /// Emits an event from native callback or test mock into the stream.
+  ///
+  /// Useful for simulating native hardware events in automated unit and widget tests.
   void emitEvent(String streamName, dynamic payload) {
     if (_streamControllers.containsKey(streamName)) {
       _streamControllers[streamName]?.add(payload);

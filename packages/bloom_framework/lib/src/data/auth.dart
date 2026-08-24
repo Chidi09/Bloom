@@ -9,20 +9,43 @@ import '../state/signals.dart';
 import 'storage.dart';
 
 /// Base non-generic interface for Bloom authentication session management.
+///
+/// Exposes reactive authentication status signals and session termination.
+///
+/// Example:
+/// ```dart
+/// final auth = inject<BloomAuthBase>();
+/// print('Authenticated: ${auth.isAuthenticated.value}');
+/// ```
 abstract class BloomAuthBase {
   /// Reactive boolean signal indicating whether an active authenticated session exists.
   ReadonlySignal<bool> get isAuthenticated;
 
-  /// Reactive signal containing the current authentication bearer token, or null if unauthenticated.
+  /// Reactive signal containing the current authentication bearer token, or `null` if unauthenticated.
   ReadonlySignal<String?> get token;
 
   /// Clears the active session and logs the current user out.
   Future<void> logout();
 }
 
-/// Reactive user session manager and persistence layer.
+/// Reactive user session manager and persistent authentication layer.
+///
+/// Tracks current user [U] model, bearer [token], and provides computed reactive
+/// authentication state signals. Supports optional encrypted persistence via [BloomStorageAdapter].
+///
+/// Example:
+/// ```dart
+/// final auth = BloomAuth<User>(
+///   storage: BloomSecureStorage(),
+///   fromJson: User.fromJson,
+///   toJson: (u) => u.toJson(),
+/// );
+///
+/// await auth.setSession(user: currentUser, token: 'jwt_token');
+/// print(auth.isAuthenticated.value); // true
+/// ```
 class BloomAuth<U> implements BloomAuthBase {
-  /// Optional persistent storage adapter for caching session state across restarts.
+  /// Optional persistent storage adapter for caching session state across application restarts.
   final BloomStorageAdapter? storage;
 
   /// Deserializer function converting JSON maps to typed user model instances.
@@ -31,7 +54,7 @@ class BloomAuth<U> implements BloomAuthBase {
   /// Serializer function converting typed user model instances to JSON maps.
   final Map<String, dynamic> Function(U user)? toJson;
 
-  /// Key identifier used when writing session data into [storage].
+  /// Key identifier used when writing session data into [storage] (defaults to `'bloom_auth_session'`).
   final String sessionKey;
 
   late final Signal<U?> _currentUser;
@@ -63,14 +86,23 @@ class BloomAuth<U> implements BloomAuthBase {
     }
   }
 
-  /// Reactive signal containing the currently authenticated user model, or null.
+  /// Reactive signal containing the currently authenticated user model, or `null` if unauthenticated.
   ReadonlySignal<U?> get currentUser => _currentUser.readonly();
+
+  /// Reactive signal containing the current authentication bearer token, or `null` if unauthenticated.
   @override
   ReadonlySignal<String?> get token => _token.readonly();
+
+  /// Reactive boolean signal indicating whether an active authenticated session exists.
   @override
   ReadonlySignal<bool> get isAuthenticated => _isAuthenticated.readonly();
 
-  /// Set the active user session and optionally persist it to secure storage.
+  /// Sets the active user [user] and [token] session, and persists it to [storage] if configured.
+  ///
+  /// Example:
+  /// ```dart
+  /// await auth.setSession(user: loggedInUser, token: 'access_token');
+  /// ```
   Future<void> setSession({required U user, required String token}) async {
     _currentUser.value = user;
     _token.value = token;
@@ -85,11 +117,25 @@ class BloomAuth<U> implements BloomAuthBase {
     logger.info('BloomAuth: User session established.');
   }
 
-  /// Login user setting active session (supports positional `login(token, user)`).
+  /// Logs in the user, setting the active [token] and [user] session.
+  ///
+  /// Positional convenience alias for [setSession].
+  ///
+  /// Example:
+  /// ```dart
+  /// await auth.login('access_token', loggedInUser);
+  /// ```
   Future<void> login(String token, U user) =>
       setSession(user: user, token: token);
 
-  /// Restore user session from persistent storage (e.g. on application boot).
+  /// Restores user session from persistent [storage] on application startup.
+  ///
+  /// Returns `true` if a valid persisted session was found and restored.
+  ///
+  /// Example:
+  /// ```dart
+  /// final hasSession = await auth.restoreSession();
+  /// ```
   Future<bool> restoreSession() async {
     if (storage == null || fromJson == null) return false;
 
@@ -113,7 +159,12 @@ class BloomAuth<U> implements BloomAuthBase {
     return false;
   }
 
-  /// Clear the active user session and purge persistent session storage.
+  /// Clears the active user session and purges persistent session storage.
+  ///
+  /// Example:
+  /// ```dart
+  /// await auth.logout();
+  /// ```
   @override
   Future<void> logout() async {
     _currentUser.value = null;
@@ -127,14 +178,25 @@ class BloomAuth<U> implements BloomAuthBase {
 }
 
 /// Standard authentication route guard protecting authenticated screens.
+///
+/// Redirects unauthenticated visitors to [loginPath] (preserving original route in `?from=...` query).
+///
+/// Example:
+/// ```dart
+/// BloomRoute(
+///   path: '/dashboard',
+///   guards: const [BloomAuthGuard()],
+///   builder: (context, match) => const DashboardScreen(),
+/// );
+/// ```
 class BloomAuthGuard implements BloomGuard {
   /// Path to redirect unauthenticated users to (defaults to `'/login'`).
   final String loginPath;
 
-  /// Explicit [BloomAuthBase] session manager override. If null, resolved via DI.
+  /// Explicit [BloomAuthBase] session manager override. If null, resolved via global DI.
   final BloomAuthBase? auth;
 
-  /// Creates a [BloomAuthGuard] with an optional [loginPath] and [auth] manager.
+  /// Creates a [BloomAuthGuard] with an optional [loginPath] and [auth] manager override.
   const BloomAuthGuard({
     this.loginPath = '/login',
     this.auth,

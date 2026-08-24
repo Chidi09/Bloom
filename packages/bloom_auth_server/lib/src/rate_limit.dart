@@ -2,6 +2,18 @@
 import 'dart:collection';
 
 /// Exception thrown when rate limiting thresholds are exceeded within a time window.
+///
+/// Encapsulates the offending [key], threshold [maxAttempts], time [window],
+/// and suggested [retryAfterSeconds].
+///
+/// Example:
+/// ```dart
+/// try {
+///   rateLimiter.recordAttempt(ipAddress);
+/// } on RateLimitException catch (e) {
+///   print('Rate limit exceeded for ${e.key}. Retry in ${e.retryAfterSeconds} seconds.');
+/// }
+/// ```
 class RateLimitException implements Exception {
   /// The rate limiting key (e.g. username, email, or IP address).
   final String key;
@@ -34,6 +46,15 @@ class RateLimitException implements Exception {
 ///
 /// Distinct from [RateLimitException]: a lockout rejects *all* attempts (even with correct credentials)
 /// until the lockout duration expires.
+///
+/// Example:
+/// ```dart
+/// try {
+///   authLimiter.verifyAllowed(username);
+/// } on AccountLockedException catch (e) {
+///   print('Account ${e.key} is locked until ${e.lockedUntil}.');
+/// }
+/// ```
 class AccountLockedException implements Exception {
   /// The identifier of the locked account.
   final String key;
@@ -58,6 +79,19 @@ class AccountLockedException implements Exception {
 }
 
 /// Status report resulting from evaluating a rate limit or lockout check.
+///
+/// Provides diagnostic details including whether the action is [allowed], if the account
+/// is [isLocked], how many [remainingAttempts] are available, and when the quota resets in [resetAt].
+///
+/// Example:
+/// ```dart
+/// final status = rateLimiter.check('client_ip_123');
+/// if (status.allowed) {
+///   print('Allowed. Remaining attempts: ${status.remainingAttempts}');
+/// } else {
+///   print('Throttled. Retry after ${status.retryAfterSeconds}s');
+/// }
+/// ```
 class RateLimitStatus {
   /// Whether the request is permitted to proceed.
   final bool allowed;
@@ -88,6 +122,14 @@ class RateLimitStatus {
   });
 
   /// Creates a permitted [RateLimitStatus] indicating the request is allowed.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = RateLimitStatus.permitted(
+  ///   remainingAttempts: 4,
+  ///   maxAttempts: 5,
+  /// );
+  /// ```
   factory RateLimitStatus.permitted({
     required int remainingAttempts,
     required int maxAttempts,
@@ -100,6 +142,15 @@ class RateLimitStatus {
       );
 
   /// Creates a throttled [RateLimitStatus] indicating rate limit exceeded.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = RateLimitStatus.throttled(
+  ///   maxAttempts: 5,
+  ///   retryAfterSeconds: 60,
+  ///   resetAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
+  /// );
+  /// ```
   factory RateLimitStatus.throttled({
     required int maxAttempts,
     required int retryAfterSeconds,
@@ -115,6 +166,15 @@ class RateLimitStatus {
       );
 
   /// Creates a locked [RateLimitStatus] indicating account lockout.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = RateLimitStatus.locked(
+  ///   maxAttempts: 5,
+  ///   retryAfterSeconds: 3600,
+  ///   lockedUntil: DateTime.now().toUtc().add(const Duration(hours: 1)),
+  /// );
+  /// ```
   factory RateLimitStatus.locked({
     required int maxAttempts,
     required int retryAfterSeconds,
@@ -147,6 +207,19 @@ class _LockoutEntry {
 ///
 /// Tracks timestamps of attempts per key (e.g. username, email, or client IP).
 /// Automatically evicts expired timestamps older than [window].
+///
+/// Example:
+/// ```dart
+/// final limiter = InMemoryRateLimiter(
+///   maxAttempts: 10,
+///   window: const Duration(minutes: 1),
+/// );
+///
+/// final status = limiter.check('192.168.1.1');
+/// if (status.allowed) {
+///   limiter.recordAttempt('192.168.1.1');
+/// }
+/// ```
 class InMemoryRateLimiter {
   /// Maximum number of allowed attempts within [window].
   final int maxAttempts;
@@ -168,6 +241,15 @@ class InMemoryRateLimiter {
   }
 
   /// Evaluates rate limit status for [key] without recording an attempt.
+  ///
+  /// Evicts any timestamps outside the sliding [window] and returns [RateLimitStatus.permitted]
+  /// or [RateLimitStatus.throttled]. Fails closed on internal errors.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = limiter.check(clientIp);
+  /// print('Allowed: ${status.allowed}, Remaining: ${status.remainingAttempts}');
+  /// ```
   RateLimitStatus check(String key) {
     try {
       final now = DateTime.now().toUtc();
@@ -208,8 +290,18 @@ class InMemoryRateLimiter {
     }
   }
 
-  /// Records an attempt for [key] and returns whether it is within limits.
+  /// Records an attempt for [key] and verifies it is within limits.
+  ///
   /// Throws [RateLimitException] if the attempt limit is exceeded.
+  ///
+  /// Example:
+  /// ```dart
+  /// try {
+  ///   limiter.recordAttempt(userId);
+  /// } on RateLimitException catch (e) {
+  ///   // Reject request
+  /// }
+  /// ```
   void recordAttempt(String key) {
     final status = check(key);
     if (!status.allowed) {
@@ -227,11 +319,21 @@ class InMemoryRateLimiter {
   }
 
   /// Clears attempt history for [key].
+  ///
+  /// Example:
+  /// ```dart
+  /// limiter.reset(userId);
+  /// ```
   void reset(String key) {
     _attempts.remove(key);
   }
 
   /// Clears all recorded rate limiting entries across all keys.
+  ///
+  /// Example:
+  /// ```dart
+  /// limiter.clear();
+  /// ```
   void clear() {
     _attempts.clear();
   }
@@ -243,6 +345,19 @@ class InMemoryRateLimiter {
 /// tracks consecutive failed authentication attempts per identifier. Once
 /// consecutive failures reach [maxAttempts], the account is locked for [lockoutDuration].
 /// During lockout, any request is rejected upfront, even with correct credentials.
+///
+/// Example:
+/// ```dart
+/// final lockout = InMemoryLockoutManager(
+///   maxAttempts: 5,
+///   lockoutDuration: const Duration(hours: 1),
+/// );
+///
+/// final status = lockout.check(username);
+/// if (status.isLocked) {
+///   print('Locked out. Retry after ${status.retryAfterSeconds}s');
+/// }
+/// ```
 class InMemoryLockoutManager {
   /// Number of consecutive failed attempts required to trigger an account lockout.
   final int maxAttempts;
@@ -266,6 +381,15 @@ class InMemoryLockoutManager {
   /// Checks if [key] is currently locked out.
   ///
   /// Returns [RateLimitStatus.locked] if actively locked, or [RateLimitStatus.permitted] if allowed.
+  /// Automatically clears expired lockouts so fresh failures restart from 1.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = lockout.check(username);
+  /// if (!status.allowed) {
+  ///   // Account locked
+  /// }
+  /// ```
   RateLimitStatus check(String key) {
     try {
       final now = DateTime.now().toUtc();
@@ -312,8 +436,13 @@ class InMemoryLockoutManager {
     }
   }
 
-  /// Records a failed authentication attempt. Increments consecutive failure counter
+  /// Records a failed authentication attempt for [key]. Increments consecutive failure counter
   /// and locks the account if [maxAttempts] is reached.
+  ///
+  /// Example:
+  /// ```dart
+  /// lockout.recordFailure(username);
+  /// ```
   void recordFailure(String key) {
     final now = DateTime.now().toUtc();
     final entry = _lockouts[key];
@@ -342,17 +471,32 @@ class InMemoryLockoutManager {
     }
   }
 
-  /// Records a successful authentication attempt. Clears all failed streaks and lockouts.
+  /// Records a successful authentication attempt for [key]. Clears all failed streaks and lockouts.
+  ///
+  /// Example:
+  /// ```dart
+  /// lockout.recordSuccess(username);
+  /// ```
   void recordSuccess(String key) {
     _lockouts.remove(key);
   }
 
   /// Manually clears lockout state for [key].
+  ///
+  /// Example:
+  /// ```dart
+  /// lockout.reset(username);
+  /// ```
   void reset(String key) {
     _lockouts.remove(key);
   }
 
-  /// Clears all lockouts.
+  /// Clears all lockouts across all tracked identifiers.
+  ///
+  /// Example:
+  /// ```dart
+  /// lockout.clear();
+  /// ```
   void clear() {
     _lockouts.clear();
   }
@@ -362,6 +506,25 @@ class InMemoryLockoutManager {
 ///
 /// Combines sliding-window rate throttling with account lockout protection.
 /// Fail-closed security design guarantees that unexpected exceptions deny access.
+///
+/// Example:
+/// ```dart
+/// final authLimiter = AuthRateLimiter(
+///   maxAttempts: 5,
+///   window: const Duration(minutes: 15),
+///   lockoutDuration: const Duration(hours: 1),
+/// );
+///
+/// // 1. Check before attempting login
+/// authLimiter.verifyAllowed(username);
+///
+/// // 2. Record result
+/// if (loginSuccessful) {
+///   authLimiter.recordSuccess(username);
+/// } else {
+///   authLimiter.recordFailure(username);
+/// }
+/// ```
 class AuthRateLimiter {
   /// The underlying sliding-window rate limiter.
   final InMemoryRateLimiter rateLimiter;
@@ -387,8 +550,25 @@ class AuthRateLimiter {
           lockoutDuration: lockoutDuration,
         );
 
-  /// Validates both lockout status and rate limit window before processing an auth request.
+  /// Validates both lockout status and rate limit window for [key] before processing an auth request.
+  ///
+  /// Checks account lockout first (rejecting even correct credentials if locked), then
+  /// validates sliding-window rate limit.
+  ///
   /// Throws [AccountLockedException] if locked, or [RateLimitException] if throttled.
+  /// Returns [RateLimitStatus] if permitted.
+  ///
+  /// Example:
+  /// ```dart
+  /// try {
+  ///   final status = authLimiter.verifyAllowed(username);
+  ///   print('Allowed with ${status.remainingAttempts} attempts remaining');
+  /// } on AccountLockedException catch (e) {
+  ///   // Handle lockout
+  /// } on RateLimitException catch (e) {
+  ///   // Handle rate limit
+  /// }
+  /// ```
   RateLimitStatus verifyAllowed(String key) {
     // 1. Check account lockout first (rejects upfront, even correct credentials)
     final lockoutStatus = lockoutManager.check(key);
@@ -414,8 +594,14 @@ class AuthRateLimiter {
     return rateStatus;
   }
 
-  /// Call this when an authentication attempt fails.
+  /// Call this when an authentication attempt fails for [key].
+  ///
   /// Records failure for both the rate limit sliding window and consecutive lockout counter.
+  ///
+  /// Example:
+  /// ```dart
+  /// authLimiter.recordFailure(username);
+  /// ```
   void recordFailure(String key) {
     try {
       rateLimiter.recordAttempt(key);
@@ -425,15 +611,27 @@ class AuthRateLimiter {
     lockoutManager.recordFailure(key);
   }
 
-  /// Call this when an authentication attempt succeeds.
+  /// Call this when an authentication attempt succeeds for [key].
+  ///
   /// Clears the lockout failure streak while preserving sliding-window integrity.
+  ///
+  /// Example:
+  /// ```dart
+  /// authLimiter.recordSuccess(username);
+  /// ```
   void recordSuccess(String key) {
     lockoutManager.recordSuccess(key);
   }
 
-  /// Resets all state for [key].
+  /// Resets all state for [key] across both the rate limiter and lockout manager.
+  ///
+  /// Example:
+  /// ```dart
+  /// authLimiter.reset(username);
+  /// ```
   void reset(String key) {
     rateLimiter.reset(key);
     lockoutManager.reset(key);
   }
 }
+

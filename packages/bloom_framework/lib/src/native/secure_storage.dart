@@ -5,11 +5,23 @@ import '../core/logger.dart';
 import '../data/storage.dart';
 
 /// Encrypted key-value secure storage wrapping `flutter_secure_storage` (iOS Keychain / Android EncryptedSharedPreferences).
-/// Implements [BloomStorageAdapter] for seamless integration with [BloomAuth] and [BloomJsonStorage].
+///
+/// Implements [BloomStorageAdapter] for seamless integration with [BloomAuth] session storage,
+/// token caching, and encrypted offline queues.
+///
+/// Example:
+/// ```dart
+/// final secureStorage = BloomSecureStorage();
+/// await secureStorage.write('access_token', 'jwt_secret_token');
+/// final token = await secureStorage.read('access_token');
+/// ```
 class BloomSecureStorage implements BloomStorageAdapter {
   final FlutterSecureStorage _storage;
 
   /// Creates a [BloomSecureStorage] adapter with platform encryption options.
+  ///
+  /// Defaults to `encryptedSharedPreferences: true` on Android and
+  /// `KeychainAccessibility.first_unlock` on iOS.
   BloomSecureStorage({
     FlutterSecureStorage? storage,
     AndroidOptions? androidOptions,
@@ -26,6 +38,12 @@ class BloomSecureStorage implements BloomStorageAdapter {
                   ),
             );
 
+  /// Reads an encrypted string value associated with [key], or returns `null` if absent.
+  ///
+  /// Example:
+  /// ```dart
+  /// final secret = await secureStorage.read('api_key');
+  /// ```
   @override
   Future<String?> read(String key) async {
     try {
@@ -38,6 +56,12 @@ class BloomSecureStorage implements BloomStorageAdapter {
     }
   }
 
+  /// Writes an encrypted [value] string associated with [key].
+  ///
+  /// Example:
+  /// ```dart
+  /// await secureStorage.write('refresh_token', 'token_value');
+  /// ```
   @override
   Future<void> write(String key, String value) async {
     try {
@@ -48,6 +72,12 @@ class BloomSecureStorage implements BloomStorageAdapter {
     }
   }
 
+  /// Deletes the encrypted entry associated with [key].
+  ///
+  /// Example:
+  /// ```dart
+  /// await secureStorage.delete('access_token');
+  /// ```
   @override
   Future<void> delete(String key) async {
     try {
@@ -58,6 +88,12 @@ class BloomSecureStorage implements BloomStorageAdapter {
     }
   }
 
+  /// Checks whether an encrypted entry for [key] exists in storage.
+  ///
+  /// Example:
+  /// ```dart
+  /// final hasToken = await secureStorage.containsKey('access_token');
+  /// ```
   @override
   Future<bool> containsKey(String key) async {
     try {
@@ -67,6 +103,12 @@ class BloomSecureStorage implements BloomStorageAdapter {
     }
   }
 
+  /// Clears all encrypted key-value entries in secure storage.
+  ///
+  /// Example:
+  /// ```dart
+  /// await secureStorage.clear();
+  /// ```
   @override
   Future<void> clear() async {
     try {

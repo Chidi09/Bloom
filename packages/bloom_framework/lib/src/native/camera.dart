@@ -5,12 +5,23 @@ import 'package:image_picker/image_picker.dart';
 import '../core/logger.dart';
 import 'permissions.dart';
 
-/// Represents an image file captured from camera or picked from gallery.
+/// Represents an image file captured from the device camera or picked from the gallery.
+///
+/// Encapsulates the absolute filesystem [path], optional raw image [bytes],
+/// dimensions ([width], [height]), and MIME type.
+///
+/// Example:
+/// ```dart
+/// final photo = await camera.takePicture();
+/// if (photo != null) {
+///   print('Captured photo path: ${photo.path}, bytes: ${photo.bytes?.length}');
+/// }
+/// ```
 class BloomCapturedPhoto {
-  /// File system path to the saved image.
+  /// File system path to the saved image file on device.
   final String path;
 
-  /// Raw image byte data.
+  /// Raw image byte data in memory, if read.
   final Uint8List? bytes;
 
   /// Image pixel width if available.
@@ -19,10 +30,10 @@ class BloomCapturedPhoto {
   /// Image pixel height if available.
   final int? height;
 
-  /// MIME type string (e.g. `'image/jpeg'`).
+  /// MIME type string (defaults to `'image/jpeg'`).
   final String mimeType;
 
-  /// Creates a [BloomCapturedPhoto] result.
+  /// Creates a [BloomCapturedPhoto] result instance.
   const BloomCapturedPhoto({
     required this.path,
     this.bytes,
@@ -32,15 +43,37 @@ class BloomCapturedPhoto {
   });
 }
 
-/// Camera capture and media interface for Bloom applications wrapping `image_picker`.
+/// Camera capture and photo gallery interface for Bloom applications wrapping `image_picker`.
+///
+/// Automatically handles native camera permissions verification via [BloomPermissions]
+/// before launching native capture interfaces.
+///
+/// Example:
+/// ```dart
+/// final camera = BloomCamera();
+/// final authorized = await camera.initialize();
+/// if (authorized) {
+///   final photo = await camera.takePicture(
+///     preferredCamera: CameraDevice.rear,
+///     imageQuality: 85,
+///   );
+/// }
+/// ```
 class BloomCamera {
   final ImagePicker _picker;
   bool _isInitialized = false;
 
-  /// Creates a [BloomCamera] interface with an optional [picker] instance.
+  /// Creates a [BloomCamera] interface with an optional custom [picker] instance for testing.
   BloomCamera([ImagePicker? picker]) : _picker = picker ?? ImagePicker();
 
-  /// Initialize and verify camera hardware access permissions.
+  /// Initializes and verifies camera hardware access permissions.
+  ///
+  /// Requests [BloomPermission.camera] if not already granted. Returns `true` if authorized.
+  ///
+  /// Example:
+  /// ```dart
+  /// final ok = await camera.initialize();
+  /// ```
   Future<bool> initialize() async {
     try {
       final status = await BloomPermissions.request(BloomPermission.camera);
@@ -58,8 +91,18 @@ class BloomCamera {
     }
   }
 
-  /// Capture a real photo using native OS camera interface.
-  /// Returns `null` if the user cancels or if permission is not granted.
+  /// Captures a photo using the native OS camera interface.
+  ///
+  /// Requests camera permission if necessary. Returns `null` if the user cancels or permission is denied.
+  ///
+  /// Example:
+  /// ```dart
+  /// final photo = await camera.takePicture(
+  ///   preferredCamera: CameraDevice.front,
+  ///   maxWidth: 1024,
+  ///   imageQuality: 90,
+  /// );
+  /// ```
   Future<BloomCapturedPhoto?> takePicture({
     CameraDevice preferredCamera = CameraDevice.rear,
     double? maxWidth,
@@ -101,7 +144,14 @@ class BloomCamera {
     }
   }
 
-  /// Select a photo from the device photo library.
+  /// Selects a photo from the device photo gallery.
+  ///
+  /// Returns a [BloomCapturedPhoto] or `null` if cancelled.
+  ///
+  /// Example:
+  /// ```dart
+  /// final photo = await camera.pickFromGallery(imageQuality: 80);
+  /// ```
   Future<BloomCapturedPhoto?> pickFromGallery({
     double? maxWidth,
     double? maxHeight,

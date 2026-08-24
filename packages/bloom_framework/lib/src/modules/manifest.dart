@@ -1,21 +1,34 @@
 // lib/src/modules/manifest.dart
 import 'package:yaml/yaml.dart';
 
-/// Represents a permission declared in bloom.module.yaml.
+/// Represents a permission declared in `bloom.module.yaml`.
+///
+/// Encapsulates platform-specific permission keys for Android manifest and iOS `Info.plist`,
+/// as well as the default rationale prompt and whether the permission is optional.
+///
+/// Example:
+/// ```dart
+/// const cameraPerm = BloomModulePermission(
+///   name: 'camera',
+///   androidPermission: 'android.permission.CAMERA',
+///   iosPlistKey: 'NSCameraUsageDescription',
+///   defaultPrompt: 'Allow camera access to capture photos',
+/// );
+/// ```
 class BloomModulePermission {
-  /// Permission name identifier.
+  /// Permission name identifier (e.g. `'camera'`, `'location'`).
   final String name;
 
   /// Android manifest permission string (e.g. `'android.permission.CAMERA'`).
   final String? androidPermission;
 
-  /// iOS Info.plist usage description key (e.g. `'NSCameraUsageDescription'`).
+  /// iOS `Info.plist` usage description key (e.g. `'NSCameraUsageDescription'`).
   final String? iosPlistKey;
 
   /// Default prompt message shown to the user when requesting permission.
   final String defaultPrompt;
 
-  /// Whether this permission is optional.
+  /// Whether this permission is optional for the module's core functionality.
   final bool optional;
 
   /// Creates a [BloomModulePermission] descriptor.
@@ -27,7 +40,7 @@ class BloomModulePermission {
     this.optional = false,
   });
 
-  /// Parses a [BloomModulePermission] from YAML.
+  /// Parses a [BloomModulePermission] from a YAML map or dynamic [value].
   factory BloomModulePermission.fromYaml(String name, dynamic value) {
     if (value is Map || value is YamlMap) {
       return BloomModulePermission(
@@ -41,7 +54,7 @@ class BloomModulePermission {
     return BloomModulePermission(name: name);
   }
 
-  /// Serializes permission to JSON map.
+  /// Serializes this permission definition to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'android': androidPermission,
@@ -51,24 +64,35 @@ class BloomModulePermission {
       };
 }
 
-/// Platform constraints and dependencies for a native module.
+/// Platform constraints, dependencies, and native frameworks for a Bloom Native Module.
+///
+/// Specifies minimum/target SDKs and required third-party native libraries.
+///
+/// Example:
+/// ```dart
+/// const iosSpec = BloomModulePlatformSpec(
+///   minVersion: '15.0',
+///   dependencies: ['CocoaLumberjack ~> 3.8'],
+///   frameworks: ['AVFoundation.framework'],
+/// );
+/// ```
 class BloomModulePlatformSpec {
-  /// Minimum supported SDK version.
+  /// Minimum supported SDK version (Android API level).
   final int? minSdk;
 
-  /// Target SDK version.
+  /// Target SDK version (Android API level).
   final int? targetSdk;
 
-  /// Minimum iOS version string.
+  /// Minimum iOS version string (e.g. `'15.0'`).
   final String? minVersion;
 
-  /// External dependencies required by this module.
+  /// External dependencies (e.g. Gradle artifacts or CocoaPods) required by this module.
   final List<String> dependencies;
 
-  /// Native iOS frameworks required by this module.
+  /// Native iOS system frameworks required by this module (e.g. `['AVFoundation.framework']`).
   final List<String> frameworks;
 
-  /// Creates a [BloomModulePlatformSpec].
+  /// Creates a [BloomModulePlatformSpec] configuration.
   const BloomModulePlatformSpec({
     this.minSdk,
     this.targetSdk,
@@ -77,7 +101,7 @@ class BloomModulePlatformSpec {
     this.frameworks = const [],
   });
 
-  /// Parses a [BloomModulePlatformSpec] from YAML.
+  /// Parses a [BloomModulePlatformSpec] from a YAML node or map [value].
   factory BloomModulePlatformSpec.fromYaml(dynamic value) {
     if (value is Map || value is YamlMap) {
       final deps = <String>[];
@@ -104,7 +128,7 @@ class BloomModulePlatformSpec {
     return const BloomModulePlatformSpec();
   }
 
-  /// Serializes spec to JSON map.
+  /// Serializes this platform specification to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
         'minSdk': minSdk,
         'targetSdk': targetSdk,
@@ -114,33 +138,47 @@ class BloomModulePlatformSpec {
       };
 }
 
-/// Strongly-typed manifest representation of bloom.module.yaml.
+/// Strongly typed manifest representation of `bloom.module.yaml`.
+///
+/// Encapsulates the module's identity, version, Android and iOS platform specifications,
+/// declared permissions, and config plugins.
+///
+/// Example:
+/// ```dart
+/// const yamlContent = '''
+/// name: BloomCamera
+/// version: 1.0.0
+/// description: Native hardware camera module
+/// ''';
+/// final manifest = BloomModuleManifest.fromYaml(yamlContent);
+/// print(manifest.name); // 'BloomCamera'
+/// ```
 class BloomModuleManifest {
-  /// Unique module identifier.
+  /// Unique module identifier (e.g. `'BloomCamera'`).
   final String name;
 
-  /// Semantic version of the module.
+  /// Semantic version string of the module contract (e.g. `'1.0.0'`).
   final String version;
 
-  /// Description of the native module functionality.
+  /// Human-readable description of the native module functionality.
   final String description;
 
-  /// Android platform constraints and dependencies.
+  /// Android platform constraints, SDK levels, and Gradle dependencies.
   final BloomModulePlatformSpec android;
 
-  /// iOS platform constraints and dependencies.
+  /// iOS platform constraints, minimum deployment target, and CocoaPods/frameworks.
   final BloomModulePlatformSpec ios;
 
   /// Declared native system permissions required by this module.
   final Map<String, BloomModulePermission> permissions;
 
-  /// Config plugin class name if present.
+  /// Config plugin class name if this module supplies an Expo/Bloom configuration plugin.
   final String? configPluginClassName;
 
-  /// Additional custom metadata.
+  /// Additional custom metadata key-value dictionary.
   final Map<String, dynamic> customMetadata;
 
-  /// Creates a [BloomModuleManifest].
+  /// Creates a [BloomModuleManifest] instance.
   const BloomModuleManifest({
     required this.name,
     this.version = '1.0.0',
@@ -152,6 +190,9 @@ class BloomModuleManifest {
     this.customMetadata = const {},
   });
 
+  /// Parses a [BloomModuleManifest] from a raw YAML string.
+  ///
+  /// Throws [FormatException] if [yamlString] cannot be parsed into a YAML map.
   factory BloomModuleManifest.fromYaml(String yamlString) {
     final doc = loadYaml(yamlString);
     if (doc is! YamlMap && doc is! Map) {
@@ -190,6 +231,7 @@ class BloomModuleManifest {
     );
   }
 
+  /// Serializes this manifest to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'version': version,

@@ -4,6 +4,19 @@ import 'dart:collection';
 import '../core/logger.dart';
 
 /// A single cached query record containing fetched data, timestamps, and TTL settings.
+///
+/// Encapsulates the normalized [key], cached [data] payload, last [updatedAt] timestamp,
+/// and TTL durations ([staleTime], [cacheTime]).
+///
+/// Example:
+/// ```dart
+/// final entry = QueryCacheEntry<List<String>>(
+///   key: ['posts', 'featured'],
+///   data: ['Post 1', 'Post 2'],
+///   updatedAt: DateTime.now(),
+///   staleTime: const Duration(minutes: 2),
+/// );
+/// ```
 class QueryCacheEntry<T> {
   /// Normalized key list uniquely identifying this query.
   final List<dynamic> key;
@@ -14,7 +27,7 @@ class QueryCacheEntry<T> {
   /// Timestamp when this entry was last fetched or updated.
   DateTime updatedAt;
 
-  /// Duration after which data is considered stale and revalidation should occur.
+  /// Duration after which data is considered stale and background revalidation should occur.
   Duration staleTime;
 
   /// Maximum duration to keep this entry in memory before garbage collection.
@@ -23,7 +36,7 @@ class QueryCacheEntry<T> {
   /// Whether this entry has been explicitly invalidated or marked stale.
   bool isStale;
 
-  /// Creates a [QueryCacheEntry].
+  /// Creates a [QueryCacheEntry] record.
   QueryCacheEntry({
     required this.key,
     this.data,
@@ -33,7 +46,7 @@ class QueryCacheEntry<T> {
     this.isStale = false,
   });
 
-  /// Whether this cache entry has exceeded its [cacheTime] lifetime.
+  /// Whether this cache entry has exceeded its [cacheTime] lifetime and should be evicted.
   bool get isExpired =>
       DateTime.now().difference(updatedAt) > cacheTime;
 
@@ -42,7 +55,17 @@ class QueryCacheEntry<T> {
       isStale || DateTime.now().difference(updatedAt) > staleTime;
 }
 
-/// Global query cache manager for Bloom Data with automated periodic TTL garbage collection.
+/// Global query cache manager for Bloom Data with automated periodic TTL garbage collection and request deduplication.
+///
+/// Provides in-memory caching, stale-while-revalidate invalidation cascades,
+/// and concurrent in-flight request deduplication across widget subtrees.
+///
+/// Example:
+/// ```dart
+/// BloomData.setQueryData(['user', 42], (_) => {'name': 'Alice'});
+/// final user = BloomData.getQueryData<Map<String, dynamic>>(['user', 42]);
+/// BloomData.invalidateQueries(['user']);
+/// ```
 class BloomData {
   static final Map<String, QueryCacheEntry<dynamic>> _cache =
       HashMap<String, QueryCacheEntry<dynamic>>();
@@ -54,19 +77,29 @@ class BloomData {
 
   static Timer? _gcTimer;
 
-  /// Start automated periodic garbage collection.
+  /// Starts automated periodic garbage collection running every [interval] (defaults to 5 minutes).
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.startGarbageCollector(interval: const Duration(minutes: 10));
+  /// ```
   static void startGarbageCollector({Duration interval = const Duration(minutes: 5)}) {
     _gcTimer?.cancel();
     _gcTimer = Timer.periodic(interval, (_) => garbageCollect());
   }
 
-  /// Stop automated garbage collection.
+  /// Stops automated periodic garbage collection.
   static void stopGarbageCollector() {
     _gcTimer?.cancel();
     _gcTimer = null;
   }
 
-  /// Converts a key list like `['users', 42, 'posts']` to a normalized string key.
+  /// Converts a key list (e.g. `['users', 42, 'posts']`) into a deterministic normalized string key.
+  ///
+  /// Example:
+  /// ```dart
+  /// print(BloomData.normalizeKey(['users', 42])); // 'users:42'
+  /// ```
   static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
 
   static String _canonical(dynamic e) {
@@ -78,7 +111,12 @@ class BloomData {
     return e.toString();
   }
 
-  /// Check if a query key matches a given prefix key.
+  /// Checks whether a [candidateKey] matches a given [prefix] key list.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.matchesKey(['users', 42, 'profile'], ['users', 42]); // true
+  /// ```
   static bool matchesKey(List<dynamic> candidateKey, List<dynamic> prefix) {
     if (prefix.isEmpty) return true;
     if (candidateKey.length < prefix.length) return false;
@@ -90,7 +128,14 @@ class BloomData {
     return true;
   }
 
-  /// Invalidate queries matching [keyPrefix]. All active listeners will trigger background revalidation.
+  /// Invalidates all cached queries matching [keyPrefix].
+  ///
+  /// All active listeners matching the prefix trigger background revalidation.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.invalidateQueries(['users']);
+  /// ```
   static void invalidateQueries(List<dynamic> keyPrefix) {
     final prefixStr = normalizeKey(keyPrefix);
     logger.debug('BloomData: Invalidating queries matching [$prefixStr]');
@@ -119,7 +164,12 @@ class BloomData {
     return keyStr.startsWith('$prefixStr:');
   }
 
-  /// Mark queries matching [keyPrefix] as stale without immediately refetching.
+  /// Marks queries matching [keyPrefix] as stale without triggering immediate refetch.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.markStale(['posts']);
+  /// ```
   static void markStale(List<dynamic> keyPrefix) {
     for (final entry in _cache.values) {
       if (matchesKey(entry.key, keyPrefix)) {
@@ -128,7 +178,12 @@ class BloomData {
     }
   }
 
-  /// Set cache data directly for a given key.
+  /// Sets cache data directly for a given [key] using an [updater] transformation function.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.setQueryData<User>(['user', 1], (old) => old?.copyWith(name: 'Bob'));
+  /// ```
   static void setQueryData<T>(List<dynamic> key, T? Function(T? oldData) updater) {
     final keyStr = normalizeKey(key);
     final existing = _cache[keyStr] as QueryCacheEntry<T>?;
@@ -146,7 +201,12 @@ class BloomData {
     _invalidationControllers[keyStr]?.add(null);
   }
 
-  /// Get cached query data if available and not expired.
+  /// Retrieves cached query data for [key] if available and unexpired, or returns `null`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final cachedUser = BloomData.getQueryData<User>(['user', 1]);
+  /// ```
   static T? getQueryData<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     final entry = _cache[keyStr];
@@ -161,7 +221,13 @@ class BloomData {
     return null;
   }
 
-  /// Gets a cached query entry if available and not expired.
+  /// Retrieves a full cached [QueryCacheEntry] for [key] if available and unexpired.
+  ///
+  /// Example:
+  /// ```dart
+  /// final entry = BloomData.getEntry<User>(['user', 1]);
+  /// if (entry != null && entry.shouldRevalidate) { ... }
+  /// ```
   static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     final entry = _cache[keyStr];
@@ -173,20 +239,32 @@ class BloomData {
     return entry as QueryCacheEntry<T>?;
   }
 
-  /// Remove a specific query cache entry.
+  /// Removes a specific query cache entry by [key].
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.removeEntry(['user', 1]);
+  /// ```
   static void removeEntry(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     _cache.remove(keyStr);
     _disposeController(keyStr);
   }
 
-  /// Store or update a cache entry.
+  /// Stores or updates a raw cache [entry] in memory.
   static void putEntry<T>(QueryCacheEntry<T> entry) {
     final keyStr = normalizeKey(entry.key);
     _cache[keyStr] = entry;
   }
 
-  /// Removes all expired entries from cache memory to free up resources.
+  /// Removes all expired entries from cache memory to reclaim resources.
+  ///
+  /// Returns the number of entries evicted.
+  ///
+  /// Example:
+  /// ```dart
+  /// final evictedCount = BloomData.garbageCollect();
+  /// ```
   static int garbageCollect() {
     final expiredKeys = <String>[];
     for (final entryKey in _cache.keys) {
@@ -205,7 +283,9 @@ class BloomData {
     return expiredKeys.length;
   }
 
-  /// Listen for invalidation events on a specific query key.
+  /// Listens for invalidation events broadcast on a specific query [key].
+  ///
+  /// Returns a broadcast [Stream]. Callers must call [releaseListener] on teardown.
   static Stream<void> onInvalidated(List<dynamic> key) {
     final keyStr = normalizeKey(key);
     _listenerCounts[keyStr] = (_listenerCounts[keyStr] ?? 0) + 1;
@@ -233,7 +313,12 @@ class BloomData {
     }
   }
 
-  /// Request deduplication: ensures multiple simultaneous fetches for the same key share a single Future.
+  /// Request deduplication: ensures multiple concurrent fetches for the same [key] share a single [Future].
+  ///
+  /// Example:
+  /// ```dart
+  /// final data = await BloomData.deduplicate(['items'], () => fetchItemsFromApi());
+  /// ```
   static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) {
     final keyStr = normalizeKey(key);
     if (_inFlightRequests.containsKey(keyStr)) {
@@ -254,7 +339,7 @@ class BloomData {
     return completer.future;
   }
 
-  /// Refreshes all currently stale cached queries.
+  /// Refreshes all currently stale cached queries across the application.
   static void refreshStaleQueries() {
     for (final entry in _cache.values) {
       if (entry.shouldRevalidate) {
@@ -264,7 +349,7 @@ class BloomData {
     }
   }
 
-  /// Count of cached query entries.
+  /// Total count of cached query entries currently in memory.
   static int get entryCount => _cache.length;
 
   /// Returns a snapshot summary of all active cache entries for DevTools visual inspection.
@@ -284,7 +369,12 @@ class BloomData {
     return list;
   }
 
-  /// Clear all query cache entries.
+  /// Clears all query cache entries, cancels pending requests, and resets listeners.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomData.clear();
+  /// ```
   static void clear() {
     _cache.clear();
     for (final ctrl in _invalidationControllers.values) {

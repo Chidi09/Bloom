@@ -2,16 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'style_resolver.dart';
 
-/// Persistent native input controller cache to prevent software keyboard loss and cursor jump.
+/// Persistent native input controller host that manages software keyboard focus and cursor stability.
+///
+/// Wraps a Flutter [TextField] configured with the computed styles ([BloomComputedStyle])
+/// derived from Tailwind-like CSS classes and inline styles on `<input>` and `<textarea>` elements.
+///
+/// Example:
+/// ```dart
+/// BloomNativeInputHost(
+///   initialValue: 'user@example.com',
+///   placeholder: 'Enter email...',
+///   style: BloomStyleResolver.resolve('p-2 bg-zinc-800 text-white rounded-md'),
+///   onInput: (event) => print('Typing: ${event.value}'),
+/// )
+/// ```
 class BloomNativeInputHost extends StatefulWidget {
+  /// Initial text value populated in the text editing controller.
   final String? initialValue;
+
+  /// Placeholder hint text rendered when the field is empty.
   final String? placeholder;
+
+  /// Whether characters should be masked for password input (defaults to false).
   final bool isPassword;
+
+  /// Maximum number of lines for multi-line inputs (e.g. 3 for textarea, 1 for input).
   final int maxLines;
+
+  /// Computed style containing fonts, colors, padding, and border radius.
   final BloomComputedStyle style;
+
+  /// Event callback invoked on every input keystroke.
   final void Function(BloomEvent)? onInput;
+
+  /// Event callback invoked when editing completes or value changes.
   final void Function(BloomEvent)? onChange;
 
+  /// Creates a [BloomNativeInputHost] widget.
   const BloomNativeInputHost({
     super.key,
     this.initialValue,

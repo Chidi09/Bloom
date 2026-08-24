@@ -14,6 +14,22 @@ final Expando<BloomAuthClaims> _authClaimsExpando = Expando<BloomAuthClaims>('Bl
 ///
 /// Returns HTTP 401 Unauthorized for missing, malformed, or expired tokens, and
 /// HTTP 403 Forbidden when required roles are not met.
+///
+/// Example:
+/// ```dart
+/// final router = BloomApiRouter();
+///
+/// // Protect all routes with authentication
+/// router.use(const BloomAuthMiddleware());
+///
+/// // Or protect specific route groups by role
+/// router.group('/admin', (adminRouter) {
+///   adminRouter.use(BloomAuthMiddleware.requireRole('admin'));
+///   adminRouter.get('/users', (req) async {
+///     return BloomResponse.json({'adminId': req.authUserId});
+///   });
+/// });
+/// ```
 class BloomAuthMiddleware implements BloomMiddleware {
   /// Optional HMAC secret override used to verify session tokens.
   /// If not provided, defaults to resolving via [resolveAuthSecret].
@@ -30,15 +46,27 @@ class BloomAuthMiddleware implements BloomMiddleware {
   /// Creates a [BloomAuthMiddleware] instance.
   ///
   /// [secret] is the optional HMAC secret override.
-  /// [requiredRoles] specifies roles the user must possess.
+  /// [requiredRoles] specifies roles the user must possess (any match authorizes access).
   /// [optional] allows unauthenticated requests to pass through if `true`.
+  ///
+  /// Example:
+  /// ```dart
+  /// router.use(const BloomAuthMiddleware());
+  /// ```
   const BloomAuthMiddleware({
     this.secret,
     this.requiredRoles = const [],
     this.optional = false,
   });
 
-  /// Creates a middleware instance that requires a specific [role] (e.g. 'admin').
+  /// Creates a middleware instance that requires a specific [role] (e.g. `'admin'`).
+  ///
+  /// Rejects requests from users without the specified role with HTTP 403 Forbidden.
+  ///
+  /// Example:
+  /// ```dart
+  /// router.use(BloomAuthMiddleware.requireRole('admin'));
+  /// ```
   factory BloomAuthMiddleware.requireRole(String role, {String? secret}) =>
       BloomAuthMiddleware(
         secret: secret,
@@ -47,6 +75,13 @@ class BloomAuthMiddleware implements BloomMiddleware {
       );
 
   /// Creates a middleware instance that requires any of the specified [roles].
+  ///
+  /// Access is granted if the user possesses at least one role in [roles].
+  ///
+  /// Example:
+  /// ```dart
+  /// router.use(BloomAuthMiddleware.requireAnyRole(['admin', 'moderator']));
+  /// ```
   factory BloomAuthMiddleware.requireAnyRole(List<String> roles, {String? secret}) =>
       BloomAuthMiddleware(
         secret: secret,
@@ -56,14 +91,27 @@ class BloomAuthMiddleware implements BloomMiddleware {
 
   /// Creates an optional authentication middleware.
   ///
-  /// Requests without an Authorization header are allowed through with `request.auth == null`.
-  /// Requests providing an invalid or expired token are still rejected with HTTP 401.
+  /// Requests without an `Authorization` header are allowed through with `request.auth == null`.
+  /// Requests providing an invalid or expired token are still rejected with HTTP 401 Unauthorized.
+  ///
+  /// Example:
+  /// ```dart
+  /// router.use(BloomAuthMiddleware.optional());
+  /// router.get('/feed', (req) async {
+  ///   if (req.isAuthenticated) {
+  ///     return BloomResponse.json({'feed': 'personalized', 'user': req.authUserId});
+  ///   }
+  ///   return BloomResponse.json({'feed': 'public'});
+  /// });
+  /// ```
   factory BloomAuthMiddleware.optional({String? secret}) =>
       BloomAuthMiddleware(
         secret: secret,
         optional: true,
       );
 
+  /// Intercepts [request], parses and validates Bearer token, checks [requiredRoles],
+  /// and forwards to [next] or returns an error [BloomResponse].
   @override
   Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
     final authHeader = request.headers['authorization'] ??
@@ -125,17 +173,61 @@ class BloomAuthMiddleware implements BloomMiddleware {
 }
 
 /// Convenience extension on [BloomRequest] to access verified authentication context.
+///
+/// Provides ergonomic access to the decoded [BloomAuthClaims], user ID, authentication state,
+/// and role membership from request handlers.
+///
+/// Example:
+/// ```dart
+/// router.get('/profile', (req) async {
+///   if (!req.isAuthenticated) {
+///     return BloomResponse.unauthorized('Please log in');
+///   }
+///
+///   final userId = req.authUserId!;
+///   final isManager = req.hasRole('manager');
+///   return BloomResponse.json({'userId': userId, 'isManager': isManager});
+/// });
+/// ```
 extension BloomAuthRequestExtension on BloomRequest {
   /// Returns the verified [BloomAuthClaims] attached by [BloomAuthMiddleware],
   /// or `null` if the request is unauthenticated.
+  ///
+  /// Example:
+  /// ```dart
+  /// final claims = req.auth;
+  /// if (claims != null) {
+  ///   print('Email: ${claims.email}');
+  /// }
+  /// ```
   BloomAuthClaims? get auth => _authClaimsExpando[this];
 
   /// Returns the authenticated user's ID, or `null` if unauthenticated.
+  ///
+  /// Example:
+  /// ```dart
+  /// final userId = req.authUserId;
+  /// ```
   String? get authUserId => auth?.userId ?? params['auth_user_id'];
 
   /// Whether this request has been successfully authenticated.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (req.isAuthenticated) {
+  ///   // User is logged in
+  /// }
+  /// ```
   bool get isAuthenticated => auth != null;
 
   /// Returns whether the authenticated user possesses the specified [role].
+  ///
+  /// Example:
+  /// ```dart
+  /// if (req.hasRole('admin')) {
+  ///   // Allow admin action
+  /// }
+  /// ```
   bool hasRole(String role) => auth?.hasRole(role) ?? false;
 }
+

@@ -7,11 +7,22 @@ import 'cache.dart';
 import 'storage.dart';
 
 /// Conflict resolution strategy when replaying offline mutations against the server.
+///
+/// Example:
+/// ```dart
+/// await queue.enqueue(
+///   mutationType: 'update_profile',
+///   payload: {'name': 'New Name'},
+///   conflictPolicy: ConflictPolicy.clientWins,
+/// );
+/// ```
 enum ConflictPolicy {
   /// Keep the client mutation and override conflicting server state.
   clientWins,
+
   /// Discard the client mutation and keep existing server state.
   serverWins,
+
   /// Invoke a custom [CustomConflictResolver] to merge or handle conflicts.
   custom,
 }
@@ -25,9 +36,22 @@ typedef CustomConflictResolver = FutureOr<Map<String, dynamic>?> Function(
   Object serverError,
 );
 
-/// A persisted mutation entry stored in the offline queue waiting to be synced.
+/// A persisted mutation entry stored in the offline queue waiting to be synced with the server.
+///
+/// Encapsulates the unique mutation [id], [mutationType], serializable [payload],
+/// creation timestamp [createdAt], [conflictPolicy], and [retryCount].
+///
+/// Example:
+/// ```dart
+/// final mutation = QueuedMutation(
+///   id: 'mut_12345',
+///   mutationType: 'create_comment',
+///   payload: {'text': 'Great article!'},
+///   createdAt: DateTime.now(),
+/// );
+/// ```
 class QueuedMutation {
-  /// Unique mutation ID.
+  /// Unique mutation identifier.
   final String id;
 
   /// Identifier representing the type/action of mutation (e.g. `'create_post'`).
@@ -82,6 +106,19 @@ class QueuedMutation {
 }
 
 /// Persistent offline mutation buffer and replay engine.
+///
+/// Stores failed or offline mutations to [storage] and replays them sequentially FIFO
+/// once network connectivity is restored.
+///
+/// Example:
+/// ```dart
+/// final queue = OfflineMutationQueue(storage: BloomSecureStorage());
+/// queue.registerExecutor('create_post', (payload) => api.createPost(payload));
+///
+/// await queue.enqueue(mutationType: 'create_post', payload: {'title': 'Offline Post'});
+/// final synced = await queue.processQueue();
+/// print('Synced $synced mutations');
+/// ```
 class OfflineMutationQueue {
   /// Storage adapter used to persist queued mutations across restarts.
   final BloomStorageAdapter? storage;
@@ -116,7 +153,12 @@ class OfflineMutationQueue {
   /// Unmodifiable list of pending mutations waiting in queue.
   List<QueuedMutation> get pendingMutations => List.unmodifiable(_queue);
 
-  /// Register a mutation executor for a given type name.
+  /// Registers a mutation [executor] and optional [conflictResolver] for a given [mutationType].
+  ///
+  /// Example:
+  /// ```dart
+  /// queue.registerExecutor('delete_item', (payload) => api.deleteItem(payload['id']));
+  /// ```
   void registerExecutor(
     String mutationType,
     MutationExecutor executor, {
@@ -128,7 +170,12 @@ class OfflineMutationQueue {
     }
   }
 
-  /// Restore persisted mutations from disk.
+  /// Restores persisted mutations from disk [storage].
+  ///
+  /// Example:
+  /// ```dart
+  /// await queue.restore();
+  /// ```
   Future<void> restore() async {
     if (storage == null) return;
     try {
@@ -146,7 +193,7 @@ class OfflineMutationQueue {
     }
   }
 
-  /// Persist current queue to storage.
+  /// Persists current in-memory queue to [storage].
   Future<void> persist() async {
     if (storage == null) return;
     try {
@@ -157,7 +204,17 @@ class OfflineMutationQueue {
     }
   }
 
-  /// Enqueue an optimistic mutation when disconnected.
+  /// Enqueues an optimistic mutation when disconnected.
+  ///
+  /// Returns the unique generated mutation identifier.
+  ///
+  /// Example:
+  /// ```dart
+  /// final id = await queue.enqueue(
+  ///   mutationType: 'send_message',
+  ///   payload: {'text': 'Hello world'},
+  /// );
+  /// ```
   Future<String> enqueue({
     String? mutationType,
     String? tag,
@@ -180,7 +237,14 @@ class OfflineMutationQueue {
     return id;
   }
 
-  /// Replay pending mutations sequentially FIFO with conflict policy handling.
+  /// Replays pending mutations sequentially FIFO with conflict policy handling.
+  ///
+  /// Returns the number of mutations successfully synced to the server.
+  ///
+  /// Example:
+  /// ```dart
+  /// final syncedCount = await queue.processQueue();
+  /// ```
   Future<int> processQueue([FutureOr<dynamic> Function(QueuedMutation)? customHandler]) async {
     if (_isProcessing || _queue.isEmpty) return 0;
     _isProcessing = true;
@@ -248,7 +312,12 @@ class OfflineMutationQueue {
     return syncedCount;
   }
 
-  /// Clear all queued mutations.
+  /// Clears all queued mutations from memory and persistent storage.
+  ///
+  /// Example:
+  /// ```dart
+  /// await queue.clear();
+  /// ```
   Future<void> clear() async {
     _queue.clear();
     await persist();

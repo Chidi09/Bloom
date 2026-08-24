@@ -11,18 +11,47 @@ import '../observability/models.dart';
 import '../observability/observability.dart';
 
 /// Interceptor callback that transforms an outgoing [http.BaseRequest] before sending.
+///
+/// Example:
+/// ```dart
+/// http.BaseRequest addCustomHeader(http.BaseRequest req) {
+///   req.headers['X-Custom-Client'] = 'Bloom/1.0';
+///   return req;
+/// }
+/// ```
 typedef RequestInterceptor = FutureOr<http.BaseRequest> Function(http.BaseRequest request);
 
 /// Interceptor callback that transforms an incoming [http.Response] before returning to callers.
+///
+/// Example:
+/// ```dart
+/// http.Response logResponse(http.Response res) {
+///   print('Received status: ${res.statusCode}');
+///   return res;
+/// }
+/// ```
 typedef ResponseInterceptor = FutureOr<http.Response> Function(http.Response response);
 
 /// HTTP client with environment base URL resolution, JSON codecs, Bearer auth token injection, DevTools tracing, and simulation hooks.
+///
+/// Resolves relative endpoints against `API_BASE_URL` or configured [baseUrl], attaches
+/// authorization bearer tokens, tracks network requests in DevTools inspector, and
+/// reports telemetry breadcrumbs to [BloomObservability].
+///
+/// Example:
+/// ```dart
+/// final client = BloomHttpClient(
+///   baseUrl: 'https://api.example.com',
+///   authTokenProvider: () => authSession.token.value,
+/// );
+/// final user = await client.get<Map<String, dynamic>>('/users/me');
+/// ```
 class BloomHttpClient {
-  /// Base URL prefix prepended to relative request paths.
+  /// Base URL prefix prepended to relative request paths (e.g. `'https://api.example.com'`).
   final String? baseUrl;
   final http.Client _innerClient;
 
-  /// Network timeout duration applied to requests.
+  /// Network timeout duration applied to requests (defaults to 15 seconds).
   final Duration timeout;
 
   /// Ordered list of interceptors executed prior to dispatching requests.
@@ -33,10 +62,10 @@ class BloomHttpClient {
   static final Random _random = Random();
   static int _reqTraceCounter = 0;
 
-  /// Static bearer token attached to outgoing requests.
+  /// Static bearer token attached to outgoing `Authorization: Bearer <token>` headers.
   String? authToken;
 
-  /// Dynamic provider callback resolving bearer tokens at request time.
+  /// Dynamic provider callback resolving bearer tokens at request dispatch time.
   String? Function()? authTokenProvider;
 
   /// Creates a [BloomHttpClient] configured with an optional [baseUrl], [timeout], and auth tokens.
@@ -224,7 +253,12 @@ class BloomHttpClient {
     }
   }
 
-  /// Sends an HTTP GET request to [path] and decodes JSON response as [T].
+  /// Sends an HTTP GET request to [path] and decodes the JSON response as [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// final users = await client.get<List<dynamic>>('/api/users');
+  /// ```
   Future<T> get<T>(
     String path, {
     Map<String, String>? headers,
@@ -234,7 +268,12 @@ class BloomHttpClient {
     return res as T;
   }
 
-  /// Sends an HTTP POST request to [path] with optional [body] and decodes JSON response as [T].
+  /// Sends an HTTP POST request to [path] with optional [body] and decodes the JSON response as [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// final created = await client.post<Map<String, dynamic>>('/api/users', body: {'name': 'Jane'});
+  /// ```
   Future<T> post<T>(
     String path, {
     dynamic body,
@@ -245,7 +284,12 @@ class BloomHttpClient {
     return res as T;
   }
 
-  /// Sends an HTTP PUT request to [path] with optional [body] and decodes JSON response as [T].
+  /// Sends an HTTP PUT request to [path] with optional [body] and decodes the JSON response as [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// final updated = await client.put<Map<String, dynamic>>('/api/users/1', body: {'name': 'Jane Doe'});
+  /// ```
   Future<T> put<T>(
     String path, {
     dynamic body,
@@ -256,7 +300,12 @@ class BloomHttpClient {
     return res as T;
   }
 
-  /// Sends an HTTP PATCH request to [path] with optional [body] and decodes JSON response as [T].
+  /// Sends an HTTP PATCH request to [path] with optional [body] and decodes the JSON response as [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// final patched = await client.patch<Map<String, dynamic>>('/api/users/1', body: {'role': 'admin'});
+  /// ```
   Future<T> patch<T>(
     String path, {
     dynamic body,
@@ -267,7 +316,12 @@ class BloomHttpClient {
     return res as T;
   }
 
-  /// Sends an HTTP DELETE request to [path] with optional [body] and decodes JSON response as [T].
+  /// Sends an HTTP DELETE request to [path] with optional [body] and decodes the JSON response as [T].
+  ///
+  /// Example:
+  /// ```dart
+  /// await client.delete<void>('/api/users/1');
+  /// ```
   Future<T> delete<T>(
     String path, {
     dynamic body,
@@ -278,6 +332,6 @@ class BloomHttpClient {
     return res as T;
   }
 
-  /// Closes the underlying HTTP client.
+  /// Closes the underlying HTTP client and releases network sockets.
   void close() => _innerClient.close();
 }

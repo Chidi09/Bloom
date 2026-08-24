@@ -2,39 +2,61 @@
 import 'package:permission_handler/permission_handler.dart' as ph;
 import '../core/logger.dart';
 
-/// Native hardware and system permission types supported by Bloom.
+/// Native hardware and system permission types supported by Bloom applications.
+///
+/// Example:
+/// ```dart
+/// final status = await BloomPermissions.check(BloomPermission.camera);
+/// ```
 enum BloomPermission {
-  /// Camera capture permission.
+  /// Camera hardware capture permission.
   camera,
-  /// Push / local notifications permission.
+
+  /// Push and local notifications alert permission.
   notifications,
-  /// Device filesystem / photos storage permission.
+
+  /// Device filesystem and photo gallery storage permission.
   storage,
+
   /// Audio microphone recording permission.
   microphone,
-  /// Device GPS / location access permission.
+
+  /// Device GPS and fine/coarse location access permission.
   location,
 }
 
-/// Permission authorization status.
+/// Permission authorization status returned by host platforms.
+///
+/// Example:
+/// ```dart
+/// final status = await BloomPermissions.request(BloomPermission.location);
+/// if (status.isGranted) {
+///   // Access GPS coordinates
+/// }
+/// ```
 enum BloomPermissionStatus {
-  /// Permission has been granted by user.
+  /// Permission has been explicitly granted by the user.
   granted,
-  /// Permission was denied by user.
+
+  /// Permission was denied by the user.
   denied,
-  /// Permission was permanently denied (must enable via OS settings).
+
+  /// Permission was permanently denied (user must manually enable in OS settings).
   permanentlyDenied,
-  /// Permission restricted by OS policies (parental controls, MDM).
+
+  /// Permission is restricted by OS policies (e.g. parental controls or enterprise MDM).
   restricted,
-  /// Limited access granted (e.g. iOS limited photo library).
+
+  /// Limited access granted (e.g. iOS limited photo library selection).
   limited,
+
   /// Permission status is unknown or uninitialized.
   unknown;
 
-  /// Whether permission allows access (either granted or limited).
+  /// Whether the permission status allows resource access (either [granted] or [limited]).
   bool get isGranted => this == BloomPermissionStatus.granted || this == BloomPermissionStatus.limited;
 
-  /// Whether permission is denied or permanently denied.
+  /// Whether the permission is in a denied state ([denied] or [permanentlyDenied]).
   bool get isDenied => this == BloomPermissionStatus.denied || this == BloomPermissionStatus.permanentlyDenied;
 }
 
@@ -75,10 +97,31 @@ extension _PermissionStatusMapper on ph.PermissionStatus {
 }
 
 /// Central native permissions manager for Bloom applications wrapping `permission_handler`.
+///
+/// Supports runtime permission checks, interactive authorization prompts, OS settings navigation,
+/// and test mock simulations without platform channel invocations.
+///
+/// Example:
+/// ```dart
+/// final status = await BloomPermissions.request(BloomPermission.camera);
+/// if (status.isDenied) {
+///   await BloomPermissions.openAppSettings();
+/// }
+/// ```
 class BloomPermissions {
   static final Map<BloomPermission, BloomPermissionStatus> _simulatedPermissions = {};
 
-  /// Simulates a permission status response without invoking platform channels.
+  /// Simulates a permission status response without invoking host platform channels.
+  ///
+  /// Useful in automated tests to simulate granted, denied, or restricted permission states.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomPermissions.simulate(
+  ///   permission: BloomPermission.camera,
+  ///   status: BloomPermissionStatus.granted,
+  /// );
+  /// ```
   static void simulate({
     required BloomPermission permission,
     required BloomPermissionStatus status,
@@ -87,12 +130,22 @@ class BloomPermissions {
     logger.debug('BloomPermissions: Simulated $permission -> $status');
   }
 
-  /// Clears all simulated permission overrides.
+  /// Clears all simulated permission overrides and restores platform channel dispatching.
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomPermissions.resetSimulation();
+  /// ```
   static void resetSimulation() {
     _simulatedPermissions.clear();
   }
 
-  /// Check current permission status without prompting the user.
+  /// Checks current permission status without prompting the user.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = await BloomPermissions.check(BloomPermission.location);
+  /// ```
   static Future<BloomPermissionStatus> check(BloomPermission permission) async {
     if (_simulatedPermissions.containsKey(permission)) {
       final sim = _simulatedPermissions[permission]!;
@@ -112,7 +165,14 @@ class BloomPermissions {
     }
   }
 
-  /// Request runtime permission from the user.
+  /// Requests runtime permission authorization from the user.
+  ///
+  /// Displays the host OS permission dialog if not previously determined.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = await BloomPermissions.request(BloomPermission.camera);
+  /// ```
   static Future<BloomPermissionStatus> request(BloomPermission permission) async {
     if (_simulatedPermissions.containsKey(permission)) {
       final sim = _simulatedPermissions[permission]!;
@@ -133,7 +193,14 @@ class BloomPermissions {
     }
   }
 
-  /// Opens the device app settings screen so user can manually enable permissions.
+  /// Opens the device application settings screen so the user can manually enable permissions.
+  ///
+  /// Returns `true` if the settings screen could be opened.
+  ///
+  /// Example:
+  /// ```dart
+  /// await BloomPermissions.openAppSettings();
+  /// ```
   static Future<bool> openAppSettings() async {
     return ph.openAppSettings();
   }

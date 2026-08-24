@@ -6,11 +6,33 @@ import 'package:intl/intl.dart';
 ///
 /// Stores translation message strings indexed by message ID and evaluates them
 /// using ICU MessageFormat-style patterns (interpolated arguments, plurals,
-/// and select/gender branches).
+/// select/gender branches, formatted numbers, and dates).
 ///
-/// Note: While inspired by `djangors-i18n`'s catalog API shape, `bloom_i18n` deliberately
-/// substitutes Fluent (FTL) with Dart's standard ICU MessageFormat patterns powered by
-/// `package:intl` conventions. Plain Dart/JSON maps are used as the message source.
+/// Plain Dart maps or JSON files are used as the message source.
+///
+/// ### ICU MessageFormat Features Supported
+///
+/// - **Variable Interpolation**: `{name}` replaces `{name}` with `args['name']`.
+/// - **Plurals**: `{count, plural, =0 {No items} =1 {1 item} other {# items}}` where `#`
+///   is automatically replaced by the localized number representation.
+/// - **Select / Gender**: `{gender, select, male {He} female {She} other {They}}`.
+/// - **Formatted Numbers**: `{amount, number, currency}`, `{rate, number, percent}`.
+/// - **Formatted Dates**: `{time, date, short}`, `{time, date, medium}`, `{time, date, long}`, `{time, date, full}`.
+///
+/// ### Example
+///
+/// ```dart
+/// final catalog = BloomCatalog('en-US', {
+///   'welcome': 'Hello, {name}!',
+///   'cart_summary': '{itemCount, plural, =0 {Cart is empty} =1 {1 item in cart} other {# items in cart}}',
+/// });
+///
+/// print(catalog.get('welcome', args: {'name': 'Alice'}));
+/// // Output: "Hello, Alice!"
+///
+/// print(catalog.get('cart_summary', args: {'itemCount': 5}));
+/// // Output: "5 items in cart"
+/// ```
 class BloomCatalog {
   /// The BCP-47 locale tag identifier for this catalog (e.g. `'en-US'`, `'fr-FR'`, `'de'`).
   final String locale;
@@ -18,11 +40,31 @@ class BloomCatalog {
   /// Internal message key-value store.
   final Map<String, String> _messages;
 
-  /// Creates a [BloomCatalog] from a map of message IDs to ICU-formatted message templates.
+  /// Creates a [BloomCatalog] for the given [locale] from a map of [messages].
+  ///
+  /// Keys in [messages] are message IDs, and values are ICU MessageFormat pattern strings.
+  ///
+  /// Example:
+  /// ```dart
+  /// final catalog = BloomCatalog('en-US', {
+  ///   'app_title': 'Bloom Dashboard',
+  ///   'greeting': 'Welcome, {user}!',
+  /// });
+  /// ```
   BloomCatalog(this.locale, Map<String, String> messages)
       : _messages = Map<String, String>.from(messages);
 
-  /// Creates a [BloomCatalog] from a dynamic map (e.g. decoded JSON).
+  /// Creates a [BloomCatalog] for the given [locale] from a dynamic map [json] (e.g. decoded JSON).
+  ///
+  /// Non-null values are converted to strings via [Object.toString].
+  ///
+  /// Example:
+  /// ```dart
+  /// final catalog = BloomCatalog.fromJson('es-ES', {
+  ///   'app_title': 'Panel de Bloom',
+  ///   'item_count': '{count, plural, =0 {Sin elementos} =1 {1 elemento} other {# elementos}}',
+  /// });
+  /// ```
   factory BloomCatalog.fromJson(String locale, Map<String, dynamic> json) {
     final messages = <String, String>{};
     json.forEach((key, value) {
@@ -33,7 +75,16 @@ class BloomCatalog {
     return BloomCatalog(locale, messages);
   }
 
-  /// Creates a [BloomCatalog] by decoding a JSON string.
+  /// Creates a [BloomCatalog] for the given [locale] by decoding a [jsonString].
+  ///
+  /// Throws a [FormatException] if [jsonString] does not decode into a JSON map object.
+  ///
+  /// Example:
+  /// ```dart
+  /// const rawJson = '{"greeting": "Hello!", "bye": "Goodbye!"}';
+  /// final catalog = BloomCatalog.fromJsonString('en-US', rawJson);
+  /// print(catalog.get('greeting')); // "Hello!"
+  /// ```
   factory BloomCatalog.fromJsonString(String locale, String jsonString) {
     final dynamic decoded = jsonDecode(jsonString);
     if (decoded is Map<String, dynamic>) {
@@ -47,24 +98,63 @@ class BloomCatalog {
     throw FormatException('Invalid JSON for BloomCatalog: expected a JSON object.');
   }
 
-  /// Returns a read-only view of the registered message templates.
+  /// Returns an unmodifiable view of all registered message ID to template mappings.
+  ///
+  /// Example:
+  /// ```dart
+  /// final catalog = BloomCatalog('en-US', {'key': 'Value'});
+  /// print(catalog.messages.keys.toList()); // ['key']
+  /// ```
   Map<String, String> get messages => Map.unmodifiable(_messages);
 
-  /// Checks if a message ID is defined in this catalog.
+  /// Checks if a message pattern is registered for the specified [messageId].
+  ///
+  /// Returns `true` if defined, `false` otherwise.
+  ///
+  /// Example:
+  /// ```dart
+  /// final catalog = BloomCatalog('en-US', {'prompt': 'Enter name:'});
+  /// print(catalog.has('prompt')); // true
+  /// print(catalog.has('missing')); // false
+  /// ```
   bool has(String messageId) => _messages.containsKey(messageId);
 
-  /// Looks up and formats a translated message by ID, substituting arguments
-  /// and evaluating ICU MessageFormat plural/select patterns.
+  /// Looks up and formats a translated message by [messageId], substituting [args]
+  /// and evaluating ICU MessageFormat plural, select, number, and date patterns.
   ///
-  /// Returns `null` if the message ID is not found in this catalog.
+  /// Returns `null` if [messageId] is not found in this catalog.
+  ///
+  /// Example:
+  /// ```dart
+  /// final catalog = BloomCatalog('en-US', {
+  ///   'items_left': '{count, plural, =0 {No items left} =1 {1 item left} other {# items left}}',
+  /// });
+  ///
+  /// print(catalog.get('items_left', args: {'count': 0})); // "No items left"
+  /// print(catalog.get('items_left', args: {'count': 3})); // "3 items left"
+  /// print(catalog.get('unknown_key')); // null
+  /// ```
   String? get(String messageId, {Map<String, Object>? args}) {
     final template = _messages[messageId];
     if (template == null) return null;
     return formatMessage(template, args: args, locale: locale);
   }
 
-  /// Static formatter evaluating an ICU MessageFormat [template] string with [args]
-  /// for the specified [locale].
+  /// Evaluates an ICU MessageFormat [template] string with [args] for the specified [locale].
+  ///
+  /// This static helper can be used directly without instantiating a [BloomCatalog].
+  /// If [args] is omitted or empty and the [template] contains no braces (`{`),
+  /// the [template] string is returned as-is for performance.
+  ///
+  /// Example:
+  /// ```dart
+  /// final formatted = BloomCatalog.formatMessage(
+  ///   'Hello, {name}! You have {unread, plural, =0 {no unread emails} =1 {1 unread email} other {# unread emails}}.',
+  ///   args: {'name': 'Sam', 'unread': 4},
+  ///   locale: 'en-US',
+  /// );
+  /// print(formatted); // "Hello, Sam! You have 4 unread emails."
+  /// ```
   static String formatMessage(
     String template, {
     Map<String, Object>? args,

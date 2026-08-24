@@ -2,6 +2,15 @@
 import 'http_exception.dart';
 
 /// Function signature for transforming an error of type [T] into a [BloomApiException].
+///
+/// Accepts the intercepted [error] instance and returns a corresponding strongly-typed
+/// [BloomApiException] (such as [BloomNotFoundException] or [BloomBadRequestException]).
+///
+/// Example:
+/// ```dart
+/// final ErrorMappingFunction<FormatException> mapper = (e) =>
+///     BloomBadRequestException('Malformed input: ${e.message}');
+/// ```
 typedef ErrorMappingFunction<T> = BloomApiException Function(T error);
 
 /// Registry that translates domain, database, authentication, and validation exceptions
@@ -11,13 +20,37 @@ typedef ErrorMappingFunction<T> = BloomApiException Function(T error);
 /// sibling package exceptions (such as `bloom_db`, `bloom_auth_server`, `bloom_storage`,
 /// `bloom_validate`, and `bloom_migrate`) by runtime type name string matching and dynamic property
 /// extraction, while allowing applications to register strongly-typed custom mappers via
-/// [register].
+/// [register] or dynamic mappers via [registerByName].
+///
+/// ### Resolution Precedence
+/// 1. If an error is already an instance of [BloomApiException], it is returned unmodified.
+/// 2. Custom typed mappers registered via [register] are evaluated in LIFO (most recently registered first) order.
+/// 3. Custom named mappers registered via [registerByName] matching `error.runtimeType.toString()`.
+/// 4. Built-in mappings for standard Dart core exceptions ([FormatException], [RangeError], [ArgumentError])
+///    and sibling Bloom package errors.
+/// 5. If no mapping matches, [map] returns `null` (allowing caller fallbacks or unmapped error masking).
+///
+/// Example:
+/// ```dart
+/// // Register a custom typed mapper
+/// BloomErrorMapper.register<UserNotFoundException>(
+///   (e) => BloomNotFoundException('User ${e.userId} was not found', {'user_id': e.userId}),
+/// );
+///
+/// // Map an unknown exception
+/// final httpException = BloomErrorMapper.map(UserNotFoundException('usr_123'));
+/// ```
 class BloomErrorMapper {
   static final List<_TypedMapperEntry> _customTypedMappers = [];
   static final Map<String, ErrorMappingFunction<Object>> _customNamedMappers = {};
 
   /// Registers a strongly-typed exception mapping function for type [E].
   ///
+  /// The [mapper] callback takes an instance of [E] and produces a corresponding [BloomApiException].
+  /// If a mapper for type [E] was previously registered, it is replaced and the new mapper is placed
+  /// at the highest evaluation priority.
+  ///
+  /// Example:
   /// ```dart
   /// BloomErrorMapper.register<UserNotFoundException>(
   ///   (e) => BloomNotFoundException('User ${e.userId} was not found'),
@@ -35,12 +68,33 @@ class BloomErrorMapper {
     );
   }
 
-  /// Registers an exception mapping function by runtime type name.
+  /// Registers an exception mapping function by runtime type name [typeName].
+  ///
+  /// Useful for decoupling packages where the target exception class cannot be imported directly
+  /// at compile time, or for dynamic runtime errors. The [mapper] receives the raw error object
+  /// whose `runtimeType.toString()` matches [typeName].
+  ///
+  /// Example:
+  /// ```dart
+  /// BloomErrorMapper.registerByName(
+  ///   'PaymentGatewayTimeoutException',
+  ///   (error) => const BloomInternalException('Payment provider timed out'),
+  /// );
+  /// ```
   static void registerByName(String typeName, ErrorMappingFunction<Object> mapper) {
     _customNamedMappers[typeName] = mapper;
   }
 
-  /// Removes all custom registered mappers (primarily useful for testing).
+  /// Removes all custom registered mappers (both typed and named).
+  ///
+  /// Primarily useful for resetting the registry between unit and integration tests.
+  ///
+  /// Example:
+  /// ```dart
+  /// tearDown(() {
+  ///   BloomErrorMapper.clearCustomMappers();
+  /// });
+  /// ```
   static void clearCustomMappers() {
     _customTypedMappers.clear();
     _customNamedMappers.clear();
@@ -50,7 +104,20 @@ class BloomErrorMapper {
   ///
   /// If [error] is already a [BloomApiException], it is returned as-is.
   /// Otherwise, custom typed mappers, custom named mappers, and built-in type name
-  /// mappers are checked in order. If no mapping is found, returns `null`.
+  /// mappers are checked in order:
+  /// 1. Direct [BloomApiException] pass-through.
+  /// 2. Custom typed mappers registered via [register].
+  /// 3. Custom named mappers registered via [registerByName].
+  /// 4. Built-in core Dart and sibling framework exception mappers.
+  ///
+  /// Returns `null` if no mapping is found, allowing the caller (such as [BloomErrorMiddleware])
+  /// to handle unmapped errors appropriately.
+  ///
+  /// Example:
+  /// ```dart
+  /// final apiError = BloomErrorMapper.map(FormatException('Invalid JSON'));
+  /// print(apiError?.statusCode); // 400
+  /// ```
   static BloomApiException? map(Object error) {
     if (error is BloomApiException) {
       return error;
@@ -80,6 +147,15 @@ class BloomErrorMapper {
 
   /// Resolves [error] into a [BloomApiException], falling back to [BloomInternalException]
   /// if no mapping exists.
+  ///
+  /// Attempts to map [error] using [map]. If [map] returns `null`, constructs and returns
+  /// a new [BloomInternalException] with the string representation of [error].
+  ///
+  /// Example:
+  /// ```dart
+  /// final exception = BloomErrorMapper.mapToHttpException(Exception('Something failed'));
+  /// print(exception.statusCode); // 500
+  /// ```
   static BloomApiException mapToHttpException(Object error) {
     final mapped = map(error);
     if (mapped != null) return mapped;
