@@ -1,8 +1,22 @@
-// lib/src/devtools/signals_inspector.dart
+/// Visual inspection engine for the Bloom Signals state tree in DevTools.
+library;
+
 import 'dart:collection';
 import '../state/signals.dart';
 
 /// Visual descriptor for a tracked reactive signal displayed in DevTools.
+///
+/// Contains the signal name/label, current value, update count, and runtime type.
+///
+/// Example:
+/// ```dart
+/// final desc = SignalDescriptor(
+///   name: 'counter',
+///   currentValue: 42,
+///   updateCount: 5,
+///   valueType: int,
+/// );
+/// ```
 class SignalDescriptor {
   /// Debug label or signal name.
   final String name;
@@ -24,7 +38,7 @@ class SignalDescriptor {
     required this.valueType,
   });
 
-  /// Serializes descriptor to JSON map.
+  /// Serializes descriptor to a JSON map.
   Map<String, dynamic> toJson() => {
         'name': name,
         'currentValue': currentValue,
@@ -33,13 +47,22 @@ class SignalDescriptor {
       };
 }
 
-/// Visual inspection engine for Bloom Signals state tree.
+/// Visual inspection engine for the Bloom Signals state tree.
+///
+/// Allows DevTools to register, observe, and remotely update signal values at runtime.
+///
+/// Example:
+/// ```dart
+/// BloomSignalsInspector.trackSignal('themeMode', themeSignal);
+/// final signals = BloomSignalsInspector.inspectAll();
+/// ```
 class BloomSignalsInspector {
   static final Map<String, Signal<dynamic>> _trackedSignals = {};
   static final Map<String, int> _updateCounts = {};
 
   /// Registers a signal instance for visual DevTools inspection.
   static void trackSignal(String name, Signal<dynamic> sig) {
+
     _trackedSignals[name] = sig;
     _updateCounts.putIfAbsent(name, () => 0);
   }

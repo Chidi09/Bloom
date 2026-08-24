@@ -1,8 +1,26 @@
 // lib/src/devtools/query_cache_inspector.dart
+/// Visual query cache inspection and management engine for Bloom DevTools.
+library;
+
 import 'dart:collection';
 import '../data/cache.dart';
 
 /// Visual descriptor for a cached query record displayed in DevTools.
+///
+/// Contains cache key, staleness, expiration state, and timing metadata.
+///
+/// Example:
+/// ```dart
+/// final descriptor = QueryCacheDescriptor(
+///   key: 'user:123',
+///   updatedAt: DateTime.now(),
+///   isStale: false,
+///   isExpired: false,
+///   staleTimeMs: 60000,
+///   cacheTimeMs: 300000,
+///   hasData: true,
+/// );
+/// ```
 class QueryCacheDescriptor {
   /// Query cache key string.
   final String key;
@@ -36,7 +54,7 @@ class QueryCacheDescriptor {
     required this.hasData,
   });
 
-  /// Serializes descriptor to JSON map.
+  /// Serializes descriptor to a JSON map.
   Map<String, dynamic> toJson() => {
         'key': key,
         'updatedAt': updatedAt.toIso8601String(),
@@ -49,6 +67,14 @@ class QueryCacheDescriptor {
 }
 
 /// Visual query cache inspection and management engine for Bloom DevTools.
+///
+/// Allows inspecting all cached items, marking keys stale, or purging the cache.
+///
+/// Example:
+/// ```dart
+/// final entries = BloomQueryCacheInspector.inspectAll();
+/// BloomQueryCacheInspector.markStale(['users', 42]);
+/// ```
 class BloomQueryCacheInspector {
   /// Inspects all active query cache entries.
   static List<QueryCacheDescriptor> inspectAll() {

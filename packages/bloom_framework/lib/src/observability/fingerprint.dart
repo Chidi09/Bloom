@@ -1,8 +1,22 @@
-// lib/src/observability/fingerprint.dart
+/// Deterministic crash and exception fingerprinting utilities.
+library;
+
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 /// Utilities for calculating deterministic crash grouping fingerprints.
+///
+/// Normalizes dynamic data (UUIDs, hex addresses, numeric IDs) and extracts user-space
+/// stack frames to group identical root-cause errors together in telemetry backends.
+///
+/// Example:
+/// ```dart
+/// final tokens = BloomCrashFingerprint.compute(
+///   exceptionType: 'FormatException',
+///   message: 'Invalid UUID: 123e4567-e89b-12d3-a456-426614174000',
+/// );
+/// final hash = BloomCrashFingerprint.hashTokens(tokens);
+/// ```
 class BloomCrashFingerprint {
   static final RegExp _vmFramePattern = RegExp(r'#\d+\s+([^\s(]+)');
   static final RegExp _webFramePattern = RegExp(r'^\s*at\s+([^\s(]+)');
@@ -21,6 +35,8 @@ class BloomCrashFingerprint {
   }
 
   /// Computes a deterministic list of fingerprint tokens and SHA-256 hash.
+  ///
+  /// Extracts top non-framework stack frames and combines them with the [exceptionType].
   static List<String> compute({
     required String exceptionType,
     required String message,
@@ -71,9 +87,10 @@ class BloomCrashFingerprint {
     return tokens;
   }
 
-  /// Calculates a SHA-256 hex string from the fingerprint tokens.
+  /// Calculates a SHA-256 hex string from the fingerprint [tokens].
   static String hashTokens(List<String> tokens) {
     final raw = tokens.join('|');
     return sha256.convert(utf8.encode(raw)).toString();
   }
 }
+

@@ -1,4 +1,6 @@
-// lib/src/widgets/bloom_logo.dart
+/// Vector logo widget for the Bloom framework.
+library;
+
 import 'package:flutter/material.dart';
 
 /// The real Bloom five-petal gradient flower mark, matching the brand SVG
@@ -6,12 +8,18 @@ import 'package:flutter/material.dart';
 ///
 /// Renders via [CustomPainter] on a 200x200 design grid so it stays crisp at
 /// any [size] without shipping an image asset or a new SVG dependency.
+///
+/// Example:
+/// ```dart
+/// const logo = BloomLogo(size: 48);
+/// ```
 class BloomLogo extends StatelessWidget {
-  /// Creates a [BloomLogo] icon widget.
+  /// Creates a [BloomLogo] icon widget with the specified logical pixel [size].
   const BloomLogo({super.key, this.size = 40});
 
   /// Render size (width and height) in logical pixels.
   final double size;
+
 
   @override
   Widget build(BuildContext context) {

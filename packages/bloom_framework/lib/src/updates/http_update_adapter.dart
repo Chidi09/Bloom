@@ -1,4 +1,6 @@
-// lib/src/updates/http_update_adapter.dart
+/// HTTP and CDN update client adapter for downloading and verifying OTA patches.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -9,9 +11,19 @@ import '../core/logger.dart';
 import 'bloom_updates.dart';
 import 'update_manifest.dart';
 
-/// Real HTTP / CDN network adapter for checking, downloading, and verifying OTA patches.
+/// Real HTTP and CDN network adapter for checking, downloading, and verifying OTA patches.
+///
+/// Communicates with the Bloom update server (`/api/v1/updates/check`), downloads patch bundles,
+/// verifies cryptographic SHA-256 asset hashes, and stages files to disk.
+///
+/// Example:
+/// ```dart
+/// final adapter = BloomHttpUpdateAdapter(
+///   baseUrl: 'https://updates.bloom.dev',
+/// );
+/// ```
 class BloomHttpUpdateAdapter implements BloomUpdateClientAdapter {
-  /// Base API / CDN URL for updates.
+  /// Base API and CDN URL for updates.
   final String baseUrl;
 
   /// Underlying HTTP client instance.
@@ -31,6 +43,7 @@ class BloomHttpUpdateAdapter implements BloomUpdateClientAdapter {
     this.defaultHeaders = const {},
   })  : httpClient = httpClient ?? http.Client(),
         stagingDir = stagingDir ?? Directory(p.join(Directory.systemTemp.path, 'bloom_updates_stage'));
+
 
   @override
   Future<UpdateManifest?> checkServerForUpdate({

@@ -1,19 +1,33 @@
-// lib/src/lifecycle/lifecycle.dart
+/// Application lifecycle observation and management subsystem.
+library;
+
 import 'package:flutter/widgets.dart';
 import '../core/logger.dart';
 
-/// Mixin for classes that wish to observe application lifecycle events.
+/// Mixin for classes that observe Flutter application lifecycle transitions.
+///
+/// Implement any of the lifecycle hooks to handle backgrounding, pausing, or resuming.
+///
+/// Example:
+/// ```dart
+/// class SyncManager with BloomLifecycleObserver {
+///   @override
+///   void onAppResumed() {
+///     // Refresh pending data when returning to foreground
+///   }
+/// }
+/// ```
 mixin BloomLifecycleObserver {
-  /// Called when application transitions to foreground resumed state.
+  /// Called when the application transitions to the foreground resumed state.
   void onAppResumed() {}
 
-  /// Called when application enters an inactive state (e.g. phone call received).
+  /// Called when the application enters an inactive state (e.g. phone call or system dialog).
   void onAppInactive() {}
 
-  /// Called when application is backgrounded and paused.
+  /// Called when the application is backgrounded and paused.
   void onAppPaused() {}
 
-  /// Called when application engine is detached from host.
+  /// Called when the application engine is detached from the host platform.
   void onAppDetached() {}
 
   /// Called when all application views are hidden.
@@ -21,6 +35,15 @@ mixin BloomLifecycleObserver {
 }
 
 /// Central manager coordinating application-wide lifecycle events.
+///
+/// Listens to Flutter's [WidgetsBindingObserver] and dispatches state transitions
+/// to all registered [BloomLifecycleObserver] instances.
+///
+/// Example:
+/// ```dart
+/// BloomLifecycleManager.instance.initialize();
+/// BloomLifecycleManager.instance.addObserver(myObserver);
+/// ```
 class BloomLifecycleManager with WidgetsBindingObserver {
   /// Global singleton instance.
   static final BloomLifecycleManager instance = BloomLifecycleManager._();

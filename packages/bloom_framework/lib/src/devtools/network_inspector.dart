@@ -1,14 +1,29 @@
-// lib/src/devtools/network_inspector.dart
+/// Network request inspection, trace recording, and replay engine for Bloom DevTools.
+library;
+
 import 'dart:async';
 import 'dart:collection';
 import '../data/http_client.dart';
 
 /// Recorded network request / response trace event.
+///
+/// Contains headers, request/response bodies, HTTP method, status codes, and roundtrip latency.
+///
+/// Example:
+/// ```dart
+/// final trace = BloomNetworkTrace(
+///   id: 'req_123',
+///   method: 'GET',
+///   url: 'https://api.example.com/items',
+///   timestamp: DateTime.now(),
+///   statusCode: 200,
+/// );
+/// ```
 class BloomNetworkTrace {
   /// Unique request trace ID.
   final String id;
 
-  /// HTTP method string.
+  /// HTTP method string (e.g. `'GET'`, `'POST'`).
   final String method;
 
   /// Target request URL.
@@ -60,7 +75,7 @@ class BloomNetworkTrace {
   /// Whether the response status code indicates success (2xx).
   bool get isSuccess => statusCode != null && statusCode! >= 200 && statusCode! < 300;
 
-  /// Serializes trace event to JSON map.
+  /// Serializes trace event to a JSON map.
   Map<String, dynamic> toJson() => {
         'id': id,
         'method': method,
@@ -78,6 +93,15 @@ class BloomNetworkTrace {
 }
 
 /// Central network inspection and request replay engine for Bloom DevTools.
+///
+/// Records network traces in a bounded ring buffer (up to 200 traces) and supports replaying
+/// requests with custom overrides.
+///
+/// Example:
+/// ```dart
+/// final traces = BloomNetworkInspector.traces;
+/// final result = await BloomNetworkInspector.replayRequest(traces.first.id);
+/// ```
 class BloomNetworkInspector {
   static final List<BloomNetworkTrace> _traces = [];
 

@@ -1,9 +1,11 @@
-// lib/src/deployment/bloom_ota.dart
+/// Over-The-Air (OTA) update and code-push controller powered by Shorebird.
+library;
+
 import 'dart:async';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import '../core/logger.dart';
 
-/// Status events emitted during OTA code patch life-cycle.
+/// Status events emitted during OTA code patch lifecycle.
 enum BloomOtaStatus {
   /// Idle state with no active OTA operation.
   idle,
@@ -11,7 +13,7 @@ enum BloomOtaStatus {
   checkingForUpdate,
   /// A newer OTA patch was discovered and is ready to download.
   updateAvailable,
-  /// Current build is up to date with latest patch.
+  /// Current build is up to date with the latest patch.
   upToDate,
   /// Downloading patch binaries from CDN.
   downloading,
@@ -22,6 +24,16 @@ enum BloomOtaStatus {
 }
 
 /// Represents an available OTA patch descriptor.
+///
+/// Example:
+/// ```dart
+/// final patch = BloomOtaPatch(
+///   patchNumber: 2,
+///   channel: 'production',
+///   releasedAt: DateTime.now(),
+///   releaseNotes: 'Bug fixes and performance improvements',
+/// );
+/// ```
 class BloomOtaPatch {
   /// Sequential patch version number.
   final int patchNumber;
@@ -43,7 +55,7 @@ class BloomOtaPatch {
     this.releaseNotes,
   });
 
-  /// Serializes patch descriptor to JSON map.
+  /// Serializes patch descriptor to a JSON map.
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{
       'patchNumber': patchNumber,
@@ -58,6 +70,17 @@ class BloomOtaPatch {
 }
 
 /// Over-The-Air (OTA) update and code-push controller powered by Shorebird.
+///
+/// Manages background update checks, patch downloads, and release channel management.
+///
+/// Example:
+/// ```dart
+/// await BloomOTA.initialize(channel: 'production');
+/// final hasUpdate = await BloomOTA.checkForUpdate();
+/// if (hasUpdate) {
+///   await BloomOTA.downloadUpdate();
+/// }
+/// ```
 class BloomOTA {
   static final ShorebirdUpdater _updater = ShorebirdUpdater();
   static final StreamController<BloomOtaStatus> _statusController =
@@ -74,10 +97,10 @@ class BloomOTA {
   /// Current OTA status.
   static BloomOtaStatus get currentStatus => _currentStatus;
 
-  /// Currently active Shorebird patch number (null if running vanilla release).
+  /// Currently active Shorebird patch number (`null` if running vanilla release).
   static int? get currentPatchNumber => _currentPatchNumber;
 
-  /// Active Shorebird patch identifier string (e.g. "patch_1", or null if base release).
+  /// Active Shorebird patch identifier string (e.g. `'patch_1'`, or `null` if base release).
   static String? get activePatchId =>
       _currentPatchNumber != null ? 'patch_$_currentPatchNumber' : null;
 
@@ -90,8 +113,9 @@ class BloomOTA {
   /// The latest available patch (if downloaded or available).
   static BloomOtaPatch? get availablePatch => _availablePatch;
 
-  /// Initialize OTA runtime with active deployment channel and read installed patch.
+  /// Initializes the OTA runtime with active deployment [channel] and reads the installed patch.
   static Future<void> initialize({
+
     String channel = 'production',
     int? currentPatch,
   }) async {

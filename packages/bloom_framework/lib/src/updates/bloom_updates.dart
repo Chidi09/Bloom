@@ -1,4 +1,6 @@
-// lib/src/updates/bloom_updates.dart
+/// Enterprise-grade Over-The-Air (OTA) updates and runtime fingerprint engine for Bloom.
+library;
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/logger.dart';
@@ -8,9 +10,9 @@ import 'runtime_fingerprint.dart';
 import 'staged_rollout.dart';
 import 'update_manifest.dart';
 
-/// Network and platform adapter for fetching and applying OTA updates.
+/// Network and platform adapter contract for fetching and applying OTA updates.
 abstract class BloomUpdateClientAdapter {
-  /// Queries update server for an available update manifest matching the channel, branch, and runtime fingerprint.
+  /// Queries the update server for an available update manifest matching [channel], [branch], and [runtimeFingerprint].
   Future<UpdateManifest?> checkServerForUpdate({
     required String channel,
     required String branch,
@@ -18,7 +20,7 @@ abstract class BloomUpdateClientAdapter {
     required String deviceId,
   });
 
-  /// Downloads patch binary assets with progress reporting.
+  /// Downloads patch binary assets with [onProgress] reporting.
   Future<bool> downloadPatchAssets({
     required UpdateManifest manifest,
     required void Function(double progress) onProgress,
@@ -80,7 +82,20 @@ class MockBloomUpdateClientAdapter implements BloomUpdateClientAdapter {
   }
 }
 
-/// Enterprise-grade Over-The-Air (OTA) Updates & Runtime Fingerprint Engine.
+/// Enterprise-grade Over-The-Air (OTA) Updates and Runtime Fingerprint Engine.
+///
+/// Orchestrates runtime compatibility verification, staged percentage rollouts,
+/// background downloads with reactive progress signals, and self-healing startup rollback.
+///
+/// Example:
+/// ```dart
+/// await BloomUpdates.initialize(channel: 'production');
+/// final result = await BloomUpdates.checkForUpdate();
+/// if (result.isAvailable) {
+///   await BloomUpdates.fetchUpdate();
+///   await BloomUpdates.reload();
+/// }
+/// ```
 class BloomUpdates {
   static final Signal<bool> _isChecking = signal(false);
   static final Signal<bool> _isAvailable = signal(false);
@@ -90,13 +105,25 @@ class BloomUpdates {
   static final Signal<Object?> _error = signal(null);
   static final Signal<UpdateManifest?> _currentPatch = signal(null);
 
-  // Read-only public signal accessors
+  /// Reactive signal indicating whether an update check is in progress.
   static ReadonlySignal<bool> get isChecking => _isChecking;
+
+  /// Reactive signal indicating whether a compatible update is available.
   static ReadonlySignal<bool> get isAvailable => _isAvailable;
+
+  /// Reactive signal indicating whether patch binary download is in progress.
   static ReadonlySignal<bool> get isDownloading => _isDownloading;
+
+  /// Reactive signal indicating whether the patch is downloaded and ready to apply.
   static ReadonlySignal<bool> get isReady => _isReady;
+
+  /// Reactive signal tracking download progress from 0.0 to 1.0.
   static ReadonlySignal<double> get downloadProgress => _downloadProgress;
+
+  /// Reactive signal containing any error encountered during update operations.
   static ReadonlySignal<Object?> get error => _error;
+
+  /// Reactive signal holding the currently active patch manifest.
   static ReadonlySignal<UpdateManifest?> get currentPatch => _currentPatch;
 
   static String _activeChannel = 'production';
@@ -107,14 +134,24 @@ class BloomUpdates {
   static late StartupCrashWatchdog _watchdog;
   static UpdateManifest? _pendingStagedManifest;
 
+  /// Active startup crash watchdog.
   static StartupCrashWatchdog get watchdog => _watchdog;
+
+  /// Active release deployment channel.
   static String get activeChannel => _activeChannel;
+
+  /// Active git branch for OTA deployments.
   static String get activeBranch => _activeBranch;
+
+  /// SHA-256 hash of the local native binary runtime fingerprint.
   static String get localRuntimeFingerprint => _localRuntimeFingerprint;
+
+  /// Active patch ID string (or `null` if base binary).
   static String? get activePatchId => _currentPatch.value?.id;
 
-  /// Initializes BloomUpdates runtime engine.
+  /// Initializes the BloomUpdates runtime engine.
   static Future<void> initialize({
+
     String channel = 'production',
     String branch = 'main',
     String? deviceId,

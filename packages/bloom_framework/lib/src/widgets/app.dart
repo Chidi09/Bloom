@@ -1,4 +1,6 @@
-// lib/src/widgets/app.dart
+/// Root application widget for Bloom Flutter applications.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/boot.dart';
@@ -7,18 +9,32 @@ import '../router/router.dart';
 import '../web/prerender_bridge.dart';
 
 /// Root application widget for Bloom applications.
-/// Wraps [MaterialApp.router] and attaches the framework lifecycle system.
+///
+/// Wraps Flutter's [MaterialApp.router], initializes the [BloomLifecycleManager],
+/// attaches SSR/prerender signaling hooks, and wires GoRouter navigation.
+///
+/// Example:
+/// ```dart
+/// void main() => runApp(
+///   BloomApp(
+///     title: 'My App',
+///     routes: [
+///       BloomRouter.route(path: '/', builder: (context, match) => const HomeScreen()),
+///     ],
+///   ),
+/// );
+/// ```
 class BloomApp extends StatefulWidget {
-  /// Application title string.
+  /// Application title string displayed in task switchers and web document titles.
   final String? title;
 
-  /// Custom [RouterConfig] instance. If omitted, constructed from [routes].
+  /// Custom [RouterConfig] instance. If omitted, constructed automatically from [routes].
   final RouterConfig<Object>? routerConfig;
 
-  /// List of GoRouter route declarations.
+  /// List of GoRouter route declarations used to build the default router.
   final List<RouteBase>? routes;
 
-  /// Initial route location (default: `'/'`).
+  /// Initial route location (defaults to `'/'`).
   final String initialLocation;
 
   /// Light theme definition.
@@ -33,16 +49,16 @@ class BloomApp extends StatefulWidget {
   /// Active application locale.
   final Locale? locale;
 
-  /// Localization delegates.
+  /// Localization delegates for internationalization.
   final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
 
   /// Supported locales list.
   final Iterable<Locale>? supportedLocales;
 
-  /// Whether to show the debug mode banner.
+  /// Whether to show the debug banner in the top-right corner.
   final bool debugShowCheckedModeBanner;
 
-  /// Fallback home widget when routes are not specified.
+  /// Fallback home widget when [routes] and [routerConfig] are not specified.
   final Widget? home;
 
   /// Creates a [BloomApp] root widget.
@@ -61,6 +77,7 @@ class BloomApp extends StatefulWidget {
     this.debugShowCheckedModeBanner = false,
     this.home,
   });
+
 
   @override
   State<BloomApp> createState() => _BloomAppState();

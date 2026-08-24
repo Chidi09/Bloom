@@ -1,13 +1,24 @@
-// lib/bloom_server.dart
-//
-// The server core lives in `package:bloom_server`, which is Flutter-free so
-// that pure-Dart backends can `dart compile exe` without the Flutter SDK.
-// This barrel re-exports it so Flutter consumers keep a single import.
-//
-// The dependency runs one way only: bloom_framework depends on bloom_server,
-// never the reverse. Reversing it would drag `package:flutter` into every
-// backend. See test/no_duplication_test.dart, which enforces this.
+/// Flutter-free server core and HTTP API routing layer for Bloom backend services.
+///
+/// Re-exports `bloom_core.dart` (environment, DI, logger) alongside HTTP routing primitives
+/// ([ApiRouter], [BloomRequest], [BloomResponse], and [BloomMiddleware]) from `package:bloom_server`.
+///
+/// This barrel is strictly Flutter-free, allowing backend services and Server-Side Rendering (SSR)
+/// daemons to compile directly to native binaries (`dart compile exe`) without the Flutter engine.
+///
+/// Example:
+/// ```dart
+/// import 'package:bloom_framework/bloom_server.dart';
+///
+/// void main() {
+///   final router = ApiRouter();
+///   router.get('/health', (req) => BloomResponse.json({'status': 'ok'}));
+/// }
+/// ```
+library bloom_server;
+
 export 'bloom_core.dart';
+
 
 export 'package:bloom_server/src/server/api_router.dart';
 export 'package:bloom_server/src/server/bloom_middleware.dart';

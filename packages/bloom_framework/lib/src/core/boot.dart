@@ -21,14 +21,44 @@ import 'env.dart';
 import 'logger.dart';
 
 /// Contract for custom user bootstrapper code in `lib/app/boot.dart`.
+///
+/// Implement this class to register custom services, repositories, or runtime initialization
+/// before the Flutter widget tree is mounted.
+///
+/// Example:
+/// ```dart
+/// class AppBootstrapper extends BloomBootstrapper {
+///   const AppBootstrapper();
+///
+///   @override
+///   Future<void> onBoot(BloomContainer container) async {
+///     container.provideSingleton<AuthService>(() => AuthService());
+///   }
+/// }
+/// ```
 abstract class BloomBootstrapper {
+  /// Creates a [BloomBootstrapper].
   const BloomBootstrapper();
 
-  /// Invoked during framework boot sequence before widget tree is mounted.
+  /// Invoked during the framework boot sequence before the widget tree is mounted.
+  ///
+  /// Receives the active [BloomContainer] to register dependencies and initialize plugins.
   FutureOr<void> onBoot(BloomContainer container);
 }
 
-/// The core Bloom framework controller.
+/// The core Bloom framework controller and global entrypoint.
+///
+/// Manages application bootstrapping, runtime configuration, dependency injection,
+/// feature flags, observability/crash telemetry, and test lifecycle resetting.
+///
+/// Example:
+/// ```dart
+/// void main() async {
+///   await Bloom.boot(
+///     bootstrapper: const AppBootstrapper(),
+///   );
+/// }
+/// ```
 class Bloom {
   static bool _isBooted = false;
   static BloomConfig _config = const BloomConfig();
@@ -38,19 +68,30 @@ class Bloom {
   /// Whether Bloom has completed its boot sequence.
   static bool get isBooted => _isBooted;
 
-  /// Active configuration instance.
+  /// Active configuration instance loaded during boot.
   static BloomConfig get config => _config;
 
-  /// Currently active build flavor (if specified).
+  /// Currently active build flavor (e.g. `'development'`, `'staging'`, `'production'`), if specified.
   static String? get activeFlavor => _activeFlavor;
 
   /// Global dependency injection container.
   static BloomContainer get container => globalContainer;
 
-  /// Dynamic feature flags management.
+  /// Dynamic feature flags management service.
   static BloomFeatureFlags get features => _features;
 
   /// Records a chronological breadcrumb in the observability buffer.
+  ///
+  /// Breadcrumbs provide context preceding captured errors.
+  ///
+  /// Example:
+  /// ```dart
+  /// Bloom.addBreadcrumb(
+  ///   category: 'auth',
+  ///   message: 'User initiated sign-in',
+  ///   level: BloomBreadcrumbLevel.info,
+  /// );
+  /// ```
   static void addBreadcrumb({
     required String category,
     required String message,
@@ -66,6 +107,17 @@ class Bloom {
   }
 
   /// Manually captures an exception with structured context and stack trace.
+  ///
+  /// Returns the generated [BloomTelemetryEvent] if captured, or `null` if dropped by sampling or beforeSend.
+  ///
+  /// Example:
+  /// ```dart
+  /// try {
+  ///   await syncData();
+  /// } catch (e, stack) {
+  ///   await Bloom.captureException(e, stackTrace: stack);
+  /// }
+  /// ```
   static Future<BloomTelemetryEvent?> captureException(
     dynamic exception, {
     dynamic stackTrace,
@@ -85,6 +137,11 @@ class Bloom {
   }
 
   /// Manually captures a message telemetry event.
+  ///
+  /// Example:
+  /// ```dart
+  /// await Bloom.captureMessage('Order payment completed', level: BloomErrorLevel.info);
+  /// ```
   static Future<BloomTelemetryEvent?> captureMessage(
     String message, {
     BloomErrorLevel level = BloomErrorLevel.info,
@@ -100,6 +157,18 @@ class Bloom {
   }
 
   /// Main boot pipeline for Bloom applications.
+  ///
+  /// Initializes Flutter bindings, loads and validates configuration and environment variables,
+  /// registers DI bindings, configures deep links, starts devtools and observability,
+  /// and runs the user [bootstrapper].
+  ///
+  /// Parameters:
+  /// - [flavor]: Optional build flavor name.
+  /// - [bootstrapper]: Optional custom bootstrap lifecycle handler.
+  /// - [envContent]: Optional raw `.env` string to load directly without file I/O.
+  /// - [configYaml]: Optional raw `bloom.yaml` string to load directly.
+  /// - [observability]: Custom telemetry and crash reporting options.
+  /// - [environmentSchema]: Strict schema validation rules for environment variables.
   static Future<void> boot({
     String? flavor,
     BloomBootstrapper? bootstrapper,

@@ -1,10 +1,19 @@
-// lib/src/observability/transport.dart
+/// Telemetry transports for transmitting crash and error events.
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'models.dart';
 
 /// Exception thrown when telemetry transmission over HTTP fails.
+///
+/// Example:
+/// ```dart
+/// if (response.statusCode >= 400) {
+///   throw BloomHttpException('Server error', statusCode: response.statusCode);
+/// }
+/// ```
 class BloomHttpException implements Exception {
   /// Description of the HTTP exception.
   final String message;
@@ -23,17 +32,36 @@ class BloomHttpException implements Exception {
 }
 
 /// Transport contract for dispatching telemetry and crash events.
+///
+/// Implement this interface to route telemetry payloads to custom collectors (e.g. Sentry, Datadog).
+///
+/// Example:
+/// ```dart
+/// class CustomTransport extends BloomTelemetryTransport {
+///   @override
+///   Future<void> send(BloomTelemetryEvent event) async {
+///     // Send to telemetry pipeline
+///   }
+/// }
+/// ```
 abstract class BloomTelemetryTransport {
+  /// Creates a [BloomTelemetryTransport].
   const BloomTelemetryTransport();
 
-  /// Transmits a single telemetry event to the target collector.
+  /// Transmits a single [event] to the target collector.
   Future<void> send(BloomTelemetryEvent event);
 
   /// Closes the transport and flushes any pending buffer.
   Future<void> close() async {}
 }
 
-/// In-memory transport storing telemetry events in a list (ideal for testing and debugging).
+/// In-memory transport storing telemetry events in a list (ideal for unit testing and debugging).
+///
+/// Example:
+/// ```dart
+/// final transport = BloomMemoryTelemetryTransport();
+/// final config = BloomObservabilityConfig(transport: transport);
+/// ```
 class BloomMemoryTelemetryTransport implements BloomTelemetryTransport {
   /// In-memory list of transmitted telemetry events.
   final List<BloomTelemetryEvent> events = [];
@@ -57,7 +85,15 @@ class BloomMemoryTelemetryTransport implements BloomTelemetryTransport {
   }
 }
 
-/// Production HTTP transport that posts JSON telemetry payloads to a collector endpoint.
+/// Production HTTP transport that posts JSON telemetry payloads to a remote collector endpoint.
+///
+/// Example:
+/// ```dart
+/// final transport = BloomHttpTelemetryTransport(
+///   endpoint: Uri.parse('https://telemetry.example.com/api/v1/events'),
+///   headers: {'Authorization': 'Bearer <token>'},
+/// );
+/// ```
 class BloomHttpTelemetryTransport implements BloomTelemetryTransport {
   /// Remote collector endpoint URI.
   final Uri endpoint;
@@ -81,6 +117,7 @@ class BloomHttpTelemetryTransport implements BloomTelemetryTransport {
     this.onError,
   })  : headers = headers ?? const {},
         _client = client ?? http.Client();
+
 
   @override
   Future<void> send(BloomTelemetryEvent event) async {

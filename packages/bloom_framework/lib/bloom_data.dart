@@ -1,17 +1,22 @@
-// lib/bloom_data.dart
-//
-// Client-side data/query/cache layer (BloomData, BloomQuery, BloomMutation,
-// offline queue, HTTP client, repository). NOTE: despite the name, this is
-// NOT Flutter-independent — `query.dart`/`mutation.dart` build on the
-// reactive `Signal` type from `package:signals_flutter` (via
-// `src/state/signals.dart`), so importing this barrel still pulls in
-// `package:flutter`. It exists as a narrower alternative to `bloom.dart`
-// for client code that needs the query/cache layer without the rest of
-// the widget/router/native surface — it is NOT safe to import from a
-// pure-Dart server entrypoint. Servers must use `bloom_server.dart`
-// (which re-exports the truly Flutter-free `bloom_core.dart`) instead.
-// Does NOT include `src/data/auth.dart` (BloomAuth) — import `bloom.dart`
-// for that.
+/// Client-side data, caching, query, and offline synchronization layer for Bloom applications.
+///
+/// Exports [BloomData], [BloomQuery], [BloomMutation], [BloomStorage], the offline mutation queue,
+/// HTTP client wrapper, and repository interfaces.
+///
+/// **Note**: This barrel builds on the reactive `Signal` type from `package:signals_flutter` (via
+/// `src/state/signals.dart`), so importing this barrel pulls in `package:flutter`. It is designed
+/// as a dedicated, focused alternative to `bloom.dart` for client data layers without routing or UI widgets.
+/// For Flutter-free server entrypoints, use `bloom_server.dart` or `bloom_core.dart`.
+///
+/// Example:
+/// ```dart
+/// import 'package:bloom_framework/bloom_data.dart';
+///
+/// final userQuery = BloomData.query<User>(
+///   key: 'user:123',
+///   fetcher: () => fetchUser(123),
+/// );
+/// ```
 library bloom_data;
 
 export 'src/data/cache.dart';

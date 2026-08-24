@@ -1,10 +1,26 @@
-// lib/src/updates/update_widgets.dart
+/// Pre-built reactive UI widgets for displaying in-app OTA update status and prompts.
+library;
+
 import 'package:flutter/material.dart';
 import '../state/signals.dart';
 import 'bloom_updates.dart';
 
 /// Pre-built reactive in-app update banner.
-/// Automatically listens to [BloomUpdates] signals and prompts the user when updates are downloaded.
+///
+/// Automatically listens to [BloomUpdates] signals and prompts the user when updates are downloaded and ready.
+///
+/// Example:
+/// ```dart
+/// Scaffold(
+///   appBar: AppBar(title: const Text('My App')),
+///   body: Column(
+///     children: [
+///       const BloomUpdateBanner(),
+///       Expanded(child: MainContent()),
+///     ],
+///   ),
+/// );
+/// ```
 class BloomUpdateBanner extends StatelessWidget {
   /// Optional leading icon widget.
   final Widget? icon;
@@ -72,6 +88,19 @@ class BloomUpdateBanner extends StatelessWidget {
 }
 
 /// Modal dialog for mandatory or recommended OTA updates.
+///
+/// Displays release notes, a download progress indicator, and action buttons.
+///
+/// Example:
+/// ```dart
+/// showDialog(
+///   context: context,
+///   builder: (_) => const BloomUpdateDialog(
+///     title: 'Version 2.0 Available',
+///     releaseNotes: '- Performance upgrades\n- UI fixes',
+///   ),
+/// );
+/// ```
 class BloomUpdateDialog extends StatelessWidget {
   /// Dialog title text.
   final String title;
@@ -89,6 +118,7 @@ class BloomUpdateDialog extends StatelessWidget {
     this.releaseNotes,
     this.onDismiss,
   });
+
 
   @override
   Widget build(BuildContext context) {

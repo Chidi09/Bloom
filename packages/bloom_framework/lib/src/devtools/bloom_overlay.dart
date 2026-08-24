@@ -1,3 +1,6 @@
+/// In-app developer diagnostics overlay and query cache inspector.
+library;
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +10,16 @@ import '../data/cache.dart';
 import '../widgets/bloom_logo.dart';
 
 /// Universal in-app developer modal and diagnostics overlay for Bloom applications and Bloom Go.
+///
+/// Provides live inspection of configuration, query cache entries, and environment variables.
+///
+/// Example:
+/// ```dart
+/// FloatingActionButton(
+///   onPressed: () => BloomDevOverlay.show(context),
+///   child: const Icon(Icons.developer_mode),
+/// );
+/// ```
 class BloomDevOverlay extends StatefulWidget {
   /// Optional base URL of remote Bloom dev server when inspecting paired devices.
   final String? remoteBaseUrl;
@@ -14,8 +27,9 @@ class BloomDevOverlay extends StatefulWidget {
   /// Creates a [BloomDevOverlay] widget.
   const BloomDevOverlay({super.key, this.remoteBaseUrl});
 
-  /// Show the Bloom developer bottom sheet modal with optional remote dev server inspection.
+  /// Shows the Bloom developer bottom sheet modal with optional remote dev server inspection.
   static Future<void> show(BuildContext context, {String? remoteBaseUrl}) {
+
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,

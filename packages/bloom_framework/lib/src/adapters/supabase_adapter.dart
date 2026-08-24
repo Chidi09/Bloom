@@ -1,4 +1,6 @@
-// lib/src/adapters/supabase_adapter.dart
+/// Supabase authentication and CRUD repository adapters for Bloom.
+library;
+
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../core/logger.dart';
@@ -7,6 +9,17 @@ import '../data/http_client.dart';
 import '../data/repository.dart';
 
 /// Represents an authenticated Supabase user profile.
+///
+/// Contains user UUID, email address, JWT access token, refresh token, and user metadata.
+///
+/// Example:
+/// ```dart
+/// final user = BloomSupabaseUser(
+///   id: 'usr_123',
+///   email: 'user@example.com',
+///   accessToken: 'jwt.token.here',
+/// );
+/// ```
 class BloomSupabaseUser {
   /// Unique user UUID string.
   final String id;
@@ -32,7 +45,7 @@ class BloomSupabaseUser {
     this.userMetadata = const {},
   });
 
-  /// Constructs a [BloomSupabaseUser] from a JSON map.
+  /// Constructs a [BloomSupabaseUser] from a JSON [json] map.
   factory BloomSupabaseUser.fromJson(Map<String, dynamic> json) {
     return BloomSupabaseUser(
       id: json['id']?.toString() ?? '',
@@ -45,7 +58,7 @@ class BloomSupabaseUser {
     );
   }
 
-  /// Serializes user profile to JSON map.
+  /// Serializes user profile to a JSON map.
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
@@ -56,7 +69,19 @@ class BloomSupabaseUser {
 }
 
 /// Official Bloom authentication adapter for Supabase with real token refresh support.
+///
+/// Integrates with [BloomAuth] to provide reactive authentication state signals (`currentUser`, `isAuthenticated`).
+///
+/// Example:
+/// ```dart
+/// final auth = BloomSupabaseAuthAdapter(
+///   supabaseUrl: 'https://xyz.supabase.co',
+///   supabaseAnonKey: 'anon-key-here',
+/// );
+/// await auth.signInWithPassword(email: 'user@example.com', password: 'secret');
+/// ```
 class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
+
   /// Base Supabase backend URL.
   final String supabaseUrl;
 
@@ -274,6 +299,20 @@ class BloomSupabaseAuthAdapter extends BloomAuth<BloomSupabaseUser> {
 }
 
 /// Strongly-typed CRUD repository adapter for Supabase REST tables.
+///
+/// Implements [BloomCrudRepository] to perform queries, inserts, updates, and deletes against Supabase PostgREST tables.
+///
+/// Example:
+/// ```dart
+/// final todoRepo = BloomSupabaseTableRepository<Todo>(
+///   tableName: 'todos',
+///   supabaseUrl: 'https://xyz.supabase.co',
+///   supabaseAnonKey: 'anon-key',
+///   fromJson: Todo.fromJson,
+///   toJson: (t) => t.toJson(),
+/// );
+/// final todos = await todoRepo.findAll();
+/// ```
 class BloomSupabaseTableRepository<T> implements BloomCrudRepository<T, String> {
   /// Target Supabase table name.
   final String tableName;
@@ -293,6 +332,7 @@ class BloomSupabaseTableRepository<T> implements BloomCrudRepository<T, String> 
 
   /// Creates a [BloomSupabaseTableRepository] targeting [tableName].
   BloomSupabaseTableRepository({
+
     required this.tableName,
     required this.supabaseUrl,
     required this.supabaseAnonKey,

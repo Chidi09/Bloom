@@ -1,16 +1,26 @@
-// lib/src/dev/bloom_go_client.dart
+/// Client discovery and pairing protocol for Bloom Go mobile applications.
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../core/logger.dart';
 
-/// Project manifest delivered by Bloom dev server for Bloom Go mobile apps.
+/// Project manifest delivered by the Bloom dev server for Bloom Go mobile apps.
+///
+/// Contains route definitions, platform settings, enabled features, and dev server connection details.
+///
+/// Example:
+/// ```dart
+/// final manifest = BloomProjectManifest.fromJson(jsonMap);
+/// print('Connected to project: ${manifest.projectName}');
+/// ```
 class BloomProjectManifest {
   /// Name of the project.
   final String projectName;
 
-  /// Framework / project version string.
+  /// Framework and project version string.
   final String version;
 
   /// Dev server network hostname or IP.
@@ -43,7 +53,7 @@ class BloomProjectManifest {
     required this.features,
   });
 
-  /// Constructs a [BloomProjectManifest] from a JSON map.
+  /// Constructs a [BloomProjectManifest] from a JSON [json] map.
   factory BloomProjectManifest.fromJson(Map<String, dynamic> json) {
     return BloomProjectManifest(
       projectName: json['project']?.toString() ?? json['appName']?.toString() ?? 'bloom_app',
@@ -58,7 +68,16 @@ class BloomProjectManifest {
   }
 }
 
+
 /// Represents a Bloom dev server discovered on the local area network.
+///
+/// Contains connection details, version information, and last seen timestamp.
+///
+/// Example:
+/// ```dart
+/// final server = BloomDiscoveredServer(host: '192.168.1.5', port: 8080);
+/// print('Discovered dev server at: ${server.uri}');
+/// ```
 class BloomDiscoveredServer {
   /// Server display name.
   final String name;
@@ -143,7 +162,16 @@ class BloomDiscoveredServer {
 }
 
 /// UDP discovery service for scanning LAN networks for active Bloom Dev Servers on port 5354.
+///
+/// Example:
+/// ```dart
+/// final discovery = BloomDevServerDiscovery();
+/// final sub = discovery.discover().listen((servers) {
+///   print('Found ${servers.length} Bloom dev servers');
+/// });
+/// ```
 class BloomDevServerDiscovery {
+  /// Default UDP multicast/broadcast port for Bloom dev servers.
   static const int udpPort = 5354;
 
   final Map<String, BloomDiscoveredServer> _servers = {};
@@ -207,7 +235,7 @@ class BloomDevServerDiscovery {
     _controller?.add(List.unmodifiable(_servers.values.toList()));
   }
 
-  /// Broadcasts an announcement packet from a dev server.
+  /// Broadcasts an announcement packet from a dev server on the local network.
   static Future<void> broadcastAnnouncement({
     required String name,
     required String host,
@@ -257,13 +285,20 @@ class BloomDevServerDiscovery {
 /// Alias for backwards compatibility with Bloom Go discovery listener.
 typedef BloomDiscoveryListener = BloomDevServerDiscovery;
 
-/// Client protocol handler for Bloom Go mobile applications.
+/// Client protocol handler for Bloom Go mobile applications connecting to dev servers.
+///
+/// Example:
+/// ```dart
+/// final client = BloomGoClient();
+/// final manifest = await client.fetchManifest('192.168.1.10', 8080);
+/// ```
 class BloomGoClient {
   final http.Client _httpClient;
 
+  /// Creates a [BloomGoClient] using an optional custom [httpClient].
   BloomGoClient([http.Client? httpClient]) : _httpClient = httpClient ?? http.Client();
 
-  /// Parse a `bloom://dev-server?...` QR code URI.
+  /// Parses a `bloom://dev-server?...` QR code URI into host, port, and project parameters.
   static Map<String, dynamic> parseDevServerUri(Uri uri) {
     if (uri.scheme != 'bloom') {
       throw FormatException('Invalid scheme "${uri.scheme}", expected "bloom".');
@@ -287,7 +322,7 @@ class BloomGoClient {
     };
   }
 
-  /// Fetch the remote project manifest from an active Bloom dev server.
+  /// Fetches the remote project manifest from an active Bloom dev server at [host]:[port].
   Future<BloomProjectManifest> fetchManifest(String host, int port) async {
     final url = Uri.parse('http://$host:$port/manifest');
     final response = await _httpClient.get(url).timeout(const Duration(seconds: 5));
@@ -300,7 +335,7 @@ class BloomGoClient {
     }
   }
 
-  /// Send device pairing handshake to dev server.
+  /// Sends a device pairing handshake to the dev server at [host]:[port].
   Future<bool> pairDevice({
     required String host,
     required int port,
@@ -321,6 +356,7 @@ class BloomGoClient {
     return response.statusCode == 200;
   }
 
+  /// Closes the underlying HTTP client connection.
   void close() {
     _httpClient.close();
   }

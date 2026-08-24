@@ -1,4 +1,6 @@
-// lib/src/observability/observability.dart
+/// Core Error Observability, Crash Reporting, and Telemetry Engine for Bloom.
+library;
+
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show ErrorCallback;
@@ -13,9 +15,24 @@ import 'models.dart';
 import 'transport.dart';
 
 /// Callback signature for intercepting, modifying, or dropping telemetry events before transmission.
+///
+/// Return `null` to drop the event, or return the original/modified [event] to proceed.
 typedef BeforeSendCallback = BloomTelemetryEvent? Function(BloomTelemetryEvent event);
 
 /// Configuration options for Bloom Error Observability and Telemetry SDK.
+///
+/// Example:
+/// ```dart
+/// final config = BloomObservabilityConfig(
+///   enabled: true,
+///   sampleRate: 1.0,
+///   autoCaptureFlutterErrors: true,
+///   autoCaptureZoneErrors: true,
+///   transport: BloomHttpTelemetryTransport(
+///     endpoint: Uri.parse('https://telemetry.example.com/events'),
+///   ),
+/// );
+/// ```
 class BloomObservabilityConfig {
   /// Whether observability telemetry capturing is enabled.
   final bool enabled;
@@ -88,6 +105,23 @@ class BloomObservabilityConfig {
 }
 
 /// Core Error Observability, Crash Reporting, and Telemetry Engine for Bloom.
+///
+/// Automatically hooks Flutter error handlers and provides manual APIs to record
+/// breadcrumbs, capture exceptions, and dispatch telemetry payloads.
+///
+/// Example:
+/// ```dart
+/// await BloomObservability.initialize(
+///   BloomObservabilityConfig(
+///     transport: BloomHttpTelemetryTransport(endpoint: myUri),
+///   ),
+/// );
+///
+/// BloomObservability.addBreadcrumb(
+///   category: 'auth',
+///   message: 'User logged in',
+/// );
+/// ```
 class BloomObservability {
   static BloomObservabilityConfig _config = BloomObservabilityConfig();
   static late BloomBreadcrumbRingBuffer _ringBuffer;
@@ -118,6 +152,7 @@ class BloomObservability {
 
   /// Initializes the observability pipeline and attaches automated error hooks.
   static Future<void> initialize(BloomObservabilityConfig config) async {
+
     if (_isInitialized) {
       await reset();
     }

@@ -1,7 +1,16 @@
-// lib/src/dev/bloom_dev.dart
+/// Developer tooling harness for simulating network latency, outages, and failure rates.
+library;
+
 import '../core/logger.dart';
 
 /// Exception thrown when a simulated offline network call is executed.
+///
+/// Example:
+/// ```dart
+/// if (BloomDev.isOffline) {
+///   throw BloomOfflineException('Device is simulated offline', uri);
+/// }
+/// ```
 class BloomOfflineException implements Exception {
   /// Description of the simulated offline error.
   final String message;
@@ -17,6 +26,17 @@ class BloomOfflineException implements Exception {
 }
 
 /// Developer tooling harness for simulating network latency, outages, and failure rates.
+///
+/// Enables chaos testing in development environments without external proxy tools.
+///
+/// Example:
+/// ```dart
+/// // Simulate 500ms latency and 20% server 500 errors
+/// BloomDev.simulateNetwork(
+///   latency: const Duration(milliseconds: 500),
+///   failureRate: 0.2,
+/// );
+/// ```
 class BloomDev {
   static bool _isOffline = false;
   static Duration? _latency;
@@ -35,7 +55,9 @@ class BloomDev {
   /// HTTP status code returned during simulated failures.
   static int get failureStatusCode => _failureStatusCode;
 
-  /// Simulates degraded network conditions with latency and probabilistic failures.
+  /// Simulates degraded network conditions with [latency] and probabilistic [failureRate] (0.0 - 1.0).
+  ///
+  /// Requests failing due to simulation return [failureStatusCode].
   static void simulateNetwork({
     Duration? latency,
     double failureRate = 0.0,
@@ -48,6 +70,8 @@ class BloomDev {
   }
 
   /// Toggles device offline network state.
+  ///
+  /// When `true`, network calls made via `BloomHttpClient` throw [BloomOfflineException].
   static void setOffline(bool offline) {
     _isOffline = offline;
     logger.warn('BloomDev: Simulated offline state set to: $offline');
@@ -61,3 +85,4 @@ class BloomDev {
     _failureStatusCode = 500;
   }
 }
+

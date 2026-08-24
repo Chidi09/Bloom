@@ -1,4 +1,6 @@
-// lib/src/devtools/devtools_service.dart
+/// VM service extension registration service for Flutter DevTools and Bloom Go.
+library;
+
 import 'dart:convert';
 import 'dart:developer' as developer;
 import '../core/boot.dart';
@@ -8,11 +10,20 @@ import '../di/container.dart';
 import '../router/router.dart';
 
 /// Registers Bloom DevTools VM service extensions for live visual debugging.
+///
+/// Enables inspecting query caches, the DI container, routing state, and runtime configurations
+/// from Flutter DevTools, VS Code, or Bloom Go mobile app.
+///
+/// Example:
+/// ```dart
+/// BloomDevToolsService.register();
+/// ```
 class BloomDevToolsService {
   static bool _isRegistered = false;
 
-  /// Register custom VM service extensions callable from Flutter DevTools or Bloom Go.
+  /// Registers custom VM service extensions (`ext.bloom.*`) callable from DevTools or Bloom Go.
   static void register() {
+
     if (_isRegistered) return;
     _isRegistered = true;
 
