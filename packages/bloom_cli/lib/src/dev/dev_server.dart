@@ -24,6 +24,9 @@ class BloomDevServer {
   final List<Map<String, dynamic>> _pairedDevices = [];
   final DateTime _startedAt = DateTime.now();
 
+  static const int _requestLogCapacity = 200;
+  final List<Map<String, dynamic>> _requestLog = [];
+
   int _reloadCount = 0;
   int _restartCount = 0;
   DateTime? _lastReloadTime;
@@ -40,8 +43,27 @@ class BloomDevServer {
   String get devServerUri => 'bloom://dev-server?host=$_localIp&port=$_actualPort&id=${project.projectName}';
   String get httpUrl => 'http://$_localIp:$_actualPort';
   List<Map<String, dynamic>> get pairedDevices => List.unmodifiable(_pairedDevices);
+  List<Map<String, dynamic>> get requestLog => List.unmodifiable(_requestLog);
   int get reloadCount => _reloadCount;
   int get restartCount => _restartCount;
+
+  void _recordRequest({
+    required String method,
+    required String path,
+    required int statusCode,
+    required int durationMs,
+  }) {
+    _requestLog.add({
+      'method': method,
+      'path': path,
+      'statusCode': statusCode,
+      'durationMs': durationMs,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    while (_requestLog.length > _requestLogCapacity) {
+      _requestLog.removeAt(0);
+    }
+  }
 
   /// Record a hot reload event from the Flutter orchestrator.
   void recordHotReload() {
@@ -89,6 +111,7 @@ class BloomDevServer {
   }
 
   void _handleRequest(HttpRequest request) async {
+    final sw = Stopwatch()..start();
     try {
       // Add CORS headers for mobile clients / Go inspector
       request.response.headers.add('Access-Control-Allow-Origin', '*');
@@ -135,6 +158,28 @@ class BloomDevServer {
         };
         request.response.headers.contentType = ContentType.json;
         request.response.write(jsonEncode(health));
+      } else if (path == '/__insights') {
+        final limitParam = request.uri.queryParameters['limit'];
+        var limit = 50;
+        if (limitParam != null) {
+          limit = int.tryParse(limitParam) ?? 50;
+        }
+        if (limit < 1) limit = 1;
+        if (limit > _requestLogCapacity) limit = _requestLogCapacity;
+
+        final count = _requestLog.length < limit ? _requestLog.length : limit;
+        final recentRequests = _requestLog
+            .sublist(_requestLog.length - count)
+            .reversed
+            .toList();
+
+        final insights = {
+          'project': project.projectName,
+          'total': _requestLog.length,
+          'requests': recentRequests,
+        };
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(insights));
       } else if (path == '/qr') {
         final format = request.uri.queryParameters['format'] ?? 'json';
         if (format == 'ansi') {
@@ -227,6 +272,14 @@ class BloomDevServer {
       try {
         await request.response.close();
       } catch (_) {}
+      if (request.uri.path != '/__insights') {
+        _recordRequest(
+          method: request.method,
+          path: request.uri.path,
+          statusCode: request.response.statusCode,
+          durationMs: sw.elapsedMilliseconds,
+        );
+      }
     }
   }
 
