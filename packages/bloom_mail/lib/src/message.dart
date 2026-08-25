@@ -1,4 +1,5 @@
 // lib/src/message.dart
+import 'template.dart';
 
 /// An outgoing email message.
 ///
@@ -54,6 +55,65 @@ class BloomMailMessage {
       subject: subject,
       body: body,
       htmlBody: htmlBody,
+      cc: cc,
+      bcc: bcc,
+    );
+  }
+
+  /// Creates a [BloomMailMessage] by rendering the provided [htmlTemplate] (and optional [textTemplate])
+  /// with a data [context] map.
+  ///
+  /// If [htmlTemplate] has a companion text template (or [textTemplate] is provided),
+  /// [body] is populated with the rendered plain text. If no text template is available,
+  /// [body] uses [body] if provided, or an empty string.
+  factory BloomMailMessage.fromTemplate({
+    required List<String> to,
+    required String from,
+    required String subject,
+    required BloomMailTemplate htmlTemplate,
+    BloomMailTemplate? textTemplate,
+    String? body,
+    required Map<String, dynamic> context,
+    List<String> cc = const [],
+    List<String> bcc = const [],
+  }) {
+    final renderedHtml = htmlTemplate.render(context);
+    final effectiveTextTemplate = textTemplate ?? htmlTemplate.textTemplate;
+    final renderedText = effectiveTextTemplate != null
+        ? effectiveTextTemplate.render(context)
+        : (body ?? '');
+
+    return BloomMailMessage(
+      to: to,
+      from: from,
+      subject: subject,
+      body: renderedText,
+      htmlBody: renderedHtml,
+      cc: cc,
+      bcc: bcc,
+    );
+  }
+
+  /// Convenience constructor for a single recipient templated email.
+  factory BloomMailMessage.singleFromTemplate({
+    required String to,
+    required String from,
+    required String subject,
+    required BloomMailTemplate htmlTemplate,
+    BloomMailTemplate? textTemplate,
+    String? body,
+    required Map<String, dynamic> context,
+    List<String> cc = const [],
+    List<String> bcc = const [],
+  }) {
+    return BloomMailMessage.fromTemplate(
+      to: [to],
+      from: from,
+      subject: subject,
+      htmlTemplate: htmlTemplate,
+      textTemplate: textTemplate,
+      body: body,
+      context: context,
       cc: cc,
       bcc: bcc,
     );
@@ -121,4 +181,3 @@ class BloomMailMessage {
 
 /// Alias for [BloomMailMessage].
 typedef MailMessage = BloomMailMessage;
-

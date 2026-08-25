@@ -1,5 +1,5 @@
 // lib/bloom_auth_server.dart
-/// Server-side authentication primitives and middleware for Bloom backend servers.
+/// Server-side authentication primitives, OAuth2 social logins, and middleware for Bloom backend servers.
 ///
 /// Provides production-grade authentication mechanisms for Bloom server applications:
 /// - **BCrypt Password Hashing**: OpenBSD BCrypt password hashing via [hashPassword], verification
@@ -7,6 +7,9 @@
 ///   neutralize timing side-channel attacks and user enumeration.
 /// - **JWT Bearer Session Tokens**: Signed HMAC-SHA256 session token issuance via [issueSessionToken],
 ///   verification via [verifySessionToken] and [tryVerifySessionToken], returning structured [BloomAuthClaims].
+/// - **OAuth2 Social Login**: Google ([GoogleOAuthProvider]) and GitHub ([GitHubOAuthProvider])
+///   authorization code flows orchestrated by [BloomOAuthFlow] with CSRF state generation ([generateOAuthState]),
+///   emitting uniform [BloomAuthClaims] and session tokens.
 /// - **Rate Limiting & Lockout**: Sliding-window rate limiting via [InMemoryRateLimiter] and consecutive-failure
 ///   account lockout via [InMemoryLockoutManager], unified under [AuthRateLimiter].
 /// - **Password Reset Tokens**: Signed, time-limited, single-purpose password reset tokens via
@@ -39,14 +42,20 @@
 /// final claims = verifySessionToken(token);
 /// print('Authenticated user: ${claims.userId}, roles: ${claims.roles}');
 ///
-/// // 3. Rate Limiting & Account Lockout
+/// // 3. OAuth2 / Social Login Flow
+/// final googleFlow = BloomOAuthFlow(GoogleOAuthProvider(
+///   clientId: 'google-client-id',
+///   clientSecret: 'google-client-secret',
+/// ));
+///
+/// // 4. Rate Limiting & Account Lockout
 /// final rateLimiter = AuthRateLimiter(maxAttempts: 5, window: Duration(minutes: 15));
 /// final status = rateLimiter.verifyAllowed('alex@example.com');
 /// if (!status.allowed) {
 ///   print('Throttled or locked out. Retry in ${status.retryAfterSeconds}s');
 /// }
 ///
-/// // 4. Password Reset Token Flow
+/// // 5. Password Reset Token Flow
 /// final resetToken = generatePasswordResetToken(
 ///   userId: 'usr_987',
 ///   currentPasswordHash: hash,
@@ -58,7 +67,7 @@
 ///   currentPasswordHash: hash,
 /// );
 ///
-/// // 5. Bloom API Server Middleware
+/// // 6. Bloom API Server Middleware
 /// final router = BloomApiRouter();
 /// router.use(BloomAuthMiddleware.requireRole('admin'));
 /// router.get('/admin/dashboard', (req) async {
@@ -73,4 +82,7 @@ export 'src/session_token.dart';
 export 'src/rate_limit.dart';
 export 'src/password_reset.dart';
 export 'src/middleware.dart';
-
+export 'src/oauth/oauth_provider.dart';
+export 'src/oauth/google_oauth_provider.dart';
+export 'src/oauth/github_oauth_provider.dart';
+export 'src/oauth/oauth_flow.dart';

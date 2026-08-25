@@ -1,16 +1,19 @@
 import 'dart:async';
 import 'task.dart';
 
-/// In-memory background job queue.
+/// Abstract background job queue interface for Bloom applications.
 ///
-/// Provides thread-safe / asynchronous-safe enqueueing and atomic task claiming.
-/// Uses an internal re-entrant FIFO execution queue ([_synchronized]) to ensure
-/// concurrent `claimNext()` callers never interleave across asynchronous suspension
-/// points and cannot claim the same task.
-class BloomTaskQueue {
-  final List<BloomQueuedTask> _tasks = [];
-  int _idCounter = 0;
-  Future<void> _lastLock = Future.value();
+/// Defines the core contract for enqueueing, scheduling, claiming, and updating
+/// background tasks across in-memory, database-backed, and distributed Redis backends.
+abstract class BloomTaskQueue {
+  /// Creates the default in-memory task queue.
+  factory BloomTaskQueue() = InMemoryTaskQueue;
+
+  /// Creates an in-memory task queue.
+  factory BloomTaskQueue.inMemory() = InMemoryTaskQueue;
+
+  /// Const constructor for subclassing.
+  const BloomTaskQueue.base();
 
   /// Enqueues a task for immediate execution.
   Future<BloomQueuedTask> enqueue(
@@ -27,6 +30,75 @@ class BloomTaskQueue {
   }
 
   /// Enqueues a task scheduled for execution at or after [runAt].
+  Future<BloomQueuedTask> enqueueScheduled(
+    String taskName,
+    Map<String, dynamic> payload,
+    DateTime runAt, {
+    int maxAttempts = 3,
+  });
+
+  /// Atomically claims the next pending, due task.
+  ///
+  /// Safe against concurrent invocations across asynchronous yields and processes.
+  /// If a pending and due task exists, transitions its status to [BloomTaskStatus.running],
+  /// increments [BloomQueuedTask.attempts], and returns the task.
+  /// Returns `null` if no tasks are pending and due.
+  Future<BloomQueuedTask?> claimNext([DateTime? now]);
+
+  /// Marks a task as succeeded.
+  ///
+  /// Throws [StateError] if no task with [taskId] is found in the queue.
+  Future<void> markCompleted(String taskId);
+
+  /// Marks a task as failed. If attempts < maxAttempts, it is requeued as pending.
+  ///
+  /// Throws [StateError] if no task with [taskId] is found in the queue.
+  Future<void> markFailed(
+    String taskId, {
+    required String errorMessage,
+    String? stackTrace,
+    DateTime? retryAfter,
+  });
+
+  /// Returns an unmodifiable snapshot of all tasks currently in the queue.
+  Future<List<BloomQueuedTask>> allTasks();
+
+  /// Returns task by [id], or null if not found.
+  Future<BloomQueuedTask?> getTask(String id);
+
+  /// Clears all tasks from the queue.
+  Future<void> clear();
+}
+
+/// In-memory background job queue.
+///
+/// Provides thread-safe / asynchronous-safe enqueueing and atomic task claiming.
+/// Uses an internal re-entrant FIFO execution queue ([_synchronized]) to ensure
+/// concurrent `claimNext()` callers never interleave across asynchronous suspension
+/// points and cannot claim the same task.
+class InMemoryTaskQueue extends BloomTaskQueue {
+  final List<BloomQueuedTask> _tasks = [];
+  int _idCounter = 0;
+  Future<void> _lastLock = Future.value();
+
+  /// Creates a new in-memory task queue.
+  InMemoryTaskQueue() : super.base();
+
+  @override
+  Future<BloomQueuedTask> enqueue(
+    String taskName,
+    Map<String, dynamic> payload, {
+    int maxAttempts = 3,
+  }) {
+    return enqueueScheduled(
+      taskName,
+      payload,
+      DateTime.now(),
+      maxAttempts: maxAttempts,
+    );
+  }
+
+  @override
   Future<BloomQueuedTask> enqueueScheduled(
     String taskName,
     Map<String, dynamic> payload,
@@ -50,12 +122,7 @@ class BloomTaskQueue {
     });
   }
 
-  /// Atomically claims the next pending, due task.
-  ///
-  /// Safe against concurrent invocations across asynchronous yields.
-  /// If a pending and due task exists, transitions its status to [BloomTaskStatus.running],
-  /// increments [BloomQueuedTask.attempts], and returns the task.
-  /// Returns `null` if no tasks are pending and due.
+  @override
   Future<BloomQueuedTask?> claimNext([DateTime? now]) {
     return _synchronized(() {
       final referenceTime = now ?? DateTime.now();
@@ -81,9 +148,7 @@ class BloomTaskQueue {
     });
   }
 
-  /// Marks a task as succeeded.
-  ///
-  /// Throws [StateError] if no task with [taskId] is found in the queue.
+  @override
   Future<void> markCompleted(String taskId) {
     return _synchronized(() {
       final task = _tasks.firstWhere(
@@ -97,9 +162,7 @@ class BloomTaskQueue {
     });
   }
 
-  /// Marks a task as failed. If attempts < maxAttempts, it is requeued as pending.
-  ///
-  /// Throws [StateError] if no task with [taskId] is found in the queue.
+  @override
   Future<void> markFailed(
     String taskId, {
     required String errorMessage,
@@ -144,12 +207,12 @@ class BloomTaskQueue {
     });
   }
 
-  /// Returns an unmodifiable snapshot of all tasks currently in the queue.
+  @override
   Future<List<BloomQueuedTask>> allTasks() {
     return _synchronized(() => List<BloomQueuedTask>.unmodifiable(_tasks));
   }
 
-  /// Returns task by [id], or null if not found.
+  @override
   Future<BloomQueuedTask?> getTask(String id) {
     return _synchronized(() {
       final matches = _tasks.where((t) => t.id == id);
@@ -157,7 +220,7 @@ class BloomTaskQueue {
     });
   }
 
-  /// Clears all tasks from the queue.
+  @override
   Future<void> clear() {
     return _synchronized(() {
       _tasks.clear();

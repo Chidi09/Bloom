@@ -1,0 +1,16 @@
+Welcome, {{ user.name }}!
+
+Thank you for joining {{ app_name }}.
+
+{% if is_admin %}
+You have been assigned administrative privileges.
+{% endif %}
+
+Get started with the following steps:
+{% for step in onboarding_steps %}
+- {{ step }}
+{% empty %}
+- Explore your dashboard.
+{% endfor %}
+
+Open your dashboard here: {{ action_url }}
