@@ -139,28 +139,44 @@ class AddCommand extends Command<int> {
     );
     print(Ansi.success('✓ ESM bundle ready: $vendorPath'));
 
-    final dartBindingPath = _toDartBindingPath(pkgName);
-    print(Ansi.info('⚡ Generating Dart 3.5+ @JS() extension types into $dartBindingPath...'));
-    final codegen = DtsCodegen();
-    await codegen.generate(
-      packageName: pkgName,
-      version: resolvedVersion,
-      outputPath: '${project.rootDir.path}/$dartBindingPath',
-    );
-    print(Ansi.success('✓ Dart interop binding generated: $dartBindingPath'));
+    // @tailwindcss/browser is side-effect-only (it scans the DOM and injects
+    // a <style> tag on import) — there's no JS API surface to bind, so
+    // skip Dart interop codegen for it entirely rather than emit a useless
+    // guessed-member binding file nobody will import.
+    final isTailwindBrowser = pkgName == 'tailwindcss/browser' || pkgName == '@tailwindcss/browser';
+    String? dartBindingPath;
+    if (!isTailwindBrowser) {
+      dartBindingPath = _toDartBindingPath(pkgName);
+      print(Ansi.info('⚡ Generating Dart 3.5+ @JS() extension types into $dartBindingPath...'));
+      final codegen = DtsCodegen();
+      await codegen.generate(
+        packageName: pkgName,
+        version: resolvedVersion,
+        outputPath: '${project.rootDir.path}/$dartBindingPath',
+      );
+      print(Ansi.success('✓ Dart interop binding generated: $dartBindingPath'));
+    }
 
     final importmapManager = ImportMapManager(project.rootDir.path);
     await importmapManager.addEntry(
       packageName: pkgName,
       vendorPath: vendorPath,
     );
-    print(Ansi.success('✓ Updated <script type="importmap"> in web/index.html'));
+    print(Ansi.success(isTailwindBrowser
+        ? '✓ Updated web/index.html: importmap entry + self-executing <script type="module"> that runs the Tailwind JIT engine.'
+        : '✓ Updated <script type="importmap"> in web/index.html'));
 
-    _updateBloomYaml(project, pkgName, resolvedVersion, esmUrl, vendorPath, dartBindingPath);
+    _updateBloomYaml(project, pkgName, resolvedVersion, esmUrl, vendorPath, dartBindingPath ?? '');
     print(Ansi.success('✓ Recorded in bloom.yaml'));
 
-    print(Ansi.boldText('\n🚀 Successfully installed $pkgName! Import in Dart:'));
-    print('   import \'$dartBindingPath\';\n');
+    if (isTailwindBrowser) {
+      print(Ansi.boldText('\n🚀 Tailwind CSS is live — no build step, no CDN.'));
+      print('   Use utility classes directly in any BloomNode\'s className: `Div(className: \'flex items-center gap-2\', ...)`.');
+      print('   The engine scans the DOM at runtime and injects styles automatically.\n');
+    } else {
+      print(Ansi.boldText('\n🚀 Successfully installed $pkgName! Import in Dart:'));
+      print('   import \'$dartBindingPath\';\n');
+    }
     return 0;
   }
 

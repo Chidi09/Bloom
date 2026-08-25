@@ -42,7 +42,7 @@ import '../lib/src/utils/ansi.dart';
 // the executable snapshot, so it cannot be read from pubspec.yaml at
 // runtime once `dart pub global activate` has installed it. Bump this on
 // every release alongside pubspec.yaml.
-const String bloomVersion = '0.6.0';
+const String bloomVersion = '0.6.2';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<int>(

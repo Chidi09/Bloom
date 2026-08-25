@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 - 2026-08-24
+
+### Added
+* **COOKBOOK.md**: documented the real `bloom add npm:<package>` workflow (vendoring, generated `@JS()` bindings, importmap/bootstrap wiring) and how to use `@tailwindcss/browser` with no CDN and no build step; documented the `lib/design/tokens.dart` + `Style()` pattern for design tokens and `bloom fonts optimize` + `fontStylesheetLink()` for fonts, replacing hand-written `web/index.html` styling/font tags in all guidance.
+
+## 0.3.2 - 2026-08-24
+
+### Added
+* **COOKBOOK.md**: new "Best Practices & Common Pitfalls Checklist" section (reactivity, nullable event fields, the two-entry-point rule, SSR/hydration gotchas, disposal, styling, testing) consolidated as a pre-flight reference.
+
 ## 0.3.1 - 2026-08-24
 
 ### Added
