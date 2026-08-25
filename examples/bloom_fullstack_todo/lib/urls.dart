@@ -2,7 +2,7 @@ import 'package:bloom_auth_server/bloom_auth_server.dart';
 import 'package:bloom_cache/bloom_cache.dart';
 import 'package:bloom_db/bloom_db.dart';
 import 'package:bloom_errors/bloom_errors.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'package:bloom_i18n/bloom_i18n.dart';
 import 'package:bloom_jobs/bloom_jobs.dart';
 import 'package:bloom_realtime/bloom_realtime.dart';
@@ -62,10 +62,13 @@ void registerUrls(
     middlewares: [const BloomAuthMiddleware()],
   );
 
-  // Direct file serving for local storage
-  router.get('/api/files/:path', (req) async {
-    final filePath = req.params['path'];
-    if (filePath == null || filePath.isEmpty) {
+  // Direct file serving for local storage. Uses a wildcard route (not
+  // `:path`, which only matches a single path segment) since uploaded
+  // storage keys contain subdirectories, e.g. `avatars/user_1_123.png`.
+  router.get('/api/files/*', (req) async {
+    const prefix = '/api/files/';
+    final filePath = req.path.startsWith(prefix) ? req.path.substring(prefix.length) : '';
+    if (filePath.isEmpty) {
       throw BloomBadRequestException('Missing file path');
     }
     final bytes = await storageBackend.download(filePath);

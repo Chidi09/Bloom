@@ -8,8 +8,8 @@ environment:
 
 dependencies:
   # Bloom Core & Packages
-  bloom_framework:
-    path: ../../packages/bloom_framework
+  bloom_server:
+    path: ../../packages/bloom_server
   bloom_db:
     path: ../../packages/bloom_db
   bloom_validate:
@@ -56,8 +56,8 @@ dev_dependencies:
 # solver rejects mixing those hosted references with this app's direct path
 # dependencies on the same packages.
 dependency_overrides:
-  bloom_framework:
-    path: ../../packages/bloom_framework
+  bloom_server:
+    path: ../../packages/bloom_server
   bloom_db:
     path: ../../packages/bloom_db
   bloom_validate:
