@@ -1,3 +1,8 @@
+# 0.2.1 - 2026-08-25
+
+### Fixed
+* Bumped `bloom_server` dependency constraint from `^0.1.0` to `^0.2.0` — the stale constraint was incompatible with any sibling package (`bloom_cache`, `bloom_i18n`) requiring `bloom_server ^0.2.0`, breaking `pub get` in any app combining them.
+
 # 0.2.0 - 2026-08-23
 
 ### Breaking

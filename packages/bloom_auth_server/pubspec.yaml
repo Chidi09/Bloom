@@ -1,6 +1,6 @@
 name: bloom_auth_server
 description: Server-side authentication primitives for the Bloom framework, including password hashing, session/bearer token issuance, rate limiting, password reset workflows, and auth middleware.
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -12,7 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server: ^0.1.0
+  bloom_server: ^0.2.0
   bcrypt: ^1.1.3
   crypto: ^3.0.3
   dart_jsonwebtoken: ^3.4.1

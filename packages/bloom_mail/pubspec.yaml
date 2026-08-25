@@ -1,6 +1,6 @@
 name: bloom_mail
 description: Transactional email sending for Bloom server applications with swappable delivery backends.
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -12,7 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server: ^0.1.0
+  bloom_server: ^0.2.0
   mailer: ^6.1.2
 
 dev_dependencies:

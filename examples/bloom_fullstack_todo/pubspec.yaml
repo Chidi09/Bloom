@@ -46,6 +46,48 @@ dependencies:
   crypto: ^3.0.3
 
 dev_dependencies:
+  test: ^1.25.0
   build_runner: ^2.4.9
   bloom_db_generator:
     path: ../../packages/bloom_db_generator
+
+# Every bloom_* sibling package below declares its own bloom_* dependencies
+# as hosted (pub.dev) references internally. Without these overrides, pub's
+# solver rejects mixing those hosted references with this app's direct path
+# dependencies on the same packages.
+dependency_overrides:
+  bloom_framework:
+    path: ../../packages/bloom_framework
+  bloom_db:
+    path: ../../packages/bloom_db
+  bloom_validate:
+    path: ../../packages/bloom_validate
+  bloom_auth_server:
+    path: ../../packages/bloom_auth_server
+  bloom_mail:
+    path: ../../packages/bloom_mail
+  bloom_jobs:
+    path: ../../packages/bloom_jobs
+  bloom_security:
+    path: ../../packages/bloom_security
+  bloom_storage:
+    path: ../../packages/bloom_storage
+  bloom_realtime:
+    path: ../../packages/bloom_realtime
+  bloom_cache:
+    path: ../../packages/bloom_cache
+  bloom_i18n:
+    path: ../../packages/bloom_i18n
+  bloom_admin:
+    path: ../../packages/bloom_admin
+  bloom_migrate:
+    path: ../../packages/bloom_migrate
+  bloom_rest:
+    path: ../../packages/bloom_rest
+  bloom_errors:
+    path: ../../packages/bloom_errors
+  bloom_seo:
+    path: ../../packages/bloom_seo
+  bloom_js_native:
+    path: ../../packages/bloom_js_native
+
