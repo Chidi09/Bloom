@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 
 // Database & Codegen
 import 'package:bloom_db/bloom_db.dart';
@@ -110,21 +110,7 @@ Future<void> main(List<String> args) async {
   globalContainer.provideValue<BloomRecurringRegistry>(recurringRegistry);
 
   // Register the "send_welcome_email" task handler
-  taskRegistry.register('send_welcome_email', (payload) async {
-    final email = payload['email'] as String? ?? 'user@example.com';
-    final name = payload['name'] as String? ?? 'User';
-
-    final message = BloomMailMessage.single(
-      to: email,
-      from: 'welcome@bloomtodo.local',
-      subject: 'Welcome to Bloom Todo!',
-      body: 'Hello $name, welcome to the fullstack Bloom Todo application!',
-      htmlBody: '<h1>Welcome, $name!</h1><p>Welcome to Bloom Todo powered by Bloom framework.</p>',
-    );
-
-    await mailBackend.send(message);
-    stdout.writeln('Processed welcome email background job for $name <$email>');
-  });
+  registerTaskHandlers(taskRegistry, mailBackend);
 
   // Start background worker
   final jobWorker = BloomJobWorker(
@@ -155,6 +141,45 @@ Future<void> main(List<String> args) async {
   // ---------------------------------------------------------------------------
   // 9. Internationalization (i18n / l10n) via bloom_i18n
   // ---------------------------------------------------------------------------
+  final locales = createDefaultLocales();
+  globalContainer.provideValue<BloomLocales>(locales);
+
+  // ---------------------------------------------------------------------------
+  // 10. API Router & Outermost Middlewares Pipeline
+  // ---------------------------------------------------------------------------
+  final router = buildAppRouter(
+    db: db,
+    jobQueue: taskQueue,
+    storageBackend: storageBackend,
+    cache: cache,
+    realtimeHub: realtimeHub,
+    locales: locales,
+    serverPort: serverPort,
+  );
+
+
+  // ---------------------------------------------------------------------------
+  // 13. Start Server with Native WebSocket Upgrade Routing
+  // ---------------------------------------------------------------------------
+  final server = await router.serveWithWebSockets(
+    port: serverPort,
+    webSocketRoutes: {
+      '/ws/realtime': (socket, request) {
+        realtimeHub.registerConnection(socket);
+      },
+    },
+  );
+
+  stdout.writeln('===============================================================');
+  stdout.writeln('  Bloom Todo Full-Stack Backend listening on port ${server.port}');
+  stdout.writeln('  Admin Interface:  http://127.0.0.1:${server.port}/admin/');
+  stdout.writeln('  Health Check:     http://127.0.0.1:${server.port}/api/health');
+  stdout.writeln('  Realtime WS:      ws://127.0.0.1:${server.port}/ws/realtime');
+  stdout.writeln('===============================================================');
+}
+
+/// Constructs the default multi-locale translation dictionary for Bloom Todo.
+BloomLocales createDefaultLocales() {
   final locales = BloomLocales(defaultLocale: 'en-US');
   locales.addLocale('en-US', {
     'welcome': 'Welcome to Bloom Todo backend!',
@@ -166,40 +191,30 @@ Future<void> main(List<String> args) async {
     'task_count': '{count, plural, =0 {No quedan tareas} =1 {1 tarea restante} other {# tareas restantes}}',
     'list_created': 'La lista de tareas "{name}" fue creada exitosamente.',
   });
-  globalContainer.provideValue<BloomLocales>(locales);
+  return locales;
+}
 
-  // ---------------------------------------------------------------------------
-  // 10. API Router & Outermost Middlewares Pipeline
-  // ---------------------------------------------------------------------------
-  final router = BloomApiRouter();
+/// Registers background task handlers on the job queue registry.
+void registerTaskHandlers(BloomTaskRegistry taskRegistry, BloomMailBackend mailBackend) {
+  taskRegistry.register('send_welcome_email', (payload) async {
+    final email = payload['email'] as String? ?? 'user@example.com';
+    final name = payload['name'] as String? ?? 'User';
 
-  // MIDDLEWARE ORDER (OUTERMOST FIRST):
-  // 1. bloom_errors: Catches and normalizes all unhandled exceptions
-  router.use(const BloomErrorMiddleware());
+    final message = BloomMailMessage.single(
+      to: email,
+      from: 'welcome@bloomtodo.local',
+      subject: 'Welcome to Bloom Todo!',
+      body: 'Hello $name, welcome to the fullstack Bloom Todo application!',
+      htmlBody: '<h1>Welcome, $name!</h1><p>Welcome to Bloom Todo powered by Bloom framework.</p>',
+    );
 
-  // 2. bloom_security: Rate limiting (IP sliding window: 120 req / min)
-  router.use(BloomRateLimitMiddleware(
-    maxRequests: 120,
-    window: const Duration(minutes: 1),
-    whitelist: {'127.0.0.1'},
-  ));
+    await mailBackend.send(message);
+    stdout.writeln('Processed welcome email background job for $name <$email>');
+  });
+}
 
-  // 3. bloom_security: Security headers (nosniff, DENY frame, etc.)
-  router.use(const BloomSecurityHeadersMiddleware());
-
-  // 4. bloom_security: CORS handling (permissive for dev clients)
-  router.use(BloomAdvancedCorsMiddleware.permissive());
-
-  // 5. bloom_i18n: Accept-Language and ?locale= resolver
-  router.use(BloomLocaleMiddleware(
-    defaultLocale: 'en-US',
-    supportedLocales: const ['en-US', 'es-ES'],
-    locales: locales,
-  ));
-
-  // ---------------------------------------------------------------------------
-  // 11. Admin Panel via bloom_admin (Mounted at /admin)
-  // ---------------------------------------------------------------------------
+/// Creates the BloomAdminSite pre-registered with domain models.
+BloomAdminSite createDefaultAdminSite() {
   final adminSite = BloomAdminSite()
       .withSiteHeader('Bloom Todo Administration')
       .withSiteTitle('Bloom Control Center');
@@ -232,37 +247,63 @@ Future<void> main(List<String> args) async {
     ),
   );
 
-  adminSite.mount(router, db: db, basePath: '/admin');
+  return adminSite;
+}
 
-  // ---------------------------------------------------------------------------
-  // 12. Register All API Routes via urls.dart (Django-style central routing)
-  // ---------------------------------------------------------------------------
+/// Builds and configures the complete BloomApiRouter with all middlewares,
+/// admin panel routes, and REST/WebSocket API endpoints.
+BloomApiRouter buildAppRouter({
+  required DbExecutor db,
+  required BloomTaskQueue jobQueue,
+  required BloomStorageBackend storageBackend,
+  required BloomCache cache,
+  required BloomChannelHub realtimeHub,
+  BloomLocales? locales,
+  BloomAdminSite? adminSite,
+  int serverPort = 8080,
+}) {
+  final effectiveLocales = locales ?? createDefaultLocales();
+  final router = BloomApiRouter();
+
+  // MIDDLEWARE ORDER (OUTERMOST FIRST):
+  // 1. bloom_errors: Catches and normalizes all unhandled exceptions
+  router.use(const BloomErrorMiddleware());
+
+  // 2. bloom_security: Rate limiting (IP sliding window: 120 req / min)
+  router.use(BloomRateLimitMiddleware(
+    maxRequests: 120,
+    window: const Duration(minutes: 1),
+    whitelist: {'127.0.0.1'},
+  ));
+
+  // 3. bloom_security: Security headers (nosniff, DENY frame, etc.)
+  router.use(const BloomSecurityHeadersMiddleware());
+
+  // 4. bloom_security: CORS handling (permissive for dev clients)
+  router.use(BloomAdvancedCorsMiddleware.permissive());
+
+  // 5. bloom_i18n: Accept-Language and ?locale= resolver
+  router.use(BloomLocaleMiddleware(
+    defaultLocale: 'en-US',
+    supportedLocales: const ['en-US', 'es-ES'],
+    locales: effectiveLocales,
+  ));
+
+  // Admin Panel via bloom_admin (Mounted at /admin)
+  final admin = adminSite ?? createDefaultAdminSite();
+  admin.mount(router, db: db, basePath: '/admin');
+
+  // Register All API Routes via urls.dart (Django-style central routing)
   registerUrls(
     router,
     db: db,
-    jobQueue: taskQueue,
+    jobQueue: jobQueue,
     storageBackend: storageBackend,
     cache: cache,
     realtimeHub: realtimeHub,
     serverPort: serverPort,
   );
 
-  // ---------------------------------------------------------------------------
-  // 13. Start Server with Native WebSocket Upgrade Routing
-  // ---------------------------------------------------------------------------
-  final server = await router.serveWithWebSockets(
-    port: serverPort,
-    webSocketRoutes: {
-      '/ws/realtime': (socket, request) {
-        realtimeHub.registerConnection(socket);
-      },
-    },
-  );
-
-  stdout.writeln('===============================================================');
-  stdout.writeln('  Bloom Todo Full-Stack Backend listening on port ${server.port}');
-  stdout.writeln('  Admin Interface:  http://127.0.0.1:${server.port}/admin/');
-  stdout.writeln('  Health Check:     http://127.0.0.1:${server.port}/api/health');
-  stdout.writeln('  Realtime WS:      ws://127.0.0.1:${server.port}/ws/realtime');
-  stdout.writeln('===============================================================');
+  return router;
 }
+

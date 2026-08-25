@@ -151,3 +151,25 @@ Subscribe to list changes:
 {"type":"subscribe","channel":"lists:1"}
 ```
 Whenever a task is created, updated, or deleted, a real-time event will be broadcast to all connected WebSocket subscribers.
+
+---
+
+## 🧪 Automated Hermetic Integration Testing
+
+The example app includes a comprehensive, hermetic end-to-end integration test suite located at [`test/integration_test.dart`](file:///root/dev/Bloom/examples/bloom_fullstack_todo/test/integration_test.dart) that boots the application in-process against an isolated in-memory SQLite database without requiring a running PostgreSQL server.
+
+### Running the Test Suite
+```bash
+cd examples/bloom_fullstack_todo
+dart test
+```
+
+### What the Suite Proves
+- **Full-Stack Router & Middleware Pipeline**: Real HTTP requests dispatched over ephemeral sockets through `BloomErrorMiddleware`, `BloomRateLimitMiddleware`, `BloomSecurityHeadersMiddleware`, `BloomAdvancedCorsMiddleware`, and `BloomLocaleMiddleware`.
+- **Authentication & Security**: User signup with BCrypt password hashing, session JWT issuance (`issueSessionToken`), token cryptographic verification, and brute-force/protected route defense via `BloomAuthMiddleware`.
+- **Asynchronous Jobs & Mail**: Automatic enqueueing of `send_welcome_email` background tasks via `bloom_jobs` on user registration and transactional email delivery verification via `bloom_mail`.
+- **Database & REST CRUD Round-Trip**: Full lifecycle operations (create, list, retrieve, update, delete, cascade delete) using `bloom_rest` ViewSets and `bloom_db` QuerySet ORM queries.
+- **Multi-Tenant Ownership Isolation**: Strict cross-user data isolation ensuring users cannot view, modify, inject tasks into, or delete another user's lists or tasks (producing HTTP 404 responses).
+- **Storage & Presigned URLs**: Binary file uploads to `bloom_storage`, raw bytes downloading, and signed URL generation.
+- **Admin Interface**: Server-rendered HTML dashboard and model changelist tables (`bloom_admin`) for `User`, `TodoList`, and `TodoTask`.
+
