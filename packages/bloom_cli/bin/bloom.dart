@@ -15,10 +15,12 @@ import '../lib/src/commands/dev_command.dart';
 import '../lib/src/commands/doctor_command.dart';
 import '../lib/src/commands/explain_command.dart';
 import '../lib/src/commands/font_command.dart';
+import '../lib/src/commands/format_command.dart';
 import '../lib/src/commands/generate_command.dart';
 import '../lib/src/commands/graph_command.dart';
 import '../lib/src/commands/insights_command.dart';
 import '../lib/src/commands/js_command.dart';
+import '../lib/src/commands/lint_command.dart';
 import '../lib/src/commands/module_command.dart';
 import '../lib/src/commands/npm_command.dart';
 import '../lib/src/commands/og_command.dart';
@@ -42,7 +44,7 @@ import '../lib/src/utils/ansi.dart';
 // the executable snapshot, so it cannot be read from pubspec.yaml at
 // runtime once `dart pub global activate` has installed it. Bump this on
 // every release alongside pubspec.yaml.
-const String bloomVersion = '0.6.2';
+const String bloomVersion = '0.7.0';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<int>(
@@ -73,6 +75,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(InsightsCommand())
     ..addCommand(GenerateCommand())
     ..addCommand(AnalyzeCommand())
+    ..addCommand(FormatCommand())
+    ..addCommand(LintCommand())
     ..addCommand(TestCommand())
     ..addCommand(BuildCommand())
     ..addCommand(PrebuildCommand())

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 - 2026-08-25
+
+### Added
+* **`bloom format`**: AST-aware formatter for `bloom_js_native` projects. Runs the official `dart_style` (tall-style) formatter, then a `package:analyzer`-based pre-pass that wraps long named-argument string literals (e.g. `className: '...'`) into adjacent string literals split at word boundaries — the one thing `dart_style` structurally cannot do for any Dart code, since splitting a literal could change its meaning. Also normalizes embedded raw CSS strings (`const fooCss = r'''...''';` and `Style(r'''...''')` blocks) — reindents selectors/declarations/at-rules without ever rewriting property or value tokens. `--check` mode matches `dart format --set-exit-if-changed` semantics for CI. Automatically skips generated `lib/src/plugins/` bindings from `bloom add npm:<pkg>`.
+* **`bloom lint`**: AST-based static analysis for Bloom-specific footguns, grounded in COOKBOOK.md's "Best Practices & Common Pitfalls" section: force-unwrapping nullable `BloomEvent.value`/`.checked`, `ForEach<T>(...)` missing a `key:` extractor, importing `browser.dart` in test files, `Live(...)` builders that never read a signal (so can never react to anything), in-place mutation of a signal's List/Map (`signal.value.add(...)` instead of reassigning `.value`), and hand-authored `<style>`/`<link rel="stylesheet">` tags in `web/index.html` for `target: web_dom` projects.
+
 ## 0.6.2 - 2026-08-24
 
 ### Added
