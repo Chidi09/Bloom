@@ -1,12 +1,17 @@
 <p align="center">
-  <h1 align="center">🌸 Bloom</h1>
-  <p align="center"><strong>The Opinionated Application Framework for Flutter & Dart.</strong></p>
+  <img src="assets/bloom_logo.svg" alt="Bloom logo" width="120" height="120" />
+</p>
+
+<p align="center">
+  <h1 align="center">Bloom</h1>
+  <p align="center"><strong>The Opinionated Full-Stack Application Framework for Flutter & Dart.</strong></p>
   <p align="center">
-    <em>"Next.js did it for React. Rails did it for Ruby. Bloom does it for Flutter."</em>
+    <em>"Next.js did it for React. Rails did it for Ruby. Bloom does it for Flutter and Dart."</em>
   </p>
   <p align="center">
     <a href="https://pub.dev/packages/bloom_framework"><img src="https://img.shields.io/pub/v/bloom_framework.svg" alt="bloom_framework on pub.dev" /></a>
     <a href="https://pub.dev/packages/bloom_cli"><img src="https://img.shields.io/pub/v/bloom_cli.svg" alt="bloom_cli on pub.dev" /></a>
+    <a href="https://pub.dev/packages/bloom_server"><img src="https://img.shields.io/pub/v/bloom_server.svg" alt="bloom_server on pub.dev" /></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-purple.svg" alt="License: MIT" /></a>
   </p>
 </p>
@@ -15,19 +20,29 @@
 
 ## 🚀 Overview
 
-**Bloom** is a full-stack, batteries-included application framework and developer platform built on top of Flutter and Dart. It turns Flutter's raw UI rendering engine into an opinionated, productive, enterprise-ready application platform.
+**Bloom** is a full-stack, batteries-included application framework and developer platform for Dart. It spans both sides of the stack: an opinionated Flutter client framework (`bloom_framework`), and a growing suite of independent backend packages (`bloom_server`, `bloom_db`, `bloom_auth_server`, `bloom_rest`, `bloom_admin`, and more) that together form a Django/Rails-style batteries-included server, usable with or without the Flutter side.
 
 With Bloom, you get:
+
+**Client (Flutter)**
 * 🗂️ **Filesystem-based Routing** — File-based page declarations compiled to strongly-typed `go_router` instances with nested `_layout.dart` shell routes and loader annotations.
 * ⚡ **Fine-Grained Signals Reactivity** — Zero-boilerplate reactive state powered by `signals_flutter` (`signal`, `computed`, `effect`, `batch`, `Watch`, `SignalBuilder`).
 * 💾 **Bloom Data & Offline Engine** — Server-state query caching (`BloomData.query`), optimistic mutations (`BloomData.mutation`), TTL garbage collection, and persistent `OfflineMutationQueue`.
 * 📱 **Declarative Native Prebuild** — Configure permissions, camera, notifications, secure storage, and deep links in `bloom.yaml` without manually touching platform XML/plist files.
-* 🌐 **Full-Stack Server & SSR Engine** — Dart API routes (`routes/api/*`), HTTP middleware pipelines, and Static Site / Server-Side Rendering.
-* 🔍 **Observability & Error Telemetry** — Automatic uncaught crash capture, breadcrumb logging timeline, release fingerprinting, and source map / dSYM symbol uploaders.
-* 🔒 **Security & Secret Scanner** — Built-in CVE vulnerability audits and regex entropy scanning for hardcoded secrets.
-* 🚀 **Automated Migration Engine** — AST-powered codebase migrations (`bloom upgrade`) and deprecation diagnostics (`bloom doctor --upgrade`).
 * 📲 **Dev Server & Live Launcher** — LAN UDP broadcast discovery on port `5354`, optical QR device pairing, request replay, and interactive DevTools overlay.
-* 🔌 **Official Full-Stack Adapters** — First-class adapters for Supabase (`supabase_flutter`) and Serverpod.
+
+**Server (Dart, Flutter-free)**
+* 🌐 **HTTP Server & Router** (`bloom_server`) — API routing with path/wildcard params, middleware pipelines, and SSR.
+* 🗄️ **Database & Migrations** (`bloom_db`, `bloom_migrate`) — Postgres/SQLite executor, query builder, and schema migrations.
+* 🔐 **Auth & Security** (`bloom_auth_server`, `bloom_security`) — JWT sessions, Google/GitHub OAuth2 login, CVE and secret scanning.
+* 📨 **Mail & Background Jobs** (`bloom_mail`, `bloom_jobs`) — SMTP delivery with HTML/text templating, and a `BloomTaskQueue` with in-memory, Redis, and database-backed persistent implementations.
+* 🖥️ **Admin & REST** (`bloom_admin`, `bloom_rest`) — Django-style auto-generated SSR admin panel and REST ViewSets.
+* 🌍 **i18n, Storage, Realtime, Cache** (`bloom_i18n`, `bloom_storage`, `bloom_realtime`, `bloom_cache`) — Locale-aware responses, pluggable file storage backends, WebSocket channels, and caching.
+* 🔒 **Errors & Validation** (`bloom_errors`, `bloom_validate`) — Structured exception-to-response mapping and input validation.
+
+**Tooling**
+* 🚀 **CLI** (`bloom_cli`) — `bloom create`, `bloom dev`, `bloom doctor`, `bloom server create/startapp/run`, `bloom format`, `bloom lint`, and automated AST migrations (`bloom upgrade`).
+* 🔍 **Observability** — Automatic uncaught crash capture, breadcrumb logging timeline, and source map / dSYM symbol uploaders.
 
 ---
 
@@ -36,16 +51,41 @@ With Bloom, you get:
 ```text
 Bloom/
 ├── packages/
-│   ├── bloom_framework/      # Core framework runtime, DI, routing, state, data, native plugins, server, adapters
-│   └── bloom_cli/            # Complete CLI tooling (create, dev, doctor, upgrade, explain, graph, registry, module, assets)
+│   ├── bloom_framework/      # Flutter client framework: DI, routing, state, data, native plugins, adapters
+│   ├── bloom_server/         # Flutter-free HTTP server & API router (the backend runtime)
+│   ├── bloom_db/             # Database executor, query builder (bloom_db_generator: codegen)
+│   ├── bloom_migrate/        # Schema migration engine
+│   ├── bloom_auth_server/    # JWT sessions + OAuth2 (Google, GitHub) login
+│   ├── bloom_security/       # CVE + secret scanning
+│   ├── bloom_mail/           # SMTP mail delivery with HTML/text templating
+│   ├── bloom_jobs/           # Background task queue (in-memory, Redis, database-backed)
+│   ├── bloom_admin/          # Auto-generated SSR admin panel
+│   ├── bloom_rest/           # REST ViewSets & serializers
+│   ├── bloom_i18n/           # Locale detection & translation
+│   ├── bloom_storage/        # Pluggable file storage backends
+│   ├── bloom_realtime/       # WebSocket channel hub
+│   ├── bloom_cache/          # Caching layer
+│   ├── bloom_errors/         # Structured exception → response mapping
+│   ├── bloom_validate/       # Input validation
+│   ├── bloom_seo/            # SEO metadata tooling
+│   ├── bloom_js_native/      # JS/npm interop for Bloom web projects
+│   ├── bloom_ui/             # Shared UI primitives
+│   └── bloom_cli/            # CLI tooling (create, dev, doctor, server, format, lint, upgrade, ...)
 ├── apps/
 │   └── bloom_go/             # Universal native mobile development client for iOS and Android
 ├── examples/
+│   ├── bloom_fullstack_todo/ # Reference app exercising all 15 backend packages against real PostgreSQL
+│   ├── bloom_fullstack_api/  # Full-Stack API & SSR reference app
 │   ├── bloom_ecommerce/      # E-Commerce reference app (catalog, reactive cart, offline checkout queue)
 │   ├── bloom_social_feed/    # Social timeline reference app (optimistic likes, compose view, media permissions)
-│   ├── bloom_fullstack_api/  # Full-Stack API & SSR reference app (API routes /api/users, /api/health, SSR)
-│   └── bloom_counter/        # Reference counter application demonstrating full Bloom architecture
-└── docs/                     # Comprehensive architectural documentation & 17-phase hardening specs
+│   ├── bloom_js_ecommerce/   # JS-target e-commerce reference app
+│   ├── bloom_portfolio/      # Portfolio/SSR site reference app
+│   ├── bloom_showcase_web/   # Web showcase reference app
+│   └── bloom_counter/        # Minimal reference app demonstrating core Bloom architecture
+├── cloud-dashboard/           # Cloud dashboard frontend
+├── cloud-backend/             # Cloud dashboard backend
+├── bloom-website/             # bloom.dev marketing site
+└── docs/                      # Architectural documentation & phased hardening specs
 ```
 
 ---
@@ -89,6 +129,8 @@ bloom doctor --ci
 | Command | Purpose |
 | :--- | :--- |
 | `bloom create <app> [--template <name>]` | Scaffolds a new Bloom application from official or community templates |
+| `bloom server create <app>` / `startapp <name>` / `run` | Scaffolds and runs a Flutter-free Bloom backend project on `bloom_server` |
+| `bloom format` / `bloom lint` | Formats and lints Bloom JS-native projects |
 | `bloom dev` | Launches local development orchestrator with LAN discovery, hot reload, and TUI shortcuts |
 | `bloom doctor [--ci] [--upgrade]` | Runs system diagnostics, strict CI health checks, and breaking-change deprecation audits |
 | `bloom add <plugin>` / `bloom remove <plugin>` | Adds or removes native plugins with zero-config autolinking |
@@ -135,14 +177,20 @@ Explore the detailed documentation in [`docs/`](file:///root/dev/Bloom/docs):
 
 Run the comprehensive test and analysis matrix across the entire monorepo:
 ```bash
-# 1. Framework Test Suite (102 tests)
+# 1. Flutter Framework Test Suite
 cd packages/bloom_framework && flutter test && flutter analyze
 
-# 2. CLI Tooling Test Suite (62 tests)
+# 2. CLI Tooling Test Suite
 cd ../bloom_cli && dart test && dart analyze
 
-# 3. Official Sample Applications
-cd ../../examples/bloom_ecommerce && flutter test && flutter analyze
+# 3. Backend Packages (pure Dart, run per package: bloom_server, bloom_db, bloom_auth_server,
+#    bloom_mail, bloom_jobs, bloom_admin, bloom_rest, bloom_i18n, bloom_storage, bloom_realtime,
+#    bloom_cache, bloom_errors, bloom_validate, bloom_security, bloom_migrate)
+cd ../bloom_server && dart test && dart analyze
+
+# 4. Official Sample Applications
+cd ../../examples/bloom_fullstack_todo && dart test && dart analyze
+cd ../bloom_ecommerce && flutter test && flutter analyze
 cd ../bloom_social_feed && flutter test && flutter analyze
 cd ../bloom_fullstack_api && flutter test && flutter analyze
 ```
