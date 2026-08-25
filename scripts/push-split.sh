@@ -30,6 +30,7 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
     --path benchmarks/ \
     --path bloom-website/ \
     --path examples/ \
+    --path assets/ \
     --path package.json \
     --path vercel.json \
     --path LICENSE \
@@ -51,6 +52,7 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/private" >/dev/null
     --path docs/ \
     --path examples/ \
     --path benchmarks/ \
+    --path assets/ \
     --path package.json \
     --path vercel.json \
     --path cloud-dashboard-frontend.md \
