@@ -62,16 +62,18 @@ class NpmVendorAssembler {
       assembled++;
     }
 
-    // Rebuild the full importmap from manifest — ensures it's always in sync
+    // Rebuild the full importmap and bootstrap script from manifest — ensures it's always in sync
     final manager = ImportMapManager(project.rootDir.path);
     for (final entry in manifest.packages) {
       await manager.addEntry(
         packageName: entry.npmName,
         vendorPath: entry.vendorFile,
+        jsGlobal: entry.jsGlobal,
       );
     }
+    await manager.updateBootstrap(manifest.packages);
 
-    print(Ansi.success('\n✓ $assembled NPM package(s) assembled. Importmap updated.\n'));
+    print(Ansi.success('\n✓ $assembled NPM package(s) assembled. Importmap & bootstrap updated.\n'));
   }
 
   Future<bool> _vendorWithBun(String npmName, String version, String targetPath) async {

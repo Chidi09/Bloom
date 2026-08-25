@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.2 - 2026-08-24
+
+### Added
+* `bloom add npm:@tailwindcss/browser` now works correctly: writes a dedicated self-executing `<script type="module">` (Tailwind's browser build has no JS API to bind, so no Dart interop binding is generated for it), fixed a regex collision that could delete this script when a second package was later added.
+* `.d.ts`-driven `@JS()` binding generator (`bloom add npm:<package>`) now parses a package's real exported member names instead of emitting a single guessed member.
+* `bloom create --js-native`'s generated `bloom.yaml` now sets `target: web_dom`, which several CLI subsystems (`bloom add`, `bloom build`, `bloom dev`) key off of — without it, `bloom add npm:<package>` misrouted js-native projects through native mobile plugin handling instead of npm.
+* `bloom create --js-native`'s generated `AGENTS.md` and COOKBOOK.md now document the real `bloom add`/Tailwind/design-token/font workflows in full.
+
+## 0.6.1 - 2026-08-24
+
+### Added
+* `bloom create --js-native`'s generated `AGENTS.md` now includes a full best-practices checklist (reactivity, nullable event fields, the two-entry-point rule, SSR gotchas, disposal, styling, testing) mirroring COOKBOOK.md's new Section 20.
+
 ## 0.6.0 - 2026-08-24
 
 ### Added

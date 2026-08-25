@@ -345,6 +345,10 @@ name: $name
 version: $version
 description: "$description"
 type: js_native
+# Marks this as a pure Dart web project (no Flutter) — `bloom add npm:<pkg>`
+# and other CLI subsystems check this field to route to NPM/web handling
+# instead of native mobile plugin handling.
+target: web_dom
 
 web:
   title: "$name"
@@ -494,6 +498,8 @@ lib/
     <component>.dart      # shared, reusable descriptors
   state/
     <domain>.dart           # shared Signal<T> instances
+  design/
+    tokens.dart               # designTokensCss const, injected via Style()
 ```
 
 See COOKBOOK.md Section 3 ("Project Structure & Multi-File Apps") for the
@@ -507,6 +513,116 @@ anything already in `lib/components/` before writing a new descriptor.
 - `bloom js build` — production bundle.
 - `dart test` — runs `test/`, which exercises SSR-safe code only (no
   `browser.dart` import in test files — the Dart VM has no DOM).
+- `bloom add npm:<package>` — install an npm package. Vendors a real ESM
+  bundle into `web/vendor/`, generates a typed `@JS()` Dart binding at
+  `lib/src/plugins/<package>.dart` from the package's real `.d.ts`, and
+  wires both an importmap entry and a window-global bootstrap script into
+  `web/index.html` automatically. Never hand-write vendor files or
+  `<script>` tags for a JS dependency — always go through `bloom add`.
+  `bloom remove <package>` undoes all of it.
+- `bloom add npm:@tailwindcss/browser` — Tailwind CSS with no CDN `<script>`
+  and no build step: `bloom add` gives it a dedicated self-executing script
+  (it has no callable JS API, so no Dart binding is generated for it) that
+  runs Tailwind's in-browser JIT engine, which scans the live DOM for
+  utility classes. Just use `className: 'flex items-center gap-2'` etc.
+  directly on any `BloomNode` afterward — see COOKBOOK.md Section 12 for
+  the full recipe.
+
+## Using an installed npm package from Dart
+
+After `bloom add npm:<package>`, import the generated binding
+(`lib/src/plugins/<package>.dart`) and call its top-level getter — do not
+hand-write a new `@JS()` binding for a package you've already added.
+The generated member list is a best-effort parse of the package's `.d.ts`;
+if it falls back to a single guessed member (stated in a doc comment in the
+generated file), verify that member name against the package's real docs
+before calling it. A JS API whose entry point is itself a callable function
+returning a chainable instance (not "an object with methods") isn't fully
+modeled by the generator — extend the generated file by hand for that case,
+the same way you'd write any other `@JS()` binding.
+
+## Best practices checklist (read before writing code)
+
+Full detail and rationale for every item below is in COOKBOOK.md Section 20
+("Best Practices & Common Pitfalls Checklist") — this is the condensed
+version so you don't have to open it for every edit.
+
+### Reactivity
+- Reading a signal outside `Live(...)` / `Show(...)` / `ForEach(...)`
+  captures a one-time snapshot — it will never update on screen. Always wrap
+  dynamic reads: `Live(() => P(text: 'Count: \${count.value}'))`, never
+  `P(text: 'Count: \${count.value}')` directly in a non-reactive builder.
+- Update list/map signals by **reassigning** `.value`, never mutating the
+  existing collection: `todos.value = [...todos.value, newItem];` — not
+  `todos.value.add(newItem);`. The latter does not notify subscribers.
+- Always pass `key:` to `ForEach` for any list that reorders, inserts, or
+  removes items, e.g. `ForEach<Task>(() => tasks.value, (t) => Li(text:
+  t.title), key: (t) => t.id)`. Without it, every update tears down and
+  rebuilds all child DOM nodes.
+- `Show(...)` with no `fallback` renders nothing when `when()` is false —
+  pass `fallback:` explicitly if you need placeholder content.
+
+### Events
+- `BloomEvent.value` (`String?`) and `BloomEvent.checked` (`bool?`) are
+  **nullable**. Never write `e.value!` — use `e.value ?? ''`. `value` is
+  only populated for `<input>`/`<textarea>`/`<select>`; `checked` only for
+  checkboxes/radios.
+- `e.rawTarget` is untyped (`Object?`) and can be `null` in VM tests — don't
+  assume it's non-null.
+
+### The two entry points
+- `package:bloom_js_native/bloom_js_native.dart` — pure Dart, safe
+  everywhere (SSR, tests, shared files).
+- `package:bloom_js_native/browser.dart` — `mount()`, hydration, router
+  controller, Web Component interop. **Only `lib/main.dart` should import
+  this.** Importing only the base package and calling `mount()` fails with
+  `Error: Method not found: 'mount'.`
+
+### SSR / hydration
+- Reactive builders run exactly once, synchronously, under `renderToHtml()`
+  — there's no server-side re-render loop.
+- Event handlers, `Mount.onMount`/`onUnmount`, `Ref`, router listeners, and
+  `effect()` all silently do nothing under SSR. Server-side logic (data
+  fetching, redirects) belongs in loader/route-guard hooks, not these.
+
+### Disposal
+Anything holding an external listener/observer/timer must be disposed on
+teardown: `BloomMountHandle.unmount()`, `BloomRouterController.dispose()`,
+`BloomVirtualizer.dispose()`, `BloomIslandOrchestrator.dispose()`,
+`BloomController.onDispose()`, `BloomQuery.dispose()` /
+`BloomInfiniteQuery.dispose()`.
+
+### Styling and design tokens
+- Define your design tokens (colors, radii, fonts) as a `const String` of
+  raw CSS in `lib/design/tokens.dart`, injected once via `Style(tokensCss)`
+  as the first child of your app shell — not pasted into `web/index.html`.
+  `Style`/`Fragment` are real `BloomNode`s from the base package (no
+  `browser.dart` import needed) and render correctly under both `mount()`
+  and `renderToHtml()`.
+- If using the UI primitives library (COOKBOOK.md Section 19), match its
+  variable names (`--primary`, `--card`, `--radius-md`, etc. — full set in
+  `lib/src/ui/tokens.dart`'s `uiTokensCss`) so its components pick up your
+  theme instead of falling back to their own defaults.
+- Load fonts with `bloom fonts optimize --family <name> --weight <n>`
+  (self-hosts `.woff2`, generates `fonts.g.css` with a CLS-mitigation
+  fallback face) and inject the result with `fontStylesheetLink()` from
+  Dart, in the same `Fragment` as your `Style(tokensCss)` call — never a
+  Google Fonts CDN `<link>` in `web/index.html`.
+- Prefer `scopedCss()` for component-local styles — deterministic class
+  names that match between SSR and hydration.
+- Merge conditional class names with `cn([...])`, not string-interpolated
+  ternaries.
+- Keep `web/index.html` as close to empty as possible: `<meta>` tags,
+  SEO/JSON-LD/`robots` content once you add those, and the `main.js` script
+  tag. No design tokens, no font `<link>`s, no inline `<style>`/`<script>`
+  logic, no hand-written DOM manipulation — all of that is Dart-driven and
+  belongs in `lib/`.
+
+### Testing
+- `test/*.dart` files run on the Dart VM (no DOM) — never import
+  `browser.dart` there. Test signals, computed values, `renderToHtml()`
+  output, and route matching directly; `mount()`/hydration/real DOM events
+  aren't unit-testable.
 
 ## Anti-fabrication note for AI agents
 
