@@ -2,6 +2,9 @@
 
 ## 0.3.1
 
+### Fixed
+* Bumped `bloom_server` dependency constraint from `^0.1.0` to `^0.2.0` — the stale constraint was incompatible with any sibling package (`bloom_cache`, `bloom_i18n`) requiring `bloom_server ^0.2.0`, breaking `pub get` in any app combining them.
+
 ### Added
 * **Fabric-Grade Native Mobile AST Engine (`bloom_mobile.dart`)**:
   * `BloomFlexLayout` & `RenderBloomFlex`: Multi-pass Flexbox layout solver resolving flex-wrap, percentage dimensions, margins, and paddings on mobile devices.

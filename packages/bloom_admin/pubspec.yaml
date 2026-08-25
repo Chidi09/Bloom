@@ -1,6 +1,6 @@
 name: bloom_admin
 description: Automatic server-rendered HTML administration interface for Bloom web applications.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -14,7 +14,7 @@ environment:
 dependencies:
   meta: ^1.15.0
   crypto: ^3.0.3
-  bloom_server: ^0.1.0
+  bloom_server: ^0.2.0
   bloom_db: ^0.1.0
 
 dev_dependencies:

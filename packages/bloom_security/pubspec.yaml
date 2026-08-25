@@ -1,6 +1,6 @@
 name: bloom_security
 description: Production-ready CORS, security headers, rate limiting, and WebSocket upgrade utilities for Bloom servers.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -12,7 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server: ^0.1.0
+  bloom_server: ^0.2.0
 
 dev_dependencies:
   flutter_lints: ^5.0.0

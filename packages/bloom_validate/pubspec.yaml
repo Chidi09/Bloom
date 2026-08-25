@@ -1,6 +1,6 @@
 name: bloom_validate
 description: Declarative, strictly-typed request and DTO schema validation for Bloom API routes.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -11,7 +11,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_server: ^0.1.0
+  bloom_server: ^0.2.0
 
 dev_dependencies:
   lints: ^4.0.0
