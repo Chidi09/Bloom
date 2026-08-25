@@ -2,13 +2,18 @@
 
 Transactional email sending for Bloom server applications, ported from [`djangors-mail`](https://crates.io/crates/djangors-mail).
 
-Provides a provider-agnostic [`BloomMailMessage`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/message.dart) model and swappable [`BloomMailBackend`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/backend.dart) delivery adapters that integrate directly with `bloom_framework`'s dependency injection container.
+Provides a provider-agnostic [`BloomMailMessage`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/message.dart) model, Django-inspired [`BloomMailTemplate`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/template.dart) rendering engine, and swappable [`BloomMailBackend`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/backend.dart) delivery adapters that integrate directly with `bloom_framework`'s dependency injection container.
 
 ---
 
 ## Features
 
 - **Provider-Agnostic Message Model**: Full support for `to`, `from`, `subject`, plain-text `body`, optional `htmlBody`, `cc`, and `bcc`.
+- **Django-Inspired Templating Engine**:
+  - Variable interpolation (`{{ user.name }}`) with nested dot navigation.
+  - Automatic XSS prevention & HTML-escaping by default, with `| safe` / `| raw` filters.
+  - Conditionals (`{% if %}`, `{% elif %}`, `{% else %}`, `{% endif %}`) and loops (`{% for item in items %}`, `{% empty %}`, `{% endfor %}`) with loop metadata (`forloop.index`, `forloop.first`, `forloop.last`).
+  - Seamless companion plain-text template loading (`welcome_email.html` + `welcome_email.txt`).
 - **Pluggable Delivery Backends**:
   - [`BloomSmtpBackend`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/smtp_backend.dart): Real SMTP delivery with explicit STARTTLS or implicit SSL/TLS.
   - [`BloomConsoleBackend`](file:///root/dev/Bloom/packages/bloom_mail/lib/src/console_backend.dart): Formatted stdout logging for local development.
@@ -30,6 +35,65 @@ dependencies:
     path: ../bloom_framework
   bloom_mail:
     path: ../bloom_mail
+```
+
+---
+
+## Templating
+
+`bloom_mail` includes a lightweight, safe-by-default Django-style template engine for transactional emails.
+
+### Template Loading & Rendering
+
+Templates can be loaded from strings, files, or filesystem paths:
+
+```dart
+import 'package:bloom_mail/bloom_mail.dart';
+
+// Load from path (automatically discovers companion .txt if present)
+final template = BloomMailTemplate.fromPath('templates/welcome_email.html');
+
+// Or create in memory with HTML and companion plain-text templates
+final template = BloomMailTemplate.fromString(
+  '''
+  <h1>Welcome, {{ user.name }}!</h1>
+  <p>Your account is ready on {{ app_name }}.</p>
+  {% if is_admin %}
+  <p><strong>Admin role active.</strong></p>
+  {% endif %}
+  <p><a href="{{ action_url|safe }}">Open Dashboard</a></p>
+  ''',
+  textSource: '''
+  Welcome, {{ user.name }}!
+  Your account is ready on {{ app_name }}.
+  {% if is_admin %}
+  Admin role active.
+  {% endif %}
+  Open Dashboard: {{ action_url }}
+  ''',
+);
+```
+
+### Creating Templated Messages
+
+Use `BloomMailMessage.fromTemplate` or `BloomTemplatedMessage.create` to render templates directly into an outgoing message:
+
+```dart
+final message = BloomMailMessage.fromTemplate(
+  to: ['alice@example.com'],
+  from: 'noreply@bloom.dev',
+  subject: 'Welcome to Bloom',
+  htmlTemplate: template,
+  context: {
+    'user': {'name': 'Alice'},
+    'app_name': 'Bloom Studio',
+    'is_admin': true,
+    'action_url': 'https://app.bloom.dev/dashboard',
+  },
+);
+
+// Send message via injected backend
+await mailBackend.send(message);
 ```
 
 ---
@@ -79,20 +143,24 @@ import 'package:bloom_mail/bloom_mail.dart';
 
 class AuthService {
   final BloomMailBackend _mailBackend;
+  final BloomMailTemplate _passwordResetTemplate;
 
   AuthService({BloomMailBackend? mailBackend})
-      : _mailBackend = mailBackend ?? inject<BloomMailBackend>();
+      : _mailBackend = mailBackend ?? inject<BloomMailBackend>(),
+        _passwordResetTemplate = BloomMailTemplate.fromPath('templates/password_reset.html');
 
-  Future<void> sendPasswordReset(String recipientEmail, String resetToken) async {
-    final message = BloomMailMessage(
-      to: [recipientEmail],
+  Future<void> sendPasswordReset(String recipientEmail, String userName, String resetToken) async {
+    final message = BloomMailMessage.singleFromTemplate(
+      to: recipientEmail,
       from: 'noreply@bloom.dev',
       subject: 'Reset your Bloom password',
-      body: 'Use this link to reset your password: https://app.bloom.dev/reset?token=$resetToken',
-      htmlBody: '''
-        <h1>Password Reset</h1>
-        <p>Click <a href="https://app.bloom.dev/reset?token=$resetToken">here</a> to reset your password.</p>
-      ''',
+      htmlTemplate: _passwordResetTemplate,
+      context: {
+        'user': {'name': userName},
+        'app_name': 'Bloom',
+        'expires_in': '30 minutes',
+        'reset_url': 'https://app.bloom.dev/reset?token=$resetToken',
+      },
     );
 
     await _mailBackend.send(message);
@@ -128,7 +196,7 @@ void main() {
   });
 
   test('sends password reset email with valid link', () async {
-    await authService.sendPasswordReset('alice@example.com', 'xyz-token-123');
+    await authService.sendPasswordReset('alice@example.com', 'Alice', 'xyz-token-123');
 
     // Assert on captured messages
     expect(mailBackend.sentMessages, hasLength(1));

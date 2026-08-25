@@ -1,11 +1,12 @@
 # bloom_auth_server
 
-Server-side authentication primitives and middleware for Bloom backend servers and full-stack Dart applications.
+Server-side authentication primitives, OAuth2 social logins, and middleware for Bloom backend servers and full-stack Dart applications.
 
 Modeled after the battle-tested design of `djangors-auth`, `bloom_auth_server` provides the server-side counterpart to `bloom_framework`'s client-side `BloomAuth<U>`:
 
 * **Strong Password Hashing**: OpenBSD BCrypt password hashing (`hashPassword`, `verifyPassword`) with constant-time dummy verification (`dummyVerifyPassword`) to defeat user enumeration.
 * **Cryptographically Signed Session Tokens**: Bearer JWT tokens (`issueSessionToken`, `verifySessionToken`) signed with HMAC-SHA256 and domain-separated with `token_type: 'session'`.
+* **OAuth2 / Social Login Support**: First-class OAuth2 authorization code flow clients for Google (`GoogleOAuthProvider`) and GitHub (`GitHubOAuthProvider`) orchestrated by `BloomOAuthFlow` with CSRF state generation (`generateOAuthState`), issuing standard `BloomAuthClaims` session tokens.
 * **Sliding-Window Rate Limiting & Account Lockout**: In-memory sliding-window throttling (`InMemoryRateLimiter`) and consecutive-failure lockout (`InMemoryLockoutManager`, `AuthRateLimiter`) with fail-closed security semantics.
 * **Single-Purpose Password Reset Workflows**: Time-limited, signed password reset tokens (`generatePasswordResetToken`, `verifyPasswordResetToken`) cryptographically bound to the user's password hash so any password change invalidates all outstanding reset tokens instantly.
 * **Server Verification Middleware**: Drop-in `BloomAuthMiddleware` for `BloomApiRouter` supporting token extraction, expiration checks, role enforcement, and request extensions (`request.auth`, `request.authUserId`).
@@ -32,6 +33,10 @@ Secrets are loaded dynamically through `BloomEnv` rather than hardcoded literals
 
 ```env
 BLOOM_AUTH_SECRET=your-secure-random-32-byte-secret-key-here
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
 ```
 
 Initialize `BloomEnv` on server boot:
@@ -319,6 +324,124 @@ Future<void> main() async {
 
 ---
 
+## OAuth2 / Social Login (Google, GitHub)
+
+`bloom_auth_server` provides ready-to-use OAuth2 Authorization Code flow clients for Google and GitHub. Both flows emit identical `BloomAuthClaims` session tokens to the password authentication path, ensuring downstream API routes, middleware, and Flutter clients work transparently regardless of the login provider.
+
+### End-to-End OAuth Router Example
+
+```dart
+import 'package:bloom_framework/bloom_framework.dart';
+import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_auth_server/bloom_auth_server.dart';
+
+void main() async {
+  BloomEnv.loadMap({
+    'BLOOM_AUTH_SECRET': 'super-secret-signing-key-32-chars-minimum-prod',
+    'GOOGLE_CLIENT_ID': 'my-google-app-id.apps.googleusercontent.com',
+    'GOOGLE_CLIENT_SECRET': 'GOCSPX-my-google-secret',
+    'GITHUB_CLIENT_ID': 'github-oauth-client-id',
+    'GITHUB_CLIENT_SECRET': 'github-oauth-client-secret',
+  });
+
+  final router = BloomApiRouter();
+  const baseUrl = 'https://api.example.com';
+
+  // 1. Configure Providers & Flows
+  final googleFlow = BloomOAuthFlow(GoogleOAuthProvider(
+    clientId: BloomEnv.get('GOOGLE_CLIENT_ID'),
+    clientSecret: BloomEnv.get('GOOGLE_CLIENT_SECRET'),
+  ));
+
+  final githubFlow = BloomOAuthFlow(GitHubOAuthProvider(
+    clientId: BloomEnv.get('GITHUB_CLIENT_ID'),
+    clientSecret: BloomEnv.get('GITHUB_CLIENT_SECRET'),
+  ));
+
+  // 2. Google OAuth Endpoints
+  router.get('/api/auth/google/start', (req) async {
+    final state = generateOAuthState();
+    // In production, save `state` in an HTTP-only secure cookie or Redis session
+    final authUrl = googleFlow.buildAuthorizationUrl(
+      redirectUri: '$baseUrl/api/auth/google/callback',
+      state: state,
+    );
+    return BloomResponse.redirect(authUrl.toString());
+  });
+
+  router.get('/api/auth/google/callback', (req) async {
+    final code = req.queryParams['code'];
+    if (code == null || code.isEmpty) {
+      return BloomResponse.error('Missing authorization code', statusCode: 400);
+    }
+
+    final result = await googleFlow.handleCallback(
+      code: code,
+      redirectUri: '$baseUrl/api/auth/google/callback',
+      resolveUser: (profile) async {
+        // Look up or create local user record in database
+        final now = DateTime.now().toUtc();
+        return BloomAuthClaims(
+          userId: 'usr_${profile.provider}_${profile.providerUserId}',
+          email: profile.email,
+          roles: const ['user'],
+          issuedAt: now,
+          expiresAt: now.add(const Duration(days: 7)),
+        );
+      },
+    );
+
+    return BloomResponse.json({
+      'token': result.sessionToken,
+      'user': result.claims.toMap(),
+      'profile': result.profile.toMap(),
+    });
+  });
+
+  // 3. GitHub OAuth Endpoints
+  router.get('/api/auth/github/start', (req) async {
+    final state = generateOAuthState();
+    final authUrl = githubFlow.buildAuthorizationUrl(
+      redirectUri: '$baseUrl/api/auth/github/callback',
+      state: state,
+    );
+    return BloomResponse.redirect(authUrl.toString());
+  });
+
+  router.get('/api/auth/github/callback', (req) async {
+    final code = req.queryParams['code'];
+    if (code == null || code.isEmpty) {
+      return BloomResponse.error('Missing authorization code', statusCode: 400);
+    }
+
+    final result = await githubFlow.handleCallback(
+      code: code,
+      redirectUri: '$baseUrl/api/auth/github/callback',
+      resolveUser: (profile) async {
+        final now = DateTime.now().toUtc();
+        return BloomAuthClaims(
+          userId: 'usr_${profile.provider}_${profile.providerUserId}',
+          email: profile.email,
+          roles: const ['user'],
+          issuedAt: now,
+          expiresAt: now.add(const Duration(days: 7)),
+        );
+      },
+    );
+
+    return BloomResponse.json({
+      'token': result.sessionToken,
+      'user': result.claims.toMap(),
+    });
+  });
+
+  final server = await router.serve(port: 8080);
+  stdout.writeln('Server listening on http://localhost:${server.port}');
+}
+```
+
+---
+
 ## Client Integration with `BloomAuth<U>`
 
 The response format from `handleLogin` / `handleSignup` (`{ token: "...", user: { ... } }`) matches the client-side `BloomAuth<U>` contract in `bloom_framework`:
@@ -360,11 +483,16 @@ print('Current bearer token: ${clientAuth.token.value}');
 - Signature: HMAC-SHA256 (HS256) with key length validation via `BloomEnv.get('BLOOM_AUTH_SECRET')`.
 - Domain Separation: Embedded `token_type: 'session'` claim ensures session tokens cannot be swapped with password reset or API key tokens.
 
-### 3. Account Lockout & Throttling
+### 3. OAuth2 Social Login & CSRF Protection
+- Standard: OAuth 2.0 Authorization Code Flow (RFC 6749) + OpenID Connect.
+- High-Entropy State: `generateOAuthState()` produces 256 bits of cryptographic entropy via `Random.secure()` to defend against CSRF attacks.
+- Universal Session Token Issuance: `BloomOAuthFlow` resolves third-party identities into canonical `BloomAuthClaims` session tokens identical to the local password path.
+
+### 4. Account Lockout & Throttling
 - Sliding Window: In-memory tracker rejecting rapid automated requests (`maxAttempts: 5`, `window: 15m`).
 - Account Lockout: Rejects all requests (even with valid credentials) when consecutive failures reach threshold (`lockoutDuration: 1h`).
 - Fail-Closed: Any internal error or ambiguous state denies access rather than allowing unchecked requests.
 
-### 4. Password Reset Tokens
+### 5. Password Reset Tokens
 - Format: `rst.<base64(userId)>.<base64(expiry)>.<base64(hmac)>`.
 - Dynamic Hash Binding: The HMAC payload binds `userId`, `expiry`, and `passwordHashPrefix`. Changing the password immediately invalidates all outstanding reset tokens without requiring database revocation tables.

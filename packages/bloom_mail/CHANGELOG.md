@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 - 2026-08-25
+
+### Added
+* **Email templating.** New `BloomMailTemplate` — a Django-inspired mini template engine (`{{ variable }}` interpolation with dot-path lookups and filters, `{% if %}/{% elif %}/{% else %}` with comparison/logical operators, `{% for %}` loops with `forloop.index0/first/last/length` and `{% empty %}`, comments, HTML auto-escaping with `safe`/`raw` opt-outs) supporting a companion plain-text template alongside the HTML one. `BloomMailMessage.fromTemplate`/`.singleFromTemplate` render a template + context directly into a ready-to-send message. Closes the previous gap where HTML emails had to be hand-built as raw strings.
+
 ## 0.2.0 - 2026-08-23
 
 ### Breaking

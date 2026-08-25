@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Welcome to Bloom</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #09090b; color: #f4f4f5; padding: 32px;">
+  <h1 style="color: #6366f1;">Welcome, {{ user.name }}!</h1>
+  <p>Thank you for joining <strong>{{ app_name }}</strong>.</p>
+  {% if is_admin %}
+  <p>You have been assigned administrative privileges.</p>
+  {% endif %}
+  <p>Get started with the following steps:</p>
+  <ul>
+  {% for step in onboarding_steps %}
+    <li>{{ forloop.index }}. {{ step }}</li>
+  {% empty %}
+    <li>Explore your dashboard.</li>
+  {% endfor %}
+  </ul>
+  <p>
+    <a href="{{ action_url|safe }}" style="display: inline-block; background-color: #6366f1; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+      Open Dashboard
+    </a>
+  </p>
+</body>
+</html>

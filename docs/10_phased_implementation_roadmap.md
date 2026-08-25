@@ -1,5 +1,7 @@
 # 10. Phased Roadmap & Implementation Plan
 
+> **Status note (2026-08-25):** The phase tracker below was written against the mobile/native client roadmap (CLI, DI, plugins, deep links, Bloom Go shell, OTA) and predates Bloom's server-side track. That track has since shipped independently as a full Django/DRF-inspired backend suite under `packages/` — `bloom_server` (router/DI/middleware), `bloom_db` (ORM) + `bloom_db_generator` + `bloom_migrate`, `bloom_rest` (serializers/viewsets/pagination), `bloom_auth_server` (password + JWT auth, now adding OAuth2), `bloom_admin`, `bloom_realtime` (WebSocket cluster), `bloom_cache` (memory/DB/Redis), `bloom_storage` (disk/S3), `bloom_mail` (now adding templating), `bloom_jobs` (now adding persistent Redis/DB-backed queues), and `bloom_security`. None of these packages are on pub.dev yet — publishing the server suite is the single highest-leverage item not reflected anywhere in the phase list below. The only backend-relevant line still open per Phase 8 is "Serverpod and Supabase official adapters."
+
 ## 1. Phase-by-Phase Roadmap
 
 ```text

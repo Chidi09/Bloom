@@ -1,6 +1,6 @@
 name: bloom_jobs
 description: Background job queue and worker system for Bloom server applications.
-version: 0.1.1
+version: 0.2.0
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -13,7 +13,16 @@ environment:
 
 dependencies:
   meta: ^1.15.0
+  redis: ^4.1.0
+  bloom_db: ^0.1.0
 
 dev_dependencies:
   flutter_lints: ^5.0.0
   test: ^1.25.0
+
+# Local monorepo wiring. `dependency_overrides` is ignored by `dart pub publish`
+# and by consumers of the published package, so the hosted constraints above are
+# what ship; these keep an in-tree checkout building against sibling sources.
+dependency_overrides:
+  bloom_db:
+    path: ../bloom_db

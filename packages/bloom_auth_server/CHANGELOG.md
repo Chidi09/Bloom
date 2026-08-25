@@ -1,3 +1,8 @@
+## 0.3.0 - 2026-08-25
+
+### Added
+* **OAuth2 / social login.** New `BloomOAuthProvider` interface with real Google and GitHub Authorization Code flow implementations (`GoogleOAuthProvider`, `GitHubOAuthProvider`) — authorization URL construction, code exchange, and profile fetch (GitHub's primary-verified-email lookup included). `BloomOAuthFlow` ties a provider to the existing JWT session-token issuance via an app-supplied `resolveUser` callback, and includes a CSRF-safe `state` generator. Closes the previous local-password-only auth gap.
+
 ## 0.2.0 - 2026-08-23
 
 ### Breaking
