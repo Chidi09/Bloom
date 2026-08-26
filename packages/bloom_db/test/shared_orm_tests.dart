@@ -363,5 +363,55 @@ void runOrmTestSuite({
           .valuesList(db, 'name');
       expect(names, ['Jane', 'John']);
     });
+
+    test('13. transaction() - commits all writes on success', () async {
+      await db.transaction((tx) async {
+        await User(name: 'Tx1', email: 'tx1@example.com', age: 20).save(tx);
+        await User(name: 'Tx2', email: 'tx2@example.com', age: 21).save(tx);
+      });
+
+      final rows = await db.fetchAll('SELECT name FROM "auth_users"');
+      expect(rows.map((r) => r['name']), containsAll(['Tx1', 'Tx2']));
+    });
+
+    test('14. transaction() - rolls back all writes when the callback throws',
+        () async {
+      await User(name: 'Pristine', email: 'pristine@example.com', age: 50)
+          .save(db);
+
+      Object? caught;
+      try {
+        await db.transaction((tx) async {
+          await User(
+                  name: 'ShouldRollback',
+                  email: 'rollback@example.com',
+                  age: 22)
+              .save(tx);
+          throw StateError('deliberate failure inside transaction');
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught, isA<StateError>());
+
+      final rows = await db.fetchAll('SELECT name FROM "auth_users"');
+      expect(rows.map((r) => r['name']), isNot(contains('ShouldRollback')));
+      expect(rows.map((r) => r['name']), contains('Pristine'));
+    });
+
+    test('15. transaction() - returns the callback\'s value', () async {
+      final result = await db.transaction((tx) async {
+        final u = await User(
+                name: 'Returned', email: 'returned@example.com', age: 33)
+            .save(tx);
+        return u.id;
+      });
+
+      expect(result, greaterThan(0));
+      final fetched =
+          await UserOrmExtension.objects().filter(Q('name', 'Returned')).get(db);
+      expect(fetched.id, result);
+    });
   });
 }

@@ -243,6 +243,14 @@ abstract class DbExecutor {
   /// Chronological history of recorded SQL queries executed on this connection.
   List<String> get queryLog;
 
+  /// Executes [callback] inside an atomic database transaction.
+  ///
+  /// The [callback] receives a [DbExecutor] instance (`tx`) bound to the active transaction.
+  /// If [callback] completes successfully, the transaction is committed and the result is returned.
+  /// If [callback] throws an exception, the transaction is automatically rolled back and the original
+  /// exception is rethrown.
+  Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback);
+
   /// Closes the underlying database connection and disposes resources.
   Future<void> close();
 }
@@ -357,6 +365,23 @@ class SqliteDbExecutor implements DbExecutor {
       return _db.updatedRows;
     } catch (e, st) {
       throw BloomOrmQueryException(e, st);
+    }
+  }
+
+  @override
+  Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback) async {
+    _db.execute('BEGIN');
+    try {
+      final result = await callback(this);
+      _db.execute('COMMIT');
+      return result;
+    } catch (e) {
+      try {
+        _db.execute('ROLLBACK');
+      } catch (_) {
+        // Suppress rollback errors to preserve the original exception.
+      }
+      rethrow;
     }
   }
 
@@ -518,7 +543,103 @@ class PostgresDbExecutor implements DbExecutor {
   }
 
   @override
+  Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback) async {
+    return await _conn.runTx<R>((txSession) async {
+      final txExecutor = _PostgresTxExecutor(txSession);
+      return await callback(txExecutor);
+    });
+  }
+
+  @override
   Future<void> close() async {
     await _conn.close();
+  }
+}
+
+/// Internal [DbExecutor] wrapper for an active PostgreSQL transaction session.
+class _PostgresTxExecutor implements DbExecutor {
+  final pg.TxSession _session;
+  final List<String> _queryLog = [];
+
+  _PostgresTxExecutor(this._session);
+
+  @override
+  Dialect get dialect => Dialect.postgres;
+
+  @override
+  List<String> get queryLog => List.unmodifiable(_queryLog);
+
+  @override
+  void recordQuery(String sql, [List<dynamic> parameters = const []]) {
+    _queryLog.add(sql);
+  }
+
+  List<Object?> _sanitizeParams(List<dynamic> parameters) {
+    return parameters.map((p) {
+      if (p == null) return null;
+      if (p is DateTime) return p.toUtc();
+      if (p is bool || p is num || p is String || p is List<int>) return p;
+      return p.toString();
+    }).toList();
+  }
+
+  @override
+  Future<List<DbRow>> fetchAll(
+      String sql, [List<dynamic> parameters = const []]) async {
+    recordQuery(sql, parameters);
+    try {
+      final sanitized = _sanitizeParams(parameters);
+      final result = await _session.execute(sql, parameters: sanitized);
+      final columnNames =
+          result.schema.columns.map((c) => c.columnName ?? '').toList();
+
+      final rows = <DbRow>[];
+      for (final row in result) {
+        rows.add(MapDbRow.fromIndexed(columnNames, row));
+      }
+      return rows;
+    } catch (e, st) {
+      throw BloomOrmQueryException(e, st);
+    }
+  }
+
+  @override
+  Future<DbRow> fetchOne(
+      String sql, [List<dynamic> parameters = const []]) async {
+    final rows = await fetchAll(sql, parameters);
+    if (rows.isEmpty) {
+      throw BloomOrmNotFoundError(model: 'row');
+    }
+    return rows.first;
+  }
+
+  @override
+  Future<DbRow?> fetchOptional(
+      String sql, [List<dynamic> parameters = const []]) async {
+    final rows = await fetchAll(sql, parameters);
+    if (rows.isEmpty) return null;
+    return rows.first;
+  }
+
+  @override
+  Future<int> execute(String sql, [List<dynamic> parameters = const []]) async {
+    recordQuery(sql, parameters);
+    try {
+      final sanitized = _sanitizeParams(parameters);
+      final result = await _session.execute(sql, parameters: sanitized);
+      return result.affectedRows;
+    } catch (e, st) {
+      throw BloomOrmQueryException(e, st);
+    }
+  }
+
+  @override
+  Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback) async {
+    return await callback(this);
+  }
+
+  @override
+  Future<void> close() async {
+    // No-op: connection lifecycle is managed by the outer runTx call.
   }
 }
