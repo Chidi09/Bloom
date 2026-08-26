@@ -304,12 +304,51 @@ succeeded after.
 
 **Owner package:** `bloom_cli` (`bloom lint` command, `bloom_lint.dart`).
 
+### 8. No transaction support in `bloom_db` — ✅ Fixed
+`packages/bloom_db/lib/src/database.dart:203`'s doc comment on
+`DbExecutor` claims "a driver-agnostic API for running queries,
+parameterized statements, transactions, and inspecting query logs" —
+but no `transaction()` method, and no `BEGIN`/`COMMIT`/`ROLLBACK`
+anywhere in the file (grep confirms zero hits across
+`packages/bloom_db/lib/`). `errors.dart:132` even defines an error type
+assuming an active transaction can exist
+(`select_for_update cannot be used outside of a transaction`), but
+nothing can actually open one. Without this, any multi-write operation
+(e.g. an RPC handler updating two related tables) is not atomic — a
+crash or error between statements leaves partial writes. Every serious
+ORM (Prisma, Drizzle, Django's own `atomic()`) supports this.
+
+**Fix direction:** add `Future<T> transaction<T>(Future<T> Function(DbExecutor tx) callback)`
+to the `DbExecutor` interface (`database.dart:216`), implemented in both
+`SqliteDbExecutor` and `PostgresDbExecutor` — wrap the callback in
+driver-level `BEGIN`/`COMMIT`, `ROLLBACK` on any thrown exception
+(rethrow after rollback). The callback receives a `tx` executor so
+nested queries run against the same connection/transaction scope
+rather than the pool.
+
+**Verified:** `Database.transaction<R>(callback)` added to the
+`DbExecutor` interface, implemented in both backends —
+`SqliteDbExecutor` runs raw `BEGIN`/`COMMIT`/`ROLLBACK` against the
+shared `sqlite.Database` connection; `PostgresDbExecutor` delegates to
+`package:postgres`'s real `Connection.runTx()`, wrapping the resulting
+`TxSession` in a new `_PostgresTxExecutor implements DbExecutor` so
+queries inside the callback route through the transaction rather than
+the outer connection. 3 new tests added to the shared, dialect-agnostic
+ORM contract suite (`shared_orm_tests.dart`, run against both SQLite
+`:memory:` and a real local PostgreSQL 16) verify: commit on success,
+full rollback (including a row inserted before the throw) on a thrown
+exception with the original exception rethrown, and the callback's
+return value is correctly propagated. All 30 tests (15 per backend)
+pass; `dart analyze` clean.
+
+**Owner package:** `bloom_db` (`database.dart`).
+
 ## Review summary (for context)
 
 | Dimension | Rating | Note |
 |---|---|---|
 | Architecture & API Design | 9/10 | Clean, declarative, elegant signal reactivity |
 | Bundle Efficiency & SSR | 9.5/10 | Very fast SSR, small footprint |
-| Fullstack Integration (`bloom_db`/`bloom_server`) | 8.5/10 | Ergonomic ORM, seamless same-origin dev proxy |
+| Fullstack Integration (`bloom_db`/`bloom_server`) | 9/10 | Ergonomic ORM with real atomic transactions, tRPC-comparable typed RPC layer, seamless same-origin dev proxy; no connection pooling yet |
 | Hot Reload & Dev Loop Speed | 9.5/10 | CSS hot-swap, DDC fast remount (now the default `bloom js dev` behavior), and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
 | CLI Tooling & Formatters | 8.5/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), and static Tailwind build now shipped |
