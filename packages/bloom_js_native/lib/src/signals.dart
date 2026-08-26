@@ -1,33 +1,16 @@
-/// Core reactivity module re-exporting reactive primitives from `package:signals`.
-///
-/// Re-exports Bloom's primary state primitives so developers can access reactivity
-/// directly from the Bloom JS Native package without an explicit secondary dependency:
-/// - `signal`: Creates mutable reactive state containers.
-/// - `computed`: Derives readonly state from one or more signals with automatic dependency tracking.
-/// - `effect`: Runs a side effect that automatically subscribes to signals read within its callback.
-/// - `batch`: Batches multiple signal updates into a single notification pass.
-/// - `untracked`: Reads a signal's value without subscribing the enclosing effect or computed callback.
-/// - Types: `Signal`, `Computed`, `ReadonlySignal`, and `Effect`.
-///
-/// ```dart
-/// final count = signal(0);
-/// final isEven = computed(() => count.value.isEven);
-///
-/// BloomNode counter() => Live(() => Div(
-///   children: [
-///     Text('Count: ${count.value} (Even: ${isEven.value})'),
-///     Button(onClick: (_) => count.value++, text: '+1'),
-///   ],
-/// ));
-/// ```
 library;
+
+import 'dart:js_interop';
+import 'package:signals_core/signals_core.dart' as s;
+import 'package:web/web.dart' as web;
+
+import 'mount.dart';
 
 // signals_core, not signals: `package:signals` depends on the Flutter SDK and
 // on signals_flutter, which would make this package -- and everything built on
 // it, including server-side rendering in bloom_server -- require Flutter.
 // signals_core is the same reactivity engine with zero dependencies, and none
 // of the Flutter-only bindings are used here.
-import 'package:signals_core/signals_core.dart' as s;
 
 // Re-export core signal types & utilities matching Bloom framework conventions
 export 'package:signals_core/signals_core.dart'
@@ -36,11 +19,65 @@ export 'package:signals_core/signals_core.dart'
         Computed,
         ReadonlySignal,
         Effect,
-        signal,
         computed,
         effect,
         batch,
         untracked;
+
+@JS('Reflect.get')
+external JSAny? _reflectGet(JSAny target, String key);
+
+@JS('Reflect.set')
+external bool _reflectSet(JSAny target, String key, JSAny? value);
+
+const String _bloomSignalRegistryProp = '__bloom_signal_registry__';
+
+Map<String, Object?> _getOrCreateSignalRegistry(JSAny win) {
+  final boxed = _reflectGet(win, _bloomSignalRegistryProp);
+  if (boxed != null && boxed.isA<JSBoxedDartObject>()) {
+    final dartObj = (boxed as JSBoxedDartObject).toDart;
+    if (dartObj is Map<String, Object?>) {
+      return dartObj;
+    }
+  }
+  final map = <String, Object?>{};
+  _reflectSet(win, _bloomSignalRegistryProp, map.toJSBox);
+  return map;
+}
+
+/// Creates a reactive [Signal] container initialized to [initialValue].
+///
+/// When hot-reload tracking is active ([isHotReloadTrackingActive]) and a non-null
+/// [key] is supplied (either explicitly or injected at compile-time by Bloom's DDC dev loop),
+/// the signal's value survives in-page module re-executions across hot remounts.
+///
+/// If the stored value type does not match [T], the signal cleanly resets to [initialValue].
+s.Signal<T> signal<T>(T initialValue, {String? key}) {
+  if (key == null || !isHotReloadTrackingActive()) {
+    return s.signal<T>(initialValue);
+  }
+
+  try {
+    final win = web.window as JSAny;
+    final registry = _getOrCreateSignalRegistry(win);
+    final sig = s.signal<T>(initialValue);
+
+    if (registry.containsKey(key)) {
+      final stored = registry[key];
+      if (stored is T) {
+        sig.value = stored;
+      }
+    }
+
+    sig.subscribe((val) {
+      registry[key] = val;
+    });
+
+    return sig;
+  } catch (_) {
+    return s.signal<T>(initialValue);
+  }
+}
 
 /// Creates a read-only view of [signal] to prevent external mutation.
 ///

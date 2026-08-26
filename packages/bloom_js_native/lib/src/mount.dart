@@ -47,7 +47,7 @@ BloomMountHandle? _activeDevMountHandle;
 ///
 /// Returns `true` if [bloomHotReloadTrackingEnabled] was explicitly set in Dart or if the
 /// DDC dev bootstrap script injected the `window.__BLOOM_DDC_HOT_REMOUNT__` marker.
-bool _isHotReloadTrackingActive() {
+bool isHotReloadTrackingActive() {
   if (bloomHotReloadTrackingEnabled) return true;
   try {
     final win = web.window as JSAny;
@@ -56,6 +56,8 @@ bool _isHotReloadTrackingActive() {
     return false;
   }
 }
+
+bool _isHotReloadTrackingActive() => isHotReloadTrackingActive();
 
 /// Bridges teardown and error reporting hooks onto `window` for dev bootstrap scripts.
 void _installHotReloadHooks() {
