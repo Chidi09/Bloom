@@ -509,7 +509,7 @@ anything already in `lib/components/` before writing a new descriptor.
 
 ## Commands
 
-- `bloom js dev` — dev server with live reload, compiles `lib/main.dart`.
+- `bloom js dev` — fast dev server with DDC live reload and hot remount, compiles `lib/main.dart`.
 - `bloom js build` — production bundle.
 - `dart test` — runs `test/`, which exercises SSR-safe code only (no
   `browser.dart` import in test files — the Dart VM has no DOM).

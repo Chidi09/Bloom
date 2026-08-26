@@ -133,6 +133,11 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
   final String source;
   final List<LintFinding> findings = [];
 
+  final List<bool> _functionUiStack = [];
+  int _exemptedDepth = 0;
+
+  bool get _isInsideUiFunction => _functionUiStack.isNotEmpty && _functionUiStack.last;
+
   static const Set<String> _inPlaceMutationMethods = {
     'add',
     'addAll',
@@ -154,6 +159,87 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     'event',
   };
 
+  static const Set<String> _fullyExemptedCalls = {
+    'Live',
+    'LiveNode',
+    'ForEach',
+    'ForEachNode',
+    'Memo',
+    'MemoNode',
+    'effect',
+    'addEffect',
+    'computed',
+    'untracked',
+    'batch',
+    'addEventListener',
+    'subscribe',
+  };
+
+  static const Set<String> _knownUiNodeTypes = {
+    'BloomNode',
+    'ElNode',
+    'TextNode',
+    'FragmentNode',
+    'LiveNode',
+    'ShowNode',
+    'ForEachNode',
+    'MemoNode',
+    'StyleNode',
+    'RawHtmlNode',
+    'AnimatedNode',
+    'MountNode',
+    'RefNode',
+    'ContextProviderNode',
+    'ErrorBoundaryNode',
+    'PortalNode',
+    'SuspenseNode',
+    'Div',
+    'Span',
+    'Button',
+    'Input',
+    'Form',
+    'H1',
+    'H2',
+    'H3',
+    'H4',
+    'H5',
+    'H6',
+    'P',
+    'Ul',
+    'Ol',
+    'Li',
+    'A',
+    'Nav',
+    'Header',
+    'Footer',
+    'Section',
+    'Main',
+    'Aside',
+    'Article',
+    'Table',
+    'Thead',
+    'Tbody',
+    'Tr',
+    'Th',
+    'Td',
+    'Label',
+    'Select',
+    'Option',
+    'Textarea',
+    'Img',
+    'Svg',
+    'Path',
+    'Fragment',
+    'Text',
+    'Live',
+    'Show',
+    'ForEach',
+    'Memo',
+    'Raw',
+    'Style',
+    'Mount',
+  };
+
   _BloomLintVisitor({
     required this.filePath,
     required this.lineInfo,
@@ -166,6 +252,182 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     final lineStart = lineStarts[lineNumber - 1];
     final lineEnd = lineNumber < lineStarts.length ? lineStarts[lineNumber] - 1 : source.length;
     return source.substring(lineStart, lineEnd).trim();
+  }
+
+  bool _isUiTypeName(String typeName) {
+    final clean = typeName.replaceAll('?', '').trim();
+    if (_knownUiNodeTypes.contains(clean)) return true;
+    if (clean.contains('BloomNode') || clean.contains('ElNode')) return true;
+    if (clean.endsWith('Node')) return true;
+    return false;
+  }
+
+  bool _expressionIsUiNode(Expression expr) {
+    if (expr is InstanceCreationExpression) {
+      return _isUiTypeName(expr.constructorName.type.name2.lexeme);
+    }
+    if (expr is MethodInvocation) {
+      return _isUiTypeName(expr.methodName.name);
+    }
+    return false;
+  }
+
+  bool _bodyReturnsUiNode(FunctionBody body) {
+    if (body is ExpressionFunctionBody) {
+      return _expressionIsUiNode(body.expression);
+    }
+    if (body is BlockFunctionBody) {
+      for (final statement in body.block.statements) {
+        if (statement is ReturnStatement && statement.expression != null) {
+          if (_expressionIsUiNode(statement.expression!)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _isUiDeclaration({
+    TypeAnnotation? returnType,
+    required FunctionBody body,
+  }) {
+    if (returnType != null) {
+      return _isUiTypeName(returnType.toSource());
+    }
+    return _bodyReturnsUiNode(body);
+  }
+
+  bool _isSignalTypeName(String typeStr) {
+    return typeStr.contains('Signal') ||
+        typeStr.contains('ReadonlySignal') ||
+        typeStr.contains('BloomField') ||
+        typeStr.contains('BloomFormField');
+  }
+
+  bool _isNonSignalReceiver(AstNode node, String receiverName) {
+    if (_eventParamNames.contains(receiverName)) return true;
+    if (_isEnclosingEventParam(node, receiverName)) return true;
+
+    AstNode? current = node.parent;
+    while (current != null) {
+      FormalParameterList? params;
+      if (current is FunctionExpression) {
+        params = current.parameters;
+      } else if (current is MethodDeclaration) {
+        params = current.parameters;
+      } else if (current is FunctionDeclaration) {
+        params = current.functionExpression.parameters;
+      }
+
+      if (params != null) {
+        for (final p in params.parameters) {
+          final pName = p.name?.lexeme;
+          if (pName == receiverName) {
+            TypeAnnotation? type;
+            if (p is SimpleFormalParameter) {
+              type = p.type;
+            } else if (p is DefaultFormalParameter && p.parameter is SimpleFormalParameter) {
+              type = (p.parameter as SimpleFormalParameter).type;
+            }
+            if (type != null) {
+              final typeStr = type.toSource();
+              if (_isSignalTypeName(typeStr)) return false;
+              return true;
+            }
+          }
+        }
+      }
+
+      if (current is Block) {
+        for (final statement in current.statements) {
+          if (statement is VariableDeclarationStatement) {
+            for (final v in statement.variables.variables) {
+              if (v.name.lexeme == receiverName) {
+                final type = statement.variables.type;
+                if (type != null) {
+                  final typeStr = type.toSource();
+                  if (_isSignalTypeName(typeStr)) return false;
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      current = current.parent;
+    }
+    return false;
+  }
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    final isUi = _isUiDeclaration(
+      returnType: node.returnType,
+      body: node.functionExpression.body,
+    );
+    _functionUiStack.add(isUi);
+    super.visitFunctionDeclaration(node);
+    _functionUiStack.removeLast();
+  }
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    final isUi = _isUiDeclaration(
+      returnType: node.returnType,
+      body: node.body,
+    );
+    _functionUiStack.add(isUi);
+    super.visitMethodDeclaration(node);
+    _functionUiStack.removeLast();
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    if (node.parent is! FunctionDeclaration) {
+      final isUi = _bodyReturnsUiNode(node.body);
+      _functionUiStack.add(isUi);
+      super.visitFunctionExpression(node);
+      _functionUiStack.removeLast();
+    } else {
+      super.visitFunctionExpression(node);
+    }
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    final parent = node.parent;
+    TypeAnnotation? type;
+    if (parent is VariableDeclarationList) {
+      type = parent.type;
+    }
+    final isUi = (type != null && _isUiTypeName(type.toSource())) ||
+        (node.initializer != null && _expressionIsUiNode(node.initializer!));
+    if (isUi) {
+      _functionUiStack.add(true);
+      super.visitVariableDeclaration(node);
+      _functionUiStack.removeLast();
+    } else {
+      super.visitVariableDeclaration(node);
+    }
+  }
+
+  @override
+  void visitNamedExpression(NamedExpression node) {
+    final name = node.name.label.name;
+    final isEventHandler = (name.startsWith('on') && name.length > 2 && name[2].toUpperCase() == name[2]) ||
+        name == 'on' ||
+        name == 'onMount' ||
+        name == 'onUnmount' ||
+        name == 'onDispose' ||
+        name == 'onInit' ||
+        name == 'key';
+    if (isEventHandler) {
+      _exemptedDepth++;
+      super.visitNamedExpression(node);
+      _exemptedDepth--;
+    } else {
+      super.visitNamedExpression(node);
+    }
   }
 
   // 1. nullable_event_force_unwrap
@@ -251,13 +513,41 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     return false;
   }
 
+  void _visitShowArguments(ArgumentList argumentList) {
+    for (var i = 0; i < argumentList.arguments.length; i++) {
+      final arg = argumentList.arguments[i];
+      if (i == 0 && arg is! NamedExpression) {
+        _exemptedDepth++;
+        arg.accept(this);
+        _exemptedDepth--;
+      } else if (arg is NamedExpression && arg.name.label.name == 'when') {
+        _exemptedDepth++;
+        arg.accept(this);
+        _exemptedDepth--;
+      } else {
+        arg.accept(this);
+      }
+    }
+  }
+
   // 2. foreach_missing_key
   // 4. live_never_reads_signal
   @override
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
-    super.visitInstanceCreationExpression(node);
+    final typeName = node.constructorName.type.name2.lexeme;
+    if (_fullyExemptedCalls.contains(typeName)) {
+      _exemptedDepth++;
+      super.visitInstanceCreationExpression(node);
+      _exemptedDepth--;
+    } else if (typeName == 'Show' || typeName == 'ShowNode') {
+      node.constructorName.accept(this);
+      _visitShowArguments(node.argumentList);
+    } else {
+      super.visitInstanceCreationExpression(node);
+    }
+
     _checkForEachAndLive(
-      typeName: node.constructorName.type.name2.lexeme,
+      typeName: typeName,
       argumentList: node.argumentList,
       anchor: node,
     );
@@ -370,17 +660,27 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
   // shapes must be checked so those rules actually fire on real Bloom code.
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    super.visitMethodInvocation(node);
+    final methodName = node.methodName.name;
+    if (node.target == null && _fullyExemptedCalls.contains(methodName)) {
+      _exemptedDepth++;
+      super.visitMethodInvocation(node);
+      _exemptedDepth--;
+    } else if (node.target == null && (methodName == 'Show' || methodName == 'ShowNode')) {
+      node.methodName.accept(this);
+      node.typeArguments?.accept(this);
+      _visitShowArguments(node.argumentList);
+    } else {
+      super.visitMethodInvocation(node);
+    }
 
     if (node.target == null) {
       _checkForEachAndLive(
-        typeName: node.methodName.name,
+        typeName: methodName,
         argumentList: node.argumentList,
         anchor: node,
       );
     }
 
-    final methodName = node.methodName.name;
     if (!_inPlaceMutationMethods.contains(methodName)) return;
 
     final target = node.target;
@@ -404,6 +704,55 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
         snippet: _getSnippet(node),
       ));
     }
+  }
+
+  // 8. untracked_signal_read
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    super.visitPrefixedIdentifier(node);
+
+    if (node.identifier.name != 'value') return;
+    _checkUntrackedSignalRead(node, receiverName: node.prefix.name);
+  }
+
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    super.visitPropertyAccess(node);
+
+    if (node.propertyName.name != 'value') return;
+    final target = node.realTarget;
+    final receiverName = target is SimpleIdentifier ? target.name : null;
+    _checkUntrackedSignalRead(node, receiverName: receiverName);
+  }
+
+  void _checkUntrackedSignalRead(AstNode node, {String? receiverName}) {
+    if (!_isInsideUiFunction) return;
+    if (_exemptedDepth > 0) return;
+
+    // Ignore pure assignments to .value (e.g. `signal.value = x`)
+    final parent = node.parent;
+    if (parent is AssignmentExpression &&
+        parent.leftHandSide == node &&
+        parent.operator.lexeme == '=') {
+      return;
+    }
+
+    if (receiverName != null && _isNonSignalReceiver(node, receiverName)) {
+      return;
+    }
+
+    findings.add(LintFinding(
+      filePath: filePath,
+      lineNumber: lineInfo.getLocation(node.offset).lineNumber,
+      ruleName: 'untracked_signal_read',
+      message:
+          "Reading a signal's `.value` directly inside a UI-building function outside "
+          'Live(...), Show(...), ForEach(...), effect(...), or computed(...) captures a '
+          'one-time snapshot rather than creating a reactive subscription — the UI will '
+          'not update when the signal changes. Wrap dynamic UI reads in Live(() => ...) '
+          '(see COOKBOOK.md Section 20).',
+      snippet: _getSnippet(node),
+    ));
   }
 }
 
