@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-08-26
+
+### Added
+* `DbExecutor.transaction<R>(callback)` — atomic multi-statement transactions for both `SqliteDbExecutor` and `PostgresDbExecutor`. Commits on success, rolls back and rethrows the original exception on failure. `PostgresDbExecutor` delegates to `package:postgres`'s real `Connection.runTx()`.
+
 ## 0.1.1 - 2026-08-23
 
 - Internal query-builder fixes. No public API changes.
