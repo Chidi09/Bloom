@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 - 2026-08-26
+
+### Added
+* `mount()`/`mountToElement()` now support an opt-in hot-reload tracking mode (used by `bloom js dev --experimental-ddc`'s in-page fast remount): when active, the currently-mounted `BloomMountHandle` is tracked and disposable via a dev-only `bloomDisposeActiveMount()` hook, with zero overhead when inactive (the default, including all production builds).
+
 ## 0.3.3 - 2026-08-24
 
 ### Added

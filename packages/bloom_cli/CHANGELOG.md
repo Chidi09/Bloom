@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 - 2026-08-26
+
+### Added
+* **`bloom build web_dom`**: pure-Dart web apps now build into a dedicated `build/web/` output directory (matching Flutter web's convention) instead of in place inside the source `web/` directory. `TailwindStaticBuild` wraps the real `@tailwindcss/cli` v4 via `bunx` to emit a minified, static `build/web/dist/app.css` for production, swapping the dev-mode `@tailwindcss/browser` `<script>` tag for a production `<link rel="stylesheet">` in the built copy of `index.html` only. `bloom deploy` for `web_dom` projects now targets `build/web`, matching every other web target — a `bloom build web_dom` run is required before deploying (previously deploy could point straight at source).
+* **`bloom js dev --experimental-ddc`**: on a Dart source edit, the dev server now performs an in-page fast remount (dispose the active mount, evict the cached RequireJS module, re-invoke `main()`) instead of a full `window.location.reload()` — no browser navigation. The `dart2js` dev path's reload behavior is unchanged.
+
+### Fixed
+* CSS hot-swap (`css_hot_swap.dart`) no longer misidentifies certain brace boundaries during its skeleton diff.
+
 ## 0.7.0 - 2026-08-25
 
 ### Added
