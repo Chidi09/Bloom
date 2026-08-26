@@ -317,19 +317,19 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     }
   }
 
-  // 3. browser_import_in_test
+  // 3. browser_import_in_test & forbidden_browser_import_in_shared_code
   @override
   void visitImportDirective(ImportDirective node) {
     super.visitImportDirective(node);
+
+    final uri = node.uri.stringValue;
+    if (uri == null || !uri.endsWith('bloom_js_native/browser.dart')) return;
 
     final isTestFile = filePath.startsWith('test/') ||
         filePath.startsWith('test\\') ||
         p.split(filePath).contains('test');
 
-    if (!isTestFile) return;
-
-    final uri = node.uri.stringValue;
-    if (uri != null && uri.endsWith('bloom_js_native/browser.dart')) {
+    if (isTestFile) {
       findings.add(LintFinding(
         filePath: filePath,
         lineNumber: lineInfo.getLocation(node.offset).lineNumber,
@@ -339,6 +339,22 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
             '(dart test --platform chrome) and will fail under the default VM test runner. '
             "Import 'package:bloom_js_native/bloom_js_native.dart' (the SSR-safe core) instead "
             'unless this test is deliberately browser-only.',
+        snippet: _getSnippet(node),
+      ));
+    }
+
+    final normalizedPath = filePath.replaceAll('\\', '/');
+    final isAllowed = normalizedPath == 'lib/main.dart' || normalizedPath.startsWith('web/');
+    if (!isAllowed) {
+      findings.add(LintFinding(
+        filePath: filePath,
+        lineNumber: lineInfo.getLocation(node.offset).lineNumber,
+        ruleName: 'forbidden_browser_import_in_shared_code',
+        message:
+            "Importing 'package:bloom_js_native/browser.dart' requires a real browser DOM "
+            'and is only permitted in the browser entry point (lib/main.dart) or files under web/. '
+            'Shared components, SSR routes, and library code must import '
+            "'package:bloom_js_native/bloom_js_native.dart' (the SSR-safe core) instead.",
         snippet: _getSnippet(node),
       ));
     }

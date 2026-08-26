@@ -202,6 +202,42 @@ BloomNode buildDynamic(String activeClass) {
       final strippedOutput = formatted.replaceAll(RegExp(r'\s+'), '');
       expect(strippedOutput, equals(strippedInput));
     });
+
+    test('does not insert space between CSS function names and opening parenthesis', () {
+      const rawCss = '''
+.card {
+  background: rgba(0, 0, 0, .5);
+  filter: blur(4px);
+  color: var(--x);
+  transform: translateY(4px);
+}
+''';
+
+      final formatted = formatCss(rawCss);
+
+      expect(formatted, contains('background: rgba(0, 0, 0, .5);'));
+      expect(formatted, contains('filter: blur(4px);'));
+      expect(formatted, contains('color: var(--x);'));
+      expect(formatted, contains('transform: translateY(4px);'));
+      expect(formatted, isNot(contains('rgba (')));
+      expect(formatted, isNot(contains('blur (')));
+      expect(formatted, isNot(contains('var (')));
+      expect(formatted, isNot(contains('translateY (')));
+    });
+
+    test('does not insert space before parentheses in selectors like :not() and :nth-child()', () {
+      const rawCss = '''
+.list li:nth-child(2n):not(.foo) {
+  color: red;
+}
+''';
+
+      final formatted = formatCss(rawCss);
+
+      expect(formatted, contains('.list li:nth-child(2n):not(.foo) {'));
+      expect(formatted, isNot(contains(':nth-child (')));
+      expect(formatted, isNot(contains(':not (')));
+    });
   });
 }
 

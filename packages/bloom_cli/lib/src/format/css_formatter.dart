@@ -393,6 +393,15 @@ bool _needsSpaceBetween(_Token prev, _Token next) {
     if (next.text.startsWith(':') || next.text.startsWith('.')) {
       return false;
     }
+    // If next is a parenthesized group (e.g. CSS function call or selector
+    // pseudo-class argument), do not insert a space before '(', unless prev
+    // is an at-rule keyword (e.g. @media (...), @supports (...)).
+    if (next.text.startsWith('(')) {
+      if (prev.text.startsWith('@')) {
+        return true;
+      }
+      return false;
+    }
     return true;
   }
   return false;
