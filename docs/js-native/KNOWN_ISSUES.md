@@ -237,6 +237,55 @@ possible pattern.
 `signal_key_injector.dart`, `ddc_dev_compiler.dart`), `bloom_js_native`
 (runtime matching/carry-over, `signals.dart`).
 
+### 6. DDC fast dev-loop is opt-in and invisible by default — Tracked, not started
+Everything shipped in items 4 and 5 (CSS hot-swap, in-page fast
+remount, compiler-level Signal-state preservation) only activates under
+`bloom js dev --experimental-ddc`, default `false`
+(`packages/bloom_cli/lib/src/commands/js_command.dart`). A fresh
+`bloom create --js-native` project's own printed onboarding instruction
+(`packages/bloom_cli/lib/src/commands/create_command.dart:299`) tells
+the developer to run plain `bloom js dev` — no flag — so the entire
+fast dev-loop built this session is invisible unless a developer
+independently discovers the flag from docs. Comparable frameworks
+(Vite, SolidStart, Next.js) ship their fast dev server as the *only*
+path, not an opt-in flag.
+
+**Fix direction:** now that the DDC path has real headless-Chromium
+coverage across four dispatches this session (DDC compile, npm/UMD
+interop, fast remount, Signal-state preservation), promote it to the
+default `bloom js dev` behavior — invert the flag so `dart2js -O0` dev
+mode becomes the opt-out (e.g. `--legacy-dart2js` or `--no-ddc`) — and
+update `create_command.dart`'s printed onboarding line and any
+generated `AGENTS.md`/COOKBOOK.md text accordingly. This is a real
+default-behavior change: flag it explicitly, verify against every
+existing DDC-path test plus at least one full real example app
+(`bloom_js_ecommerce`) booting cleanly end-to-end before treating it as
+safe to flip.
+
+**Owner package:** `bloom_cli` (`js_command.dart`, `create_command.dart`).
+
+### 7. No lint rule for the #1 documented reactivity footgun — Tracked, not started
+`packages/bloom_js_native/COOKBOOK.md` §20 names "reading a signal
+outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a
+subscription" as the single most common beginner bug. `bloom_lint.dart`
+has real rules for the *inverse* case (`live_never_reads_signal` — a
+`Live` that never reads a signal, so it can never react to anything)
+and five others, but nothing catches a `.value` read on a tracked
+signal directly inside a `BloomNode`-returning function body, outside
+any reactive callback (`Live`/`Show`/`ForEach`/`effect`/`computed`).
+SolidJS ships `eslint-plugin-solid`'s `reactivity` rule for exactly
+this footgun class.
+
+**Fix direction:** a new AST-visitor lint rule mirroring the existing
+rules' infrastructure in `bloom_lint.dart` — track "am I currently
+inside a reactive callback" as visitor state (entering/exiting
+`Live(...)`, `Show(...)`, `ForEach(...)`, `effect(...)`, `computed(...)`
+callback bodies), and flag any `.value` property access on an
+identifier resolvable to a `Signal`/`ReadonlySignal` outside that
+state.
+
+**Owner package:** `bloom_cli` (`bloom lint` command, `bloom_lint.dart`).
+
 ## Review summary (for context)
 
 | Dimension | Rating | Note |
