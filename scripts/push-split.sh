@@ -19,8 +19,9 @@ PRIVATE_REMOTE="https://github.com/Chidi09/bloom-cloud.git"
 
 echo "== Splitting '$BRANCH' from $ROOT =="
 
-# --- Public: packages/, apps/, benchmarks/, bloom-website/, examples/, LICENSE, README.md, package.json, vercel.json ---
-# (Architectural docs and cloud services are kept strictly private)
+# --- Public: packages/, apps/, benchmarks/, bloom-website/, examples/, docs/js-native/, LICENSE, README.md, package.json, vercel.json ---
+# docs/js-native/ ships publicly because packages/bloom_js_native/README.md links directly into it.
+# (All other architectural docs and cloud services are kept strictly private)
 git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
 (
   cd "$WORKDIR/public"
@@ -31,6 +32,7 @@ git clone --no-local --branch "$BRANCH" "$ROOT" "$WORKDIR/public" >/dev/null
     --path bloom-website/ \
     --path examples/ \
     --path assets/ \
+    --path docs/js-native/ \
     --path package.json \
     --path vercel.json \
     --path LICENSE \
