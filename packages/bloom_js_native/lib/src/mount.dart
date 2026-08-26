@@ -25,6 +25,75 @@ import 'framework.dart';
 /// ```
 bool bloomDevErrorOverlayEnabled = false;
 
+/// When `true`, active mounted applications ([BloomMountHandle]) are tracked to enable
+/// clean in-page teardown and remounting during hot reload development cycles.
+///
+/// Intended to be enabled in development environments (e.g. by `bloom js dev --experimental-ddc`
+/// or dev bootstrap scripts) to support fast in-page hot remounting without full page navigation.
+/// Defaults to `false` in production builds.
+///
+/// ```dart
+/// void main() {
+///   bloomHotReloadTrackingEnabled = true;
+///   mount(App(), '#app');
+/// }
+/// ```
+bool bloomHotReloadTrackingEnabled = false;
+
+/// Tracks the most recently mounted application handle during development hot-reload sessions.
+BloomMountHandle? _activeDevMountHandle;
+
+/// Determines whether hot-reload active-mount tracking is currently active.
+///
+/// Returns `true` if [bloomHotReloadTrackingEnabled] was explicitly set in Dart or if the
+/// DDC dev bootstrap script injected the `window.__BLOOM_DDC_HOT_REMOUNT__` marker.
+bool _isHotReloadTrackingActive() {
+  if (bloomHotReloadTrackingEnabled) return true;
+  try {
+    final win = web.window as JSAny;
+    return _jsGetBool(win, '__BLOOM_DDC_HOT_REMOUNT__') ?? false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Bridges teardown and error reporting hooks onto `window` for dev bootstrap scripts.
+void _installHotReloadHooks() {
+  try {
+    final win = web.window as JSAny;
+    _reflectSet(
+      win,
+      '__bloomDisposeActiveMount',
+      (() {
+        bloomDisposeActiveMount();
+      }).toJS,
+    );
+    _reflectSet(
+      win,
+      '__bloomReportUnhandledError',
+      ((JSString? msg, JSString? stack) {
+        final message = msg?.toDart ?? 'Unknown error';
+        final stackTrace = stack?.toDart ?? '';
+        _reportUnhandledError(message, StackTrace.fromString(stackTrace));
+      }).toJS,
+    );
+  } catch (_) {}
+}
+
+/// Disposes the currently active mounted application tracked by development hot reload,
+/// tearing down its DOM elements, disposing all reactive signal effects, and clearing
+/// the active mount handle reference.
+///
+/// Called automatically by the browser dev bootstrap script during DDC hot remount cycles.
+void bloomDisposeActiveMount() {
+  if (_activeDevMountHandle != null && !_activeDevMountHandle!.isDisposed) {
+    try {
+      _activeDevMountHandle!.dispose();
+    } catch (_) {}
+  }
+  _activeDevMountHandle = null;
+}
+
 /// Optional Content-Security-Policy (CSP) nonce applied to `<style>` elements
 /// created and injected by the framework.
 ///
@@ -53,7 +122,7 @@ void _reportUnhandledError(Object error, StackTrace stackTrace) {
     'error': error.toString(),
     'stackTrace': stackTrace.toString(),
   });
-  if (bloomDevErrorOverlayEnabled) {
+  if (bloomDevErrorOverlayEnabled || _isHotReloadTrackingActive()) {
     final overlayHost = web.document.createElement('div');
     overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
     (web.document.body ?? web.document.documentElement)?.appendChild(overlayHost);
@@ -215,7 +284,12 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
     for (final n in domNodes) {
       root.appendChild(n);
     }
-    return BloomMountHandle(root, region.disposers.toList());
+    final handle = BloomMountHandle(root, region.disposers.toList());
+    if (_isHotReloadTrackingActive()) {
+      _activeDevMountHandle = handle;
+      _installHotReloadHooks();
+    }
+    return handle;
   } catch (error, stackTrace) {
     for (final d in region.disposers) {
       try {
@@ -226,12 +300,17 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
       'error': error.toString(),
       'stackTrace': stackTrace.toString(),
     });
-    if (bloomDevErrorOverlayEnabled) {
+    if (bloomDevErrorOverlayEnabled || _isHotReloadTrackingActive()) {
       root.textContent = '';
       final overlayHost = web.document.createElement('div');
       overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
       root.appendChild(overlayHost);
-      return BloomMountHandle(root, []);
+      final handle = BloomMountHandle(root, []);
+      if (_isHotReloadTrackingActive()) {
+        _activeDevMountHandle = handle;
+        _installHotReloadHooks();
+      }
+      return handle;
     }
     rethrow;
   }

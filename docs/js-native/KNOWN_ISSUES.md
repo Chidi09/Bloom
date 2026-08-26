@@ -71,7 +71,7 @@ crashes, with no static warning at the import site.
 `bloom_lint.dart`, independent of the existing `browser_import_in_test`
 rule (both fire on a `test/` file importing `browser.dart`).
 
-### 4. Dev-loop (hot reload) latency — Partially fixed
+### 4. Dev-loop (hot reload) latency — Partially fixed (in-page fast remount shipped; full Signal-state preservation deferred)
 Each save currently costs ~4.5s–7.0s: a whole-program `dart2js`
 compile, Bun asset assembly, then an SSE-triggered full
 `window.location.reload()`. Comparable web tooling (Vite, Turbopack,
@@ -91,9 +91,40 @@ implemented in `bloom js dev`:
   UMD packages still attach to `window` correctly and a real example
   app boots and renders under DDC. `bloom js build` (`dart2js -O4`,
   production) is completely unaffected.
-- Still open: DDC still triggers a full page reload on every Dart
-  source edit (Signal<T> state is not preserved) — that is the
-  deferred, framework-level "Stage 3" work below, not yet started.
+- `bloom js dev --experimental-ddc` now performs an **in-page fast
+  remount** on a Dart source edit instead of a full
+  `window.location.reload()`: the dev server broadcasts a new
+  `hot-remount` SSE event (only when DDC mode is active — the
+  `dart2js` dev path's `reload` behavior is unchanged), the browser
+  disposes the currently-mounted app via a new
+  `bloomDisposeActiveMount()` hook (installed by `mount.dart` only
+  when hot-reload tracking is active, so this adds zero overhead to
+  production builds), evicts the cached `main` module from RequireJS
+  (`require.undef('main')`, a real API in the vendored Dart SDK
+  `amd/require.js`), and re-requires/re-invokes `main()` — with no
+  browser navigation. Verified in headless Chromium
+  (`test/dev/hot_remount_test.dart`) that a window-level sentinel
+  survives the remount (proving no navigation occurred), that the DOM
+  updates to the new source's content, and that a `main()` thrown
+  during the second invocation renders the existing dev error overlay
+  in place.
+- Still open: this is a fast *remount*, not state-preserving hot
+  reload — every `Signal<T>` legitimately resets to its initial value
+  on each hot reload, same as before, just without a full page
+  reload/navigation (scroll position, DevTools console history, and
+  network tab survive; component state does not). Full Signal-value
+  preservation across a hot reload was investigated and explicitly
+  **not attempted**: an external technical review found the
+  naive "just re-execute the changed module" premise false for
+  Bloom's DDC output (it compiles to a single monolithic AMD module,
+  not a fine-grained module graph), and all three candidate
+  Signal-matching strategies (declaration-order key, explicit opt-in
+  key, top-level-only scoping) carry a real risk of silently binding a
+  stale value to the wrong Signal — worse for developer trust than a
+  clean reset. The recommended path to real state preservation is
+  compiler-level (AST/macro-based stable keying of each `signal(...)`
+  call site), which is a separate, larger, not-yet-started body of
+  work.
 
 **Fix direction (two independent levers):**
 - Compile with DDC (Dart Dev Compiler) or incremental Wasm in dev mode

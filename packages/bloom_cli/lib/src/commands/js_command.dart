@@ -295,8 +295,13 @@ class JsDevCommand extends Command<int> {
           success = await _compile(entryFile, outputFile, devServer: devServer);
         }
         if (success) {
-          devServer.broadcastReload(reason: changedName);
-          print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
+          if (isDdcActive) {
+            devServer.broadcastHotRemount(reason: changedName);
+            print(Ansi.success('⚡ [Hot Remount] Broadcasted fast remount event to browser clients.'));
+          } else {
+            devServer.broadcastReload(reason: changedName);
+            print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
+          }
         }
 
         // Update cached source for every changed file in the event batch

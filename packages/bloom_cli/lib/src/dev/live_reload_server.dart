@@ -23,9 +23,12 @@ class BloomLiveReloadServer {
 <script type="module">
   // Bloom DDC Dev Bootstrap (safe against AMD/UMD NPM interop pollution)
   (() => {
-    const reqScript = document.createElement('script');
-    reqScript.src = '/require.js';
-    reqScript.onload = () => {
+    window.__BLOOM_DDC_HOT_REMOUNT__ = true;
+
+    function executeMain() {
+      // Clear any active error overlays before mounting
+      document.querySelectorAll('[data-bloom-dev-error-overlay]').forEach((el) => el.remove());
+
       require.config({
         baseUrl: '/',
         paths: {
@@ -34,11 +37,25 @@ class BloomLiveReloadServer {
         },
         urlArgs: 'v=' + Date.now()
       });
+
       require(['dart_sdk', 'main'], (dart_sdk, app) => {
         if (app) {
           for (const k of Object.keys(app)) {
             if (app[k] && typeof app[k].main === 'function') {
-              app[k].main();
+              try {
+                app[k].main();
+              } catch (err) {
+                console.error('[Bloom DDC Main Error]', err);
+                if (typeof window.__bloomReportUnhandledError === 'function') {
+                  window.__bloomReportUnhandledError(err && (err.message || String(err)), err && err.stack);
+                } else {
+                  const host = document.createElement('div');
+                  host.setAttribute('data-bloom-dev-error-overlay', 'true');
+                  host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:rgba(24,8,8,0.96);color:#f5e6e6;font-family:ui-monospace,monospace;padding:32px;overflow:auto;');
+                  host.innerHTML = '<div style="max-width:900px;margin:0 auto;"><div style="font-size:12px;color:#ff8a8a;margin-bottom:8px;">Unhandled Error</div><div style="font-size:20px;font-weight:600;margin-bottom:4px;white-space:pre-wrap;">' + String(err) + '</div><pre style="background:rgba(0,0,0,0.35);padding:16px;border-radius:8px;font-size:12px;white-space:pre-wrap;">' + (err && err.stack ? String(err.stack) : '') + '</pre></div>';
+                  (document.body || document.documentElement).appendChild(host);
+                }
+              }
               break;
             }
           }
@@ -46,6 +63,29 @@ class BloomLiveReloadServer {
       }, (err) => {
         console.error('[Bloom DDC Error] Failed to load application modules:', err);
       });
+    }
+
+    window.__bloomDdcRemount = () => {
+      // 1. Dispose previous active mount
+      if (typeof window.__bloomDisposeActiveMount === 'function') {
+        try {
+          window.__bloomDisposeActiveMount();
+        } catch (e) {
+          console.warn('[Bloom Hot Remount] Error during mount disposal:', e);
+        }
+      }
+      // 2. Evict cached main module from RequireJS
+      if (typeof require !== 'undefined' && typeof require.undef === 'function') {
+        require.undef('main');
+      }
+      // 3. Re-require and re-execute main
+      executeMain();
+    };
+
+    const reqScript = document.createElement('script');
+    reqScript.src = '/require.js';
+    reqScript.onload = () => {
+      executeMain();
     };
     document.body.appendChild(reqScript);
   })();
@@ -1304,6 +1344,22 @@ class BloomLiveReloadServer {
         if (dt) dt.showRefreshing(reason);
         setTimeout(() => window.location.reload(), 280);
       });
+      es.addEventListener('hot-remount', (e) => {
+        let reason = null;
+        try {
+          if (e.data) {
+            const payload = JSON.parse(e.data);
+            if (payload.reason) reason = payload.reason;
+          }
+        } catch (_) {}
+        console.log('%c⚡ [Bloom Hot Remount]%c Fast remounting application...', 'color:#6366F1;font-weight:bold', 'color:inherit');
+        if (dt) dt.showRefreshing(reason);
+        if (typeof window.__bloomDdcRemount === 'function') {
+          window.__bloomDdcRemount();
+        } else {
+          setTimeout(() => window.location.reload(), 280);
+        }
+      });
       es.addEventListener('css-patch', (e) => {
         let payload = null;
         try {
@@ -1405,6 +1461,16 @@ class BloomLiveReloadServer {
     });
 
     final data = 'event: reload\ndata: $payload\n\n';
+    _broadcast(data);
+  }
+
+  void broadcastHotRemount({String? reason}) {
+    final payload = jsonEncode({
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      if (reason != null) 'reason': reason,
+    });
+
+    final data = 'event: hot-remount\ndata: $payload\n\n';
     _broadcast(data);
   }
 
