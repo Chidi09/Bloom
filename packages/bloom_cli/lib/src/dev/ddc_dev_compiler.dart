@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'live_reload_server.dart';
+import 'signal_key_injector.dart';
 
 /// Representation of the Dart Dev Compiler (DDC) SDK toolchain and runtime paths.
 class DdcToolchain {
@@ -197,6 +198,9 @@ class DdcDevCompiler {
       );
     }
 
+    // Prepare staged compilation directory with injected signal keys
+    final stagedEntryFile = _stageSourcesWithSignalKeys();
+
     final sw = Stopwatch()..start();
     final args = <String>[
       toolchain.snapshotPath!,
@@ -206,7 +210,7 @@ class DdcDevCompiler {
       '--module-name=$moduleName',
       '-o',
       outputFile.path,
-      entryFile.path,
+      stagedEntryFile.path,
     ];
 
     final result = await Process.run(toolchain.runnerExecutable!, args);
@@ -229,5 +233,64 @@ class DdcDevCompiler {
       duration: sw.elapsed,
       outputSizeBytes: sizeBytes,
     );
+  }
+
+  /// Stages [entryFile] and reachable local `lib/` sources into a temporary
+  /// build cache directory with injected stable signal keys.
+  File _stageSourcesWithSignalKeys() {
+    final stagingDir =
+        Directory(p.join(toolchain.cacheDir.path, 'staged', moduleName));
+    if (!stagingDir.existsSync()) {
+      stagingDir.createSync(recursive: true);
+    }
+
+    Directory? projectRoot;
+    var current = entryFile.parent;
+    while (current.path != current.parent.path) {
+      if (File(p.join(current.path, 'pubspec.yaml')).existsSync() ||
+          Directory(p.join(current.path, '.dart_tool')).existsSync()) {
+        projectRoot = current;
+        break;
+      }
+      current = current.parent;
+    }
+
+    final String entryRelPath;
+    if (projectRoot != null) {
+      entryRelPath = p.relative(entryFile.path, from: projectRoot.path);
+    } else {
+      entryRelPath = p.basename(entryFile.path);
+    }
+
+    final stagedEntry = File(p.join(stagingDir.path, entryRelPath));
+    stagedEntry.parent.createSync(recursive: true);
+
+    final entrySource = entryFile.readAsStringSync();
+    final transformedEntry = SignalKeyInjector.injectKeys(
+      entrySource,
+      relativePath: entryRelPath,
+    );
+    stagedEntry.writeAsStringSync(transformedEntry);
+
+    if (projectRoot != null) {
+      final libDir = Directory(p.join(projectRoot.path, 'lib'));
+      if (libDir.existsSync()) {
+        for (final entity in libDir.listSync(recursive: true)) {
+          if (entity is File &&
+              entity.path.endsWith('.dart') &&
+              entity.path != entryFile.path) {
+            final rel = p.relative(entity.path, from: projectRoot.path);
+            final dest = File(p.join(stagingDir.path, rel));
+            dest.parent.createSync(recursive: true);
+            final content = entity.readAsStringSync();
+            final transformed =
+                SignalKeyInjector.injectKeys(content, relativePath: rel);
+            dest.writeAsStringSync(transformed);
+          }
+        }
+      }
+    }
+
+    return stagedEntry;
   }
 }
