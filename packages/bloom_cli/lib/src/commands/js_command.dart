@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import '../deployment/host_config_generator.dart';
 import '../deployment/proxy_config_loader.dart';
 import '../deployment/web_deploy_targets.dart';
+import '../dev/css_hot_swap.dart';
+import '../dev/ddc_dev_compiler.dart';
 import '../dev/dev_proxy.dart';
 import '../dev/live_reload_server.dart';
 import '../dev/source_watcher.dart';
@@ -78,6 +80,12 @@ class JsDevCommand extends Command<int> {
         'host',
         defaultsTo: '0.0.0.0',
         help: 'Host interface to bind.',
+      )
+      ..addFlag(
+        'experimental-ddc',
+        defaultsTo: false,
+        help:
+            'Enable experimental fast DDC (Dart Dev Compiler) compilation for development.',
       );
   }
 
@@ -108,6 +116,38 @@ class JsDevCommand extends Command<int> {
             : File(p.join(project.rootDir.path, 'example', 'main.dart')));
 
     final outputFile = File(p.join(webDir.path, 'main.js'));
+
+    // Check experimental DDC option
+    final useDdcRequested =
+        (argResults?['experimental-ddc'] as bool?) ?? false;
+    DdcToolchain? ddcToolchain;
+    DdcDevCompiler? ddcCompiler;
+    bool isDdcActive = false;
+
+    if (useDdcRequested) {
+      ddcToolchain = DdcToolchain.discover(projectRoot: project.rootDir);
+      if (!ddcToolchain.isAvailable) {
+        print(Ansi.warn(
+            '⚠ Experimental DDC toolchain snapshots not found in Dart SDK (${ddcToolchain.snapshotPath ?? "unknown"}). Falling back to dart2js -O0.'));
+      } else {
+        isDdcActive = true;
+        print(Ansi.step(
+            '⚡ Using experimental DDC (Dart Dev Compiler) fast dev-loop.'));
+        await ddcToolchain.ensureSdkArtifacts(
+          onProgress: (msg) => print(Ansi.info('› $msg')),
+        );
+        final packageConfig = File(p.join(
+            project.rootDir.path, '.dart_tool', 'package_config.json'));
+        ddcCompiler = DdcDevCompiler(
+          toolchain: ddcToolchain,
+          entryFile: entryFile,
+          outputFile: outputFile,
+          packageConfigFile:
+              packageConfig.existsSync() ? packageConfig : null,
+          moduleName: 'main',
+        );
+      }
+    }
 
     // 3. Parse dev proxy configuration from bloom.yaml
     final config = project.loadBloomConfig();
@@ -163,8 +203,25 @@ class JsDevCommand extends Command<int> {
       }
     }
 
-    // 5. Initial Fast Compile (-O0 for development)
-    await _compile(entryFile, outputFile);
+    // Pre-populate cached source baseline for CSS hot-swap detection
+    final watchDir = Directory(p.join(project.rootDir.path, 'lib'));
+    final Map<String, String> lastSource = {};
+    if (watchDir.existsSync()) {
+      for (final file in watchDir.listSync(recursive: true, followLinks: false)) {
+        if (file is File && file.path.endsWith('.dart')) {
+          try {
+            lastSource[file.path] = file.readAsStringSync();
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 5. Initial Fast Compile
+    if (isDdcActive && ddcCompiler != null) {
+      await _compileDdc(ddcCompiler);
+    } else {
+      await _compile(entryFile, outputFile);
+    }
 
     // 6. Start Live Reload Dev Server with SSE and Auto-Injection
     final devServer = BloomLiveReloadServer(
@@ -173,6 +230,8 @@ class JsDevCommand extends Command<int> {
       port: port,
       autoInjectScript: true,
       proxyRules: proxyRules,
+      isDdcMode: isDdcActive,
+      ddcCacheDir: ddcToolchain?.cacheDir,
     );
     await devServer.start();
 
@@ -188,7 +247,6 @@ class JsDevCommand extends Command<int> {
     print(Ansi.boldText('› Watching for file changes in ${project.rootDir.path}/lib... (Ctrl+C to stop)\n'));
 
     // 7. Watch for Dart file changes and auto-recompile + broadcast reload
-    final watchDir = Directory(p.join(project.rootDir.path, 'lib'));
     if (watchDir.existsSync()) {
       final watcher = BloomSourceWatcher(
         directories: [watchDir],
@@ -196,16 +254,63 @@ class JsDevCommand extends Command<int> {
       );
 
       watcher.onChange.listen((events) async {
+        if (events.length == 1) {
+          final event = events.first;
+          final changedPath = event.path;
+          final changedFile = File(changedPath);
+          if (changedPath.endsWith('.dart') && changedFile.existsSync()) {
+            final oldContent = lastSource[changedPath];
+            if (oldContent != null) {
+              String? newContent;
+              try {
+                newContent = await changedFile.readAsString();
+              } catch (_) {}
+
+              if (newContent != null) {
+                final change = detectCssOnlyChange(oldContent, newContent);
+                if (change != null) {
+                  devServer.broadcastCssPatch(
+                    oldCss: change.oldCss,
+                    newCss: change.newCss,
+                  );
+                  print(Ansi.success('⚡ [CSS Hot Swap] Patched stylesheet without recompiling.'));
+                  lastSource[changedPath] = newContent;
+                  return;
+                }
+              }
+            }
+          }
+        }
+
         final changedName = p.basename(events.first.path);
         print(Ansi.info('\n🔄 File change detected: $changedName — Recompiling...'));
         // Tell the browser a rebuild started BEFORE compiling, not after: the
         // compile takes seconds, and until this event existed the page gave no
         // feedback at all in the meantime.
         devServer.broadcastCompiling(reason: changedName);
-        final success = await _compile(entryFile, outputFile, devServer: devServer);
+        final bool success;
+        if (isDdcActive && ddcCompiler != null) {
+          success = await _compileDdc(ddcCompiler, devServer: devServer);
+        } else {
+          success = await _compile(entryFile, outputFile, devServer: devServer);
+        }
         if (success) {
           devServer.broadcastReload(reason: changedName);
           print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
+        }
+
+        // Update cached source for every changed file in the event batch
+        for (final event in events) {
+          if (event.path.endsWith('.dart')) {
+            final file = File(event.path);
+            if (file.existsSync()) {
+              try {
+                lastSource[event.path] = file.readAsStringSync();
+              } catch (_) {}
+            } else {
+              lastSource.remove(event.path);
+            }
+          }
         }
       });
     }
@@ -221,6 +326,24 @@ class JsDevCommand extends Command<int> {
 
     await completer.future;
     return 0;
+  }
+
+  /// Compiles [entryFile] to [outputFile] using DDC.
+  Future<bool> _compileDdc(
+    DdcDevCompiler compiler, {
+    BloomLiveReloadServer? devServer,
+  }) async {
+    final result = await compiler.compile(devServer: devServer);
+    if (!result.success) {
+      print(Ansi.error('✖ Compilation failed:\n${result.error}'));
+      return false;
+    } else {
+      final sizeKb = result.outputSizeKb.toStringAsFixed(1);
+      final secs = (result.duration.inMilliseconds / 1000).toStringAsFixed(2);
+      print(Ansi.success(
+          '✓ Compiled main.js ($sizeKb kB) via DDC in ${secs}s'));
+      return true;
+    }
   }
 
   /// Compiles [entryFile] to [outputFile].
