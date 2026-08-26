@@ -57,6 +57,11 @@ BloomNode counterCard(Signal<int> count) {
 }
 ```
 
+`bloom lint`'s `untracked_signal_read` rule flags exactly this bug
+automatically — a `.value` read directly inside a `BloomNode`-returning
+function, outside `Live`/`Show`/`ForEach`/`effect`/`computed` — so it's
+caught before you even run the app. Run `bloom lint` before committing.
+
 ### Disposal Contract
 Any resource that binds external listeners, DOM observers, or event loops must be disposed when detached:
 - `BloomMountHandle.unmount()` / `dispose()` — Tears down mounted DOM and disposes all nested effects.
@@ -1812,6 +1817,47 @@ void main() {
 }
 ```
 
+### How do I catch reactivity bugs before they ship? (`bloom lint`)
+`dart analyze` checks Dart-level correctness but knows nothing about
+Bloom's reactivity rules. `bloom lint` runs framework-specific static
+checks on top of it, including `untracked_signal_read` — a `.value` read
+directly inside UI-building code, outside a `Live`/`Show`/`ForEach`
+child, an `effect()`, or a `computed()` — the exact bug shown in Section
+2 ("The #1 Beginner Bug"). It also catches missing `ForEach` `key:`
+arguments, in-place mutation of signal-held collections, and a few other
+common mistakes. Run it as part of your normal pre-commit routine:
+
+```bash
+bloom lint
+```
+
+### How does the dev server preserve state across edits? (DDC hot remount)
+`bloom js dev` uses the DDC (Dart Dev Compiler) fast dev-loop by default.
+On a source edit, instead of a full `window.location.reload()`, it
+disposes the currently mounted app and re-invokes `main()` in place — no
+browser navigation, no lost scroll position or DevTools state. Pass
+`--legacy-dart2js` to fall back to the old whole-program `dart2js -O0`
+dev build if you ever need to.
+
+Because DDC compiles to one monolithic JS module, a hot remount resets
+all plain Dart top-level/static state by default — including signals.
+To opt a specific top-level signal into surviving a remount, give it a
+stable `key:`:
+
+```dart
+final count = signal(0, key: 'lib/state/counter.dart#count');
+```
+
+The dev compiler auto-injects a stable key (derived from file path +
+enclosing declaration + ordinal) for any `signal(...)` call that doesn't
+have one explicitly, so in practice you don't need to write `key:`
+yourself during normal development — it's already preserved. If a
+signal's declared type changes between edits, its value is safely reset
+to the new initial value rather than risking a type-mismatch crash. This
+carry-over only applies to top-level/static signals in dev mode; it has
+zero effect on `bloom js build` production bundles, and `computed()`/
+`effect()`/closure-scoped signals are always reset on a remount.
+
 ---
 
 ## 17. Error Handling
@@ -3445,7 +3491,8 @@ A consolidated reference of every mistake this framework's own gotchas invite. E
 
 ### Reactivity
 
-- **Reading a signal outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a subscription.** This is the #1 beginner bug — see Section 2. If a value doesn't update on screen after a signal changes, this is almost always why.
+- **Reading a signal outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a subscription.** This is the #1 beginner bug — see Section 2. If a value doesn't update on screen after a signal changes, this is almost always why. `bloom lint`'s `untracked_signal_read` rule (Section 16) catches this automatically.
+- **A DDC dev-mode hot remount (`bloom js dev`'s default) resets all top-level/static state, including signals, unless it's keyed** — the dev compiler auto-injects a stable key for you, so this is normally transparent, but a signal's value resets to its initial value if its declared type changes between edits (Section 16). This only affects dev mode; production builds always start fresh.
 - **Update a list/map signal by reassigning `.value`, never by mutating the existing collection in place.** `todos.value.add(x)` does not notify subscribers because the identity of `.value` never changed; `todos.value = [...todos.value, x]` does. Every list-mutation example in this cookbook (Section 6, Section 7) reassigns for this reason — copy the pattern exactly, don't "simplify" it back to `.add()`/`.remove()`.
 - **Always pass `key:` to `ForEach` for any list that can reorder, insert, or remove items** (Section 6). An unkeyed `ForEach` tears down and rebuilds every child DOM node on each update — visible as lost input focus, restarted CSS transitions, or flicker.
 - **`Show` with no `fallback` renders nothing (an empty fragment) when `when()` is false** (Section 6) — not `null`-safe-navigation nothing, an actual empty slot. If you need placeholder content, pass `fallback` explicitly.
