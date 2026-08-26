@@ -11,11 +11,46 @@ class BloomLiveReloadServer {
   final int port;
   final bool autoInjectScript;
   final List<BloomDevProxyRule> proxyRules;
+  final bool isDdcMode;
+  final Directory? ddcCacheDir;
 
   HttpServer? _server;
   final List<HttpResponse> _sseClients = [];
   final BloomDevProxy _proxy = BloomDevProxy();
   late final List<BloomDevProxyRule> _sortedProxyRules;
+
+  static const String ddcBootstrapScript = r'''
+<script type="module">
+  // Bloom DDC Dev Bootstrap (safe against AMD/UMD NPM interop pollution)
+  (() => {
+    const reqScript = document.createElement('script');
+    reqScript.src = '/require.js';
+    reqScript.onload = () => {
+      require.config({
+        baseUrl: '/',
+        paths: {
+          dart_sdk: 'dart_sdk',
+          main: 'main'
+        },
+        urlArgs: 'v=' + Date.now()
+      });
+      require(['dart_sdk', 'main'], (dart_sdk, app) => {
+        if (app) {
+          for (const k of Object.keys(app)) {
+            if (app[k] && typeof app[k].main === 'function') {
+              app[k].main();
+              break;
+            }
+          }
+        }
+      }, (err) => {
+        console.error('[Bloom DDC Error] Failed to load application modules:', err);
+      });
+    };
+    document.body.appendChild(reqScript);
+  })();
+</script>
+''';
 
   static const String liveReloadScript = r'''
 <script>
@@ -1269,6 +1304,32 @@ class BloomLiveReloadServer {
         if (dt) dt.showRefreshing(reason);
         setTimeout(() => window.location.reload(), 280);
       });
+      es.addEventListener('css-patch', (e) => {
+        let payload = null;
+        try {
+          if (e.data) {
+            payload = JSON.parse(e.data);
+          }
+        } catch (_) {}
+        if (!payload || typeof payload.oldCss !== 'string' || typeof payload.newCss !== 'string') {
+          console.warn('[Bloom CSS Hot Swap] Invalid css-patch payload; falling back to full reload.');
+          console.log('%c⚡ [Bloom Hot Reload]%c Refreshing application...', 'color:#6366F1;font-weight:bold', 'color:inherit');
+          if (dt) dt.showRefreshing();
+          setTimeout(() => window.location.reload(), 280);
+          return;
+        }
+        const styles = document.querySelectorAll('style');
+        const matches = Array.from(styles).filter((s) => s.textContent === payload.oldCss);
+        if (matches.length === 1) {
+          matches[0].textContent = payload.newCss;
+          console.log('%c⚡ [Bloom CSS Hot Swap]%c Patched stylesheet in place.', 'color:#6366F1;font-weight:bold', 'color:inherit');
+        } else {
+          console.warn('[Bloom CSS Hot Swap] Found ' + matches.length + ' matching <style> elements (expected 1); falling back to full reload.');
+          console.log('%c⚡ [Bloom Hot Reload]%c Refreshing application...', 'color:#6366F1;font-weight:bold', 'color:inherit');
+          if (dt) dt.showRefreshing();
+          setTimeout(() => window.location.reload(), 280);
+        }
+      });
       es.addEventListener('error', (e) => {
         let msg = e.data;
         try {
@@ -1302,9 +1363,31 @@ class BloomLiveReloadServer {
     this.port = 8080,
     this.autoInjectScript = true,
     this.proxyRules = const [],
+    this.isDdcMode = false,
+    this.ddcCacheDir,
   }) {
     _sortedProxyRules = List<BloomDevProxyRule>.from(proxyRules)
       ..sort((a, b) => b.pathPrefix.length.compareTo(a.pathPrefix.length));
+  }
+
+  String _prepareHtml(String html) {
+    if (isDdcMode) {
+      final mainScriptRegex = RegExp(
+        r'<script\s+[^>]*src=[\x22\x27]main\.js[\x22\x27][^>]*>\s*<\/script>',
+        caseSensitive: false,
+      );
+      html = html.replaceAll(mainScriptRegex, '');
+    }
+
+    if (autoInjectScript && !html.contains('__BLOOM_HR_ACTIVE__')) {
+      final injection = isDdcMode
+          ? '$ddcBootstrapScript\n$liveReloadScript</body>'
+          : '$liveReloadScript</body>';
+      html = html.replaceFirst('</body>', injection);
+    } else if (isDdcMode && !html.contains('Bloom DDC Dev Bootstrap')) {
+      html = html.replaceFirst('</body>', '$ddcBootstrapScript\n</body>');
+    }
+    return html;
   }
 
   HttpServer? get server => _server;
@@ -1322,6 +1405,16 @@ class BloomLiveReloadServer {
     });
 
     final data = 'event: reload\ndata: $payload\n\n';
+    _broadcast(data);
+  }
+
+  void broadcastCssPatch({required String oldCss, required String newCss}) {
+    final payload = jsonEncode({
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'oldCss': oldCss,
+      'newCss': newCss,
+    });
+    final data = 'event: css-patch\ndata: $payload\n\n';
     _broadcast(data);
   }
 
@@ -1428,6 +1521,24 @@ class BloomLiveReloadServer {
       }
     }
 
+    // 4. DDC Runtime Assets (/require.js, /dart_sdk.js, /dart_sdk.js.map)
+    if (isDdcMode && ddcCacheDir != null) {
+      if (path == '/require.js' ||
+          path == '/dart_sdk.js' ||
+          path == '/dart_sdk.js.map') {
+        final fileName = path.substring(1);
+        final file = File(p.join(ddcCacheDir!.path, fileName));
+        if (file.existsSync()) {
+          final ext = p.extension(file.path).replaceAll('.', '').toLowerCase();
+          req.response.headers.set(HttpHeaders.contentTypeHeader, _getContentType(ext));
+          req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
+          req.response.add(file.readAsBytesSync());
+          await req.response.close();
+          return;
+        }
+      }
+    }
+
     try {
       var reqPath = path.startsWith('/') ? path.substring(1) : path;
       if (reqPath.isEmpty) reqPath = 'index.html';
@@ -1441,11 +1552,9 @@ class BloomLiveReloadServer {
           req.response.headers.set(HttpHeaders.contentTypeHeader, _getContentType(ext));
           req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
 
-          if (ext == 'html' && autoInjectScript) {
+          if (ext == 'html') {
             var html = targetFile.readAsStringSync();
-            if (!html.contains('__BLOOM_HR_ACTIVE__')) {
-              html = html.replaceFirst('</body>', '$liveReloadScript</body>');
-            }
+            html = _prepareHtml(html);
             req.response.write(html);
           } else {
             req.response.add(targetFile.readAsBytesSync());
@@ -1458,9 +1567,7 @@ class BloomLiveReloadServer {
         final indexFile = File(p.join(webDir.path, 'index.html'));
         if (indexFile.existsSync()) {
           var html = indexFile.readAsStringSync();
-          if (autoInjectScript && !html.contains('__BLOOM_HR_ACTIVE__')) {
-            html = html.replaceFirst('</body>', '$liveReloadScript</body>');
-          }
+          html = _prepareHtml(html);
           req.response.headers.set(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');
           req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
           req.response.write(html);
