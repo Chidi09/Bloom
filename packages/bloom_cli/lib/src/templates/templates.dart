@@ -611,6 +611,35 @@ version so you don't have to open it for every edit.
   rebuilds all child DOM nodes.
 - `Show(...)` with no `fallback` renders nothing when `when()` is false —
   pass `fallback:` explicitly if you need placeholder content.
+- Reading a signal inside a plain Dart helper function (not a widget
+  builder) still needs a reactive wrapper at the call site. Prefer
+  `computed(() => ...)` for a derived value used in multiple places over
+  wrapping the helper's call site in `Live(...)` — `Live()` is a DOM-node
+  boundary, and reaching for it around a non-widget helper is usually a
+  sign the computation belongs in a `computed()` instead.
+
+### Modals, drawers, and overlays
+- Mount dialogs/slide-overs (confirm modals, drawers, command palettes) at
+  the **root of the app shell**, not nested inside `<main>` or any
+  `overflow-y: auto` container. A `position: fixed` element inside a
+  scrolling flex container does not create a true full-viewport overlay —
+  sibling chrome (a fixed header/sidebar) stays lit and clickable in front
+  of it.
+- Track one `isOverlayActive` signal (or a stack if you can have more than
+  one at a time) and apply a blur/`pointer-events: none` treatment to the
+  rest of the shell while it's true, rather than relying on the overlay's
+  own backdrop `<div>` to visually cover everything.
+
+### Multi-character code inputs (OTP/PIN)
+- Don't model a PIN/OTP entry as N separate `<input>` elements, one per
+  digit. Each keystroke updates that box's signal, which re-renders the
+  slot and drops browser focus without auto-advancing to the next box —
+  typing and native backspacing both break.
+- Use a single transparent/off-screen master `<input>` (one signal, one
+  `maxLength`) positioned over N purely visual slot indicators that render
+  from `Live(() => masterValue.value[i])`. This keeps continuous typing,
+  paste, and backspace working natively, and pairs well with an optional
+  on-screen keypad that just appends to the same signal.
 
 ### Events
 - `BloomEvent.value` (`String?`) and `BloomEvent.checked` (`bool?`) are
