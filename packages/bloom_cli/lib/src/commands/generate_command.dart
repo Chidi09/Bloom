@@ -193,6 +193,22 @@ class _GenerateControllerCommand extends Command<int> {
     );
 
     print(Ansi.success('Created controller: ${targetFile.path}'));
+
+    final testFile = File(
+      p.join(project.rootDir.path, 'test', 'features', feature, '${feature}_controller_test.dart'),
+    );
+    if (!testFile.existsSync()) {
+      testFile.createSync(recursive: true);
+      testFile.writeAsStringSync(
+        BloomTemplates.controllerTest(
+          className: className,
+          featureName: feature,
+          projectName: project.projectName,
+        ),
+      );
+      print(Ansi.success('Created test: ${testFile.path}'));
+    }
+
     return 0;
   }
 }
