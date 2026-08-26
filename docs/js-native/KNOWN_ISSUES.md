@@ -237,34 +237,34 @@ possible pattern.
 `signal_key_injector.dart`, `ddc_dev_compiler.dart`), `bloom_js_native`
 (runtime matching/carry-over, `signals.dart`).
 
-### 6. DDC fast dev-loop is opt-in and invisible by default — Tracked, not started
-Everything shipped in items 4 and 5 (CSS hot-swap, in-page fast
-remount, compiler-level Signal-state preservation) only activates under
-`bloom js dev --experimental-ddc`, default `false`
-(`packages/bloom_cli/lib/src/commands/js_command.dart`). A fresh
-`bloom create --js-native` project's own printed onboarding instruction
-(`packages/bloom_cli/lib/src/commands/create_command.dart:299`) tells
-the developer to run plain `bloom js dev` — no flag — so the entire
-fast dev-loop built this session is invisible unless a developer
-independently discovers the flag from docs. Comparable frameworks
-(Vite, SolidStart, Next.js) ship their fast dev server as the *only*
-path, not an opt-in flag.
+### 6. DDC fast dev-loop is opt-in and invisible by default — ✅ Fixed
+`bloom js dev` with no flags now uses the DDC fast dev-loop by default.
+`js_command.dart`'s arg parser was inverted: `--ddc` now defaults to
+`true`, a new `--legacy-dart2js` flag (default `false`, `negatable:
+false`) opts back out to the whole-program `dart2js -O0` path, and the
+old `--experimental-ddc` flag is kept as a backward-compatible alias
+(now defaulting to `true`, so any existing script/CI that still passes
+it explicitly sees no behavior change). The activation logic composes
+correctly with the pre-existing graceful fallback-with-warning for
+Dart SDKs missing DDC snapshots. `create_command.dart`'s printed
+onboarding line and the generated COOKBOOK.md template text
+(`templates.dart`) were updated to describe the new default instead of
+telling developers to opt in.
 
-**Fix direction:** now that the DDC path has real headless-Chromium
-coverage across four dispatches this session (DDC compile, npm/UMD
-interop, fast remount, Signal-state preservation), promote it to the
-default `bloom js dev` behavior — invert the flag so `dart2js -O0` dev
-mode becomes the opt-out (e.g. `--legacy-dart2js` or `--no-ddc`) — and
-update `create_command.dart`'s printed onboarding line and any
-generated `AGENTS.md`/COOKBOOK.md text accordingly. This is a real
-default-behavior change: flag it explicitly, verify against every
-existing DDC-path test plus at least one full real example app
-(`bloom_js_ecommerce`) booting cleanly end-to-end before treating it as
-safe to flip.
+**Verified:** freshly scaffolded `--js-native` project (path-dependency
+override to local `bloom_js_native` to pick up item 5's unpublished
+`signal(key:)` param) — `bloom js dev` with no flags printed "Using DDC
+(Dart Dev Compiler) fast dev-loop" and compiled cleanly;
+`--legacy-dart2js` correctly forced a whole-program `dart2js` compile
+(`main.js`, no DDC message). Full `bloom_cli` test suite run twice: 3
+pre-existing flaky puppeteer e2e tests failed only under full-suite
+concurrency and passed cleanly in isolation (confirmed contention, not
+a regression from this change).
 
-**Owner package:** `bloom_cli` (`js_command.dart`, `create_command.dart`).
+**Owner package:** `bloom_cli` (`js_command.dart`, `create_command.dart`,
+`templates.dart`).
 
-### 7. No lint rule for the #1 documented reactivity footgun — Tracked, not started
+### 7. No lint rule for the #1 documented reactivity footgun — ✅ Fixed
 `packages/bloom_js_native/COOKBOOK.md` §20 names "reading a signal
 outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a
 subscription" as the single most common beginner bug. `bloom_lint.dart`
@@ -276,13 +276,31 @@ any reactive callback (`Live`/`Show`/`ForEach`/`effect`/`computed`).
 SolidJS ships `eslint-plugin-solid`'s `reactivity` rule for exactly
 this footgun class.
 
-**Fix direction:** a new AST-visitor lint rule mirroring the existing
-rules' infrastructure in `bloom_lint.dart` — track "am I currently
-inside a reactive callback" as visitor state (entering/exiting
-`Live(...)`, `Show(...)`, `ForEach(...)`, `effect(...)`, `computed(...)`
-callback bodies), and flag any `.value` property access on an
-identifier resolvable to a `Signal`/`ReadonlySignal` outside that
-state.
+A new `untracked_signal_read` rule was added to `bloom_lint.dart`,
+mirroring the existing rules' AST-visitor infrastructure. It tracks
+"am I currently inside a UI-building function" (via return-type and
+inferred-body-return heuristics, `_isUiDeclaration`/
+`_bodyReturnsUiNode`) crossed with "am I currently inside an exempted
+reactive callback" (a depth counter incrementing/decrementing around
+`Live`, `Show`'s non-predicate children, `ForEach`'s item builder,
+`effect`, `computed`, and event-handler callbacks), and flags a
+`.value` read on an identifier resolvable to a signal that falls
+outside all of them.
+
+**Verified:** 10 new tests (4 true-positive: direct read in a
+`BloomNode` function body, in `Show`'s non-predicate child, in a UI
+getter, in an inferred-return-type UI function; 6 true-negative:
+wrapped in `Live`, in `Show`'s `when:` predicate, in `ForEach`'s items
+callback, in `effect()`/`computed()`, in an event handler, in
+non-UI/business-logic code, `.value` on an unrelated non-signal class)
+all pass. A real compile bug in the dispatch's diff was caught and
+fixed during review: `InstanceCreationExpression` (used for `Show(...)`
+construction) has no `.typeArguments` getter — only `MethodInvocation`
+does — the erroneous `node.typeArguments?.accept(this)` call was
+removed (redundant anyway; `node.constructorName.accept(this)` already
+traverses it). Confirmed via `dart analyze` and a real `bloom create
+--js-native` scaffold, which failed to compile before the fix and
+succeeded after.
 
 **Owner package:** `bloom_cli` (`bloom lint` command, `bloom_lint.dart`).
 
@@ -293,5 +311,5 @@ state.
 | Architecture & API Design | 9/10 | Clean, declarative, elegant signal reactivity |
 | Bundle Efficiency & SSR | 9.5/10 | Very fast SSR, small footprint |
 | Fullstack Integration (`bloom_db`/`bloom_server`) | 8.5/10 | Ergonomic ORM, seamless same-origin dev proxy |
-| Hot Reload & Dev Loop Speed | 9/10 | CSS hot-swap, DDC fast remount, and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
-| CLI Tooling & Formatters | 8/10 | CSS-safe raw-string formatting, lint rules, and static Tailwind build now shipped |
+| Hot Reload & Dev Loop Speed | 9.5/10 | CSS hot-swap, DDC fast remount (now the default `bloom js dev` behavior), and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
+| CLI Tooling & Formatters | 8.5/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), and static Tailwind build now shipped |

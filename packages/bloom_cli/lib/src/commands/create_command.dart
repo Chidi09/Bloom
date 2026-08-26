@@ -296,7 +296,7 @@ class CreateCommand extends Command<int> {
     print('\n${Ansi.success('Bloom JS Native application "$appName" created successfully!')}\n');
     print('Next steps:');
     print('  ${Ansi.cyan}cd $appName${Ansi.reset}');
-    print('  ${Ansi.cyan}bloom js dev${Ansi.reset}     (Launch dev server with live reload)');
+    print('  ${Ansi.cyan}bloom js dev${Ansi.reset}     (Launch dev server with fast DDC live reload)');
     print('  ${Ansi.cyan}bloom js build${Ansi.reset}   (Compile a production bundle)\n');
 
     return 0;

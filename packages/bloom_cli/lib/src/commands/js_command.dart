@@ -82,10 +82,23 @@ class JsDevCommand extends Command<int> {
         help: 'Host interface to bind.',
       )
       ..addFlag(
-        'experimental-ddc',
-        defaultsTo: false,
+        'ddc',
+        defaultsTo: true,
         help:
-            'Enable experimental fast DDC (Dart Dev Compiler) compilation for development.',
+            'Use DDC (Dart Dev Compiler) fast dev-loop with in-page remount (default: true).',
+      )
+      ..addFlag(
+        'legacy-dart2js',
+        defaultsTo: false,
+        negatable: false,
+        help:
+            'Opt out of DDC and force whole-program dart2js -O0 compilation.',
+      )
+      ..addFlag(
+        'experimental-ddc',
+        defaultsTo: true,
+        help:
+            'Deprecated alias for DDC fast dev-loop (now enabled by default).',
       );
   }
 
@@ -117,9 +130,14 @@ class JsDevCommand extends Command<int> {
 
     final outputFile = File(p.join(webDir.path, 'main.js'));
 
-    // Check experimental DDC option
-    final useDdcRequested =
-        (argResults?['experimental-ddc'] as bool?) ?? false;
+    // Check DDC fast dev-loop option (enabled by default; legacy-dart2js or --no-ddc to opt out)
+    final legacyDart2js =
+        (argResults?['legacy-dart2js'] as bool?) ?? false;
+    final ddcEnabled =
+        (argResults?['ddc'] as bool?) ?? true;
+    final experimentalDdc =
+        (argResults?['experimental-ddc'] as bool?) ?? true;
+    final useDdcRequested = !legacyDart2js && ddcEnabled && experimentalDdc;
     DdcToolchain? ddcToolchain;
     DdcDevCompiler? ddcCompiler;
     bool isDdcActive = false;
@@ -128,11 +146,11 @@ class JsDevCommand extends Command<int> {
       ddcToolchain = DdcToolchain.discover(projectRoot: project.rootDir);
       if (!ddcToolchain.isAvailable) {
         print(Ansi.warn(
-            '⚠ Experimental DDC toolchain snapshots not found in Dart SDK (${ddcToolchain.snapshotPath ?? "unknown"}). Falling back to dart2js -O0.'));
+            '⚠ DDC toolchain snapshots not found in Dart SDK (${ddcToolchain.snapshotPath ?? "unknown"}). Falling back to dart2js -O0.'));
       } else {
         isDdcActive = true;
         print(Ansi.step(
-            '⚡ Using experimental DDC (Dart Dev Compiler) fast dev-loop.'));
+            '⚡ Using DDC (Dart Dev Compiler) fast dev-loop.'));
         await ddcToolchain.ensureSdkArtifacts(
           onProgress: (msg) => print(Ansi.info('› $msg')),
         );

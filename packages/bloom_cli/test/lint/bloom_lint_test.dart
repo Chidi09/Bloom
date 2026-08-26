@@ -375,5 +375,192 @@ BloomNode buildWidget() => Div();
         expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
       });
     });
+
+    group('Rule 8: untracked_signal_read', () {
+      test('TRUE POSITIVE: flags count.value read directly in BloomNode function body', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode counterCard(Signal<int> count) {
+  return Div(
+    children: [
+      P(text: 'Count: \${count.value}'),
+      Button(text: '+1', onClick: (_) => count.value++),
+    ],
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('untracked_signal_read'));
+        expect(findings.first.snippet, contains('count.value'));
+      });
+
+      test('TRUE POSITIVE: flags untracked signal read in Show child argument', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode authView(Signal<bool> isAuth, Signal<int> count) {
+  return Show(
+    () => isAuth.value,
+    child: P(text: 'Count: \${count.value}'),
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('untracked_signal_read'));
+        expect(findings.first.snippet, contains('count.value'));
+      });
+
+      test('TRUE POSITIVE: flags untracked signal read in UI getter', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final title = signal('Bloom');
+
+BloomNode get header => Div(text: title.value);
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('untracked_signal_read'));
+        expect(findings.first.snippet, contains('title.value'));
+      });
+
+      test('TRUE POSITIVE: flags untracked signal read in inferred-return UI function', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final count = signal(0);
+
+counterWidget() => Div(text: 'Count: \${count.value}');
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('untracked_signal_read'));
+      });
+
+      test('TRUE NEGATIVE: passes signal read wrapped inside Live builder', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode counterCard(Signal<int> count) {
+  return Div(
+    children: [
+      Live(() => P(text: 'Count: \${count.value}')),
+      Button(text: '+1', onClick: (_) => count.value++),
+    ],
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: passes signal read in Show when predicate', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode authSection(Signal<bool> isAuth) {
+  return Show(
+    () => isAuth.value,
+    child: Button(text: 'Log out'),
+    fallback: Button(text: 'Log in'),
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: passes signal read in ForEach items callback', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode todoList(Signal<List<String>> todos) {
+  return Ul(
+    children: [
+      ForEach<String>(
+        () => todos.value,
+        (item) => Li(text: item),
+        key: (item) => item,
+      ),
+    ],
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: passes signal read in effect() and computed()', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final count = signal(0);
+final isEven = computed(() => count.value.isEven);
+
+void setup() {
+  effect(() {
+    print(count.value);
+  });
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: passes signal read in event handler callback', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final count = signal(0);
+
+BloomNode button() {
+  return Button(
+    text: '+1',
+    onClick: (_) => print(count.value),
+  );
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: passes signal read in non-UI business logic function', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+final count = signal(0);
+
+void increment() {
+  count.value++;
+}
+
+int getDoubleCount() {
+  return count.value * 2;
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: ignores .value access on non-signal objects', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+class ConfigWrapper {
+  final String value;
+  ConfigWrapper(this.value);
+}
+
+BloomNode buildView(ConfigWrapper config) {
+  return Div(text: config.value);
+}
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+      });
+    });
   });
 }
