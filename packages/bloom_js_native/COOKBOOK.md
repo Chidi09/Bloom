@@ -688,7 +688,11 @@ BloomNode emailInput() {
       Label(text: 'Email Address'),
       Input(
         type: 'email',
-        value: emailField.value.value,
+        // .peek() reads the signal once, untracked, to seed the DOM node's
+        // initial value — it deliberately does NOT subscribe. See the
+        // "Common Pitfall" callout below for why this Input is intentionally
+        // static (outside Live) and why a bare .value read here would be wrong.
+        value: emailField.value.peek(),
         onInput: (e) {
           emailField.setValue(e.value ?? '');
           emailField.validate();
@@ -708,6 +712,86 @@ BloomNode emailInput() {
 ```
 
 Watch out: Setting `emailField.setValue(...)` marks `isDirty` as `true` but does **not** validate automatically. Call `field.validate()` or `form.validate()` to execute validation rules.
+
+> ⚠️ **Never wrap `<input>`/`<textarea>` inside `Live(...)`.** When a signal
+> read inside a `Live(...)` block changes (e.g. `field.errors.value` or
+> `field.isTouched.value`), `Live` tears down and replaces its entire DOM
+> subtree — including any `<input>` nested inside it. That destroys and
+> recreates the real DOM `<input>` node on every keystroke or blur, which
+> immediately drops focus, cursor position, and in-flight keyboard events —
+> the field becomes unusable mid-type. Keep `<input>`/`<textarea>` elements
+> as **stable, static DOM nodes outside any `Live(...)` block**; only wrap
+> the dynamic parts (error text, status badges, border-color classes) in
+> `Live(...)`, as `emailInput()` does above. This is why the input's
+> `value:` is read once via `.peek()` at build time rather than reactively —
+> the field is deliberately "uncontrolled" from Dart's perspective, and the
+> browser owns keystroke-to-keystroke value updates via `onInput`.
+>
+> `bloom lint`'s `untracked_signal_read` rule (Section 16) is a heuristic
+> based on property names, not full type resolution — it will (currently)
+> still flag `emailField.value.peek()` above, because `value` here is both
+> `BloomFormField`'s field name *and* happens to look like a signal read.
+> This is a known false positive for the `<field>.value.peek()` idiom
+> specifically; it's still the correct pattern to use.
+
+### How do I dynamically style an invalid input without remounting it?
+Never gate the `<input>` element itself behind `Show(...)`/`Live(...)` just
+to swap a border color — that hits the same DOM-remount problem as above.
+Instead, drive styling from state that lives *outside* the DOM node: a CSS
+attribute selector plus native `:invalid`/`:user-invalid`, or a
+`Live`-wrapped sibling class holder if you need JS-driven state.
+
+```dart
+// Simplest: let the browser's own validity state drive the border via CSS.
+// No Dart-side reactivity needed at all for this part.
+Input(
+  type: 'email',
+  attrs: {'required': 'true'},
+  value: emailField.value.peek(),
+  onInput: (e) => emailField.setValue(e.value ?? ''),
+  onBlur: (_) => emailField.touch(),
+)
+```
+
+```css
+/* web/index.html or your design tokens stylesheet */
+input:user-invalid { border-color: var(--danger, #ef4444); }
+input:not(:user-invalid) { border-color: var(--border, #d6d3d1); }
+```
+
+If the border must reflect Bloom-side validation state (not just native
+HTML validity — e.g. an async validator's result), keep the `<input>`
+static and imperatively toggle its `classList` from an `effect()` via
+`Ref`/`RefNode`, instead of putting the `<input>` inside `Live(...)`:
+
+```dart
+import 'package:web/web.dart' as web;
+
+final emailInputRef = Ref<web.HTMLInputElement>();
+
+BloomNode emailInput() {
+  effect(() {
+    final invalid = emailField.errors.value.isNotEmpty && emailField.isTouched.value;
+    if (!emailInputRef.isMounted) return;
+    emailInputRef.value.classList.toggle('input--invalid', invalid);
+  });
+
+  return RefNode(
+    emailInputRef,
+    Input(
+      type: 'email',
+      value: emailField.value.peek(),
+      onInput: (e) => emailField.setValue(e.value ?? ''),
+      onBlur: (_) => emailField.touch(),
+    ),
+  );
+}
+```
+
+The `<input>` element itself is never destroyed or replaced — `effect()`
+reads the validation signals and mutates the already-mounted DOM node's
+`classList` directly, the same imperative escape hatch `BloomVirtualizer`
+(above) uses for scroll positioning.
 
 ---
 
@@ -3496,6 +3580,7 @@ A consolidated reference of every mistake this framework's own gotchas invite. E
 - **Update a list/map signal by reassigning `.value`, never by mutating the existing collection in place.** `todos.value.add(x)` does not notify subscribers because the identity of `.value` never changed; `todos.value = [...todos.value, x]` does. Every list-mutation example in this cookbook (Section 6, Section 7) reassigns for this reason — copy the pattern exactly, don't "simplify" it back to `.add()`/`.remove()`.
 - **Always pass `key:` to `ForEach` for any list that can reorder, insert, or remove items** (Section 6). An unkeyed `ForEach` tears down and rebuilds every child DOM node on each update — visible as lost input focus, restarted CSS transitions, or flicker.
 - **`Show` with no `fallback` renders nothing (an empty fragment) when `when()` is false** (Section 6) — not `null`-safe-navigation nothing, an actual empty slot. If you need placeholder content, pass `fallback` explicitly.
+- **Never wrap `<input>`/`<textarea>` inside `Live(...)`** (Section 7). A signal update inside the `Live` block replaces the whole subtree, destroying and recreating the real DOM `<input>` node — the field loses focus, cursor position, and in-flight keystrokes mid-type. Keep form inputs as stable, static nodes outside `Live(...)`; only wrap error text/status badges in it. To style an input reactively without remounting it, use `Ref`/`RefNode` + `effect()` to toggle `classList` imperatively (Section 7).
 
 ### Events
 
