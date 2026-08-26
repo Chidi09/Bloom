@@ -54,11 +54,29 @@ crashes, with no static warning at the import site.
 `bloom_lint.dart`, independent of the existing `browser_import_in_test`
 rule (both fire on a `test/` file importing `browser.dart`).
 
-### 4. Dev-loop (hot reload) latency
+### 4. Dev-loop (hot reload) latency — Partially fixed
 Each save currently costs ~4.5s–7.0s: a whole-program `dart2js`
 compile, Bun asset assembly, then an SSE-triggered full
 `window.location.reload()`. Comparable web tooling (Vite, Turbopack,
 SolidStart) achieves sub-150ms HMR.
+
+**Fixed in:** both of the two independent levers below are now
+implemented in `bloom js dev`:
+- CSS-only edits (a `Style(r'''...''')` body or a top-level
+  `const *Css = r'''...''';`) are detected via a skeleton diff
+  (`css_hot_swap.dart`) and pushed as a `css-patch` SSE event that
+  patches the `<style>` tag in place — no recompile, no reload.
+- `bloom js dev --experimental-ddc` (opt-in, off by default) swaps
+  the `dart2js -O0` compile for DDC (`ddc_dev_compiler.dart`),
+  serving a version-cached `dart_sdk.js`/`require.js` runtime module.
+  Verified in headless Chromium (`test/dev/npm_interop_umd_test.dart`,
+  `test/dev/ddc_ecommerce_integration_test.dart`) that vendored npm
+  UMD packages still attach to `window` correctly and a real example
+  app boots and renders under DDC. `bloom js build` (`dart2js -O4`,
+  production) is completely unaffected.
+- Still open: DDC still triggers a full page reload on every Dart
+  source edit (Signal<T> state is not preserved) — that is the
+  deferred, framework-level "Stage 3" work below, not yet started.
 
 **Fix direction (two independent levers):**
 - Compile with DDC (Dart Dev Compiler) or incremental Wasm in dev mode
