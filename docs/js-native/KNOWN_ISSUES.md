@@ -343,6 +343,38 @@ pass; `dart analyze` clean.
 
 **Owner package:** `bloom_db` (`database.dart`).
 
+### 9. `bloom generate controller` has no companion test scaffold — ✅ Fixed
+`generate_command.dart`'s `_GenerateControllerCommand` created a
+controller file but no accompanying test, unlike `create-t3-app`/Next.js
+codegen conventions where a generator's output includes a starter test.
+A freshly created project does get one smoke test at project-creation
+time (`templates.dart` `widgetTest`/`jsNativeSmokeTest`), but nothing
+after that.
+
+**Fix direction:** `bloom generate controller <Name>` now also writes
+`test/features/<feature>/<feature>_controller_test.dart` (new
+`BloomTemplates.controllerTest` template) alongside the controller
+file, skipping it if the file already exists (matches the existing
+`env` generator's already-exists guard pattern). The test exercises the
+controller's generated `count`/`increment`/`decrement`/`reset` signal
+API directly via `package:test`, no widget mount required.
+
+**Verified:** real end-to-end scaffold (`bloom create` → `bloom
+generate controller Counter`) produced a correct, compiling test file
+importing the freshly generated controller. `dart analyze` clean on
+both touched files. Full `bloom_cli` suite run: only the 2 known-flaky
+puppeteer e2e tests failed under full-suite concurrency (pre-existing,
+unrelated to this change).
+
+**Owner package:** `bloom_cli` (`generate_command.dart`, `templates.dart`).
+
+**Not fixed (deferred, lower priority):** no LSP/editor-integration
+story for `bloom.yaml` or in-editor signal/component IntelliSense — the
+generic Dart LSP covers `.dart` files but there's no `bloom.yaml` JSON
+Schema for the VS Code YAML extension. Noted but not tracked as a
+numbered item; lowest-effort real win would be publishing a JSON Schema
+rather than a custom LSP.
+
 ## Review summary (for context)
 
 | Dimension | Rating | Note |
@@ -351,4 +383,4 @@ pass; `dart analyze` clean.
 | Bundle Efficiency & SSR | 9.5/10 | Very fast SSR, small footprint |
 | Fullstack Integration (`bloom_db`/`bloom_server`) | 9/10 | Ergonomic ORM with real atomic transactions, tRPC-comparable typed RPC layer, seamless same-origin dev proxy; no connection pooling yet |
 | Hot Reload & Dev Loop Speed | 9.5/10 | CSS hot-swap, DDC fast remount (now the default `bloom js dev` behavior), and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
-| CLI Tooling & Formatters | 8.5/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), and static Tailwind build now shipped |
+| CLI Tooling & Formatters | 9/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), static Tailwind build, and generator test scaffolding now shipped; command surface (35+ subcommands) broader than most competitor CLIs. No `bloom.yaml` LSP/editor-schema story yet — minor, deferred |
