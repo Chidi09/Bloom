@@ -117,6 +117,7 @@ dart test -p chrome    # mount/events against real DOM (phase M1 stretch)
 - [07 — Developer Tooling & CLI Suite (Zero-Python Dev Server)](../../docs/js-native/07_developer_tooling_and_cli.md)
 - [08 — Complete API Reference](../../docs/js-native/08_api_reference.md)
 - [09 — Testing, DevTools, Lazy Loading & Resilience](../../docs/js-native/09_testing_devtools_and_resilience.md)
+- [Known Issues & Tracked Work](../../docs/js-native/KNOWN_ISSUES.md)
 
 ## Status
 
