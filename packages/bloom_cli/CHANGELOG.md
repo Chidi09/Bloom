@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 - 2026-08-26
+
+### Added
+* **`bloom js dev`** now uses the DDC (Dart Dev Compiler) fast dev-loop by default — no flag required. `--legacy-dart2js` opts out to the whole-program `dart2js -O0` dev path; `--experimental-ddc` remains as a backward-compatible alias.
+* **`untracked_signal_read` lint rule**: `bloom lint` now flags a `.value` read on a signal directly inside UI-building code, outside `Live`/`Show`/`ForEach`/`effect`/`computed` — the #1 documented reactivity footgun in `bloom_js_native`'s COOKBOOK.md.
+* **`bloom generate controller`** now also scaffolds a companion `test/features/<feature>/<feature>_controller_test.dart` exercising the generated controller's signal API.
+
 ## 0.7.1 - 2026-08-26
 
 ### Added

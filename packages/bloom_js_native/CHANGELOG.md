@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 - 2026-08-26
+
+### Added
+* `signal<T>(initialValue, {key})` — an opt-in `key` parameter that, when hot-reload tracking is active (used by `bloom js dev`'s DDC fast dev-loop), preserves a top-level signal's mutated value across an in-page hot remount by carrying it over via a `window`-global registry. Zero overhead when no key is given or tracking is inactive (the default, including all production builds). Falls back to a clean reset on any type mismatch between edits rather than risking silent corruption.
+* `isHotReloadTrackingActive()` exposed publicly (was previously a private `mount.dart` helper) for use by the new `signal()` wrapper.
+
 ## 0.3.4 - 2026-08-26
 
 ### Added
