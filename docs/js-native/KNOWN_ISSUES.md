@@ -177,48 +177,65 @@ transferable to a `dart2js` + Bun dev server):
    by content hash, invalidate only affected units) is worth keeping
    in mind if Bloom ever moves off whole-program `dart2js` in dev mode.
 
-### 5. No state-preserving hot reload — Tracked, not started
+### 5. No state-preserving hot reload — ✅ Fixed (first slice)
 Item 4 shipped a fast in-page remount (no full page reload, no
-navigation), but every `Signal<T>` still resets to its initial value on
-every DDC-mode hot reload — component/app state does not survive an
+navigation), but every `Signal<T>` still reset to its initial value on
+every DDC-mode hot reload — component/app state did not survive an
 edit, unlike Vite/Next.js Fast Refresh or Solid's HMR.
 
-**Why this is its own tracked item, not part of item 4:** an external
+**Why this was its own tracked item, not part of item 4:** an external
 technical review (see item 4's "Still open" note) rejected building
-this now via any of the three obvious matching strategies
+this via any of the three obvious matching strategies
 (declaration-order key, explicit opt-in key, top-level-only scoping) —
 each risks silently binding a stale value to the wrong `Signal`, which
-is worse for developer trust than the clean reset that ships today. Do
-**not** implement any of those three as a shortcut to close this item.
+is worse for developer trust than a clean reset. The compiler-level
+approach below was built instead.
 
-**Fix direction (the reviewed, recommended path):** compiler-level
-stable keying — at compile time, tag each `signal(...)` call site with
-a stable identity derived from its own AST/source position (e.g. file
-path + enclosing declaration + ordinal within that declaration only,
-not a whole-program ordinal), independent of unrelated code moving
-elsewhere in the file. On a hot-reload re-execution, match new Signal
-instances to old ones by that stable key and carry the old instance's
-value into the new one; any signal whose site can't be matched
-unambiguously (moved into/out of a conditional, genuinely new) falls
-back to a fresh value rather than guessing. This requires either a
-`build_runner`/analyzer-based source transform ahead of DDC compilation
-(inserting a key argument at each call site) or a Dart macro, plus a
-runtime-side matching table in `bloom_js_native` keyed by that
-identity — DDC's monolithic single-module output (confirmed this
-session) means the matching table must live across the whole
-re-executed `main()`, not per-changed-module.
+**Fixed in:** a new analyzer-based AST pass
+(`signal_key_injector.dart`, mirroring the existing `bloom_formatter.dart`
+pattern) tags each top-level `signal(...)` call site with a stable key
+derived only from its own file path + enclosing declaration + ordinal
+*within that declaration only* — never a whole-program ordinal, so
+adding an unrelated `signal()` call elsewhere in the file never shifts
+another call's key. This runs strictly in the DDC dev-compile path
+(staged into a temp cache copy; the developer's real source files are
+never touched, and `dart2js` dev mode / `bloom js build` are completely
+unaffected). Explicit `key:` arguments always win over the injected
+one; a `signal(...)` call nested inside a `Live(() => ...)` closure or
+other non-stable location is deliberately left un-keyed and falls back
+to the existing reset behavior, since its call count isn't stable
+across executions.
 
-**Scope warning:** this is materially larger than item 4 — it touches
-source transformation/compile-time metadata generation, not just the
-dev server and `mount.dart`. Treat it as its own dispatch/design pass,
-not a follow-on patch. Ship only with the same standard of proof used
-for item 4: a headless-browser test that edits a signal's value,
-triggers a hot reload via an edit to *unrelated* code, and asserts the
-signal's value survived — and a second test proving an ambiguous/moved
-call site falls back to reset rather than silently misbinding.
+On the runtime side, `signals.dart`'s bare re-export of `signal` is now
+a real wrapper: zero overhead when hot-reload tracking is inactive or
+no key is present (including all production builds), otherwise it
+carries the old value into a fresh `Signal` instance via a registry
+stored on the JS `window` global — required because DDC's monolithic
+AMD module re-execution resets all plain Dart top-level state on every
+hot remount, so only `window`-stored state survives. Any type mismatch
+at a given key between two compiled versions falls back to a clean
+reset of the new value rather than risking silent corruption.
 
-**Owner package:** `bloom_cli` (compile-time keying), `bloom_js_native`
-(runtime matching/carry-over).
+Verified independently: `dart analyze` clean; 9 AST-injector unit
+tests (`signal_key_injector_test.dart`); 4 browser-level carryover
+tests covering explicit keys, auto-injected keys, type-mismatch
+fallback, and tracking-disabled/production passthrough
+(`signal_hot_reload_test.dart`); 2 real headless-Chromium/puppeteer
+end-to-end tests via real DDC compiles (`signal_hot_remount_test.dart`),
+including the specific case of adding an unrelated `signal()` call
+*above* the tracked one between hot reloads to prove the key is not a
+naive whole-file ordinal.
+
+**Still open (explicitly out of scope for this slice):** `computed`
+and `effect` are never keyed/preserved — always re-derived on every
+reload, by design. Signals created inside `Live(() => ...)` builders or
+any other non-stable call site are not preserved and reset as before.
+This is a first slice, not general HMR state preservation for every
+possible pattern.
+
+**Owner package:** `bloom_cli` (compile-time keying,
+`signal_key_injector.dart`, `ddc_dev_compiler.dart`), `bloom_js_native`
+(runtime matching/carry-over, `signals.dart`).
 
 ## Review summary (for context)
 
@@ -227,5 +244,5 @@ call site falls back to reset rather than silently misbinding.
 | Architecture & API Design | 9/10 | Clean, declarative, elegant signal reactivity |
 | Bundle Efficiency & SSR | 9.5/10 | Very fast SSR, small footprint |
 | Fullstack Integration (`bloom_db`/`bloom_server`) | 8.5/10 | Ergonomic ORM, seamless same-origin dev proxy |
-| Hot Reload & Dev Loop Speed | 7.5/10 | CSS hot-swap + DDC fast remount ship; no state preservation yet (item 5) |
+| Hot Reload & Dev Loop Speed | 9/10 | CSS hot-swap, DDC fast remount, and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
 | CLI Tooling & Formatters | 8/10 | CSS-safe raw-string formatting, lint rules, and static Tailwind build now shipped |
