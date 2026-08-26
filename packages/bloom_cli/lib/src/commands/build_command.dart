@@ -151,19 +151,40 @@ class BuildCommand extends Command<int> {
     }
 
     if (target == 'web_dom') {
+      final buildWebDir = Directory(p.join(project.rootDir.path, 'build', 'web'));
+      _cleanBuildWebDirectory(buildWebDir, project.rootDir);
+
+      final sourceWebDir = Directory(p.join(project.rootDir.path, 'web'));
+      if (sourceWebDir.existsSync()) {
+        _copyDirectorySync(sourceWebDir, buildWebDir);
+      }
+
       final tailwindBuilder = TailwindStaticBuild(
         project: project,
         processRunner: processRunner,
       );
-      final tailwindExitCode = await tailwindBuilder.build();
+      final customOutputCss = File(p.join(buildWebDir.path, 'dist', 'app.css'));
+      final tailwindExitCode = await tailwindBuilder.build(
+        customOutputFile: customOutputCss,
+      );
       if (tailwindExitCode != 0) {
         return tailwindExitCode;
+      }
+
+      if (tailwindBuilder.isTailwindProject) {
+        final buildIndexHtml = File(p.join(buildWebDir.path, 'index.html'));
+        if (buildIndexHtml.existsSync()) {
+          final transformedHtml = TailwindStaticBuild.transformIndexHtml(
+            buildIndexHtml.readAsStringSync(),
+          );
+          buildIndexHtml.writeAsStringSync(transformedHtml);
+        }
       }
 
       print(Ansi.step('Compiling Pure Dart Web application (AOT JS)...'));
       final dartBuildResult = await processRunner(
         'dart',
-        ['compile', 'js', '-O2', '-o', 'web/main.dart.js', 'lib/main.dart'],
+        ['compile', 'js', '-O2', '-o', p.join('build', 'web', 'main.dart.js'), 'lib/main.dart'],
         workingDirectory: project.rootDir.path,
       );
       if (dartBuildResult.exitCode != 0) {
@@ -177,17 +198,17 @@ class BuildCommand extends Command<int> {
       if (proxyRules.isNotEmpty) {
         final generator = const BloomHostConfigGenerator();
         final written = generator.writeAll(
-          outputDir: Directory(p.join(project.rootDir.path, 'web')),
+          outputDir: buildWebDir,
           rules: proxyRules,
           appName: project.projectName,
           formats: {BloomWebHostFormat.netlify},
         );
         for (final file in written) {
-          print(Ansi.info('› Generated host configuration: ${p.basename(file.path)}'));
+          print(Ansi.info('› Generated host configuration: ${p.join('build', 'web', p.basename(file.path))}'));
         }
       }
 
-      print('\n${Ansi.success('Pure Dart web application compiled successfully!')}\n');
+      print('\n${Ansi.success('Pure Dart web application compiled successfully! (build/web)')}\n');
       return 0;
     }
 
@@ -300,6 +321,45 @@ class BuildCommand extends Command<int> {
       }
     }
     return true;
+  }
+}
+
+/// Recursively cleans and recreates the target `build/web` directory with strict defensive validation.
+void _cleanBuildWebDirectory(Directory dir, Directory projectRoot) {
+  final canonicalDir = p.canonicalize(dir.path);
+  final expectedBuildWeb = p.canonicalize(p.join(projectRoot.path, 'build', 'web'));
+
+  if (canonicalDir != expectedBuildWeb) {
+    throw StateError('Refusing to delete directory outside expected build/web: $canonicalDir');
+  }
+
+  final basename = p.basename(canonicalDir);
+  final parentBasename = p.basename(p.dirname(canonicalDir));
+  if (basename != 'web' || parentBasename != 'build') {
+    throw StateError('Refusing to delete directory with unexpected path structure: $canonicalDir');
+  }
+
+  if (dir.existsSync()) {
+    dir.deleteSync(recursive: true);
+  }
+  dir.createSync(recursive: true);
+}
+
+/// Recursively copies all files and subdirectories from [src] into [dst].
+void _copyDirectorySync(Directory src, Directory dst) {
+  if (!dst.existsSync()) {
+    dst.createSync(recursive: true);
+  }
+  for (final entity in src.listSync(recursive: false)) {
+    final targetPath = p.join(dst.path, p.basename(entity.path));
+    if (entity is Directory) {
+      _copyDirectorySync(entity, Directory(targetPath));
+    } else if (entity is File) {
+      entity.copySync(targetPath);
+    } else if (entity is Link) {
+      final target = entity.targetSync();
+      Link(targetPath).createSync(target);
+    }
   }
 }
 

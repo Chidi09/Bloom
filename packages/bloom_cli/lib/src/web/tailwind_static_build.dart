@@ -82,7 +82,14 @@ class TailwindStaticBuild {
   }) {
     final linkTag = '<link rel="stylesheet" href="$cssHref">';
     if (tailwindScriptRegex.hasMatch(html)) {
-      return html.replaceFirst(tailwindScriptRegex, linkTag);
+      bool first = true;
+      return html.replaceAllMapped(tailwindScriptRegex, (match) {
+        if (first) {
+          first = false;
+          return linkTag;
+        }
+        return '';
+      });
     }
     if (html.contains(linkTag)) {
       return html;

@@ -81,9 +81,8 @@ class BloomWebDeployer {
     }
 
     // 2. Determine web output directory
-    final isPureDart = config['target']?.toString() == 'web_dom';
     final defaultWebDir = Directory(
-      p.join(project.rootDir.path, isPureDart ? 'web' : p.join('build', 'web')),
+      p.join(project.rootDir.path, 'build', 'web'),
     );
     final effectiveOutputDir = outputDir ?? defaultWebDir;
 
