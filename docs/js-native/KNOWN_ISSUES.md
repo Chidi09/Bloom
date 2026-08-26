@@ -27,7 +27,7 @@ except for at-rule keywords (`@media (...)`, `@supports (...)`).
 
 ## Friction points / feature requests
 
-### 2. Tailwind JIT has no static-extraction production path
+### 2. Tailwind JIT has no static-extraction production path — Partially fixed
 `@tailwindcss/browser`'s runtime DOM scanning is good for scaffolding
 but stumbles on complex arbitrary values (e.g. opacity slashes on CSS
 variables like `border-[var(--success)]/40`) and adds a small layout
@@ -39,6 +39,26 @@ static `dist/app.css` for production builds instead of relying on
 runtime JIT scanning.
 
 **Owner package:** `bloom_cli`, `bloom_js_native`.
+**Fixed in:** `TailwindStaticBuild` step integrated into `bloom build web_dom`
+for projects declaring `@tailwindcss/browser` in `bloom.yaml`. It invokes
+`@tailwindcss/cli` via Bun to scan `.dart` sources and generate a real,
+minified static `web/dist/app.css` (verified against the
+`bloom_js_ecommerce` example: 55.7 kB containing actual scanned utility
+classes, not just Tailwind's base layer).
+
+**Still open:** `bloom build web_dom` currently compiles in place inside
+the project's own `web/` directory (there is no separate build output
+directory), so the shipped `web/index.html` is the same file `bloom js
+dev` reads — swapping its dev-mode
+`<script type="module">import '@tailwindcss/browser';</script>` tag for
+`<link rel="stylesheet" href="dist/app.css">` in-place would corrupt the
+next `bloom js dev` run. `TailwindStaticBuild.transformIndexHtml()`
+implements that swap but is deliberately **not** wired into the build —
+today `bloom build web_dom` generates `dist/app.css` but a project's
+shipped `index.html` still loads the runtime `@tailwindcss/browser` JIT
+script alongside it. Wiring this up for real needs `web_dom` to build
+into a separate output directory (or otherwise stage a production-only
+copy of `web/`) before `transformIndexHtml` can be safely applied.
 
 ### 3. No lint rule for the dual-entry-point boundary — ✅ Fixed
 Accidentally importing `package:bloom_js_native/browser.dart` into

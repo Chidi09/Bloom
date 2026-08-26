@@ -11,6 +11,7 @@ import '../utils/ansi.dart';
 import '../utils/project.dart';
 import '../web/ssg_engine.dart';
 import '../web/ssr_engine.dart';
+import '../web/tailwind_static_build.dart';
 
 /// Command that compiles production artifacts with Bloom environment injection and flavor profiles.
 ///
@@ -150,6 +151,15 @@ class BuildCommand extends Command<int> {
     }
 
     if (target == 'web_dom') {
+      final tailwindBuilder = TailwindStaticBuild(
+        project: project,
+        processRunner: processRunner,
+      );
+      final tailwindExitCode = await tailwindBuilder.build();
+      if (tailwindExitCode != 0) {
+        return tailwindExitCode;
+      }
+
       print(Ansi.step('Compiling Pure Dart Web application (AOT JS)...'));
       final dartBuildResult = await processRunner(
         'dart',
