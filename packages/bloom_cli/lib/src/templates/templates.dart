@@ -551,8 +551,15 @@ anything already in `lib/components/` before writing a new descriptor.
 
 ## Commands
 
-- `bloom js dev` — fast dev server with DDC live reload and hot remount, compiles `lib/main.dart`.
+- `bloom js dev` — fast dev server with DDC live reload and hot remount, compiles `lib/main.dart`. Pass `--legacy-dart2js` to opt out to a whole-program `dart2js -O0` dev build instead.
 - `bloom js build` — production bundle.
+- `bloom lint` — flags framework-specific bugs `dart analyze` can't see,
+  including `untracked_signal_read`: a `.value` read directly inside
+  UI-building code, outside `Live`/`Show`/`ForEach`/`effect`/`computed` (see
+  the Reactivity checklist below). Run it before committing.
+- `bloom generate controller <Name>` — scaffolds a `BloomController` under
+  `lib/features/<feature>/controllers/` and a companion test under
+  `test/features/<feature>/`.
 - `dart test` — runs `test/`, which exercises SSR-safe code only (no
   `browser.dart` import in test files — the Dart VM has no DOM).
 - `bloom add npm:<package>` — install an npm package. Vendors a real ESM
@@ -594,6 +601,7 @@ version so you don't have to open it for every edit.
   captures a one-time snapshot — it will never update on screen. Always wrap
   dynamic reads: `Live(() => P(text: 'Count: \${count.value}'))`, never
   `P(text: 'Count: \${count.value}')` directly in a non-reactive builder.
+  `bloom lint`'s `untracked_signal_read` rule catches this.
 - Update list/map signals by **reassigning** `.value`, never mutating the
   existing collection: `todos.value = [...todos.value, newItem];` — not
   `todos.value.add(newItem);`. The latter does not notify subscribers.
