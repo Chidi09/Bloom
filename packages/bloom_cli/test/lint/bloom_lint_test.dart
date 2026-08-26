@@ -119,8 +119,7 @@ void main() {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source, filePath: 'test/component_test.dart');
-        expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('browser_import_in_test'));
+        expect(findings.map((f) => f.ruleName), contains('browser_import_in_test'));
       });
 
       test('TRUE NEGATIVE: passes bloom_js_native.dart import in test/ file', () {
@@ -301,6 +300,79 @@ void helper() {
 ''';
         final findings = BloomLinter.lintHtmlSource(html);
         expect(findings, isEmpty);
+      });
+    });
+
+    group('Rule 7: forbidden_browser_import_in_shared_code', () {
+      test('TRUE NEGATIVE: allows browser.dart import in lib/main.dart entrypoint', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/browser.dart';
+
+void main() {
+  mount(Div(), '#app');
+}
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/main.dart');
+        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
+      });
+
+      test('TRUE NEGATIVE: allows browser.dart import in web/ directory', () {
+        const source = '''
+import 'package:bloom_js_native/browser.dart';
+
+void bootstrap() {}
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'web/foo.dart');
+        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
+      });
+
+      test('TRUE POSITIVE: flags browser.dart import in lib/src/shared_widget.dart', () {
+        const source = '''
+import 'package:bloom_js_native/browser.dart';
+
+BloomNode buildWidget() => Div();
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/src/shared_widget.dart');
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('forbidden_browser_import_in_shared_code'));
+      });
+
+      test('TRUE POSITIVE: flags browser.dart import in bin/cli.dart', () {
+        const source = '''
+import 'package:bloom_js_native/browser.dart';
+
+void main() {}
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'bin/cli.dart');
+        expect(findings.length, equals(1));
+        expect(findings.first.ruleName, equals('forbidden_browser_import_in_shared_code'));
+      });
+
+      test('TRUE POSITIVE: flags browser.dart import in test/foo_test.dart with both rules', () {
+        const source = '''
+import 'package:test/test.dart';
+import 'package:bloom_js_native/browser.dart';
+
+void main() {
+  test('foo', () {});
+}
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'test/foo_test.dart');
+        expect(findings.length, equals(2));
+        final ruleNames = findings.map((f) => f.ruleName).toList();
+        expect(ruleNames, contains('browser_import_in_test'));
+        expect(ruleNames, contains('forbidden_browser_import_in_shared_code'));
+      });
+
+      test('TRUE NEGATIVE: passes bloom_js_native.dart import in shared code', () {
+        const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode buildWidget() => Div();
+''';
+        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/src/shared_widget.dart');
+        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
       });
     });
   });
