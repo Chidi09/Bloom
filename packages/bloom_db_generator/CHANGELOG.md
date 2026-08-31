@@ -2,7 +2,7 @@
 
 ## 0.1.1 - 2026-08-31
 
-* Maintenance release for build-runner model generation.
+* Preserve explicit `@BloomField` false values and custom field metadata.
 
 ## 0.1.0
 

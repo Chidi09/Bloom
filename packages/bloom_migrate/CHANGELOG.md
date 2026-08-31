@@ -2,7 +2,8 @@
 
 ## 0.1.2 - 2026-08-31
 
-* Maintenance release for the migration runtime and CLI.
+* Added checksum validation to reject modified applied migrations.
+* Added deployment locking and PostgreSQL dollar-quoted SQL parsing.
 
 ## 0.1.1 - 2026-08-23
 
