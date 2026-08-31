@@ -15,6 +15,7 @@ class BloomConsoleBackend implements BloomMailBackend {
 
   @override
   Future<void> send(BloomMailMessage message) async {
+    message.validate();
     final buffer = StringBuffer();
     buffer.writeln('========== [Bloom Mail: ConsoleBackend] ==========');
     buffer.writeln('From: ${message.from}');
@@ -46,4 +47,3 @@ class BloomConsoleBackend implements BloomMailBackend {
 
 /// Alias for [BloomConsoleBackend].
 typedef ConsoleBackend = BloomConsoleBackend;
-

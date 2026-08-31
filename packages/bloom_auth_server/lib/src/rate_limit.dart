@@ -226,7 +226,8 @@ class InMemoryRateLimiter {
 
   /// Duration of the sliding time window.
   final Duration window;
-  final Map<String, List<DateTime>> _attempts = HashMap<String, List<DateTime>>();
+  final Map<String, List<DateTime>> _attempts =
+      HashMap<String, List<DateTime>>();
 
   /// Creates an [InMemoryRateLimiter] with [maxAttempts] (default 5) and [window] (default 15 minutes).
   ///
@@ -236,7 +237,8 @@ class InMemoryRateLimiter {
     this.window = const Duration(minutes: 15),
   }) {
     if (maxAttempts < 1) {
-      throw ArgumentError.value(maxAttempts, 'maxAttempts', 'Must be at least 1');
+      throw ArgumentError.value(
+          maxAttempts, 'maxAttempts', 'Must be at least 1');
     }
   }
 
@@ -267,7 +269,8 @@ class InMemoryRateLimiter {
       if (timestamps.length >= maxAttempts) {
         final oldestInWindow = timestamps.first;
         final expiresAt = oldestInWindow.add(window);
-        final retrySecs = (expiresAt.difference(now).inSeconds).clamp(1, window.inSeconds);
+        final retrySecs =
+            (expiresAt.difference(now).inSeconds).clamp(1, window.inSeconds);
 
         return RateLimitStatus.throttled(
           maxAttempts: maxAttempts,
@@ -374,7 +377,8 @@ class InMemoryLockoutManager {
     this.lockoutDuration = const Duration(hours: 1),
   }) {
     if (maxAttempts < 1) {
-      throw ArgumentError.value(maxAttempts, 'maxAttempts', 'Must be at least 1');
+      throw ArgumentError.value(
+          maxAttempts, 'maxAttempts', 'Must be at least 1');
     }
   }
 
@@ -404,7 +408,10 @@ class InMemoryLockoutManager {
 
       if (entry.lockedUntil != null) {
         if (entry.lockedUntil!.isAfter(now)) {
-          final retrySecs = entry.lockedUntil!.difference(now).inSeconds.clamp(1, lockoutDuration.inSeconds);
+          final retrySecs = entry.lockedUntil!
+              .difference(now)
+              .inSeconds
+              .clamp(1, lockoutDuration.inSeconds);
           return RateLimitStatus.locked(
             maxAttempts: maxAttempts,
             retryAfterSeconds: retrySecs,
@@ -420,7 +427,8 @@ class InMemoryLockoutManager {
         }
       }
 
-      final remaining = (maxAttempts - entry.failedAttempts).clamp(0, maxAttempts);
+      final remaining =
+          (maxAttempts - entry.failedAttempts).clamp(0, maxAttempts);
       return RateLimitStatus.permitted(
         remainingAttempts: remaining,
         maxAttempts: maxAttempts,
@@ -576,7 +584,8 @@ class AuthRateLimiter {
       throw AccountLockedException(
         key: key,
         retryAfterSeconds: lockoutStatus.retryAfterSeconds,
-        lockedUntil: lockoutStatus.resetAt ?? DateTime.now().toUtc().add(const Duration(hours: 1)),
+        lockedUntil: lockoutStatus.resetAt ??
+            DateTime.now().toUtc().add(const Duration(hours: 1)),
       );
     }
 
@@ -634,4 +643,3 @@ class AuthRateLimiter {
     lockoutManager.reset(key);
   }
 }
-

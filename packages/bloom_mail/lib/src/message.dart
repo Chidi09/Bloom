@@ -1,4 +1,5 @@
 // lib/src/message.dart
+import 'backend.dart';
 import 'template.dart';
 
 /// An outgoing email message.
@@ -38,6 +39,117 @@ class BloomMailMessage {
     this.cc = const [],
     this.bcc = const [],
   });
+
+  /// Validates message structure, recipient lists, sender, and prevents CR/LF header injection.
+  ///
+  /// Throws [BloomMailException] if:
+  /// - [to] list is empty or contains invalid addresses.
+  /// - [from] address is empty or invalid.
+  /// - [subject] contains CR (`\r`) or LF (`\n`) characters.
+  /// - Any address in [to], [cc], [bcc], or [from] contains CR (`\r`) or LF (`\n`) characters.
+  /// - Any email address violates standard address structure (international domain names / IDNs supported).
+  void validate() {
+    if (to.isEmpty) {
+      throw const BloomMailException(
+          'Email must specify at least one recipient in "to" list');
+    }
+
+    if (subject.contains('\r') || subject.contains('\n')) {
+      throw const BloomMailException(
+        'Email subject cannot contain CR or LF newline characters (header injection detected)',
+      );
+    }
+
+    _validateAddress(from, fieldName: 'from');
+
+    for (final addr in to) {
+      _validateAddress(addr, fieldName: 'to');
+    }
+    for (final addr in cc) {
+      _validateAddress(addr, fieldName: 'cc');
+    }
+    for (final addr in bcc) {
+      _validateAddress(addr, fieldName: 'bcc');
+    }
+  }
+
+  static void _validateAddress(String rawAddress, {required String fieldName}) {
+    final trimmed = rawAddress.trim();
+    if (trimmed.isEmpty) {
+      throw BloomMailException('Email address in "$fieldName" cannot be empty');
+    }
+
+    if (rawAddress.contains('\r') || rawAddress.contains('\n')) {
+      throw BloomMailException(
+        'Email address "$rawAddress" in "$fieldName" contains CR or LF newline characters (header injection detected)',
+      );
+    }
+
+    // Check for "Display Name <email@domain>" format
+    String emailPart = trimmed;
+    if (trimmed.contains('<') && trimmed.endsWith('>')) {
+      final startIndex = trimmed.indexOf('<');
+      final displayName = trimmed.substring(0, startIndex).trim();
+      if (displayName.contains('\r') || displayName.contains('\n')) {
+        throw BloomMailException(
+          'Display name in "$fieldName" contains newline characters (header injection detected)',
+        );
+      }
+      emailPart = trimmed.substring(startIndex + 1, trimmed.length - 1).trim();
+    }
+
+    if (emailPart.isEmpty) {
+      throw BloomMailException(
+          'Email address in "$fieldName" is missing address part');
+    }
+
+    // Must contain exactly one @ separating local part and domain
+    final atIndex = emailPart.lastIndexOf('@');
+    if (atIndex == -1 || atIndex == 0 || atIndex == emailPart.length - 1) {
+      throw BloomMailException(
+        'Invalid email address format "$rawAddress" in "$fieldName": missing or misplaced "@"',
+      );
+    }
+
+    final localPart = emailPart.substring(0, atIndex);
+    final domainPart = emailPart.substring(atIndex + 1);
+
+    // If there is another @ not within quotes
+    if (localPart.contains('@') && !localPart.startsWith('"')) {
+      throw BloomMailException(
+        'Invalid email address format "$rawAddress" in "$fieldName": multiple "@" symbols in unquoted local part',
+      );
+    }
+
+    // Check control characters or whitespace in unquoted emailPart
+    for (var i = 0; i < emailPart.length; i++) {
+      final code = emailPart.codeUnitAt(i);
+      if (code < 32 || code == 127) {
+        throw BloomMailException(
+          'Invalid email address format "$rawAddress" in "$fieldName": contains control character (0x${code.toRadixString(16)})',
+        );
+      }
+    }
+
+    // Domain part checks: no leading/trailing dot, no consecutive dots
+    if (domainPart.startsWith('.') ||
+        domainPart.endsWith('.') ||
+        domainPart.contains('..')) {
+      throw BloomMailException(
+        'Invalid email domain "$domainPart" in "$fieldName": domain cannot start/end with dot or have consecutive dots',
+      );
+    }
+
+    // Domain must have valid labels (allow IDN / unicode, hyphens, alphanumeric)
+    final labels = domainPart.split('.');
+    for (final label in labels) {
+      if (label.isEmpty || label.startsWith('-') || label.endsWith('-')) {
+        throw BloomMailException(
+          'Invalid domain label "$label" in "$rawAddress" ($fieldName)',
+        );
+      }
+    }
+  }
 
   /// Convenience constructor for a single recipient email.
   factory BloomMailMessage.single({

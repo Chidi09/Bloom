@@ -1,6 +1,6 @@
 name: bloom_cache
 description: Server-side caching abstraction and backends (In-Memory LRU, Database, Redis) with HTTP response caching middleware for Bloom applications.
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:

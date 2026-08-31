@@ -127,4 +127,3 @@ bool dummyVerifyPassword(String candidatePassword) {
     return false;
   }
 }
-

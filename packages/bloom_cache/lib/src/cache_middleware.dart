@@ -159,7 +159,8 @@ class BloomCacheMiddleware implements BloomMiddleware {
   /// Returns a cached [BloomResponse] on cache hit, or executes [next] and caches
   /// the returned response if eligible.
   @override
-  Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
+  Future<BloomResponse?> handle(
+      BloomRequest request, BloomNextFunction next) async {
     // 1. Only GET requests are eligible for caching
     if (request.method.toUpperCase() != 'GET') {
       return next();
@@ -221,11 +222,13 @@ class BloomCacheMiddleware implements BloomMiddleware {
       return false;
     }
 
-    final cacheControl = response.headers['cache-control'] ??
-        response.headers['Cache-Control'];
+    final cacheControl =
+        response.headers['cache-control'] ?? response.headers['Cache-Control'];
     if (cacheControl != null) {
       final cc = cacheControl.toLowerCase();
-      if (cc.contains('no-store') || cc.contains('no-cache') || cc.contains('private')) {
+      if (cc.contains('no-store') ||
+          cc.contains('no-cache') ||
+          cc.contains('private')) {
         return false;
       }
     }
@@ -242,4 +245,3 @@ class BloomCacheMiddleware implements BloomMiddleware {
     return true;
   }
 }
-

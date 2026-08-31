@@ -41,4 +41,3 @@ typedef MailBackend = BloomMailBackend;
 
 /// Alias for [BloomMailException].
 typedef MailException = BloomMailException;
-

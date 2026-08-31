@@ -9,7 +9,8 @@ void main() {
       cache = InMemoryCache(maxCapacity: 100);
     });
 
-    test('invalidateTag removes exactly the entries carrying that tag', () async {
+    test('invalidateTag removes exactly the entries carrying that tag',
+        () async {
       await cache.set('product:1', 'widget', tags: ['products']);
       await cache.set('product:2', 'gadget', tags: ['products']);
       await cache.set('user:1', 'ada', tags: ['users']);
@@ -64,7 +65,8 @@ void main() {
       expect(await cache.get<int>('a'), 1);
     });
 
-    test('getOrSet labels the computed entry, and invalidation forces recompute',
+    test(
+        'getOrSet labels the computed entry, and invalidation forces recompute',
         () async {
       var computeCount = 0;
       Future<String> compute() async {
@@ -75,7 +77,8 @@ void main() {
       final first = await cache.getOrSet<String>('k', compute, tags: ['t']);
       final second = await cache.getOrSet<String>('k', compute, tags: ['t']);
       expect(first, 'computed-1');
-      expect(second, 'computed-1', reason: 'second call must be served from cache');
+      expect(second, 'computed-1',
+          reason: 'second call must be served from cache');
       expect(computeCount, 1);
 
       await cache.invalidateTag('t');
@@ -106,7 +109,8 @@ void main() {
       // Inserting a third entry evicts 'a'.
       await small.set('c', 'vc', tags: ['tagC']);
 
-      expect(await small.get<String>('a'), isNull, reason: 'a should be evicted');
+      expect(await small.get<String>('a'), isNull,
+          reason: 'a should be evicted');
 
       // Invalidating the evicted key's tag must neither resurrect it nor
       // disturb the entries that are still live.

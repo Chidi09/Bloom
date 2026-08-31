@@ -297,8 +297,10 @@ List<_Token> _tokenize(String template) {
     } else if (raw.startsWith('{%') && raw.endsWith('%}')) {
       final content = raw.substring(2, raw.length - 2).trim();
       final spaceIndex = content.indexOf(RegExp(r'\s'));
-      final tagName = spaceIndex == -1 ? content : content.substring(0, spaceIndex).trim();
-      final tagArgs = spaceIndex == -1 ? '' : content.substring(spaceIndex).trim();
+      final tagName =
+          spaceIndex == -1 ? content : content.substring(0, spaceIndex).trim();
+      final tagArgs =
+          spaceIndex == -1 ? '' : content.substring(spaceIndex).trim();
       tokens.add(_TagToken(tagName, tagArgs, raw));
     }
 

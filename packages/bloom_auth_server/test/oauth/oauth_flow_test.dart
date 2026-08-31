@@ -49,7 +49,8 @@ void main() {
       expect(uri.queryParameters['state'], 'test-state-123');
     });
 
-    test('exchangeAndFetchProfile orchestrates token and profile retrieval', () async {
+    test('exchangeAndFetchProfile orchestrates token and profile retrieval',
+        () async {
       final mockClient = MockClient((request) async {
         if (request.url.path == '/token') {
           return http.Response(
@@ -99,7 +100,9 @@ void main() {
       expect(profile.displayName, 'Taylor Swift');
     });
 
-    test('handleCallback completes end-to-end flow and issues verified JWT session token', () async {
+    test(
+        'handleCallback completes end-to-end flow and issues verified JWT session token',
+        () async {
       final mockClient = MockClient((request) async {
         if (request.url.path == '/token') {
           return http.Response(
@@ -174,7 +177,8 @@ void main() {
       expect(verifiedClaims.customClaims['orgId'], 'org_bloom_01');
     });
 
-    test('handleCallback respects custom secret and issuer parameters', () async {
+    test('handleCallback respects custom secret and issuer parameters',
+        () async {
       const customSecret = 'custom-signing-secret-key-32-chars-long';
       const customIssuer = 'my-custom-auth-service';
 
@@ -231,6 +235,94 @@ void main() {
         issuer: customIssuer,
       );
       expect(verified.userId, 'user_777');
+    });
+
+    test(
+        'stateStore integration: generates, saves, verifies, and consumes single-use state',
+        () async {
+      final stateStore = InMemoryOAuthStateStore();
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/token') {
+          return http.Response(
+            jsonEncode({'access_token': 'token-xyz'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/oauth2/v3/userinfo') {
+          return http.Response(
+            jsonEncode({'sub': 'google-456', 'email': 'state@example.com'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final flow = BloomOAuthFlow(
+        GoogleOAuthProvider(
+          clientId: 'id',
+          clientSecret: 'secret',
+          client: mockClient,
+        ),
+        stateStore: stateStore,
+      );
+
+      final state = await flow.generateAndSaveState();
+      expect(state, isNotEmpty);
+      expect(stateStore.count, 1);
+
+      final now = DateTime.now().toUtc();
+
+      // 1. Missing state when store configured throws BloomOAuthStateException
+      expect(
+        () => flow.handleCallback(
+          code: 'code-1',
+          redirectUri: 'https://example.com/callback',
+          resolveUser: (p) =>
+              BloomAuthClaims(userId: 'u', issuedAt: now, expiresAt: now),
+        ),
+        throwsA(isA<BloomOAuthStateException>()),
+      );
+
+      // 2. Invalid state throws BloomOAuthStateException
+      expect(
+        () => flow.handleCallback(
+          code: 'code-1',
+          redirectUri: 'https://example.com/callback',
+          state: 'invalid-state-token',
+          resolveUser: (p) =>
+              BloomAuthClaims(userId: 'u', issuedAt: now, expiresAt: now),
+        ),
+        throwsA(isA<BloomOAuthStateException>()),
+      );
+
+      // 3. Valid state succeeds and consumes the token
+      final result = await flow.handleCallback(
+        code: 'code-1',
+        redirectUri: 'https://example.com/callback',
+        state: state,
+        resolveUser: (p) => BloomAuthClaims(
+          userId: 'user_state_success',
+          email: p.email,
+          issuedAt: now,
+          expiresAt: now.add(const Duration(days: 1)),
+        ),
+      );
+      expect(result.claims.userId, 'user_state_success');
+      expect(stateStore.count, 0);
+
+      // 4. Replaying the same state token is rejected (single-use CSRF defense)
+      expect(
+        () => flow.handleCallback(
+          code: 'code-1',
+          redirectUri: 'https://example.com/callback',
+          state: state,
+          resolveUser: (p) =>
+              BloomAuthClaims(userId: 'u', issuedAt: now, expiresAt: now),
+        ),
+        throwsA(isA<BloomOAuthStateException>()),
+      );
     });
   });
 }

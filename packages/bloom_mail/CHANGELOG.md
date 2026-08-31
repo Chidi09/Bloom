@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 - 2026-08-31
+
+### Security & Reliability Hardening
+* **Header Injection & Address Validation**: Added comprehensive validation in `BloomMailMessage.validate()`. Rejects CR/LF (`\r`, `\n`) newline characters in subject, sender, and recipient addresses (`to`, `cc`, `bcc`) to prevent SMTP header injection. Validates structural correctness across standard and internationalized domain names (IDN).
+* **Port Range Validation**: Enforced strict port bounds (1..65535) in `BloomSmtpConfig.validate()`.
+* **TLS Production Safety**: `ignoreBadCertificate` is now blocked by default in production mode, requiring explicit `allowInsecureCertificates: true` to prevent accidental TLS downgrade attacks.
+* **Configurable Timeouts & Bounded Retries**: Added configurable timeout (`timeout`) and bounded exponential backoff retries (`maxRetries`, `retryDelay`, `maxRetryDelay`) in `BloomSmtpBackend` for transient network failures (socket drops, timeouts, temporary 4xx responses) while failing fast on deterministic validation and authentication failures (535, 55x). Added test seams for reliable unit verification.
+
 ## 0.3.1 - 2026-08-25
 
 ### Fixed

@@ -22,7 +22,9 @@ void main() {
       );
     });
 
-    test('buildAuthorizationUrl constructs valid GitHub OAuth URL with defaults', () {
+    test(
+        'buildAuthorizationUrl constructs valid GitHub OAuth URL with defaults',
+        () {
       final provider = GitHubOAuthProvider(
         clientId: testClientId,
         clientSecret: testClientSecret,
@@ -68,7 +70,8 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        () => provider.buildAuthorizationUrl(redirectUri: testRedirectUri, state: ''),
+        () => provider.buildAuthorizationUrl(
+            redirectUri: testRedirectUri, state: ''),
         throwsArgumentError,
       );
     });
@@ -78,7 +81,8 @@ void main() {
     test('exchanges code for tokens successfully', () async {
       final mockClient = MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.toString(), 'https://github.com/login/oauth/access_token');
+        expect(request.url.toString(),
+            'https://github.com/login/oauth/access_token');
         expect(request.headers['accept'], 'application/json');
         expect(
           request.headers['content-type'],
@@ -122,7 +126,9 @@ void main() {
       expect(tokenResponse.scope, 'read:user,user:email');
     });
 
-    test('throws BloomOAuthException when GitHub returns error object in JSON body', () async {
+    test(
+        'throws BloomOAuthException when GitHub returns error object in JSON body',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           jsonEncode({
@@ -149,7 +155,8 @@ void main() {
         throwsA(
           isA<BloomOAuthException>()
               .having((e) => e.provider, 'provider', 'github')
-              .having((e) => e.message, 'message', contains('incorrect or expired')),
+              .having((e) => e.message, 'message',
+                  contains('incorrect or expired')),
         ),
       );
     });
@@ -217,11 +224,14 @@ void main() {
       expect(profile.providerUserId, '583231');
       expect(profile.email, 'octocat@github.com');
       expect(profile.displayName, 'The Octocat');
-      expect(profile.avatarUrl, 'https://avatars.githubusercontent.com/u/583231?v=4');
+      expect(profile.avatarUrl,
+          'https://avatars.githubusercontent.com/u/583231?v=4');
       expect(profile.rawProfile['bio'], 'GitHub mascot');
     });
 
-    test('fetches primary verified email from /user/emails when /user email is null', () async {
+    test(
+        'fetches primary verified email from /user/emails when /user email is null',
+        () async {
       final mockClient = MockClient((request) async {
         if (request.url.path == '/user') {
           return http.Response(
@@ -284,7 +294,8 @@ void main() {
       expect(profile.displayName, 'Private Developer');
     });
 
-    test('throws BloomOAuthException when user profile fails with 401', () async {
+    test('throws BloomOAuthException when user profile fails with 401',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           jsonEncode({'message': 'Bad credentials'}),
@@ -309,7 +320,8 @@ void main() {
       );
     });
 
-    test('throws BloomOAuthException when id is missing from /user response', () async {
+    test('throws BloomOAuthException when id is missing from /user response',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           jsonEncode({'login': 'no-id-user'}),
@@ -329,7 +341,8 @@ void main() {
         throwsA(
           isA<BloomOAuthException>()
               .having((e) => e.provider, 'provider', 'github')
-              .having((e) => e.message, 'message', contains('missing user "id"')),
+              .having(
+                  (e) => e.message, 'message', contains('missing user "id"')),
         ),
       );
     });

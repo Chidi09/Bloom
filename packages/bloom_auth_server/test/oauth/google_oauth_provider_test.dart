@@ -22,7 +22,9 @@ void main() {
       );
     });
 
-    test('buildAuthorizationUrl constructs valid Google OAuth2 URL with defaults', () {
+    test(
+        'buildAuthorizationUrl constructs valid Google OAuth2 URL with defaults',
+        () {
       final provider = GoogleOAuthProvider(
         clientId: testClientId,
         clientSecret: testClientSecret,
@@ -75,7 +77,8 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        () => provider.buildAuthorizationUrl(redirectUri: testRedirectUri, state: ''),
+        () => provider.buildAuthorizationUrl(
+            redirectUri: testRedirectUri, state: ''),
         throwsArgumentError,
       );
     });
@@ -130,7 +133,8 @@ void main() {
       expect(tokenResponse.scope, 'openid email profile');
     });
 
-    test('throws BloomOAuthException when Google returns an error payload', () async {
+    test('throws BloomOAuthException when Google returns an error payload',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           jsonEncode({
@@ -157,12 +161,15 @@ void main() {
           isA<BloomOAuthException>()
               .having((e) => e.provider, 'provider', 'google')
               .having((e) => e.statusCode, 'statusCode', 400)
-              .having((e) => e.message, 'message', contains('Code has expired')),
+              .having(
+                  (e) => e.message, 'message', contains('Code has expired')),
         ),
       );
     });
 
-    test('throws BloomOAuthException when response is malformed HTML or non-JSON', () async {
+    test(
+        'throws BloomOAuthException when response is malformed HTML or non-JSON',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           '<html><body>502 Bad Gateway</body></html>',
@@ -195,7 +202,8 @@ void main() {
     test('fetches and parses Google user profile correctly', () async {
       final mockClient = MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.toString(), 'https://www.googleapis.com/oauth2/v3/userinfo');
+        expect(request.url.toString(),
+            'https://www.googleapis.com/oauth2/v3/userinfo');
         expect(request.headers['authorization'], 'Bearer sample-access-token');
 
         return http.Response(
@@ -225,11 +233,13 @@ void main() {
       expect(profile.providerUserId, '108294729184918237000');
       expect(profile.email, 'alex.rivera@example.com');
       expect(profile.displayName, 'Alex Rivera');
-      expect(profile.avatarUrl, 'https://lh3.googleusercontent.com/a/sample-avatar.png');
+      expect(profile.avatarUrl,
+          'https://lh3.googleusercontent.com/a/sample-avatar.png');
       expect(profile.rawProfile['email_verified'], true);
     });
 
-    test('throws BloomOAuthException when user profile request returns 401', () async {
+    test('throws BloomOAuthException when user profile request returns 401',
+        () async {
       final mockClient = MockClient((request) async {
         return http.Response(
           jsonEncode({
