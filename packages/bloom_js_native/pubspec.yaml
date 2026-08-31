@@ -1,6 +1,6 @@
 name: bloom_js_native
 description: Reactive Dart web framework for real DOM apps — SSR, SSG, ISR-friendly rendering, signals, SEO, and browser APIs. Not Flutter web.
-version: 0.3.5
+version: 0.3.6
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:

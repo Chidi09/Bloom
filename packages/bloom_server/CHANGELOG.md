@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-08-31
+
+### Added
+* Route groups, explicit OPTIONS routes, route-aware Allow headers, 405 responses, and automatic OPTIONS handling.
+* Streaming multipart form-data fields and files with request-size enforcement.
+
 ## 0.2.0 - 2026-08-24
 
 ### Added

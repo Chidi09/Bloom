@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.6 - 2026-08-31
+
+### Added
+* Browser-only `BrowserRealtimeClient` WebSocket transport with channel multiplexing, presence, heartbeat, reconnect, and resubscription.
+* Expanded cookbook guidance for font manifests, visual parity, responsive CSS, hydration, and raw HTML/SVG behavior.
+
 ## 0.3.5 - 2026-08-26
 
 ### Added

@@ -1,6 +1,6 @@
 name: bloom_server
 description: Flutter-free Dart web server for full-stack apps — HTTP APIs, routing, middleware, SSR, SSG/ISR delivery, env config, and DI. Pairs with bloom_js_native.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
