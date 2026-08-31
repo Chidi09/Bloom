@@ -125,7 +125,6 @@ class BloomModelAdminConfig {
   });
 }
 
-
 /// Pluggable administration interface for managing ORM models.
 ///
 /// Mirrors `djangors-admin`'s `ModelAdmin` trait.
@@ -186,14 +185,17 @@ abstract class BloomModelAdmin<T extends Model> {
 
   /// Updates an existing object from form parameters.
   /// Returns `null` on success, or a map of field name -> error message on validation failure.
-  Future<Map<String, String>?> updateFromForm(DbExecutor db, int pk, Map<String, String> formData);
+  Future<Map<String, String>?> updateFromForm(
+      DbExecutor db, int pk, Map<String, String> formData);
 
   /// Updates specific fields of an existing object from changelist inline edits.
-  Future<Map<String, String>?> updateFieldsFromForm(DbExecutor db, int pk, Map<String, String> formData);
+  Future<Map<String, String>?> updateFieldsFromForm(
+      DbExecutor db, int pk, Map<String, String> formData);
 
   /// Creates a new model instance from form parameters.
   /// Returns `(newPk, null)` on success, or `(null, errorsMap)` on validation failure.
-  Future<(int?, Map<String, String>?)> createFromForm(DbExecutor db, Map<String, String> formData);
+  Future<(int?, Map<String, String>?)> createFromForm(
+      DbExecutor db, Map<String, String> formData);
 
   /// Deletes a single object by primary key.
   Future<bool> deleteByPk(DbExecutor db, int pk);
@@ -215,7 +217,6 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
     this.config = const BloomModelAdminConfig(),
   })  : _meta = meta,
         _fromRow = fromRow;
-
 
   @override
   ModelMeta get modelMeta => _meta;
@@ -334,7 +335,8 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
     String? search,
     Map<String, bool>? filters,
   }) async {
-    var qs = buildFilteredQuerySet(order: order, search: search, filters: filters);
+    var qs =
+        buildFilteredQuerySet(order: order, search: search, filters: filters);
 
     final total = await qs.count(db);
     final offset = (page - 1) * perPage;
@@ -349,7 +351,9 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
 
     for (final item in items) {
       rows.add(_extractRowValues(item, cols));
-      final valMap = {for (final (k, v) in item.fieldValues()) k: v.raw?.toString() ?? ''};
+      final valMap = {
+        for (final (k, v) in item.fieldValues()) k: v.raw?.toString() ?? ''
+      };
       pks.add(valMap[pkName] ?? '');
     }
 
@@ -370,7 +374,8 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
     String? search,
     Map<String, bool>? filters,
   }) async {
-    final qs = buildFilteredQuerySet(order: order, search: search, filters: filters);
+    final qs =
+        buildFilteredQuerySet(order: order, search: search, filters: filters);
     final items = await qs.all(db);
     final cols = effectiveColumns;
     final rows = items.map((item) => _extractRowValues(item, cols)).toList();
@@ -387,7 +392,8 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
   }
 
   @override
-  Future<Map<String, String>?> updateFromForm(DbExecutor db, int pk, Map<String, String> formData) async {
+  Future<Map<String, String>?> updateFromForm(
+      DbExecutor db, int pk, Map<String, String> formData) async {
     final errors = <String, String>{};
     final sets = <String, dynamic>{};
 
@@ -421,7 +427,8 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
   }
 
   @override
-  Future<Map<String, String>?> updateFieldsFromForm(DbExecutor db, int pk, Map<String, String> formData) async {
+  Future<Map<String, String>?> updateFieldsFromForm(
+      DbExecutor db, int pk, Map<String, String> formData) async {
     final errors = <String, String>{};
     final sets = <String, dynamic>{};
 
@@ -447,7 +454,8 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
   }
 
   @override
-  Future<(int?, Map<String, String>?)> createFromForm(DbExecutor db, Map<String, String> formData) async {
+  Future<(int?, Map<String, String>?)> createFromForm(
+      DbExecutor db, Map<String, String> formData) async {
     final errors = <String, String>{};
     final values = <String, dynamic>{};
 
@@ -499,7 +507,9 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
 /// - On failure: `(null, errorMessage)`
 (dynamic, String?) parseFieldValue(FieldMeta field, String? raw) {
   if (field.kind == FieldKind.boolean) {
-    if (raw != null && raw.isNotEmpty && (raw == 'on' || raw == 'true' || raw == '1')) {
+    if (raw != null &&
+        raw.isNotEmpty &&
+        (raw == 'on' || raw == 'true' || raw == '1')) {
       return (true, null);
     }
     return (false, null);
@@ -556,4 +566,3 @@ class DefaultBloomModelAdmin<T extends Model> extends BloomModelAdmin<T> {
   }
   return (parsed, null);
 }
-

@@ -49,7 +49,8 @@ Future<BloomResponse> _renderFormView({
                   ? 'number'
                   : 'text'));
 
-      final isChecked = kind == 'checkbox' && (val == 'true' || val == 'on' || val == '1');
+      final isChecked =
+          kind == 'checkbox' && (val == 'true' || val == 'on' || val == '1');
 
       return {
         'kind': kind,
@@ -71,7 +72,8 @@ Future<BloomResponse> _renderFormView({
       String? lookupHref;
       if (rawIdFields.contains(name)) {
         final targetMeta = rel.target();
-        lookupHref = '/${targetMeta.appLabel}/${targetMeta.structName.toLowerCase()}/';
+        lookupHref =
+            '/${targetMeta.appLabel}/${targetMeta.structName.toLowerCase()}/';
       }
 
       return {
@@ -242,4 +244,3 @@ Future<BloomResponse> changePostView({
   final model = admin.modelMeta.structName.toLowerCase();
   return BloomResponse.redirect('/$app/$model/');
 }
-

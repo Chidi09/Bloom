@@ -25,7 +25,10 @@ String buildQueryString(Map<String, String?> pairs) {
 
 /// Escapes a CSV field string according to RFC 4180 rules.
 String csvEscapeField(String s) {
-  if (s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
+  if (s.contains(',') ||
+      s.contains('"') ||
+      s.contains('\n') ||
+      s.contains('\r')) {
     return '"${s.replaceAll('"', '""')}"';
   }
   return s;
@@ -130,7 +133,8 @@ Future<BloomResponse> changelistView({
           'page': (page - 1).toString(),
           'o': order,
           'q': search,
-          for (final f in activeFilters.entries) f.key: f.value ? 'true' : 'false',
+          for (final f in activeFilters.entries)
+            f.key: f.value ? 'true' : 'false',
         })
       : null;
 
@@ -139,7 +143,8 @@ Future<BloomResponse> changelistView({
           'page': (page + 1).toString(),
           'o': order,
           'q': search,
-          for (final f in activeFilters.entries) f.key: f.value ? 'true' : 'false',
+          for (final f in activeFilters.entries)
+            f.key: f.value ? 'true' : 'false',
         })
       : null;
 
@@ -313,7 +318,11 @@ Future<BloomResponse> bulkActionView({
 
   if (action != null) {
     // Parse selected PKs
-    final rawPks = request.text().split('&').where((s) => s.startsWith('selected=')).map((s) => Uri.decodeQueryComponent(s.substring(9)));
+    final rawPks = request
+        .text()
+        .split('&')
+        .where((s) => s.startsWith('selected='))
+        .map((s) => Uri.decodeQueryComponent(s.substring(9)));
     final pks = rawPks.map(int.tryParse).whereType<int>().toList();
     if (pks.isNotEmpty) {
       await action.handler(db, pks);
@@ -324,4 +333,3 @@ Future<BloomResponse> bulkActionView({
   final model = admin.modelMeta.structName.toLowerCase();
   return BloomResponse.redirect('/$app/$model/');
 }
-

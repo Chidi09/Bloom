@@ -9,7 +9,6 @@ class SafeHtml {
   /// Creates a [SafeHtml] wrapper designating [rawHtml] as safe to render without escaping.
   const SafeHtml(this.rawHtml);
 
-
   @override
   String toString() => rawHtml;
 }

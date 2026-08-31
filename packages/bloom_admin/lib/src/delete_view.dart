@@ -172,4 +172,3 @@ Future<BloomResponse> bulkDeletePostView({
   final model = admin.modelMeta.structName.toLowerCase();
   return BloomResponse.redirect('/$app/$model/');
 }
-
