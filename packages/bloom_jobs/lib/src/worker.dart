@@ -63,8 +63,8 @@ class BloomJobWorker {
   /// and `false` if no due task was available.
   /// Any exception thrown during handler execution or payload parsing is caught,
   /// recorded on the task, and does NOT propagate out.
-  Future<bool> runOnce([DateTime? now]) async {
-    final task = await queue.claimNext(now);
+  Future<bool> runOnce([DateTime? now, Duration? leaseDuration]) async {
+    final task = await queue.claimNext(now, leaseDuration);
     if (task == null) {
       return false;
     }
@@ -74,6 +74,7 @@ class BloomJobWorker {
       final err = 'Task handler "${task.taskName}" not found in registry.';
       await queue.markFailed(
         task.id,
+        token: task.token,
         errorMessage: err,
       );
       return true;
@@ -84,10 +85,11 @@ class BloomJobWorker {
       if (result is Future) {
         await result;
       }
-      await queue.markCompleted(task.id);
+      await queue.markCompleted(task.id, token: task.token);
     } catch (e, st) {
       await queue.markFailed(
         task.id,
+        token: task.token,
         errorMessage: e.toString(),
         stackTrace: st.toString(),
       );

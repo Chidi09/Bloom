@@ -33,7 +33,15 @@ class BloomRecurringTask {
     DateTime? nextRunAt,
     this.lastRunAt,
     this.enabled = true,
-  }) : nextRunAt = nextRunAt ?? DateTime.now().add(interval);
+  }) : nextRunAt = nextRunAt ?? DateTime.now().add(interval) {
+    if (interval <= Duration.zero) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'Recurring task interval must be strictly positive (greater than Duration.zero).',
+      );
+    }
+  }
 }
 
 /// Registry and manager for recurring periodic tasks.
@@ -48,6 +56,13 @@ class BloomRecurringRegistry {
     Map<String, dynamic> payload = const {},
     DateTime? initialRunAt,
   }) {
+    if (interval <= Duration.zero) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'Recurring task interval must be strictly positive (greater than Duration.zero).',
+      );
+    }
     _idCounter++;
     final id = _idCounter.toString();
     final recurring = BloomRecurringTask(

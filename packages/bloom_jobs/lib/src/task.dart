@@ -1,7 +1,8 @@
 import 'dart:async';
 
 /// Signature for background task handlers.
-typedef BloomTaskHandler = FutureOr<void> Function(Map<String, dynamic> payload);
+typedef BloomTaskHandler = FutureOr<void> Function(
+    Map<String, dynamic> payload);
 
 /// Execution status of a queued task.
 enum BloomTaskStatus {
@@ -36,13 +37,19 @@ class BloomQueuedTask {
   final DateTime createdAt;
 
   /// Earliest scheduled execution timestamp.
-  final DateTime scheduledAt;
+  DateTime scheduledAt;
 
   /// Number of execution attempts made so far.
   int attempts;
 
   /// Maximum allowed execution attempts before being marked failed permanently.
   final int maxAttempts;
+
+  /// Ownership token verifying active lease ownership.
+  String? token;
+
+  /// Timestamp when the current execution lease expires.
+  DateTime? leaseExpiresAt;
 
   /// Last error or exception message if execution failed.
   String? lastError;
@@ -66,6 +73,8 @@ class BloomQueuedTask {
     DateTime? scheduledAt,
     this.attempts = 0,
     this.maxAttempts = 3,
+    this.token,
+    this.leaseExpiresAt,
     this.lastError,
     this.lastStackTrace,
     this.startedAt,
@@ -94,6 +103,8 @@ class BloomQueuedTask {
         'scheduledAt': scheduledAt.toIso8601String(),
         'attempts': attempts,
         'maxAttempts': maxAttempts,
+        'token': token,
+        'leaseExpiresAt': leaseExpiresAt?.toIso8601String(),
         'lastError': lastError,
         'lastStackTrace': lastStackTrace,
         'startedAt': startedAt?.toIso8601String(),
@@ -102,5 +113,5 @@ class BloomQueuedTask {
 
   @override
   String toString() =>
-      'BloomQueuedTask(id: $id, taskName: $taskName, status: ${status.name}, attempts: $attempts/$maxAttempts, scheduledAt: $scheduledAt)';
+      'BloomQueuedTask(id: $id, taskName: $taskName, status: ${status.name}, attempts: $attempts/$maxAttempts, scheduledAt: $scheduledAt, token: $token, leaseExpiresAt: $leaseExpiresAt)';
 }
