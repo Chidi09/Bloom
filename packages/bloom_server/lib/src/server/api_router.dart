@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'bloom_middleware.dart';
+import 'bloom_multipart.dart';
 import 'bloom_request.dart';
 import 'bloom_response.dart';
 import 'package:bloom_js_native/bloom_js_native.dart';
@@ -19,7 +20,8 @@ import 'package:bloom_seo/bloom_seo.dart';
 ///   return BloomResponse.json({'status': 'healthy'});
 /// };
 /// ```
-typedef BloomRouteHandler = FutureOr<BloomResponse> Function(BloomRequest request);
+typedef BloomRouteHandler = FutureOr<BloomResponse> Function(
+    BloomRequest request);
 
 class _PayloadTooLargeException implements Exception {
   final String message;
@@ -47,6 +49,183 @@ class _RouteEntry {
     required this.handler,
     required this.specificity,
   });
+}
+
+String _joinPaths(String parent, String child) {
+  var p = parent.trim();
+  var c = child.trim();
+
+  if (p.isNotEmpty && !p.startsWith('/')) {
+    p = '/$p';
+  }
+  while (p.endsWith('/') && p.length > 1) {
+    p = p.substring(0, p.length - 1);
+  }
+  if (p == '/') {
+    p = '';
+  }
+
+  if (c.isNotEmpty && !c.startsWith('/')) {
+    c = '/$c';
+  }
+
+  if (p.isNotEmpty && c == '/') {
+    c = '';
+  }
+
+  final combined = '$p$c';
+  if (combined.isEmpty) {
+    return '/';
+  }
+  return combined;
+}
+
+const _standardMethodOrder = [
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+];
+
+String _buildAllowHeader(Iterable<String> methods) {
+  final methodSet = methods.toSet();
+  final ordered = <String>[];
+  for (final m in _standardMethodOrder) {
+    if (methodSet.remove(m)) {
+      ordered.add(m);
+    }
+  }
+  final remaining = methodSet.toList()..sort();
+  ordered.addAll(remaining);
+  return ordered.join(', ');
+}
+
+/// Represents a scoped route group in [BloomApiRouter] sharing a URL prefix and middleware pipeline.
+///
+/// Route groups allow modular endpoint organization with nested prefix hierarchies and
+/// deterministic middleware inheritance.
+///
+/// ### Example
+/// ```dart
+/// router.group('/api/v1', (v1) {
+///   v1.use(BloomCorsMiddleware());
+///
+///   v1.get('/tasks', (req) async => BloomResponse.json(tasks));
+///   v1.post('/tasks', (req) async => BloomResponse.json(newTask, statusCode: 201));
+///
+///   v1.group('/admin', (admin) {
+///     admin.delete('/cache', (req) async => BloomResponse.noContent());
+///   });
+/// });
+/// ```
+class BloomRouteGroup {
+  final BloomApiRouter _router;
+  final String _prefix;
+  final List<BloomMiddleware> _middlewares;
+
+  BloomRouteGroup._(this._router, this._prefix,
+      [List<BloomMiddleware>? middlewares])
+      : _middlewares = List<BloomMiddleware>.from(middlewares ?? const []);
+
+  /// The resolved URL prefix for this route group.
+  String get prefix => _prefix;
+
+  /// Registers middleware scoped to all routes within this group and its subgroups.
+  void use(BloomMiddleware middleware) {
+    _middlewares.add(middleware);
+  }
+
+  /// Registers a `GET` route within this group.
+  void get(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('GET', path, handler, middlewares);
+  }
+
+  /// Registers a `POST` route within this group.
+  void post(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('POST', path, handler, middlewares);
+  }
+
+  /// Registers a `PUT` route within this group.
+  void put(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('PUT', path, handler, middlewares);
+  }
+
+  /// Registers a `PATCH` route within this group.
+  void patch(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('PATCH', path, handler, middlewares);
+  }
+
+  /// Registers a `DELETE` route within this group.
+  void delete(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('DELETE', path, handler, middlewares);
+  }
+
+  /// Registers an `OPTIONS` route within this group.
+  void options(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('OPTIONS', path, handler, middlewares);
+  }
+
+  /// Registers a route matching all HTTP methods within this group.
+  void all(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('*', path, handler, middlewares);
+  }
+
+  /// Mounts a Server-Side Rendered (SSR) endpoint within this group.
+  void ssr(
+    String path,
+    BloomNode Function(BloomRequest request) builder, {
+    HeadManager Function(BloomRequest request)? head,
+    String Function(String bodyHtml, HeadManager? head)? layout,
+    List<BloomMiddleware> middlewares = const [],
+  }) {
+    get(path, (request) async {
+      final node = builder(request);
+      final bodyHtml = renderToHtml(node);
+      final headManager = head?.call(request);
+
+      final String fullHtml;
+      if (layout != null) {
+        fullHtml = layout(bodyHtml, headManager);
+      } else if (headManager != null) {
+        fullHtml = headManager.wrapDocument(bodyHtml);
+      } else {
+        fullHtml =
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
+      }
+
+      return BloomResponse.html(fullHtml);
+    }, middlewares: middlewares);
+  }
+
+  /// Creates a nested route group within this group.
+  void group(
+    String prefix,
+    void Function(BloomRouteGroup group) configure, {
+    List<BloomMiddleware> middlewares = const [],
+  }) {
+    final combinedPrefix = _joinPaths(_prefix, prefix);
+    final combinedMiddlewares = [..._middlewares, ...middlewares];
+    final childGroup =
+        BloomRouteGroup._(_router, combinedPrefix, combinedMiddlewares);
+    configure(childGroup);
+  }
+
+  void _addRoute(String method, String path, BloomRouteHandler handler,
+      List<BloomMiddleware> routeMiddlewares) {
+    final fullPath = _joinPaths(_prefix, path);
+    final fullMiddlewares = [..._middlewares, ...routeMiddlewares];
+    _router._addRoute(method, fullPath, handler, fullMiddlewares);
+  }
 }
 
 /// High-performance server router for Bloom API routes, WebSocket gateways, and SSR endpoints.
@@ -116,7 +295,8 @@ class BloomApiRouter {
   /// ```dart
   /// router.get('/api/items', (req) async => BloomResponse.json(items));
   /// ```
-  void get(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void get(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('GET', path, handler, middlewares);
   }
 
@@ -129,7 +309,8 @@ class BloomApiRouter {
   ///   return BloomResponse.json(payload, statusCode: 201);
   /// });
   /// ```
-  void post(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void post(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('POST', path, handler, middlewares);
   }
 
@@ -139,7 +320,8 @@ class BloomApiRouter {
   /// ```dart
   /// router.put('/api/items/:id', (req) async => BloomResponse.json({'updated': req.params['id']}));
   /// ```
-  void put(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void put(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('PUT', path, handler, middlewares);
   }
 
@@ -149,7 +331,8 @@ class BloomApiRouter {
   /// ```dart
   /// router.delete('/api/items/:id', (req) async => BloomResponse.noContent());
   /// ```
-  void delete(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void delete(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('DELETE', path, handler, middlewares);
   }
 
@@ -159,8 +342,20 @@ class BloomApiRouter {
   /// ```dart
   /// router.patch('/api/items/:id', (req) async => BloomResponse.json({'patched': req.params['id']}));
   /// ```
-  void patch(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void patch(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('PATCH', path, handler, middlewares);
+  }
+
+  /// Registers an `OPTIONS` route for [path] handled by [handler] with optional route-scoped [middlewares].
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.options('/api/items', (req) async => BloomResponse.noContent());
+  /// ```
+  void options(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
+    _addRoute('OPTIONS', path, handler, middlewares);
   }
 
   /// Registers a route for [path] matching all HTTP methods (GET, POST, PUT, DELETE, PATCH, OPTIONS, etc.).
@@ -169,8 +364,31 @@ class BloomApiRouter {
   /// ```dart
   /// router.all('/api/proxy/*', (req) async => proxyHandler(req));
   /// ```
-  void all(String path, BloomRouteHandler handler, {List<BloomMiddleware> middlewares = const []}) {
+  void all(String path, BloomRouteHandler handler,
+      {List<BloomMiddleware> middlewares = const []}) {
     _addRoute('*', path, handler, middlewares);
+  }
+
+  /// Creates a scoped route group with a URL [prefix] and optional inherited [middlewares].
+  ///
+  /// Nested groups inherit parent group prefix and middlewares in declaration order:
+  /// global middlewares -> parent group middlewares -> child group middlewares -> route middlewares.
+  ///
+  /// ### Example
+  /// ```dart
+  /// router.group('/api/v1', (api) {
+  ///   api.use(BloomCorsMiddleware());
+  ///   api.get('/tasks', (req) async => BloomResponse.json(tasks));
+  /// });
+  /// ```
+  void group(
+    String prefix,
+    void Function(BloomRouteGroup group) configure, {
+    List<BloomMiddleware> middlewares = const [],
+  }) {
+    final routeGroup =
+        BloomRouteGroup._(this, _joinPaths('', prefix), [...middlewares]);
+    configure(routeGroup);
   }
 
   /// Mounts a high-performance Server-Side Rendered (SSR) endpoint using [BloomNode].
@@ -203,14 +421,16 @@ class BloomApiRouter {
       } else if (headManager != null) {
         fullHtml = headManager.wrapDocument(bodyHtml);
       } else {
-        fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
+        fullHtml =
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
       }
 
       return BloomResponse.html(fullHtml);
     }, middlewares: middlewares);
   }
 
-  void _addRoute(String method, String pattern, BloomRouteHandler handler, List<BloomMiddleware> middlewares) {
+  void _addRoute(String method, String pattern, BloomRouteHandler handler,
+      List<BloomMiddleware> middlewares) {
     final paramNames = <String>[];
     var regexPattern = pattern;
 
@@ -286,14 +506,18 @@ class BloomApiRouter {
       final method = request.method.toUpperCase();
       final path = request.path;
 
+      // 1. Check for an exact matching route for method and path.
       for (final route in _routes) {
-        final matchesMethod = route.method == '*' || route.method == method || (method == 'HEAD' && route.method == 'GET');
+        final matchesMethod = route.method == '*' ||
+            route.method == method ||
+            (method == 'HEAD' && route.method == 'GET');
         if (!matchesMethod) continue;
 
         final match = route.regex.firstMatch(path);
         if (match != null) {
           for (var i = 0; i < route.paramNames.length; i++) {
-            request.params[route.paramNames[i]] = Uri.decodeComponent(match.group(i + 1)!);
+            request.params[route.paramNames[i]] =
+                Uri.decodeComponent(match.group(i + 1)!);
           }
 
           return _executePipeline(route.middlewares, request, () async {
@@ -316,7 +540,58 @@ class BloomApiRouter {
         }
       }
 
-      return BloomResponse.notFound('Cannot ${request.method} ${request.path}');
+      // 2. No matching route for (method, path). Check if path matches any registered routes.
+      final matchingRoutes = <_RouteEntry>[];
+      for (final route in _routes) {
+        if (route.regex.firstMatch(path) != null) {
+          matchingRoutes.add(route);
+        }
+      }
+
+      // If no route matches the path at all, return 404 Not Found.
+      if (matchingRoutes.isEmpty) {
+        return BloomResponse.notFound(
+            'Cannot ${request.method} ${request.path}');
+      }
+
+      // 3. Path matches one or more routes, but not the requested HTTP method.
+      final allowedMethods = <String>{};
+      bool hasExplicitOptions = false;
+
+      for (final route in matchingRoutes) {
+        if (route.method == '*') {
+          allowedMethods.add(method);
+        } else if (route.method == 'GET') {
+          allowedMethods.add('GET');
+          allowedMethods.add('HEAD');
+        } else if (route.method == 'OPTIONS') {
+          hasExplicitOptions = true;
+          allowedMethods.add('OPTIONS');
+        } else {
+          allowedMethods.add(route.method);
+        }
+      }
+
+      if (!hasExplicitOptions) {
+        allowedMethods.add('OPTIONS');
+      }
+
+      final allowHeader = _buildAllowHeader(allowedMethods);
+
+      // If the request is OPTIONS with no explicit OPTIONS route, respond 204 with Allow header.
+      if (method == 'OPTIONS') {
+        return BloomResponse.noContent(headers: {
+          'allow': allowHeader,
+        });
+      }
+
+      // Otherwise respond 405 Method Not Allowed with Allow header.
+      return BloomResponse.methodNotAllowed(
+        'Method Not Allowed',
+        {
+          'allow': allowHeader,
+        },
+      );
     });
   }
 
@@ -416,7 +691,8 @@ class BloomApiRouter {
   ///   exit(0);
   /// });
   /// ```
-  Future<void> close({Duration gracePeriod = const Duration(seconds: 30)}) async {
+  Future<void> close(
+      {Duration gracePeriod = const Duration(seconds: 30)}) async {
     _isClosing = true;
 
     // 1. Stop accepting new connections on all listening servers.
@@ -459,9 +735,9 @@ class BloomApiRouter {
   /// If an uncaught exception occurs, responds with HTTP 500 Internal Server Error.
   /// If a streaming response encounters a failure mid-stream, the socket connection
   /// is aborted to notify the client of incomplete transmission.
-  Future<void> handleIoRequest(HttpRequest ioReq, {int? maxRequestBodyBytes}) async {
+  Future<void> handleIoRequest(HttpRequest ioReq,
+      {int? maxRequestBodyBytes}) async {
     try {
-      final bodyBytes = await _readStreamBytes(ioReq, maxBytes: maxRequestBodyBytes);
       final headers = <String, String>{};
       ioReq.headers.forEach((k, v) => headers[k] = v.join(', '));
 
@@ -471,13 +747,31 @@ class BloomApiRouter {
           headers['x-forwarded-proto']?.toLowerCase() == 'https' ||
           headers['x-forwarded-ssl']?.toLowerCase() == 'on';
 
-      final bloomReq = BloomRequest(
-        method: ioReq.method,
-        uri: ioReq.requestedUri,
-        headers: headers,
-        rawBody: bodyBytes,
-        isSecure: isSecure,
-      );
+      final contentType = headers['content-type'] ?? '';
+      final isMultipart =
+          contentType.toLowerCase().contains('multipart/form-data');
+
+      final BloomRequest bloomReq;
+      if (isMultipart) {
+        bloomReq = BloomRequest(
+          method: ioReq.method,
+          uri: ioReq.requestedUri,
+          headers: headers,
+          streamBody: ioReq,
+          maxRequestBodyBytes: maxRequestBodyBytes,
+          isSecure: isSecure,
+        );
+      } else {
+        final bodyBytes =
+            await _readStreamBytes(ioReq, maxBytes: maxRequestBodyBytes);
+        bloomReq = BloomRequest(
+          method: ioReq.method,
+          uri: ioReq.requestedUri,
+          headers: headers,
+          rawBody: bodyBytes,
+          isSecure: isSecure,
+        );
+      }
 
       final bloomRes = await handleRequest(bloomReq);
 
@@ -502,6 +796,14 @@ class BloomApiRouter {
         ioReq.response.add(bloomRes.body);
       }
       await ioReq.response.close();
+    } on BloomPayloadTooLargeException catch (e) {
+      try {
+        final payloadRes = BloomResponse.payloadTooLarge(e.message);
+        ioReq.response.statusCode = payloadRes.statusCode;
+        payloadRes.headers.forEach((k, v) => ioReq.response.headers.set(k, v));
+        ioReq.response.add(payloadRes.body);
+        await ioReq.response.close();
+      } catch (_) {}
     } on _PayloadTooLargeException catch (e) {
       try {
         final payloadRes = BloomResponse.payloadTooLarge(e.message);
@@ -521,7 +823,8 @@ class BloomApiRouter {
     }
   }
 
-  Future<Uint8List> _readStreamBytes(Stream<List<int>> stream, {int? maxBytes}) async {
+  Future<Uint8List> _readStreamBytes(Stream<List<int>> stream,
+      {int? maxBytes}) async {
     final builder = BytesBuilder(copy: false);
     int bytesRead = 0;
     await for (final chunk in stream) {
@@ -560,14 +863,22 @@ class BloomApiRouter {
     String docsPath = '/api/docs',
     String swaggerPath = '/api/swagger',
   }) {
-    get(schemaPath, (req) async => BloomResponse.json(toOpenApiSpec(
-      title: title,
-      version: version,
-      description: description,
-    )));
+    get(
+        schemaPath,
+        (req) async => BloomResponse.json(toOpenApiSpec(
+              title: title,
+              version: version,
+              description: description,
+            )));
 
-    get(docsPath, (req) async => BloomResponse.html(_renderScalarHtml(title, schemaPath)));
-    get(swaggerPath, (req) async => BloomResponse.html(_renderSwaggerHtml(title, schemaPath)));
+    get(
+        docsPath,
+        (req) async =>
+            BloomResponse.html(_renderScalarHtml(title, schemaPath)));
+    get(
+        swaggerPath,
+        (req) async =>
+            BloomResponse.html(_renderSwaggerHtml(title, schemaPath)));
   }
 
   /// Generates an OpenAPI 3.1 specification map from all registered routes.
@@ -604,9 +915,13 @@ class BloomApiRouter {
       paths.putIfAbsent(openApiPath, () => <String, dynamic>{});
 
       // Derive tag from path segment (e.g. /api/tasks -> Tasks)
-      final segments = openApiPath.split('/').where((s) => s.isNotEmpty && s != 'api').toList();
+      final segments = openApiPath
+          .split('/')
+          .where((s) => s.isNotEmpty && s != 'api')
+          .toList();
       final tag = segments.isNotEmpty
-          ? segments.first.substring(0, 1).toUpperCase() + segments.first.substring(1)
+          ? segments.first.substring(0, 1).toUpperCase() +
+              segments.first.substring(1)
           : 'General';
 
       final operation = <String, dynamic>{
@@ -618,15 +933,19 @@ class BloomApiRouter {
       };
 
       if (route.paramNames.isNotEmpty) {
-        operation['parameters'] = route.paramNames.map((p) => {
-          'name': p,
-          'in': 'path',
-          'required': true,
-          'schema': {'type': 'string'},
-        }).toList();
+        operation['parameters'] = route.paramNames
+            .map((p) => {
+                  'name': p,
+                  'in': 'path',
+                  'required': true,
+                  'schema': {'type': 'string'},
+                })
+            .toList();
       }
 
-      if (methodLower == 'post' || methodLower == 'put' || methodLower == 'patch') {
+      if (methodLower == 'post' ||
+          methodLower == 'put' ||
+          methodLower == 'patch') {
         operation['requestBody'] = {
           'required': true,
           'content': {

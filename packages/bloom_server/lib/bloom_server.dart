@@ -8,8 +8,9 @@
 /// - **HTTP Routing**: [BloomApiRouter] with fast regex routing, specificity sorting,
 ///   wildcard captures, path parameters (`:id`), and graceful shutdown draining.
 /// - **Request & Response**: [BloomRequest] and [BloomResponse] abstractions for JSON,
-///   HTML, redirects, binary payloads, and incremental body streaming ([BloomResponse.stream],
-///   [BloomResponse.file]).
+///   HTML, redirects, binary payloads, incremental body streaming ([BloomResponse.stream],
+///   [BloomResponse.file]), and streaming multipart uploads ([BloomMultipartPart], [BloomMultipartField],
+///   [BloomMultipartFile]).
 /// - **Middleware Pipeline**: [BloomMiddleware], [FunctionalBloomMiddleware], and built-in
 ///   [BloomCorsMiddleware] for composable request/response interceptors.
 /// - **Server-Side Rendering (SSR)**: High-speed [BloomNode] rendering with [BloomApiRouter.ssr]
@@ -50,6 +51,7 @@ library bloom_server;
 export 'bloom_core.dart';
 export 'src/server/api_router.dart';
 export 'src/server/bloom_middleware.dart';
+export 'src/server/bloom_multipart.dart';
 export 'src/server/bloom_request.dart';
 export 'src/server/bloom_response.dart';
 export 'src/server/rpc_mount.dart';

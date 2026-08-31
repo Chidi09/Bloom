@@ -1,10 +1,8 @@
 library;
 
-import 'dart:js_interop';
 import 'package:signals_core/signals_core.dart' as s;
-import 'package:web/web.dart' as web;
-
-import 'mount.dart';
+import '_signals_stub.dart'
+    if (dart.library.js_interop) '_signals_browser.dart';
 
 // signals_core, not signals: `package:signals` depends on the Flutter SDK and
 // on signals_flutter, which would make this package -- and everything built on
@@ -24,42 +22,23 @@ export 'package:signals_core/signals_core.dart'
         batch,
         untracked;
 
-@JS('Reflect.get')
-external JSAny? _reflectGet(JSAny target, String key);
-
-@JS('Reflect.set')
-external bool _reflectSet(JSAny target, String key, JSAny? value);
-
-const String _bloomSignalRegistryProp = '__bloom_signal_registry__';
-
-Map<String, Object?> _getOrCreateSignalRegistry(JSAny win) {
-  final boxed = _reflectGet(win, _bloomSignalRegistryProp);
-  if (boxed != null && boxed.isA<JSBoxedDartObject>()) {
-    final dartObj = (boxed as JSBoxedDartObject).toDart;
-    if (dartObj is Map<String, Object?>) {
-      return dartObj;
-    }
-  }
-  final map = <String, Object?>{};
-  _reflectSet(win, _bloomSignalRegistryProp, map.toJSBox);
-  return map;
-}
-
 /// Creates a reactive [Signal] container initialized to [initialValue].
 ///
-/// When hot-reload tracking is active ([isHotReloadTrackingActive]) and a non-null
-/// [key] is supplied (either explicitly or injected at compile-time by Bloom's DDC dev loop),
+/// When hot-reload tracking is active and a non-null [key] is supplied,
 /// the signal's value survives in-page module re-executions across hot remounts.
 ///
 /// If the stored value type does not match [T], the signal cleanly resets to [initialValue].
 s.Signal<T> signal<T>(T initialValue, {String? key}) {
-  if (key == null || !isHotReloadTrackingActive()) {
+  if (key == null || !isBrowserHotReloadActive()) {
     return s.signal<T>(initialValue);
   }
 
   try {
-    final win = web.window as JSAny;
-    final registry = _getOrCreateSignalRegistry(win);
+    final registry = getBrowserSignalRegistry();
+    if (registry == null) {
+      return s.signal<T>(initialValue);
+    }
+
     final sig = s.signal<T>(initialValue);
 
     if (registry.containsKey(key)) {

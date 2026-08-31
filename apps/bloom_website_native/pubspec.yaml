@@ -1,0 +1,22 @@
+name: bloom_website_native
+description: "Official Bloom marketing website built with Bloom JS Native SSG."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  bloom_js_native: ^0.3.0
+  bloom_seo: ^0.2.0
+  web: ^1.0.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
+
+dependency_overrides:
+  bloom_js_native:
+    path: ../../packages/bloom_js_native
+  bloom_seo:
+    path: ../../packages/bloom_seo

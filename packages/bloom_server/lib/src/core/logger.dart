@@ -150,7 +150,8 @@ class BloomLogger {
     writer(logLine);
 
     if (error != null) {
-      writer('$timeStr ${BloomLogLevel.error.ansiColor}[ERROR DETAIL]$_resetColor $error');
+      writer(
+          '$timeStr ${BloomLogLevel.error.ansiColor}[ERROR DETAIL]$_resetColor $error');
     }
     if (stackTrace != null) {
       writer(stackTrace.toString());
@@ -162,4 +163,3 @@ class BloomLogger {
 ///
 /// Configured with default context `'BLOOM'` and [BloomLogLevel.debug].
 final BloomLogger logger = BloomLogger();
-

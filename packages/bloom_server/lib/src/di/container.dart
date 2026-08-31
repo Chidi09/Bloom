@@ -74,7 +74,8 @@ class _Binding<T> {
 class BloomContainer {
   /// Optional parent container for hierarchical dependency lookup cascades.
   final BloomContainer? parent;
-  final Map<Type, _Binding<dynamic>> _bindings = HashMap<Type, _Binding<dynamic>>();
+  final Map<Type, _Binding<dynamic>> _bindings =
+      HashMap<Type, _Binding<dynamic>>();
   final Map<Type, dynamic> _overrides = HashMap<Type, dynamic>();
 
   /// Creates a [BloomContainer] with an optional [parent] container.
@@ -300,4 +301,3 @@ void provideSingleton<T>(FactoryFunc<T> factory, {bool lazy = true}) =>
 /// provideValue<ServerConfig>(config);
 /// ```
 void provideValue<T>(T value) => globalContainer.provideValue<T>(value);
-

@@ -1,0 +1,28 @@
+# Bloom Application Manifest
+schema: 1
+
+name: bloom_website_native
+version: 0.1.0
+description: "A modern application built with Bloom"
+type: js_native
+# Marks this as a pure Dart web project (no Flutter) — `bloom add npm:<pkg>`
+# and other CLI subsystems check this field to route to NPM/web handling
+# instead of native mobile plugin handling.
+target: web_dom
+
+web:
+  title: "bloom_website_native"
+  entry: lib/main.dart
+  out: web/main.js
+
+features:
+  routing: false
+  state: true
+  data: false
+  native: false
+npm_packages:
+  "@tailwindcss\/browser":
+    version: 4.3.3
+    esm_url: https://esm.sh/@tailwindcss/browser@4.3.3?bundle
+    vendor_file: web/vendor/tailwindcss-browser.min.js
+    dart_binding: ""

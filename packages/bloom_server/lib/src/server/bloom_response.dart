@@ -272,7 +272,8 @@ class BloomResponse {
   /// return BloomResponse.unauthorized('Invalid bearer token');
   /// ```
   factory BloomResponse.unauthorized([String message = 'Unauthorized']) {
-    return BloomResponse.json({'error': message, 'statusCode': 401}, statusCode: 401);
+    return BloomResponse.json({'error': message, 'statusCode': 401},
+        statusCode: 401);
   }
 
   /// Helper factory constructor for HTTP 403 Forbidden JSON error responses.
@@ -282,7 +283,8 @@ class BloomResponse {
   /// return BloomResponse.forbidden('Access denied for role: viewer');
   /// ```
   factory BloomResponse.forbidden([String message = 'Forbidden']) {
-    return BloomResponse.json({'error': message, 'statusCode': 403}, statusCode: 403);
+    return BloomResponse.json({'error': message, 'statusCode': 403},
+        statusCode: 403);
   }
 
   /// Helper factory constructor for HTTP 404 Not Found JSON error responses.
@@ -292,7 +294,31 @@ class BloomResponse {
   /// return BloomResponse.notFound('User not found');
   /// ```
   factory BloomResponse.notFound([String message = 'Not Found']) {
-    return BloomResponse.json({'error': message, 'statusCode': 404}, statusCode: 404);
+    return BloomResponse.json({'error': message, 'statusCode': 404},
+        statusCode: 404);
+  }
+
+  /// Helper factory constructor for HTTP 405 Method Not Allowed JSON error responses.
+  ///
+  /// ### Example
+  /// ```dart
+  /// return BloomResponse.methodNotAllowed('Method Not Allowed', headers: {'allow': 'GET, POST'});
+  /// ```
+  factory BloomResponse.methodNotAllowed([
+    String message = 'Method Not Allowed',
+    Map<String, String>? headers,
+  ]) {
+    final finalHeaders = <String, String>{
+      'content-type': 'application/json; charset=utf-8',
+      'Content-Type': 'application/json; charset=utf-8',
+      ...?headers,
+    };
+    return BloomResponse(
+      statusCode: 405,
+      headers: finalHeaders,
+      body: Uint8List.fromList(
+          utf8.encode(jsonEncode({'error': message, 'statusCode': 405}))),
+    );
   }
 
   /// Helper factory constructor for HTTP 413 Payload Too Large JSON error responses.
@@ -301,8 +327,10 @@ class BloomResponse {
   /// ```dart
   /// return BloomResponse.payloadTooLarge('Upload exceeds 10MB limit');
   /// ```
-  factory BloomResponse.payloadTooLarge([String message = 'Payload Too Large']) {
-    return BloomResponse.json({'error': message, 'statusCode': 413}, statusCode: 413);
+  factory BloomResponse.payloadTooLarge(
+      [String message = 'Payload Too Large']) {
+    return BloomResponse.json({'error': message, 'statusCode': 413},
+        statusCode: 413);
   }
 
   /// Helper factory constructor for HTTP 500 Internal Server Error (or custom [statusCode]) JSON error responses.
@@ -312,7 +340,8 @@ class BloomResponse {
   /// return BloomResponse.error('Database connection timeout', statusCode: 503);
   /// ```
   factory BloomResponse.error(String message, {int statusCode = 500}) {
-    return BloomResponse.json({'error': message, 'statusCode': statusCode}, statusCode: statusCode);
+    return BloomResponse.json({'error': message, 'statusCode': statusCode},
+        statusCode: statusCode);
   }
 
   /// Decodes and returns the buffered [body] as a UTF-8 string.
@@ -327,4 +356,3 @@ class BloomResponse {
     }
   }
 }
-

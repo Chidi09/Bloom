@@ -1,6 +1,8 @@
 # bloom_server
 
-Flutter-free HTTP server core for Bloom applications. This package is the Flutter-free extraction of what used to be reachable only via `package:bloom_framework/bloom_server.dart`, so packages that only need server/HTTP primitives no longer need the Flutter SDK.
+> **Bloom Server is the Flutter-free Dart backend for full-stack web applications: HTTP APIs, SSR, SSG/ISR delivery, routing, middleware, and dependency injection.** Pair it with `bloom_js_native` for browser-to-server Dart without a JavaScript application layer.
+
+This package is the Flutter-free extraction of what used to be reachable only via `package:bloom_framework/bloom_server.dart`, so packages that only need server/HTTP primitives never need the Flutter SDK.
 
 Provides `BloomApiRouter` (routing, middleware, SSR via `bloom_js_native`), `BloomRequest`/`BloomResponse`, `BloomEnvironmentSchema`/env config, and a DI `Container`/`Scope` — all on pure `dart:io` with no Flutter SDK required.
 

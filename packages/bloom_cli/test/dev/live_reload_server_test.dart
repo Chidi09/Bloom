@@ -43,6 +43,43 @@ void main() {
       client.close(force: true);
     });
 
+    test(
+        'DDC mode removes the scaffold main.js script before injecting its bootstrap',
+        () async {
+      await devServer.stop();
+      await File('${tempWebDir.path}/index.html').writeAsString('''
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module">window.npmBootstrapLoaded = true;</script>
+</head>
+<body>
+  <div id="app"></div>
+  <script defer src="/main.js?v=dev"></script>
+</body>
+</html>
+''');
+      devServer = BloomLiveReloadServer(
+        webDir: tempWebDir,
+        host: '127.0.0.1',
+        port: testPort,
+        isDdcMode: true,
+      );
+      await devServer.start();
+
+      final client = HttpClient();
+      final req = await client.get('127.0.0.1', testPort, '/');
+      final res = await req.close();
+      final body = await utf8.decodeStream(res);
+
+      expect(res.statusCode, 200);
+      expect(body, contains('window.npmBootstrapLoaded = true'));
+      expect(body, isNot(contains('src="/main.js?v=dev"')));
+      expect(body, contains('Bloom DDC Dev Bootstrap'));
+      expect(body, contains('__BLOOM_HR_ACTIVE__'));
+      client.close(force: true);
+    });
+
     test('establishes SSE stream on /_bloom_hr and receives broadcast', () async {
       final socket = await Socket.connect('127.0.0.1', testPort);
       socket.write('GET /_bloom_hr HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n');

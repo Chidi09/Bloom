@@ -4,7 +4,7 @@
 
 <p align="center">
   <h1 align="center">Bloom</h1>
-  <p align="center"><strong>The Opinionated Full-Stack Application Framework for Flutter & Dart.</strong></p>
+  <p align="center"><strong>Full-stack Dart framework for web applications.</strong></p>
   <p align="center">
     <em>"Next.js did it for React. Rails did it for Ruby. Bloom does it for Flutter and Dart."</em>
   </p>
@@ -20,7 +20,11 @@
 
 ## 🚀 Overview
 
-**Bloom** is a full-stack, batteries-included application framework and developer platform for Dart. It spans both sides of the stack: an opinionated Flutter client framework (`bloom_framework`), and a growing suite of independent backend packages (`bloom_server`, `bloom_db`, `bloom_auth_server`, `bloom_rest`, `bloom_admin`, and more) that together form a Django/Rails-style batteries-included server, usable with or without the Flutter side.
+**Bloom is a full-stack Dart framework for web applications: SSR · SSG · ISR · reactive UI · server APIs.** `bloom_js_native` compiles Dart components to the browser's real DOM, while `bloom_server` runs the HTTP, API, rendering, and backend side on Dart. Together they let Dart span browser and server without a JavaScript application layer.
+
+Bloom is **not** Flutter rendered into a browser. Bloom JS Native is a Dart-to-DOM web framework with fine-grained signals, real CSS, SSR/SSG/ISR-friendly rendering, and targeted npm interop. Bloom also includes an opinionated Flutter client framework (`bloom_framework`) for native applications, but the web platform stands on its own.
+
+The platform is batteries-included: a growing suite of independent backend packages (`bloom_server`, `bloom_db`, `bloom_auth_server`, `bloom_rest`, `bloom_admin`, and more) forms a Django/Rails-style server usable with or without the Flutter side.
 
 With Bloom, you get:
 
@@ -30,6 +34,9 @@ With Bloom, you get:
 * 💾 **Bloom Data & Offline Engine** — Server-state query caching (`BloomData.query`), optimistic mutations (`BloomData.mutation`), TTL garbage collection, and persistent `OfflineMutationQueue`.
 * 📱 **Declarative Native Prebuild** — Configure permissions, camera, notifications, secure storage, and deep links in `bloom.yaml` without manually touching platform XML/plist files.
 * 📲 **Dev Server & Live Launcher** — LAN UDP broadcast discovery on port `5354`, optical QR device pairing, request replay, and interactive DevTools overlay.
+
+**Web (Dart, no Flutter runtime)**
+* 🌐 **Bloom JS Native** — Dart components compiled to real DOM and CSS with fine-grained signals, SSR, SSG, ISR-friendly rendering, SEO, and browser-native interop.
 
 **Server (Dart, Flutter-free)**
 * 🌐 **HTTP Server & Router** (`bloom_server`) — API routing with path/wildcard params, middleware pipelines, and SSR.

@@ -1,0 +1,8 @@
+.dart_tool/
+.packages
+pubspec.lock
+web/main.js
+web/main.js.map
+web/main.js.deps
+web/vendor/
+web/importmap.json

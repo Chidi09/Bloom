@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <path d="M100 20 C130 20 145 60 125 90 C110 100 90 100 75 90 C55 60 70 20 100 20 Z" fill="url(#pf_pink)" opacity="0.9"/>
+  <path d="M180 80 C190 110 155 135 125 115 C115 100 105 85 115 70 C145 50 170 50 180 80 Z" fill="url(#pf_orange)" opacity="0.9"/>
+  <path d="M140 175 C115 185 85 155 100 125 C110 110 125 105 135 115 C165 135 165 165 140 175 Z" fill="url(#pf_cyan)" opacity="0.9"/>
+  <path d="M60 175 C35 165 35 135 65 115 C75 105 90 110 100 125 C115 155 85 185 60 175 Z" fill="url(#pf_blue)" opacity="0.9"/>
+  <path d="M20 80 C30 50 55 50 85 70 C95 85 85 100 75 115 C45 135 10 110 20 80 Z" fill="url(#pf_purple)" opacity="0.9"/>
+  <path d="M100 82 L104 96 L118 100 L104 104 L100 118 L96 104 L82 100 L96 96 Z" fill="#FFFFFF"/>
+  <defs>
+    <linearGradient id="pf_pink" x1="100" y1="20" x2="100" y2="100"><stop stop-color="#FF4B8B"/><stop offset="1" stop-color="#FF8BA7"/></linearGradient>
+    <linearGradient id="pf_orange" x1="180" y1="80" x2="110" y2="110"><stop stop-color="#FF884D"/><stop offset="1" stop-color="#FFA066"/></linearGradient>
+    <linearGradient id="pf_cyan" x1="140" y1="175" x2="100" y2="115"><stop stop-color="#20C9B0"/><stop offset="1" stop-color="#48E5C8"/></linearGradient>
+    <linearGradient id="pf_blue" x1="60" y1="175" x2="100" y2="115"><stop stop-color="#2563EB"/><stop offset="1" stop-color="#60A5FA"/></linearGradient>
+    <linearGradient id="pf_purple" x1="20" y1="80" x2="90" y2="110"><stop stop-color="#8B5CF6"/><stop offset="1" stop-color="#A855F7"/></linearGradient>
+  </defs>
+</svg>

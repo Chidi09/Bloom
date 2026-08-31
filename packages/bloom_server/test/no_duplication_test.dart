@@ -15,7 +15,9 @@ import 'package:test/test.dart';
 String _repoPath(String relative) {
   var dir = Directory.current;
   while (!File('${dir.path}/pubspec.yaml').existsSync() ||
-      !File('${dir.path}/pubspec.yaml').readAsStringSync().contains('name: bloom_server')) {
+      !File('${dir.path}/pubspec.yaml')
+          .readAsStringSync()
+          .contains('name: bloom_server')) {
     final parent = dir.parent;
     if (parent.path == dir.path) {
       fail('Could not locate the bloom_server package root.');
@@ -56,11 +58,13 @@ void main() {
         // drift silently — that is how rpc_mount.dart ended up in only one
         // package.
         expect(framework.existsSync(), isTrue,
-            reason: 'the shim at $path is what keeps relative imports resolving');
+            reason:
+                'the shim at $path is what keeps relative imports resolving');
 
         final source = framework.readAsStringSync();
         // A package: URI addresses lib/ implicitly, so drop the prefix.
-        final packageUri = 'package:bloom_server/${path.substring('lib/'.length)}';
+        final packageUri =
+            'package:bloom_server/${path.substring('lib/'.length)}';
         expect(
           source,
           contains("export '$packageUri';"),
@@ -83,7 +87,8 @@ void main() {
 
   group('dependency direction', () {
     test('bloom_server does not depend on bloom_framework', () {
-      final pubspec = File(_repoPath('bloom_server/pubspec.yaml')).readAsStringSync();
+      final pubspec =
+          File(_repoPath('bloom_server/pubspec.yaml')).readAsStringSync();
       expect(
         pubspec.contains('bloom_framework'),
         isFalse,
@@ -94,7 +99,8 @@ void main() {
     });
 
     test('bloom_server declares no Flutter dependency', () {
-      final pubspec = File(_repoPath('bloom_server/pubspec.yaml')).readAsStringSync();
+      final pubspec =
+          File(_repoPath('bloom_server/pubspec.yaml')).readAsStringSync();
       expect(
         pubspec.contains('sdk: flutter'),
         isFalse,
@@ -103,7 +109,8 @@ void main() {
     });
 
     test('bloom_framework depends on bloom_server', () {
-      final pubspec = File(_repoPath('bloom_framework/pubspec.yaml')).readAsStringSync();
+      final pubspec =
+          File(_repoPath('bloom_framework/pubspec.yaml')).readAsStringSync();
       expect(pubspec.contains('bloom_server'), isTrue);
     });
   });

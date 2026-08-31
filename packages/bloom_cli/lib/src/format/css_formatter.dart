@@ -35,8 +35,6 @@ enum _TokenType {
   lbrace,
   rbrace,
   semicolon,
-  colon,
-  comma,
   text,
 }
 
