@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 - 2026-08-31
+
+### Added
+* `bloom migrate make|apply|status|rollback` delegates migration lifecycle operations to the target project's `bloom_migrate` executable.
+* `bloom fonts optimize --face "Family:weights:styles" --require-all-faces` supports strict per-family font manifests, including italic faces.
+
 ## 0.7.2 - 2026-08-26
 
 ### Added
