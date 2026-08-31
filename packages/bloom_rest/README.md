@@ -5,12 +5,15 @@ DRF-style (Django REST Framework) REST layer for Bloom on top of `BloomApiRouter
 ## Features
 
 - **Serializers & FieldSets**: Field-level visibility controls (`read_only`, `write_only`, `only`, `exclude`), automated `BloomModelSerializer` reading `bloom_db` metadata, cross-field validation, and `BloomNestedSerializer`.
+  - **Sensitive Field Filtering (Secure by Default)**: Automatically excludes conventionally sensitive fields (`password`, `password_hash`, `token`, `access_token`, `refresh_token`, `secret`, `api_key`) from serialized output and write inputs unless explicitly opted in via `includeSensitiveFields: true`.
 - **Pluggable Pagination**:
   - `PageNumberPagination`: `?page=1&page_size=20` with `count`, `total_pages`, `page`, `results`.
   - `LimitOffsetPagination`: `?limit=20&offset=40` with `count`, `limit`, `offset`, `results`.
-  - `CursorPagination`: True keyset pagination with opaque base64-encoded cursor (`next_cursor`, `previous_cursor`), immune to pagination drift.
-- **Composable Permissions**: Secure by default (`IsAuthenticated`), chainable via `.and()`, `.or()`, and `.negate()`. Includes `AllowAny`, `IsStaff`, `IsSuperuser`, and `IsReadOnly`.
-- **Cache-backed Throttling**: DRF rate strings (`"100/hour"`, `"10/minute"`) integrated directly with `bloom_cache`'s `BloomCache`.
+  - `CursorPagination`: True keyset pagination with opaque base64-encoded cursor (`next_cursor`, `previous_cursor`), honoring `orderingField` with deterministic query ordering and primary-key tie-breaking to guarantee zero pagination drift.
+- **Composable Permissions**: Secure by default (`IsAuthenticated`), chainable via `.and()`, `.or()`, and `.negate()`. Includes `AllowAny`, `IsStaff`, `IsSuperuser`, and `IsReadOnly`. Returns `401 Unauthorized` for unauthenticated callers and `403 Forbidden` for authenticated callers denied by permission policies.
+- **Throttling & Rate Limiting**:
+  - Atomic rate limiting with `BloomAtomicThrottleStore` and `InMemoryAtomicThrottleStore` to prevent get-modify-set race conditions.
+  - Header spoofing protection: client forwarding headers (`X-Forwarded-For`, `X-Real-IP`) are only trusted when verified against a `TrustedProxyPredicate` for the immediate transport peer, with a non-spoofable fallback key when peer IP is unavailable.
 - **Composable Query Filters**: `BloomFieldFilter` (`?status=active&age__gte=18&tag__in=a,b`), `BloomSearchFilter` (`?search=term`), `BloomOrderingFilter` (`?ordering=-created_at,title`).
 - **One-Call ViewSets**: Mount complete REST CRUD routes (`list`, `retrieve`, `create`, `update`, `destroy`) onto `BloomApiRouter`.
 
@@ -19,17 +22,17 @@ DRF-style (Django REST Framework) REST layer for Bloom on top of `BloomApiRouter
 ## Full Worked Example
 
 The following example demonstrates how to create a `BloomViewSet` for an `Article` model with:
-1. Field exposure rules (`id` and `created_at` read-only).
+1. Field exposure rules (`id` and `created_at` read-only, sensitive fields omitted by default).
 2. Keyset `CursorPagination` (or `PageNumberPagination`).
 3. Composed permission `IsAuthenticated().and(IsStaff())`.
-4. Throttle rate limit (`"100/hour"`).
+4. Atomic throttle rate limit (`"100/hour"`).
 5. Composable search and field filters.
 6. Mounted onto `BloomApiRouter` in a single call.
 
 ```dart
 import 'package:bloom_cache/bloom_cache.dart';
 import 'package:bloom_db/bloom_db.dart';
-import 'package:bloom_framework/bloom_server.dart';
+import 'package:bloom_server/bloom_server.dart';
 import 'package:bloom_rest/bloom_rest.dart';
 
 // 1. Define Model
@@ -86,11 +89,11 @@ class Article extends Model {
 
 void main() {
   final router = BloomApiRouter();
-  final cache = InMemoryCache();
+  final throttleStore = InMemoryAtomicThrottleStore();
   // Shared database executor factory (e.g. from connection pool)
   late DbExecutor db;
 
-  // 2. Configure Serializer with FieldSet
+  // 2. Configure Serializer with FieldSet (sensitive fields excluded by default)
   final serializer = BloomModelSerializer<Article>(
     meta: Article.meta,
     fields: BloomFieldSet.all().withReadOnly(['id', 'created_at']),
@@ -104,17 +107,18 @@ void main() {
       orderableFields: ['created_at', 'title', 'id'],
       defaultPageSize: 20,
     ),
-    pagination: const PageNumberPagination(
+    pagination: const CursorPagination(
       defaultPageSize: 20,
-      maxPageSize: 100,
+      orderingField: 'created_at',
     ),
-    // SECURE-BY-DEFAULT: Compose permissions
+    // SECURE-BY-DEFAULT: Compose permissions (401 for unauth, 403 for denied)
     permission: const IsAuthenticated().and(const IsStaff()),
-    // Throttle rate using BloomCache
+    // Atomic rate limiting
     throttle: BloomThrottle.fromRate(
       scope: 'articles_api',
       rate: '100/hour',
-      cache: cache,
+      atomicStore: throttleStore,
+      keyStrategy: const ByUserOrIp(),
     ),
     filterBackends: [
       const BloomSearchFilter<Article>(['title', 'content']),
@@ -140,4 +144,5 @@ void main() {
   // PATCH  /api/articles/:pk      -> update (partial)
   // DELETE /api/articles/:pk      -> destroy
 }
+
 ```

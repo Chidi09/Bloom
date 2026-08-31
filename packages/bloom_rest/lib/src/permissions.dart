@@ -37,10 +37,12 @@ abstract class BloomRestPermission {
 /// Enables chaining: `IsAuthenticated().and(IsStaff()).or(IsReadOnly())`.
 extension BloomPermissionExt on BloomRestPermission {
   /// Requires both this policy and [other].
-  BloomRestPermission and(BloomRestPermission other) => BloomAndPermission(this, other);
+  BloomRestPermission and(BloomRestPermission other) =>
+      BloomAndPermission(this, other);
 
   /// Requires either this policy or [other].
-  BloomRestPermission or(BloomRestPermission other) => BloomOrPermission(this, other);
+  BloomRestPermission or(BloomRestPermission other) =>
+      BloomOrPermission(this, other);
 
   /// Inverts this policy requirement.
   BloomRestPermission negate() => BloomNotPermission(this);
@@ -210,7 +212,9 @@ class IsStaff extends BloomRestPermission {
   @override
   bool hasPermission(BloomRequest req) {
     final roles = resolveCurrentUserRoles(req);
-    return roles.contains(roleName) || roles.contains('admin') || roles.contains('superuser');
+    return roles.contains(roleName) ||
+        roles.contains('admin') ||
+        roles.contains('superuser');
   }
 }
 
@@ -256,4 +260,3 @@ class IsReadOnly extends BloomRestPermission {
     return m == 'GET' || m == 'HEAD' || m == 'OPTIONS';
   }
 }
-

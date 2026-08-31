@@ -275,11 +275,25 @@ Map<String, dynamic> serializeModel(Model instance) {
   return map;
 }
 
+/// Conventionally sensitive field names excluded from model serialization and deserialization by default.
+///
+/// These fields are barred from both response representation (reads) and client request inputs (writes)
+/// unless [BloomModelSerializer.includeSensitiveFields] is explicitly set to `true`.
+const Set<String> kDefaultSensitiveFields = {
+  'password',
+  'password_hash',
+  'token',
+  'access_token',
+  'refresh_token',
+  'secret',
+  'api_key',
+};
+
 /// The default [BloomSerializer]: derives its behaviour from [ModelMeta],
 /// narrowed by a [BloomFieldSet].
 ///
 /// Automatically handles type coercion, required-field checks, foreign key parsing,
-/// and field set exclusions.
+/// and field set exclusions. Sensitive fields are excluded by default for security.
 ///
 /// Example:
 /// ```dart
@@ -300,13 +314,40 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
 
   /// Field set controlling which fields are exposed on read and accepted on write.
   final BloomFieldSet fields;
+
+  /// Whether conventionally sensitive fields ([kDefaultSensitiveFields]) are exposed.
+  ///
+  /// Defaults to `false` (SECURE BY DEFAULT). When `false`, fields like `password`,
+  /// `password_hash`, `token`, `access_token`, `refresh_token`, `secret`, and `api_key`
+  /// are neither serialized in response outputs nor accepted in request inputs.
+  final bool includeSensitiveFields;
+
   final List<BloomValidator> _validators = [];
 
   /// Creates a [BloomModelSerializer] for [meta] with optional [fields] filtering.
   BloomModelSerializer({
     required this.meta,
     BloomFieldSet? fields,
+    this.includeSensitiveFields = false,
   }) : fields = fields ?? BloomFieldSet.all();
+
+  /// Whether [fieldName] is readable by this serializer.
+  bool isFieldReadable(String fieldName) {
+    if (!includeSensitiveFields &&
+        kDefaultSensitiveFields.contains(fieldName)) {
+      return false;
+    }
+    return fields.isReadable(fieldName);
+  }
+
+  /// Whether [fieldName] is writable by this serializer.
+  bool isFieldWritable(String fieldName) {
+    if (!includeSensitiveFields &&
+        kDefaultSensitiveFields.contains(fieldName)) {
+      return false;
+    }
+    return fields.isWritable(fieldName);
+  }
 
   /// Attaches an object-level [validator] rule executed during [validate].
   BloomModelSerializer<T> withValidator(BloomValidator validator) {
@@ -319,7 +360,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
     final full = serializeModel(instance);
     final filtered = <String, dynamic>{};
     for (final entry in full.entries) {
-      if (fields.isReadable(entry.key)) {
+      if (isFieldReadable(entry.key)) {
         filtered[entry.key] = entry.value;
       }
     }
@@ -344,7 +385,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
     for (final key in jsonMap.keys) {
       final knownField = meta.findField(key) != null ||
           meta.relations.any((r) => r.fieldName == key);
-      if (knownField && !fields.isWritable(key)) {
+      if (knownField && !isFieldWritable(key)) {
         errors.add(key, 'field is read-only');
       }
     }
@@ -355,7 +396,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
         if (field.auto ||
             field.primaryKey ||
             field.nullable ||
-            !fields.isWritable(field.name)) {
+            !isFieldWritable(field.name)) {
           continue;
         }
         if (!jsonMap.containsKey(field.name) || jsonMap[field.name] == null) {
@@ -364,7 +405,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
       }
 
       for (final relation in meta.relations) {
-        if (!fields.isWritable(relation.fieldName)) {
+        if (!isFieldWritable(relation.fieldName)) {
           continue;
         }
         if (!jsonMap.containsKey(relation.fieldName) ||
@@ -510,8 +551,8 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
           if (id != null) {
             values[rel.fieldName] = id;
           } else {
-            errors.add(
-                rel.fieldName, "Field '${rel.fieldName}' must be a valid integer ID.");
+            errors.add(rel.fieldName,
+                "Field '${rel.fieldName}' must be a valid integer ID.");
           }
         } else {
           values[rel.fieldName] = rawVal;
@@ -526,7 +567,7 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
     }
 
     // Keep only writable fields
-    values.removeWhere((k, _) => !fields.isWritable(k));
+    values.removeWhere((k, _) => !isFieldWritable(k));
 
     return (values, null);
   }
@@ -604,4 +645,3 @@ class BloomNestedSerializer<T extends Model, R extends Model>
     base.validate(values, errors);
   }
 }
-

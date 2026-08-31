@@ -86,21 +86,59 @@ abstract class BloomRateLimitKey {
   FutureOr<String> key(BloomRequest req);
 }
 
-/// Keys by authenticated user ID when available, falling back to client IP.
+/// Extracts the immediate socket/transport peer IP address from [req].
+typedef PeerAddressExtractor = String? Function(BloomRequest req);
+
+/// Predicate returning `true` if [peerIp] is a trusted reverse proxy (e.g. cloud load balancer, internal gateway).
+typedef TrustedProxyPredicate = bool Function(String peerIp);
+
+/// Default peer extractor when BloomRequest does not expose a transport peer.
+///
+/// Request parameters and HTTP headers are client-controlled, so applications behind a
+/// proxy must provide [ByUserOrIp.peerExtractor] from their trusted server adapter.
+String? defaultPeerAddressExtractor(BloomRequest req) {
+  return null;
+}
+
+/// Default trusted proxy predicate: never trusts any proxy by default (secure by default).
+bool defaultNeverTrustProxy(String peerIp) => false;
+
+/// Keys by authenticated user ID when available, falling back to client IP with proxy verification.
 ///
 /// If [resolveCurrentUserId] finds a verified user ID, returns `'user:<id>'`.
-/// Otherwise checks `X-Forwarded-For`, `X-Real-IP`, `Remote-Addr`, returning `'anon:<ip>'`.
+/// Otherwise, extracts the immediate transport peer using [peerExtractor].
+///
+/// **Header Spoofing Protection**:
+/// Client forwarding headers (`X-Forwarded-For`, `X-Real-IP`) are **NEVER trusted**
+/// unless [isTrustedProxy] returns `true` for the verified immediate transport peer.
+/// If no immediate transport peer is available, returns [fallbackKey] to prevent
+/// unauthenticated attackers from spoofing arbitrary IP headers to bypass rate limits.
 ///
 /// Example:
 /// ```dart
-/// const keyStrategy = ByUserOrIp();
+/// final keyStrategy = ByUserOrIp(
+///   isTrustedProxy: (ip) => ip == '127.0.0.1' || ip == '10.0.0.1',
+/// );
 /// final key = keyStrategy.key(request);
 /// ```
 ///
 /// Mirrors `djangors_rest::ByUserOrIp`.
 class ByUserOrIp extends BloomRateLimitKey {
+  /// Predicate confirming whether the immediate transport peer is a trusted reverse proxy.
+  final TrustedProxyPredicate isTrustedProxy;
+
+  /// Extractor resolving the immediate socket/transport peer IP from the request.
+  final PeerAddressExtractor peerExtractor;
+
+  /// Shared non-spoofable fallback key returned when immediate peer IP cannot be resolved.
+  final String fallbackKey;
+
   /// Creates a [ByUserOrIp] key strategy.
-  const ByUserOrIp();
+  const ByUserOrIp({
+    this.isTrustedProxy = defaultNeverTrustProxy,
+    this.peerExtractor = defaultPeerAddressExtractor,
+    this.fallbackKey = 'anon:shared_untrusted',
+  });
 
   @override
   String key(BloomRequest req) {
@@ -109,26 +147,91 @@ class ByUserOrIp extends BloomRateLimitKey {
       return 'user:$userId';
     }
 
-    final ip = req.headers['x-forwarded-for']?.split(',').first.trim() ??
-        req.headers['x-real-ip'] ??
-        req.headers['remote-addr'] ??
-        '127.0.0.1';
-    return 'anon:$ip';
+    final peerIp = peerExtractor(req);
+    if (peerIp == null || peerIp.isEmpty) {
+      // Transport peer is unavailable; do NOT trust client forwarding headers
+      return fallbackKey;
+    }
+
+    if (isTrustedProxy(peerIp)) {
+      final forwarded =
+          req.headers['x-forwarded-for']?.split(',').first.trim() ??
+              req.headers['x-real-ip']?.trim();
+      if (forwarded != null && forwarded.isNotEmpty) {
+        return 'anon:$forwarded';
+      }
+    }
+
+    return 'anon:$peerIp';
   }
 }
 
-/// DRF-style request throttle built on top of [BloomCache].
+/// Interface for atomic rate-limiting storage engines.
 ///
-/// Tracks sliding-window request timestamps in [cache] per unique caller key.
+/// Implementations record request timestamps and enforce rate limits atomically
+/// without get-modify-set race conditions across concurrent processes or async tasks.
+abstract class BloomAtomicThrottleStore {
+  /// Base const constructor for atomic throttle stores.
+  const BloomAtomicThrottleStore();
+
+  /// Atomically attempts to record a request for [key] within [window] and checks if permitted.
+  ///
+  /// Returns `true` if the request is permitted within [maxRequests], or `false`
+  /// if throttled (HTTP 429).
+  Future<bool> allowRequest(String key, int maxRequests, Duration window);
+}
+
+/// In-memory implementation of [BloomAtomicThrottleStore].
+///
+/// Executes sliding-window timestamp calculations synchronously within the Dart isolate
+/// event loop to guarantee atomic token accounting without async interleaving.
+class InMemoryAtomicThrottleStore extends BloomAtomicThrottleStore {
+  final Map<String, List<int>> _storage = {};
+
+  /// Creates a new [InMemoryAtomicThrottleStore].
+  InMemoryAtomicThrottleStore();
+
+  @override
+  Future<bool> allowRequest(
+      String key, int maxRequests, Duration window) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cutoff = now - window.inMilliseconds;
+
+    final timestamps = _storage.putIfAbsent(key, () => <int>[]);
+    timestamps.removeWhere((t) => t <= cutoff);
+
+    if (timestamps.length >= maxRequests) {
+      return false;
+    }
+
+    timestamps.add(now);
+    return true;
+  }
+
+  /// Clears all stored rate limit keys.
+  void clear() => _storage.clear();
+}
+
+/// DRF-style request throttle supporting atomic storage engines and [BloomCache] backends.
+///
+/// Tracks sliding-window request timestamps per unique caller key derived by [keyStrategy].
 /// When the request count exceeds [maxRequests] within [window], subsequent requests
 /// are denied with HTTP 429 Too Many Requests.
+///
+/// ### Concurrency & Atomicity Contract
+/// - When configured with a [BloomAtomicThrottleStore] via [atomicStore], rate limiting
+///   is enforced atomically without get-modify-set races.
+/// - When configured with a generic [cache] ([BloomCache]), operations perform an async
+///   get-modify-set sequence. This cache-backed path is **unsuitable for distributed,
+///   multi-process, or high-concurrency race-free enforcement** unless backed by an
+///   atomic store.
 ///
 /// Example:
 /// ```dart
 /// final throttle = BloomThrottle.fromRate(
 ///   scope: 'articles_api',
 ///   rate: '60/minute',
-///   cache: memoryCache,
+///   atomicStore: InMemoryAtomicThrottleStore(),
 /// );
 ///
 /// if (!await throttle.allowRequest(request)) {
@@ -147,8 +250,15 @@ class BloomThrottle {
   /// Time window duration.
   final Duration window;
 
-  /// Underlying [BloomCache] instance storing sliding timestamp windows.
-  final BloomCache cache;
+  /// Underlying [BloomCache] instance for non-atomic caching fallback.
+  ///
+  /// NOTE: The generic [BloomCache] interface does not provide atomic sliding-window primitives.
+  /// The [cache] path performs a non-atomic get-modify-set cycle and is not suitable for
+  /// race-free distributed concurrent rate-limiting. For atomic enforcement, use [atomicStore].
+  final BloomCache? cache;
+
+  /// Optional atomic rate-limiting store.
+  final BloomAtomicThrottleStore? atomicStore;
 
   /// Key derivation strategy (defaults to [ByUserOrIp]).
   final BloomRateLimitKey keyStrategy;
@@ -158,17 +268,22 @@ class BloomThrottle {
     required this.scope,
     required this.maxRequests,
     required this.window,
-    required this.cache,
+    this.cache,
+    this.atomicStore,
     this.keyStrategy = const ByUserOrIp(),
-  });
+  }) : assert(
+          cache != null || atomicStore != null,
+          'Either cache or atomicStore must be provided to BloomThrottle.',
+        );
 
-  /// Factory constructor parsing a rate string like `"100/hour"` with [cache].
+  /// Factory constructor parsing a rate string like `"100/hour"` with [cache] or [atomicStore].
   ///
   /// Throws [ArgumentError] if [rate] format is invalid.
   factory BloomThrottle.fromRate({
     required String scope,
     required String rate,
-    required BloomCache cache,
+    BloomCache? cache,
+    BloomAtomicThrottleStore? atomicStore,
     BloomRateLimitKey keyStrategy = const ByUserOrIp(),
   }) {
     final parsed = parseRate(rate);
@@ -184,6 +299,7 @@ class BloomThrottle {
       maxRequests: parsed.$1,
       window: parsed.$2,
       cache: cache,
+      atomicStore: atomicStore,
       keyStrategy: keyStrategy,
     );
   }
@@ -193,13 +309,22 @@ class BloomThrottle {
   /// Returns `true` if the request is permitted, or `false` if throttled (HTTP 429).
   Future<bool> allowRequest(BloomRequest req) async {
     final identKey = await keyStrategy.key(req);
-    final cacheKey = 'throttle:$scope:$identKey';
+    final throttleKey = 'throttle:$scope:$identKey';
+
+    if (atomicStore != null) {
+      return await atomicStore!.allowRequest(throttleKey, maxRequests, window);
+    }
+
+    // Non-atomic fallback path via BloomCache.
+    // NOTE: This get-modify-set cycle across asynchronous cache boundaries is subject
+    // to race conditions under concurrent requests. Use BloomAtomicThrottleStore for
+    // atomic race-free rate limiting.
     final now = DateTime.now().millisecondsSinceEpoch;
     final windowMs = window.inMilliseconds;
     final cutoff = now - windowMs;
 
-    // We store timestamps of requests in the current window as a list of integers
-    final timestamps = (await cache.get<List<dynamic>>(cacheKey)) ?? <dynamic>[];
+    final timestamps =
+        (await cache!.get<List<dynamic>>(throttleKey)) ?? <dynamic>[];
     final active = timestamps
         .map((t) => t is int ? t : int.tryParse(t.toString()) ?? 0)
         .where((t) => t > cutoff)
@@ -210,12 +335,11 @@ class BloomThrottle {
     }
 
     active.add(now);
-    await cache.set<List<int>>(
-      cacheKey,
+    await cache!.set<List<int>>(
+      throttleKey,
       active,
       ttl: window,
     );
     return true;
   }
 }
-
