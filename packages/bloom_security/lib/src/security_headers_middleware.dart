@@ -22,8 +22,7 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// Default Content Security Policy directive string.
   ///
   /// Sets `default-src 'self'`, restricts object/script sources, and allows self-hosted and HTTPS images.
-  static const String defaultCsp =
-      "default-src 'self'; "
+  static const String defaultCsp = "default-src 'self'; "
       "img-src 'self' data: https:; "
       "script-src 'self'; "
       "style-src 'self' 'unsafe-inline'; "
@@ -118,7 +117,8 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// router.use(BloomSecurityHeadersMiddleware.api());
   /// ```
   factory BloomSecurityHeadersMiddleware.api({
-    String? contentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'",
+    String? contentSecurityPolicy =
+        "default-src 'none'; frame-ancestors 'none'",
     Map<String, String>? customHeaders,
   }) {
     return BloomSecurityHeadersMiddleware(
@@ -137,12 +137,14 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   /// Evaluates whether the incoming [request] is secure (via HTTPS URI scheme, `X-Forwarded-Proto`,
   /// or `X-Forwarded-Ssl`) before emitting `Strict-Transport-Security` headers (unless [forceHsts] is enabled).
   @override
-  Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
+  Future<BloomResponse?> handle(
+      BloomRequest request, BloomNextFunction next) async {
     final response = await next();
 
     // 1. X-Content-Type-Options
     if (contentTypeOptions != null) {
-      _setHeader(response.headers, 'X-Content-Type-Options', contentTypeOptions!);
+      _setHeader(
+          response.headers, 'X-Content-Type-Options', contentTypeOptions!);
     }
 
     // 2. X-Frame-Options
@@ -157,17 +159,20 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
 
     // 4. Content-Security-Policy
     if (contentSecurityPolicy != null) {
-      _setHeader(response.headers, 'Content-Security-Policy', contentSecurityPolicy!);
+      _setHeader(
+          response.headers, 'Content-Security-Policy', contentSecurityPolicy!);
     }
 
     // 5. Cross-Origin-Opener-Policy
     if (crossOriginOpenerPolicy != null) {
-      _setHeader(response.headers, 'Cross-Origin-Opener-Policy', crossOriginOpenerPolicy!);
+      _setHeader(response.headers, 'Cross-Origin-Opener-Policy',
+          crossOriginOpenerPolicy!);
     }
 
     // 6. Cross-Origin-Resource-Policy
     if (crossOriginResourcePolicy != null) {
-      _setHeader(response.headers, 'Cross-Origin-Resource-Policy', crossOriginResourcePolicy!);
+      _setHeader(response.headers, 'Cross-Origin-Resource-Policy',
+          crossOriginResourcePolicy!);
     }
 
     // 7. Permissions-Policy
@@ -181,7 +186,8 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
       final hstsParts = <String>['max-age=${hstsMaxAge.inSeconds}'];
       if (hstsIncludeSubDomains) hstsParts.add('includeSubDomains');
       if (hstsPreload) hstsParts.add('preload');
-      _setHeader(response.headers, 'Strict-Transport-Security', hstsParts.join('; '));
+      _setHeader(
+          response.headers, 'Strict-Transport-Security', hstsParts.join('; '));
     }
 
     // 9. Custom Headers

@@ -1,6 +1,24 @@
 import 'dart:async';
 import 'package:bloom_server/bloom_server.dart';
 
+/// Predicate deciding whether an immediate peer address represents a trusted reverse proxy or load balancer.
+///
+/// When this returns `true` for the immediate connection peer, forwarding headers (`CF-Connecting-IP`,
+/// `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP`) are inspected to identify downstream client IPs.
+///
+/// Example:
+/// ```dart
+/// bool isCloudflareOrInternal(String peer) {
+///   return peer == '127.0.0.1' || peer.startsWith('10.0.');
+/// }
+/// ```
+typedef BloomTrustedProxyPredicate = bool Function(String peerAddress);
+
+/// Function signature for extracting the immediate peer IP or transport address from an incoming [BloomRequest].
+///
+/// Returns `null` if the immediate peer address cannot be determined.
+typedef BloomPeerAddressExtractor = String? Function(BloomRequest request);
+
 /// Function signature for extracting a rate-limiting key from an incoming [BloomRequest].
 ///
 /// The returned string serves as the bucket identifier (e.g. client IP address, API key,
@@ -38,20 +56,185 @@ typedef BloomRateLimitExceededHandler = BloomResponse Function(
   int limit,
 );
 
-/// In-memory sliding-window rate limiting middleware for Bloom applications.
+/// Evaluation result returned from a [BloomRateLimitStore].
+class BloomRateLimitResult {
+  /// Whether the request is permitted within the rate limit.
+  final bool isAllowed;
+
+  /// Maximum request limit configured for the sliding window.
+  final int limit;
+
+  /// Remaining number of requests permitted in the current window.
+  final int remaining;
+
+  /// Epoch timestamp in seconds when the rate limit window resets.
+  final int resetEpochSeconds;
+
+  /// Duration before requests may resume if rate limit was exceeded.
+  final Duration retryAfter;
+
+  /// Creates a [BloomRateLimitResult] instance.
+  const BloomRateLimitResult({
+    required this.isAllowed,
+    required this.limit,
+    required this.remaining,
+    required this.resetEpochSeconds,
+    required this.retryAfter,
+  });
+
+  /// Factory constructor for an allowed request.
+  factory BloomRateLimitResult.allowed({
+    required int limit,
+    required int remaining,
+    required int resetEpochSeconds,
+  }) {
+    return BloomRateLimitResult(
+      isAllowed: true,
+      limit: limit,
+      remaining: remaining,
+      resetEpochSeconds: resetEpochSeconds,
+      retryAfter: Duration.zero,
+    );
+  }
+
+  /// Factory constructor for a rate-limited / exceeded request.
+  factory BloomRateLimitResult.exceeded({
+    required int limit,
+    required int resetEpochSeconds,
+    required Duration retryAfter,
+  }) {
+    return BloomRateLimitResult(
+      isAllowed: false,
+      limit: limit,
+      remaining: 0,
+      resetEpochSeconds: resetEpochSeconds,
+      retryAfter: retryAfter,
+    );
+  }
+}
+
+/// Abstract storage and evaluation strategy contract for rate limit tracking.
+///
+/// Implementations can back rate limiting via in-memory sliding windows ([BloomInMemoryRateLimitStore]),
+/// shared database backends, distributed caches, or token bucket stores.
+abstract class BloomRateLimitStore {
+  /// Records a hit for [key] and evaluates rate limit status against [maxRequests] and [window].
+  FutureOr<BloomRateLimitResult> recordAndCheck({
+    required String key,
+    required int maxRequests,
+    required Duration window,
+  });
+
+  /// Resets all tracked rate limit state or clears a specific [key].
+  FutureOr<void> reset([String? key]);
+
+  /// Closes background timers or releases resources held by this store.
+  FutureOr<void> dispose();
+}
+
+/// In-memory sliding-window implementation of [BloomRateLimitStore].
 ///
 /// Features:
-/// - Exact sliding-window timestamp tracking preventing burst attacks across fixed window boundaries.
-/// - Concurrency-safe in Dart isolate event loops (atomic synchronous check-and-increment before yield).
-/// - Default client IP extraction with proxy/CDN header awareness (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`).
+/// - Sub-millisecond sliding-window timestamp tracking preventing burst attacks across fixed window boundaries.
+/// - Concurrency-safe in Dart isolate event loops (synchronous check-and-increment operations).
+/// - Periodic memory pruning of stale timestamp entries.
+class BloomInMemoryRateLimitStore implements BloomRateLimitStore {
+  final Map<String, List<int>> _buckets = {};
+  Timer? _cleanupTimer;
+
+  /// Creates an in-memory sliding-window rate limit store.
+  BloomInMemoryRateLimitStore({
+    Duration cleanupInterval = const Duration(minutes: 5),
+  }) {
+    if (cleanupInterval > Duration.zero) {
+      _cleanupTimer =
+          Timer.periodic(cleanupInterval, (_) => _pruneStaleBuckets());
+    }
+  }
+
+  @override
+  BloomRateLimitResult recordAndCheck({
+    required String key,
+    required int maxRequests,
+    required Duration window,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final windowMs = window.inMilliseconds;
+    final windowStart = now - windowMs;
+
+    final timestamps = _buckets.putIfAbsent(key, () => []);
+    timestamps.removeWhere((ts) => ts < windowStart);
+
+    final currentCount = timestamps.length;
+    if (currentCount >= maxRequests) {
+      final oldestTimestamp = timestamps.first;
+      final resetAtMs = oldestTimestamp + windowMs;
+      final retryAfterMs = (resetAtMs - now).clamp(1000, windowMs);
+      final retryAfter = Duration(milliseconds: retryAfterMs);
+      final resetSeconds = (resetAtMs / 1000).ceil();
+
+      return BloomRateLimitResult.exceeded(
+        limit: maxRequests,
+        resetEpochSeconds: resetSeconds,
+        retryAfter: retryAfter,
+      );
+    }
+
+    timestamps.add(now);
+    final remaining = (maxRequests - timestamps.length).clamp(0, maxRequests);
+    final resetAtMs = timestamps.first + windowMs;
+    final resetSeconds = (resetAtMs / 1000).ceil();
+
+    return BloomRateLimitResult.allowed(
+      limit: maxRequests,
+      remaining: remaining,
+      resetEpochSeconds: resetSeconds,
+    );
+  }
+
+  @override
+  void reset([String? key]) {
+    if (key != null) {
+      _buckets.remove(key);
+    } else {
+      _buckets.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = null;
+    _buckets.clear();
+  }
+
+  void _pruneStaleBuckets() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _buckets.removeWhere((_, timestamps) {
+      // Retain entries with activity within the last 10 minutes
+      final cutoff = now - 600000;
+      timestamps.removeWhere((ts) => ts < cutoff);
+      return timestamps.isEmpty;
+    });
+  }
+}
+
+/// Hardened sliding-window rate limiting middleware for Bloom applications.
+///
+/// Features:
+/// - Exact sliding-window tracking preventing burst attacks.
+/// - Secure proxy header defense: does NOT trust `CF-Connecting-IP`, `X-Forwarded-For`,
+///   `X-Real-IP`, or `True-Client-IP` unless [isTrustedProxy] approves the immediate peer.
+/// - Safe non-spoofable fallback key (`'anonymous_peer'`) when peer address is unavailable.
+/// - Pluggable [BloomRateLimitStore] extension point suitable for shared/distributed backends.
 /// - Standard rate-limiting headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`).
-/// - Automatic periodic memory cleanup of idle client buckets.
 ///
 /// Example:
 /// ```dart
 /// final rateLimiter = BloomRateLimitMiddleware(
 ///   maxRequests: 100,
 ///   window: const Duration(minutes: 1),
+///   isTrustedProxy: (peer) => peer == '10.0.0.1',
 ///   whitelist: {'127.0.0.1'},
 /// );
 /// router.use(rateLimiter);
@@ -63,7 +246,7 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
   /// Time duration of the sliding window.
   final Duration window;
 
-  /// Custom key extractor function. Defaults to client IP address extracted from reverse-proxy headers.
+  /// Custom key extractor function. Defaults to secure client IP extraction.
   final BloomRateLimitKeyExtractor keyExtractor;
 
   /// Custom handler returning a custom [BloomResponse] when rate limit is exceeded.
@@ -72,30 +255,30 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
   /// Set of keys or IP addresses that bypass rate limiting completely.
   final Set<String> whitelist;
 
-  /// Whether to include `X-RateLimit-*` headers in all responses.
+  /// Whether to include `X-RateLimit-*` headers in responses.
   final bool includeHeaders;
 
-  // In-memory sliding window bucket store: Map<Key, List<TimestampMillis>>
-  final Map<String, List<int>> _buckets = {};
-  Timer? _cleanupTimer;
+  /// Underlying storage strategy for recording and evaluating rate limits.
+  final BloomRateLimitStore store;
 
-  /// Creates a sliding-window rate limiter middleware.
+  /// Predicate determining whether an immediate peer address is trusted to forward client IP headers.
+  final BloomTrustedProxyPredicate? isTrustedProxy;
+
+  /// Optional extractor for the immediate peer address from the incoming [BloomRequest].
+  final BloomPeerAddressExtractor? peerAddressExtractor;
+
+  /// Creates a hardened sliding-window rate limiter middleware.
   ///
-  /// - [maxRequests]: Maximum requests permitted within [window] duration per client key (defaults to 60).
-  /// - [window]: Sliding window duration (defaults to 1 minute).
-  /// - [keyExtractor]: Custom function to extract a unique client key (defaults to client IP / reverse proxy headers).
-  /// - [onRateLimitExceeded]: Optional handler returning a custom [BloomResponse] when rate limit is exceeded.
-  /// - [whitelist]: Set of keys or IPs that are exempt from rate limiting.
-  /// - [includeHeaders]: Whether to emit `X-RateLimit-*` and `Retry-After` headers on responses (defaults to `true`).
-  /// - [cleanupInterval]: Frequency at which idle client buckets are purged from memory (defaults to 5 minutes).
-  ///
-  /// Example:
-  /// ```dart
-  /// final limiter = BloomRateLimitMiddleware(
-  ///   maxRequests: 30,
-  ///   window: const Duration(seconds: 30),
-  /// );
-  /// ```
+  /// - [maxRequests]: Maximum requests permitted within [window] (must be > 0, defaults to 60).
+  /// - [window]: Sliding window duration (must be > [Duration.zero], defaults to 1 minute).
+  /// - [keyExtractor]: Custom key extraction function. If omitted, uses hardened IP extraction.
+  /// - [onRateLimitExceeded]: Optional custom handler when rate limit is exceeded.
+  /// - [whitelist]: Set of keys/IPs exempt from rate limiting.
+  /// - [includeHeaders]: Whether to emit `X-RateLimit-*` headers (defaults to `true`).
+  /// - [cleanupInterval]: Periodic memory cleanup interval for default in-memory store (defaults to 5 minutes).
+  /// - [store]: Optional custom [BloomRateLimitStore] backend.
+  /// - [isTrustedProxy]: Optional predicate determining if immediate peer IP is trusted.
+  /// - [peerAddressExtractor]: Optional peer IP extractor.
   BloomRateLimitMiddleware({
     this.maxRequests = 60,
     this.window = const Duration(minutes: 1),
@@ -104,34 +287,50 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
     this.whitelist = const {},
     this.includeHeaders = true,
     Duration cleanupInterval = const Duration(minutes: 5),
-  }) : keyExtractor = keyExtractor ?? _defaultIpExtractor {
-    _cleanupTimer = Timer.periodic(cleanupInterval, (_) => _pruneAllStaleBuckets());
+    BloomRateLimitStore? store,
+    this.isTrustedProxy,
+    this.peerAddressExtractor,
+  })  : store = store ??
+            BloomInMemoryRateLimitStore(cleanupInterval: cleanupInterval),
+        keyExtractor = keyExtractor ??
+            _createDefaultKeyExtractor(isTrustedProxy, peerAddressExtractor) {
+    if (maxRequests <= 0) {
+      throw ArgumentError.value(
+        maxRequests,
+        'maxRequests',
+        'maxRequests must be greater than 0',
+      );
+    }
+    if (window <= Duration.zero) {
+      throw ArgumentError.value(
+        window,
+        'window',
+        'window duration must be greater than Duration.zero',
+      );
+    }
+    if (cleanupInterval <= Duration.zero) {
+      throw ArgumentError.value(
+        cleanupInterval,
+        'cleanupInterval',
+        'cleanupInterval must be greater than Duration.zero',
+      );
+    }
   }
 
-  /// Cancels background cleanup timers and clears all in-memory rate-limit buckets.
-  ///
-  /// Call when shutting down the server or disposing of the middleware.
+  /// Cancels background cleanup timers and clears rate-limit state in the underlying store.
   void dispose() {
-    _cleanupTimer?.cancel();
-    _cleanupTimer = null;
-    _buckets.clear();
+    store.dispose();
   }
 
-  /// Resets all rate-limit buckets, clearing all tracked request timestamps.
-  void reset() {
-    _buckets.clear();
+  /// Resets rate-limit state in the underlying store.
+  void reset([String? key]) {
+    store.reset(key);
   }
 
   /// Intercepts the incoming [request] and enforces rate limits against the client key.
-  ///
-  /// If the client key is present in [whitelist], requests pass through immediately to [next].
-  ///
-  /// When [maxRequests] is exceeded within [window], returns a 429 Too Many Requests response
-  /// (or invokes [onRateLimitExceeded]) along with `Retry-After` and `X-RateLimit-*` headers without invoking [next].
-  ///
-  /// Otherwise, records the request timestamp, executes [next], and optionally attaches rate limit headers.
   @override
-  Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
+  Future<BloomResponse?> handle(
+      BloomRequest request, BloomNextFunction next) async {
     final key = keyExtractor(request);
 
     // Whitelisted keys bypass rate limiting completely
@@ -139,36 +338,27 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
       return await next();
     }
 
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final windowMs = window.inMilliseconds;
-    final windowStart = now - windowMs;
+    final result = await store.recordAndCheck(
+      key: key,
+      maxRequests: maxRequests,
+      window: window,
+    );
 
-    // CONCURRENCY SAFETY:
-    // The check, timestamp pruning, threshold calculation, and token addition are executed
-    // synchronously without any `await` or asynchronous yields. In the Dart isolate execution
-    // model, this guarantees atomic check-and-increment operations across concurrent HTTP requests.
-    final timestamps = _buckets.putIfAbsent(key, () => []);
-
-    // Prune timestamps older than current sliding window
-    timestamps.removeWhere((ts) => ts < windowStart);
-
-    final currentCount = timestamps.length;
-
-    if (currentCount >= maxRequests) {
-      final oldestTimestamp = timestamps.first;
-      final resetAtMs = oldestTimestamp + windowMs;
-      final retryAfterMs = (resetAtMs - now).clamp(1000, windowMs);
-      final retryAfter = Duration(milliseconds: retryAfterMs);
-      final retryAfterSeconds = (retryAfterMs / 1000).ceil();
-      final resetSeconds = (resetAtMs / 1000).ceil();
+    if (!result.isAllowed) {
+      final retryAfterSeconds =
+          (result.retryAfter.inMilliseconds / 1000).ceil();
 
       if (onRateLimitExceeded != null) {
-        final customRes = onRateLimitExceeded!(request, retryAfter, maxRequests);
+        final customRes = onRateLimitExceeded!(
+          request,
+          result.retryAfter,
+          maxRequests,
+        );
         _applyRateLimitHeaders(
           customRes.headers,
           limit: maxRequests,
           remaining: 0,
-          resetEpochSeconds: resetSeconds,
+          resetEpochSeconds: result.resetEpochSeconds,
           retryAfterSeconds: retryAfterSeconds,
         );
         return customRes;
@@ -179,7 +369,7 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
         errorHeaders,
         limit: maxRequests,
         remaining: 0,
-        resetEpochSeconds: resetSeconds,
+        resetEpochSeconds: result.resetEpochSeconds,
         retryAfterSeconds: retryAfterSeconds,
       );
 
@@ -187,7 +377,8 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
         {
           'error': 'Too Many Requests',
           'statusCode': 429,
-          'message': 'Rate limit exceeded. Please retry in $retryAfterSeconds seconds.',
+          'message':
+              'Rate limit exceeded. Please retry in $retryAfterSeconds seconds.',
           'retryAfterSeconds': retryAfterSeconds,
         },
         statusCode: 429,
@@ -195,21 +386,14 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
       );
     }
 
-    // Record this request
-    timestamps.add(now);
-
-    final remaining = (maxRequests - timestamps.length).clamp(0, maxRequests);
-    final resetAtMs = timestamps.first + windowMs;
-    final resetSeconds = (resetAtMs / 1000).ceil();
-
     final response = await next();
 
     if (includeHeaders) {
       _applyRateLimitHeaders(
         response.headers,
         limit: maxRequests,
-        remaining: remaining,
-        resetEpochSeconds: resetSeconds,
+        remaining: result.remaining,
+        resetEpochSeconds: result.resetEpochSeconds,
       );
     }
 
@@ -236,45 +420,61 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
     }
   }
 
-  void _pruneAllStaleBuckets() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final windowStart = now - window.inMilliseconds;
+  static BloomRateLimitKeyExtractor _createDefaultKeyExtractor(
+    BloomTrustedProxyPredicate? isTrustedProxy,
+    BloomPeerAddressExtractor? peerAddressExtractor,
+  ) {
+    return (BloomRequest request) {
+      // 1. Resolve immediate peer address
+      final peerAddress =
+          peerAddressExtractor?.call(request) ?? _extractImmediatePeer(request);
 
-    _buckets.removeWhere((key, timestamps) {
-      timestamps.removeWhere((ts) => ts < windowStart);
-      return timestamps.isEmpty;
-    });
+      // 2. If peer address is unavailable, use safe non-spoofable fallback
+      if (peerAddress == null || peerAddress.trim().isEmpty) {
+        return 'anonymous_peer';
+      }
+
+      final cleanPeer = peerAddress.trim();
+
+      // 3. Inspect forwarding headers ONLY if immediate peer is an approved trusted proxy
+      if (isTrustedProxy != null && isTrustedProxy(cleanPeer)) {
+        final headers = request.headers;
+
+        final cfIp = _getHeader(headers, 'cf-connecting-ip');
+        if (cfIp != null && cfIp.trim().isNotEmpty) {
+          return cfIp.trim();
+        }
+
+        final xForwardedFor = _getHeader(headers, 'x-forwarded-for');
+        if (xForwardedFor != null && xForwardedFor.trim().isNotEmpty) {
+          final ips = xForwardedFor.split(',');
+          if (ips.isNotEmpty && ips.first.trim().isNotEmpty) {
+            return ips.first.trim();
+          }
+        }
+
+        final xRealIp = _getHeader(headers, 'x-real-ip');
+        if (xRealIp != null && xRealIp.trim().isNotEmpty) {
+          return xRealIp.trim();
+        }
+
+        final trueClientIp = _getHeader(headers, 'true-client-ip');
+        if (trueClientIp != null && trueClientIp.trim().isNotEmpty) {
+          return trueClientIp.trim();
+        }
+
+        return cleanPeer;
+      }
+
+      // 4. Untrusted peer: rate limit directly by immediate peer address
+      return cleanPeer;
+    };
   }
 
-  static String _defaultIpExtractor(BloomRequest request) {
-    // Check common reverse-proxy headers in order of preference
-    final headers = request.headers;
-
-    final cfIp = _getHeader(headers, 'cf-connecting-ip');
-    if (cfIp != null && cfIp.trim().isNotEmpty) {
-      return cfIp.trim();
-    }
-
-    final xForwardedFor = _getHeader(headers, 'x-forwarded-for');
-    if (xForwardedFor != null && xForwardedFor.trim().isNotEmpty) {
-      // First IP in comma-separated list is the client origin
-      final ips = xForwardedFor.split(',');
-      if (ips.isNotEmpty && ips.first.trim().isNotEmpty) {
-        return ips.first.trim();
-      }
-    }
-
-    final xRealIp = _getHeader(headers, 'x-real-ip');
-    if (xRealIp != null && xRealIp.trim().isNotEmpty) {
-      return xRealIp.trim();
-    }
-
-    final trueClientIp = _getHeader(headers, 'true-client-ip');
-    if (trueClientIp != null && trueClientIp.trim().isNotEmpty) {
-      return trueClientIp.trim();
-    }
-
-    return 'unknown_client';
+  static String? _extractImmediatePeer(BloomRequest request) {
+    // BloomRequest does not expose the TCP peer. HTTP headers are client-controlled,
+    // so callers must provide peerAddressExtractor when proxy-aware limiting is needed.
+    return null;
   }
 
   static String? _getHeader(Map<String, String> headers, String name) {
