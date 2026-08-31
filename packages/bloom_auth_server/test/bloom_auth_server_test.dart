@@ -1,5 +1,6 @@
 import 'package:bloom_auth_server/bloom_auth_server.dart';
 import 'package:bloom_server/bloom_server.dart';
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -20,7 +21,8 @@ void main() {
       expect(() => hashPassword('x', cost: 32), throwsArgumentError);
     });
 
-    test('verifyPassword returns false for malformed hash instead of throwing', () {
+    test('verifyPassword returns false for malformed hash instead of throwing',
+        () {
       expect(verifyPassword('anything', 'not-a-real-hash'), isFalse);
     });
 
@@ -31,7 +33,9 @@ void main() {
 
   group('Session tokens (JWT)', () {
     setUp(() {
-      BloomEnv.loadMap({'BLOOM_AUTH_SECRET': 'test-secret-at-least-32-characters-long'}, overwrite: true);
+      BloomEnv.loadMap(
+          {'BLOOM_AUTH_SECRET': 'test-secret-at-least-32-characters-long'},
+          overwrite: true);
     });
 
     test('issueSessionToken + verifySessionToken round-trips claims', () {
@@ -70,8 +74,10 @@ void main() {
       );
     });
 
-    test('verifySessionToken rejects a token signed with a different secret', () {
-      final token = issueSessionToken(userId: '1', secret: 'a-completely-different-secret-value');
+    test('verifySessionToken rejects a token signed with a different secret',
+        () {
+      final token = issueSessionToken(
+          userId: '1', secret: 'a-completely-different-secret-value');
       expect(
         () => verifySessionToken(token),
         throwsA(isA<SessionTokenException>()),
@@ -88,9 +94,199 @@ void main() {
       return expired.then((_) {
         expect(
           () => verifySessionToken(token),
-          throwsA(isA<SessionTokenException>().having((e) => e.isExpired, 'isExpired', isTrue)),
+          throwsA(isA<SessionTokenException>()
+              .having((e) => e.isExpired, 'isExpired', isTrue)),
         );
       });
+    });
+    test('verifySessionToken requires exactly token_type == session', () {
+      // Craft a token missing token_type or with token_type != 'session'
+      final tokenMissingType = issueSessionToken(userId: '1');
+      // Token issued by issueSessionToken has token_type: 'session'. Let's verify it works.
+      expect(verifySessionToken(tokenMissingType).userId, '1');
+
+      // Now create a raw JWT with custom payload missing token_type or with different token_type
+      final secret = resolveAuthSecret();
+      final jwtWithoutType = JWT(
+        {'sub': '1'},
+        issuer: 'bloom-auth-server',
+      ).sign(SecretKey(secret));
+      expect(
+        () => verifySessionToken(jwtWithoutType),
+        throwsA(isA<SessionTokenException>().having(
+          (e) => e.message,
+          'message',
+          contains('Invalid token type'),
+        )),
+      );
+
+      final jwtWithWrongType = JWT(
+        {'sub': '1', 'token_type': 'refresh'},
+        issuer: 'bloom-auth-server',
+      ).sign(SecretKey(secret));
+      expect(
+        () => verifySessionToken(jwtWithWrongType),
+        throwsA(isA<SessionTokenException>().having(
+          (e) => e.message,
+          'message',
+          contains('Invalid token type'),
+        )),
+      );
+    });
+  });
+
+  group('BloomAuthRequestExtension security hardening', () {
+    test(
+        'authUserId and role helpers do not fall back to mutable request params',
+        () {
+      final req = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('/test'),
+        headers: {},
+        params: {
+          'auth_user_id': 'attacker_injected_id',
+          'auth_roles': 'admin,superuser',
+        },
+      );
+
+      // Unauthenticated request with injected params must NOT return the injected values
+      expect(req.auth, isNull);
+      expect(req.isAuthenticated, isFalse);
+      expect(req.authUserId, isNull);
+      expect(req.hasRole('admin'), isFalse);
+      expect(req.hasAnyRole(['admin', 'superuser']), isFalse);
+      expect(req.authRoles, isEmpty);
+    });
+
+    test(
+        'authUserId and role helpers return only verified claims from middleware',
+        () async {
+      BloomEnv.loadMap(
+          {'BLOOM_AUTH_SECRET': 'test-secret-at-least-32-characters-long'},
+          overwrite: true);
+      final token = issueSessionToken(
+        userId: 'verified_user_123',
+        roles: ['editor'],
+      );
+
+      final req = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('/test'),
+        headers: {'Authorization': 'Bearer $token'},
+        params: {'auth_user_id': 'spoofed_user'},
+      );
+
+      final middleware = const BloomAuthMiddleware();
+      await middleware.handle(req, () async => BloomResponse.text('ok'));
+
+      expect(req.isAuthenticated, isTrue);
+      expect(req.authUserId, 'verified_user_123');
+      expect(req.hasRole('editor'), isTrue);
+      expect(req.hasRole('admin'), isFalse);
+      expect(req.authRoles, ['editor']);
+
+      // Mutating params after middleware must have no effect on verified getters
+      req.params['auth_user_id'] = 'mutated_afterwards';
+      expect(req.authUserId, 'verified_user_123');
+    });
+  });
+
+  group('Password reset token security and revocation', () {
+    const passwordHash =
+        r'$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdefghijkl';
+
+    setUp(() {
+      BloomEnv.loadMap(
+          {'BLOOM_AUTH_SECRET': 'test-secret-at-least-32-characters-long'},
+          overwrite: true);
+    });
+
+    test('generatePasswordResetToken rejects non-positive TTL', () {
+      expect(
+        () => generatePasswordResetToken(
+          userId: 'user_1',
+          currentPasswordHash: passwordHash,
+          ttl: Duration.zero,
+        ),
+        throwsArgumentError,
+      );
+
+      expect(
+        () => generatePasswordResetToken(
+          userId: 'user_1',
+          currentPasswordHash: passwordHash,
+          ttl: const Duration(seconds: -10),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test(
+        'verifyPasswordResetToken validates valid token and rejects tampered/expired',
+        () {
+      final token = generatePasswordResetToken(
+        userId: 'user_1',
+        currentPasswordHash: passwordHash,
+        ttl: const Duration(minutes: 15),
+      );
+
+      expect(
+        verifyPasswordResetToken(
+          token: token,
+          userId: 'user_1',
+          currentPasswordHash: passwordHash,
+        ),
+        isTrue,
+      );
+
+      // Wrong user
+      expect(
+        verifyPasswordResetToken(
+          token: token,
+          userId: 'user_2',
+          currentPasswordHash: passwordHash,
+        ),
+        isFalse,
+      );
+
+      // Changed password hash
+      expect(
+        verifyPasswordResetToken(
+          token: token,
+          userId: 'user_1',
+          currentPasswordHash:
+              r'$2a$10$differentHash1234567890abcdefghijklmnopqr',
+        ),
+        isFalse,
+      );
+    });
+
+    test('InMemoryPasswordResetRevocationStore enables single-use verification',
+        () async {
+      final store = InMemoryPasswordResetRevocationStore();
+      final token = generatePasswordResetToken(
+        userId: 'user_1',
+        currentPasswordHash: passwordHash,
+        ttl: const Duration(minutes: 15),
+      );
+
+      // First use succeeds and marks token as consumed
+      final firstUse = await verifyAndConsumePasswordResetToken(
+        token: token,
+        userId: 'user_1',
+        currentPasswordHash: passwordHash,
+        revocationStore: store,
+      );
+      expect(firstUse, isTrue);
+
+      // Second use of the same token is rejected
+      final secondUse = await verifyAndConsumePasswordResetToken(
+        token: token,
+        userId: 'user_1',
+        currentPasswordHash: passwordHash,
+        revocationStore: store,
+      );
+      expect(secondUse, isFalse);
     });
   });
 

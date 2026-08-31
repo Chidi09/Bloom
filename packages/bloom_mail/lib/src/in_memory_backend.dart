@@ -22,10 +22,10 @@ class BloomInMemoryBackend implements BloomMailBackend {
 
   @override
   Future<void> send(BloomMailMessage message) async {
+    message.validate();
     _messages.add(message);
   }
 }
 
 /// Alias for [BloomInMemoryBackend].
 typedef InMemoryBackend = BloomInMemoryBackend;
-

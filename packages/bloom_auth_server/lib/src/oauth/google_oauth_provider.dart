@@ -67,7 +67,8 @@ class GoogleOAuthProvider implements BloomOAuthProvider {
     this.prompt,
   }) : _client = client ?? http.Client() {
     if (clientId.isEmpty) {
-      throw ArgumentError.value(clientId, 'clientId', 'Google clientId cannot be empty');
+      throw ArgumentError.value(
+          clientId, 'clientId', 'Google clientId cannot be empty');
     }
     if (clientSecret.isEmpty) {
       throw ArgumentError.value(
@@ -95,7 +96,8 @@ class GoogleOAuthProvider implements BloomOAuthProvider {
       );
     }
     if (state.isEmpty) {
-      throw ArgumentError.value(state, 'state', 'state parameter cannot be empty');
+      throw ArgumentError.value(
+          state, 'state', 'state parameter cannot be empty');
     }
 
     final effectiveScopes = scopes ?? defaultScopes;
@@ -120,7 +122,8 @@ class GoogleOAuthProvider implements BloomOAuthProvider {
     required String redirectUri,
   }) async {
     if (code.isEmpty) {
-      throw ArgumentError.value(code, 'code', 'Authorization code cannot be empty');
+      throw ArgumentError.value(
+          code, 'code', 'Authorization code cannot be empty');
     }
     if (redirectUri.isEmpty) {
       throw ArgumentError.value(

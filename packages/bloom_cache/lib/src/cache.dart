@@ -308,10 +308,10 @@ T? decodeCacheValue<T>(dynamic raw) {
     if (T == List<double>) return decoded.cast<double>() as T;
     if (T == List<dynamic>) return decoded.cast<dynamic>() as T;
     if (T == List<Map<String, dynamic>>) {
-      return decoded.map((e) => (e as Map).cast<String, dynamic>()).toList() as T;
+      return decoded.map((e) => (e as Map).cast<String, dynamic>()).toList()
+          as T;
     }
   }
 
   return decoded as T;
 }
-

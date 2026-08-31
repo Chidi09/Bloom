@@ -1,3 +1,11 @@
+## 0.3.2 - 2026-08-31
+
+### Security & Reliability Hardening
+* **Verified Auth UserId & Claims Binding**: `BloomAuthRequestExtension.authUserId` now strictly extracts the user ID from cryptographically verified claims attached by `BloomAuthMiddleware`, eliminating fallback to mutable request parameters. Added `hasAnyRole` and `authRoles` helpers adhering to the same strict verified-claims boundary.
+* **Strict JWT Session Token Typing**: `verifySessionToken` now strictly requires `token_type == 'session'`. Tokens missing the `token_type` claim or specifying any non-session type are rejected with a typed `SessionTokenException`.
+* **OAuth State Store & CSRF Verification**: Added `BloomOAuthStateStore` interface, `InMemoryOAuthStateStore`, `BloomOAuthStateException`, and state verification extension points in `BloomOAuthFlow`. `handleCallback` can now require and atomically consume generated state tokens. Updated documentation to clarify that state token storage and verification are required for CSRF protection.
+* **Password Reset TTL Validation & Revocation Extension**: Enforced strictly positive duration validation in `generatePasswordResetToken`. Added `BloomPasswordResetRevocationStore`, `InMemoryPasswordResetRevocationStore`, and `verifyAndConsumePasswordResetToken` extension points for stateful single-use revocation tracking.
+
 ## 0.3.1 - 2026-08-25
 
 ### Fixed

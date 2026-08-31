@@ -7,12 +7,15 @@ import 'cache.dart';
 /// `package:redis` client.
 ///
 /// ### Key Features
+/// - **Atomic Lua Scripts**: Atomic operations for set/tag replacement, deletion, tag invalidation,
+///   and scan-based clearing.
+/// - **Scalable Key-to-Tag Indexing**: Uses tracked key-to-tag indexes (`__key_tags:<key>`)
+///   and tag sets (`__tags:<tag>`) to maintain tag associations in O(T) without `KEYS` scans.
 /// - **Native TTL**: High-precision key expiration using Redis `PX` (millisecond) flags.
 /// - **JSON Serialization**: Automatic encoding/decoding for primitives, maps, and lists.
-/// - **Prefix Namespacing**: Optional [prefix] prepended to all keys (e.g. `'staging:cache'`),
-///   preventing collisions in shared Redis environments.
-/// - **Tag-Based Invalidation**: Uses dedicated Redis SETs (`__tags:<tag>`) to track and
-///   invalidate all keys associated with specific tags in O(N) where N is the number of keys.
+/// - **Prefix Namespacing & Safe Clear**: Prepends [prefix] to all keys and tag indexes.
+///   [clear] safely scans and deletes only prefixed keys; clearing an unprefixed cache
+///   requires explicit opt-in ([allowEmptyPrefixClear]) and never executes `FLUSHDB`.
 /// - **Lazy Connection**: Automatically initializes the Redis connection upon first command execution.
 ///
 /// Example:
@@ -56,6 +59,9 @@ class RedisCache extends BloomCache {
   /// Optional key prefix prepended to all cache keys and tag sets.
   final String prefix;
 
+  /// Whether to permit [clear] when [prefix] is empty. Defaults to `false` for safety.
+  final bool allowEmptyPrefixClear;
+
   RedisConnection? _connection;
   Command? _command;
 
@@ -70,6 +76,8 @@ class RedisCache extends BloomCache {
   /// - [db]: Optional database numerical index (0-15).
   /// - [secure]: If `true`, initiates a TLS/SSL connection. Defaults to `false`.
   /// - [prefix]: Optional prefix prepended to all keys. Defaults to `''`.
+  /// - [allowEmptyPrefixClear]: If `true`, permits calling [clear] when [prefix] is empty.
+  ///   Defaults to `false` to prevent accidental database-wide clearing.
   ///
   /// Example:
   /// ```dart
@@ -82,6 +90,7 @@ class RedisCache extends BloomCache {
     this.db,
     this.secure = false,
     this.prefix = '',
+    this.allowEmptyPrefixClear = false,
   });
 
   /// Creates a [RedisCache] by parsing a standard Redis connection URL string.
@@ -92,6 +101,7 @@ class RedisCache extends BloomCache {
   /// Parameters:
   /// - [url]: The full Redis connection URL.
   /// - [prefix]: Optional key prefix prepended to all cache keys. Defaults to `''`.
+  /// - [allowEmptyPrefixClear]: Whether to allow clearing when prefix is empty. Defaults to `false`.
   ///
   /// Example:
   /// ```dart
@@ -100,7 +110,11 @@ class RedisCache extends BloomCache {
   ///   prefix: 'v1',
   /// );
   /// ```
-  factory RedisCache.fromUrl(String url, {String prefix = ''}) {
+  factory RedisCache.fromUrl(
+    String url, {
+    String prefix = '',
+    bool allowEmptyPrefixClear = false,
+  }) {
     final uri = Uri.parse(url);
     final isSecure = uri.scheme == 'rediss';
     final host = uri.host.isNotEmpty ? uri.host : 'localhost';
@@ -127,6 +141,7 @@ class RedisCache extends BloomCache {
       db: db,
       secure: isSecure,
       prefix: prefix,
+      allowEmptyPrefixClear: allowEmptyPrefixClear,
     );
   }
 
@@ -137,8 +152,12 @@ class RedisCache extends BloomCache {
   /// Parameters:
   /// - [command]: The initialized [Command] instance.
   /// - [prefix]: Optional key prefix prepended to all cache keys. Defaults to `''`.
-  RedisCache.fromCommand(Command command, {this.prefix = ''})
-      : host = '',
+  /// - [allowEmptyPrefixClear]: Whether to allow clearing when prefix is empty. Defaults to `false`.
+  RedisCache.fromCommand(
+    Command command, {
+    this.prefix = '',
+    this.allowEmptyPrefixClear = false,
+  })  : host = '',
         port = 0,
         password = null,
         db = null,
@@ -146,6 +165,119 @@ class RedisCache extends BloomCache {
         _command = command;
 
   String _prefixed(String key) => prefix.isEmpty ? key : '$prefix:$key';
+  String _keyTagsKey(String key) =>
+      prefix.isEmpty ? '__key_tags:$key' : '$prefix:__key_tags:$key';
+  String _tagPrefix() => prefix.isEmpty ? '__tags:' : '$prefix:__tags:';
+  String _keyTagsPrefix() =>
+      prefix.isEmpty ? '__key_tags:' : '$prefix:__key_tags:';
+  String _cacheKeyPrefix() => prefix.isEmpty ? '' : '$prefix:';
+
+  static const String _setLuaScript = '''
+local cacheKey = KEYS[1]
+local keyTagsKey = KEYS[2]
+local val = ARGV[1]
+local ttlMs = tonumber(ARGV[2])
+local tagPrefix = ARGV[3]
+local memberKey = ARGV[4]
+
+local oldTags = redis.call('SMEMBERS', keyTagsKey)
+local newTags = {}
+for i = 5, #ARGV do
+  newTags[ARGV[i]] = true
+end
+
+for _, oldTag in ipairs(oldTags) do
+  if not newTags[oldTag] then
+    redis.call('SREM', tagPrefix .. oldTag, memberKey)
+  end
+end
+
+redis.call('DEL', keyTagsKey)
+for i = 5, #ARGV do
+  local tag = ARGV[i]
+  redis.call('SADD', tagPrefix .. tag, memberKey)
+  redis.call('SADD', keyTagsKey, tag)
+end
+
+if ttlMs and ttlMs > 0 then
+  redis.call('SET', cacheKey, val, 'PX', ttlMs)
+  if #ARGV >= 5 then
+    redis.call('PEXPIRE', keyTagsKey, ttlMs)
+  end
+else
+  redis.call('SET', cacheKey, val)
+end
+
+return 1
+''';
+
+  static const String _deleteLuaScript = '''
+local cacheKey = KEYS[1]
+local keyTagsKey = KEYS[2]
+local tagPrefix = ARGV[1]
+local memberKey = ARGV[2]
+
+local oldTags = redis.call('SMEMBERS', keyTagsKey)
+for _, tag in ipairs(oldTags) do
+  redis.call('SREM', tagPrefix .. tag, memberKey)
+end
+
+redis.call('DEL', keyTagsKey)
+redis.call('DEL', cacheKey)
+return 1
+''';
+
+  static const String _invalidateTagsLuaScript = '''
+local tagPrefix = ARGV[1]
+local keyTagsPrefix = ARGV[2]
+local cacheKeyPrefix = ARGV[3]
+
+local uniqueKeys = {}
+local tagSetKeys = {}
+
+for i = 4, #ARGV do
+  local tag = ARGV[i]
+  local tagSetKey = tagPrefix .. tag
+  table.insert(tagSetKeys, tagSetKey)
+  local members = redis.call('SMEMBERS', tagSetKey)
+  for _, memberKey in ipairs(members) do
+    uniqueKeys[memberKey] = true
+  end
+end
+
+for memberKey, _ in pairs(uniqueKeys) do
+  local keyTagsKey = keyTagsPrefix .. memberKey
+  local cacheKey = cacheKeyPrefix == '' and memberKey or (cacheKeyPrefix .. memberKey)
+
+  local tags = redis.call('SMEMBERS', keyTagsKey)
+  for _, tag in ipairs(tags) do
+    redis.call('SREM', tagPrefix .. tag, memberKey)
+  end
+
+  redis.call('DEL', keyTagsKey)
+  redis.call('DEL', cacheKey)
+end
+
+for _, tagSetKey in ipairs(tagSetKeys) do
+  redis.call('DEL', tagSetKey)
+end
+
+return 1
+''';
+
+  static const String _clearScanLuaScript = '''
+local matchPattern = ARGV[1]
+local cursor = "0"
+repeat
+  local scanResult = redis.call("SCAN", cursor, "MATCH", matchPattern, "COUNT", 500)
+  cursor = scanResult[1]
+  local keys = scanResult[2]
+  if #keys > 0 then
+    redis.call("DEL", unpack(keys))
+  end
+until cursor == "0"
+return 1
+''';
 
   Future<Command> _getCommand() async {
     if (_command != null) return _command!;
@@ -188,62 +320,54 @@ class RedisCache extends BloomCache {
 
   /// Stores [value] under [key] in Redis with optional [ttl] and [tags].
   ///
-  /// Executes a `SET` command with optional `PX` (millisecond) expiration flag.
-  /// Cleans up any prior tag associations for this key and adds the key to the
-  /// corresponding Redis tag sets (`SADD`).
+  /// Atomically executes an atomic Lua script that:
+  /// 1. Removes this key from old tag sets that are no longer associated.
+  /// 2. Sets new tag associations in both tag sets and the tracked key-to-tag index.
+  /// 3. Sets the key with optional millisecond TTL (`PX`).
   @override
-  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
+  Future<void> set<T>(String key, T value,
+      {Duration? ttl, List<String>? tags}) async {
     final cmd = await _getCommand();
     final raw = jsonEncode(value);
-    final k = _prefixed(key);
+    final cacheKey = _prefixed(key);
+    final keyTagsKey = _keyTagsKey(key);
+    final ttlMsStr = ttl != null ? ttl.inMilliseconds.toString() : '';
+    final uniqueTags = tags != null ? tags.toSet().toList() : <String>[];
 
-    if (ttl != null) {
-      await cmd.send_object(['SET', k, raw, 'PX', ttl.inMilliseconds]);
-    } else {
-      await cmd.send_object(['SET', k, raw]);
-    }
+    final args = <dynamic>[
+      'EVAL',
+      _setLuaScript,
+      2, // numKeys
+      cacheKey,
+      keyTagsKey,
+      raw,
+      ttlMsStr,
+      _tagPrefix(),
+      key,
+      ...uniqueTags,
+    ];
 
-    // Drop the key from any tag set it previously belonged to before adding
-    // the new ones, so narrowing a key's tags on overwrite cannot leave it
-    // reachable from a tag it no longer carries.
-    await _removeKeyFromAllTagSets(cmd, k);
-
-    if (tags != null && tags.isNotEmpty) {
-      for (final tag in tags.toSet()) {
-        await cmd.send_object(['SADD', _tagSetKey(tag), k]);
-      }
-    }
+    await cmd.send_object(args);
   }
 
-  /// Deletes the cache entry associated with [key] from Redis.
+  /// Deletes the cache entry associated with [key] and removes all its tag associations.
   ///
-  /// Sends a `DEL` command and removes [key] from any tag sets it belonged to.
+  /// Executes an atomic Lua script that cleans up tag sets and deletes the key.
   @override
   Future<void> delete(String key) async {
     final cmd = await _getCommand();
-    final k = _prefixed(key);
-    await cmd.send_object(['DEL', k]);
-    await _removeKeyFromAllTagSets(cmd, k);
-  }
+    final cacheKey = _prefixed(key);
+    final keyTagsKey = _keyTagsKey(key);
 
-  /// Namespaced key of the Redis SET holding every cache key carrying [tag].
-  ///
-  /// The `__tags` segment keeps tag sets in a namespace of their own so a tag
-  /// can never collide with a cache key of the same name.
-  String _tagSetKey(String tag) =>
-      prefix.isEmpty ? '__tags:$tag' : '$prefix:__tags:$tag';
-
-  /// Pattern matching every tag set in this cache's namespace.
-  String get _tagSetPattern => prefix.isEmpty ? '__tags:*' : '$prefix:__tags:*';
-
-  /// Removes an already-prefixed [prefixedKey] from every tag set it appears in.
-  Future<void> _removeKeyFromAllTagSets(Command cmd, String prefixedKey) async {
-    final sets = await cmd.send_object(['KEYS', _tagSetPattern]);
-    if (sets is List) {
-      for (final setKey in sets) {
-        await cmd.send_object(['SREM', setKey.toString(), prefixedKey]);
-      }
-    }
+    await cmd.send_object([
+      'EVAL',
+      _deleteLuaScript,
+      2, // numKeys
+      cacheKey,
+      keyTagsKey,
+      _tagPrefix(),
+      key,
+    ]);
   }
 
   /// Removes every entry labelled with [tag].
@@ -252,56 +376,51 @@ class RedisCache extends BloomCache {
   @override
   Future<void> invalidateTag(String tag) => invalidateTags([tag]);
 
-  /// Removes every entry labelled with ANY of the given [tags].
+  /// Removes every entry labelled with ANY of the given [tags] atomically.
   ///
-  /// Queries each tag's Redis SET (`SMEMBERS`) to resolve all associated keys,
-  /// deletes those keys via a single batch `DEL`, and removes the tag sets themselves.
+  /// Executes an atomic Lua script that resolves all keys for the specified tags,
+  /// cleans up their key-to-tag indexes and all other tag set memberships, and deletes the keys.
   @override
   Future<void> invalidateTags(List<String> tags) async {
     if (tags.isEmpty) return;
     final cmd = await _getCommand();
+    final uniqueTags = tags.toSet().toList();
 
-    final keys = <String>{};
-    final tagSetKeys = <String>[];
-    for (final tag in tags.toSet()) {
-      final setKey = _tagSetKey(tag);
-      tagSetKeys.add(setKey);
-      final members = await cmd.send_object(['SMEMBERS', setKey]);
-      if (members is List) {
-        for (final m in members) {
-          keys.add(m.toString());
-        }
-      }
-    }
-
-    // A key that expired via its Redis TTL leaves a dangling member behind in
-    // its tag set, because Redis expiry does not notify the set. That is
-    // harmless rather than a bug: DEL on an already-absent key is a no-op, so
-    // invalidation simply deletes some keys that were already gone. The
-    // dangling member itself disappears when the tag set is deleted below.
-    if (keys.isNotEmpty) {
-      await cmd.send_object(['DEL', ...keys]);
-    }
-    await cmd.send_object(['DEL', ...tagSetKeys]);
+    await cmd.send_object([
+      'EVAL',
+      _invalidateTagsLuaScript,
+      0, // numKeys
+      _tagPrefix(),
+      _keyTagsPrefix(),
+      _cacheKeyPrefix(),
+      ...uniqueTags,
+    ]);
   }
 
   /// Clears entries from Redis.
   ///
-  /// If [prefix] is empty, executes `FLUSHDB` to flush the active Redis database.
-  /// If [prefix] is set, finds and deletes all keys matching `$prefix:*` while leaving
-  /// unrelated keys untouched.
+  /// Uses an atomic Lua script with a cursor-based `SCAN` loop matching the configured [prefix].
+  /// Never executes `FLUSHDB`.
+  /// If [prefix] is empty, [allowEmptyPrefixClear] must be explicitly set to `true`,
+  /// otherwise throws a [StateError] to prevent accidental database wiping.
   @override
   Future<void> clear() async {
+    if (prefix.isEmpty && !allowEmptyPrefixClear) {
+      throw StateError(
+        'Clearing an unprefixed RedisCache is unsafe and disabled by default. '
+        'Provide a non-empty prefix or instantiate RedisCache with allowEmptyPrefixClear: true.',
+      );
+    }
+
     final cmd = await _getCommand();
-    if (prefix.isEmpty) {
-      await cmd.send_object(['FLUSHDB']);
-      return;
-    }
-    final keysResult = await cmd.send_object(['KEYS', '$prefix:*']);
-    if (keysResult is List && keysResult.isNotEmpty) {
-      final keys = keysResult.map((k) => k.toString()).toList();
-      await cmd.send_object(['DEL', ...keys]);
-    }
+    final matchPattern = prefix.isEmpty ? '*' : '$prefix:*';
+
+    await cmd.send_object([
+      'EVAL',
+      _clearScanLuaScript,
+      0, // numKeys
+      matchPattern,
+    ]);
   }
 
   /// Closes the underlying Redis connection if it was initialized by this cache.
@@ -321,4 +440,3 @@ class RedisCache extends BloomCache {
     }
   }
 }
-

@@ -28,21 +28,27 @@ void main() {
     });
 
     test('missing variables evaluate to empty string and do not throw', () {
-      final template = BloomMailTemplate('Name: [{{ missing }}], Nested: [{{ user.nonexistent }}]');
-      final result = template.render({'user': {'name': 'Alice'}});
+      final template = BloomMailTemplate(
+          'Name: [{{ missing }}], Nested: [{{ user.nonexistent }}]');
+      final result = template.render({
+        'user': {'name': 'Alice'}
+      });
       expect(result, equals('Name: [], Nested: []'));
     });
 
     test('auto-escapes HTML entities in HTML templates by default', () {
       final template = BloomMailTemplate('<b>{{ alert }}</b>', isHtml: true);
-      final result = template.render({'alert': '<script>alert("XSS & fun")</script>'});
+      final result =
+          template.render({'alert': '<script>alert("XSS & fun")</script>'});
       expect(
         result,
-        equals('<b>&lt;script&gt;alert(&quot;XSS &amp; fun&quot;)&lt;&#x2F;script&gt;</b>'),
+        equals(
+            '<b>&lt;script&gt;alert(&quot;XSS &amp; fun&quot;)&lt;&#x2F;script&gt;</b>'),
       );
     });
 
-    test('bypasses escaping with safe filter, raw filter, and SafeHtml wrapper', () {
+    test('bypasses escaping with safe filter, raw filter, and SafeHtml wrapper',
+        () {
       final template = BloomMailTemplate(
         'Safe filter: {{ link1 | safe }}, Raw filter: {{ link2 | raw }}, SafeHtml: {{ link3 }}',
         isHtml: true,
@@ -54,17 +60,22 @@ void main() {
       });
       expect(
         result,
-        equals('Safe filter: <a href="https://example.com?a=1&b=2">Click</a>, Raw filter: <span>Raw</span>, SafeHtml: <div>Safe</div>'),
+        equals(
+            'Safe filter: <a href="https://example.com?a=1&b=2">Click</a>, Raw filter: <span>Raw</span>, SafeHtml: <div>Safe</div>'),
       );
     });
 
     test('does not HTML-escape variables in plain-text templates', () {
-      final template = BloomMailTemplate.text('Link: {{ url }} & Subject: {{ subject }}');
+      final template =
+          BloomMailTemplate.text('Link: {{ url }} & Subject: {{ subject }}');
       final result = template.render({
         'url': 'https://example.com/reset?user=1&token=xyz',
         'subject': 'Alert <Important>',
       });
-      expect(result, equals('Link: https://example.com/reset?user=1&token=xyz & Subject: Alert <Important>'));
+      expect(
+          result,
+          equals(
+              'Link: https://example.com/reset?user=1&token=xyz & Subject: Alert <Important>'));
     });
 
     test('supports standard filters (upper, lower, trim, length, default)', () {
@@ -77,7 +88,8 @@ void main() {
         'padded': '   spaced   ',
         'list': ['a', 'b', 'c'],
       });
-      expect(result, equals('HELLO WORLD / hello world / spaced / Count: 3 / N/A'));
+      expect(result,
+          equals('HELLO WORLD / hello world / spaced / Count: 3 / N/A'));
     });
 
     test('strips template comments', () {
@@ -101,12 +113,18 @@ void main() {
       expect(template.render({'is_admin': ''}), equals('User'));
       expect(template.render({'is_admin': 'yes'}), equals('Admin'));
       expect(template.render({'is_admin': []}), equals('User'));
-      expect(template.render({'is_admin': [1]}), equals('Admin'));
+      expect(
+          template.render({
+            'is_admin': [1]
+          }),
+          equals('Admin'));
     });
 
     test('supports {% if not %}', () {
-      final template = BloomMailTemplate('{% if not is_verified %}Please verify your email{% endif %}');
-      expect(template.render({'is_verified': false}), equals('Please verify your email'));
+      final template = BloomMailTemplate(
+          '{% if not is_verified %}Please verify your email{% endif %}');
+      expect(template.render({'is_verified': false}),
+          equals('Please verify your email'));
       expect(template.render({'is_verified': true}), equals(''));
     });
 
@@ -119,7 +137,8 @@ void main() {
       expect(template.render({'role': 'other'}), equals('Viewer'));
     });
 
-    test('supports numeric and comparison operators (==, !=, <, <=, >, >=)', () {
+    test('supports numeric and comparison operators (==, !=, <, <=, >, >=)',
+        () {
       final template = BloomMailTemplate(
         '{% if count > 0 %}Positive{% elif count == 0 %}Zero{% else %}Negative{% endif %}',
       );
@@ -132,17 +151,22 @@ void main() {
       final template = BloomMailTemplate(
         '{% if is_active and is_verified %}Full Access{% elif is_active or is_guest %}Limited Access{% else %}No Access{% endif %}',
       );
-      expect(template.render({'is_active': true, 'is_verified': true}), equals('Full Access'));
-      expect(template.render({'is_active': false, 'is_guest': true}), equals('Limited Access'));
-      expect(template.render({'is_active': false, 'is_guest': false}), equals('No Access'));
+      expect(template.render({'is_active': true, 'is_verified': true}),
+          equals('Full Access'));
+      expect(template.render({'is_active': false, 'is_guest': true}),
+          equals('Limited Access'));
+      expect(template.render({'is_active': false, 'is_guest': false}),
+          equals('No Access'));
     });
 
     test('handles nested conditionals', () {
       final template = BloomMailTemplate(
         '{% if outer %}[Outer-Start:{% if inner %}Inner{% else %}No-Inner{% endif %}:Outer-End]{% endif %}',
       );
-      expect(template.render({'outer': true, 'inner': true}), equals('[Outer-Start:Inner:Outer-End]'));
-      expect(template.render({'outer': true, 'inner': false}), equals('[Outer-Start:No-Inner:Outer-End]'));
+      expect(template.render({'outer': true, 'inner': true}),
+          equals('[Outer-Start:Inner:Outer-End]'));
+      expect(template.render({'outer': true, 'inner': false}),
+          equals('[Outer-Start:No-Inner:Outer-End]'));
       expect(template.render({'outer': false, 'inner': true}), equals(''));
     });
   });
@@ -165,7 +189,10 @@ void main() {
       final result = template.render({
         'list': ['a', 'b'],
       });
-      expect(result, equals('[i0=0 first=true last=false len=2 val=a][i0=1 first=false last=true len=2 val=b]'));
+      expect(
+          result,
+          equals(
+              '[i0=0 first=true last=false len=2 val=a][i0=1 first=false last=true len=2 val=b]'));
     });
 
     test('renders {% empty %} block when collection is empty or null', () {
@@ -199,7 +226,10 @@ void main() {
           },
         ],
       });
-      expect(result, equals('Order #101: Widget (\$10); Gadget (\$20)\nOrder #102: Doohickey (\$15)\n'));
+      expect(
+          result,
+          equals(
+              'Order #101: Widget (\$10); Gadget (\$20)\nOrder #102: Doohickey (\$15)\n'));
     });
   });
 
@@ -231,7 +261,8 @@ void main() {
         expect(template.textTemplate, isNotNull);
 
         final context = {'user': 'Dana'};
-        expect(template.render(context), equals('<p>Notification for Dana</p>'));
+        expect(
+            template.render(context), equals('<p>Notification for Dana</p>'));
         expect(template.renderText(context), equals('Notification for Dana'));
       } finally {
         tempDir.deleteSync(recursive: true);
@@ -290,11 +321,13 @@ void main() {
 
       expect(
         message.htmlBody,
-        equals('<h1>Hello Alice</h1><p>Action: <a href="https://bloom.dev/start?token=123&user=alice">Click</a></p>'),
+        equals(
+            '<h1>Hello Alice</h1><p>Action: <a href="https://bloom.dev/start?token=123&user=alice">Click</a></p>'),
       );
       expect(
         message.body,
-        equals('Hello Alice\nAction: https://bloom.dev/start?token=123&user=alice'),
+        equals(
+            'Hello Alice\nAction: https://bloom.dev/start?token=123&user=alice'),
       );
     });
 
@@ -335,7 +368,9 @@ void main() {
       expect(msg.body, equals('Hi Carol'));
     });
 
-    test('preserves BloomMailMessage immutability, copyWith, equality, and hashCode', () {
+    test(
+        'preserves BloomMailMessage immutability, copyWith, equality, and hashCode',
+        () {
       final template = BloomMailTemplate.fromString(
         '<b>{{ val }}</b>',
         textSource: '{{ val }}',

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 - 2026-08-31
+
+### Security & Reliability Hardening
+* **Atomic Redis Lua Scripts & Key-to-Tag Index**: Replaced all `KEYS`-based tag maintenance with atomic Lua scripts and tracked key-to-tag indexes (`__key_tags:<key>`). `set`, `delete`, and `invalidateTags` now execute atomically in Redis in O(T) time without global key scanning.
+* **Safe Scan-Based Redis Clearing**: `clear` now performs cursor-based `SCAN` batch deletions in Lua matching the configured prefix and never executes `FLUSHDB`. Clearing an unprefixed `RedisCache` is rejected by default to prevent accidental data loss, requiring explicit `allowEmptyPrefixClear: true`.
+* **Transactional SQL DatabaseCache**: Wrapped `DatabaseCache.set`, `delete`, `clear`, `invalidateTags`, and `pruneExpired` in atomic database transactions.
+* **Tag Cleanup in Expired Pruning**: `DatabaseCache.pruneExpired` now transactionally deletes corresponding tag associations in `${tableName}_tags` alongside expired cache rows.
+
 ## 0.3.0 - 2026-08-24
 
 ### Added

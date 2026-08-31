@@ -39,6 +39,7 @@ class BloomFileBackend implements BloomMailBackend {
 
   @override
   Future<void> send(BloomMailMessage message) async {
+    message.validate();
     try {
       final dir = Directory(directory);
       if (!await dir.exists()) {
@@ -61,4 +62,3 @@ class BloomFileBackend implements BloomMailBackend {
 
 /// Alias for [BloomFileBackend].
 typedef FileBackend = BloomFileBackend;
-

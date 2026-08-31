@@ -4,7 +4,8 @@ import 'package:bloom_server/bloom_server.dart';
 import 'session_token.dart';
 
 /// Private Expando storing verified [BloomAuthClaims] attached to [BloomRequest] instances.
-final Expando<BloomAuthClaims> _authClaimsExpando = Expando<BloomAuthClaims>('BloomAuthClaims');
+final Expando<BloomAuthClaims> _authClaimsExpando =
+    Expando<BloomAuthClaims>('BloomAuthClaims');
 
 /// Server-side authentication verification middleware for Bloom applications.
 ///
@@ -82,7 +83,8 @@ class BloomAuthMiddleware implements BloomMiddleware {
   /// ```dart
   /// router.use(BloomAuthMiddleware.requireAnyRole(['admin', 'moderator']));
   /// ```
-  factory BloomAuthMiddleware.requireAnyRole(List<String> roles, {String? secret}) =>
+  factory BloomAuthMiddleware.requireAnyRole(List<String> roles,
+          {String? secret}) =>
       BloomAuthMiddleware(
         secret: secret,
         requiredRoles: roles,
@@ -104,8 +106,7 @@ class BloomAuthMiddleware implements BloomMiddleware {
   ///   return BloomResponse.json({'feed': 'public'});
   /// });
   /// ```
-  factory BloomAuthMiddleware.optional({String? secret}) =>
-      BloomAuthMiddleware(
+  factory BloomAuthMiddleware.optional({String? secret}) => BloomAuthMiddleware(
         secret: secret,
         optional: true,
       );
@@ -113,7 +114,8 @@ class BloomAuthMiddleware implements BloomMiddleware {
   /// Intercepts [request], parses and validates Bearer token, checks [requiredRoles],
   /// and forwards to [next] or returns an error [BloomResponse].
   @override
-  Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
+  Future<BloomResponse?> handle(
+      BloomRequest request, BloomNextFunction next) async {
     final authHeader = request.headers['authorization'] ??
         request.headers['Authorization'] ??
         request.headers['AUTHORIZATION'];
@@ -127,8 +129,11 @@ class BloomAuthMiddleware implements BloomMiddleware {
 
     final trimmed = authHeader.trim();
     final parts = trimmed.split(' ');
-    if (parts.length != 2 || parts[0].toLowerCase() != 'bearer' || parts[1].isEmpty) {
-      return BloomResponse.unauthorized('Invalid Authorization format. Expected "Bearer <token>"');
+    if (parts.length != 2 ||
+        parts[0].toLowerCase() != 'bearer' ||
+        parts[1].isEmpty) {
+      return BloomResponse.unauthorized(
+          'Invalid Authorization format. Expected "Bearer <token>"');
     }
 
     final tokenStr = parts[1].trim();
@@ -144,7 +149,8 @@ class BloomAuthMiddleware implements BloomMiddleware {
       claims = verifySessionToken(tokenStr, secret: secret);
     } on SessionTokenException catch (e) {
       if (e.isExpired) {
-        return BloomResponse.unauthorized('Session token has expired. Please log in again.');
+        return BloomResponse.unauthorized(
+            'Session token has expired. Please log in again.');
       }
       return BloomResponse.unauthorized('Invalid session token: ${e.message}');
     } catch (_) {
@@ -204,11 +210,14 @@ extension BloomAuthRequestExtension on BloomRequest {
 
   /// Returns the authenticated user's ID, or `null` if unauthenticated.
   ///
+  /// Strictly returns the user ID from cryptographically verified claims
+  /// attached by [BloomAuthMiddleware]. Never falls back to mutable request params.
+  ///
   /// Example:
   /// ```dart
   /// final userId = req.authUserId;
   /// ```
-  String? get authUserId => auth?.userId ?? params['auth_user_id'];
+  String? get authUserId => auth?.userId;
 
   /// Whether this request has been successfully authenticated.
   ///
@@ -222,6 +231,8 @@ extension BloomAuthRequestExtension on BloomRequest {
 
   /// Returns whether the authenticated user possesses the specified [role].
   ///
+  /// Strictly checks against cryptographically verified claims.
+  ///
   /// Example:
   /// ```dart
   /// if (req.hasRole('admin')) {
@@ -229,5 +240,12 @@ extension BloomAuthRequestExtension on BloomRequest {
   /// }
   /// ```
   bool hasRole(String role) => auth?.hasRole(role) ?? false;
-}
 
+  /// Returns whether the authenticated user possesses any of the specified [roles].
+  ///
+  /// Strictly checks against cryptographically verified claims.
+  bool hasAnyRole(Iterable<String> roles) => auth?.hasAnyRole(roles) ?? false;
+
+  /// Returns the list of verified roles assigned to the authenticated user.
+  List<String> get authRoles => auth?.roles ?? const [];
+}

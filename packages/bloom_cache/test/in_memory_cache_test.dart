@@ -64,7 +64,8 @@ void main() {
       expect(await cache.get<int>('c'), 3);
     });
 
-    test('reading an entry refreshes its recency, protecting it from eviction', () async {
+    test('reading an entry refreshes its recency, protecting it from eviction',
+        () async {
       final cache = InMemoryCache(maxCapacity: 2);
       await cache.set('a', 1);
       await cache.set('b', 2);
@@ -92,7 +93,8 @@ void main() {
 
       expect(first, 42);
       expect(second, 42);
-      expect(computeCalls, 1, reason: 'compute should only run once on the first miss');
+      expect(computeCalls, 1,
+          reason: 'compute should only run once on the first miss');
     });
 
     test('recomputes after the cached value expires', () async {
@@ -103,9 +105,11 @@ void main() {
         return computeCalls;
       }
 
-      final first = await cache.getOrSet<int>('k', compute, ttl: const Duration(milliseconds: 20));
+      final first = await cache.getOrSet<int>('k', compute,
+          ttl: const Duration(milliseconds: 20));
       await Future.delayed(const Duration(milliseconds: 50));
-      final second = await cache.getOrSet<int>('k', compute, ttl: const Duration(milliseconds: 20));
+      final second = await cache.getOrSet<int>('k', compute,
+          ttl: const Duration(milliseconds: 20));
 
       expect(first, 1);
       expect(second, 2);

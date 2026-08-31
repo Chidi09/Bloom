@@ -1,4 +1,5 @@
 // lib/src/password_reset.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'session_token.dart';
@@ -45,7 +46,8 @@ class PasswordResetTokenPayload {
 
   /// The expiration [DateTime] in UTC.
   DateTime get expiresAt =>
-      DateTime.fromMillisecondsSinceEpoch(expiryUnixSeconds * 1000, isUtc: true);
+      DateTime.fromMillisecondsSinceEpoch(expiryUnixSeconds * 1000,
+          isUtc: true);
 
   /// Whether this token has passed its expiration time.
   bool get isExpired =>
@@ -99,15 +101,25 @@ String generatePasswordResetToken({
       'currentPasswordHash cannot be empty',
     );
   }
+  if (ttl.isNegative || ttl == Duration.zero || ttl.inSeconds <= 0) {
+    throw ArgumentError.value(
+      ttl,
+      'ttl',
+      'Password reset TTL must be strictly positive',
+    );
+  }
 
   final signingKey = resolveAuthSecret(secret);
   final nowSecs = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
   final expiryUnixSecs = nowSecs + ttl.inSeconds;
 
   final b64UserId = base64Url.encode(utf8.encode(userId)).replaceAll('=', '');
-  final b64Expiry = base64Url.encode(utf8.encode(expiryUnixSecs.toString())).replaceAll('=', '');
+  final b64Expiry = base64Url
+      .encode(utf8.encode(expiryUnixSecs.toString()))
+      .replaceAll('=', '');
 
-  final prefixLen = currentPasswordHash.length < 30 ? currentPasswordHash.length : 30;
+  final prefixLen =
+      currentPasswordHash.length < 30 ? currentPasswordHash.length : 30;
   final hashPrefix = currentPasswordHash.substring(0, prefixLen);
 
   final message = 'bloom_pwd_reset:$userId:$expiryUnixSecs:$hashPrefix';
@@ -231,13 +243,15 @@ bool verifyPasswordResetToken({
     }
 
     // Verify HMAC
-    final prefixLen = currentPasswordHash.length < 30 ? currentPasswordHash.length : 30;
+    final prefixLen =
+        currentPasswordHash.length < 30 ? currentPasswordHash.length : 30;
     final hashPrefix = currentPasswordHash.substring(0, prefixLen);
     final message = 'bloom_pwd_reset:$userId:$expiryUnixSecs:$hashPrefix';
 
     final hmac = Hmac(sha256, utf8.encode(signingKey));
     final expectedDigest = hmac.convert(utf8.encode(message));
-    final expectedB64Mac = base64Url.encode(expectedDigest.bytes).replaceAll('=', '');
+    final expectedB64Mac =
+        base64Url.encode(expectedDigest.bytes).replaceAll('=', '');
 
     // Constant-time string equality check to prevent timing leaks
     return _constantTimeCompare(parts[3], expectedB64Mac);
@@ -264,4 +278,81 @@ String _padBase64(String str) {
   if (remainder == 2) return '$str==';
   if (remainder == 3) return '$str=';
   return str;
+}
+
+/// Interface for tracking consumed or revoked password reset tokens.
+///
+/// While Bloom's password reset tokens are cryptographically bound to the user's password
+/// hash (which automatically invalidates outstanding reset tokens once a new password hash is stored),
+/// a revocation store provides stateful single-use guarantees *before* or independently of the password change.
+abstract interface class BloomPasswordResetRevocationStore {
+  /// Records a [token] as used/revoked until [expiresAt].
+  FutureOr<void> recordRevoked(String token, {required DateTime expiresAt});
+
+  /// Returns `true` if the [token] has already been consumed or revoked.
+  FutureOr<bool> isRevoked(String token);
+}
+
+/// In-memory implementation of [BloomPasswordResetRevocationStore] with automatic expiration cleanup.
+class InMemoryPasswordResetRevocationStore
+    implements BloomPasswordResetRevocationStore {
+  final Map<String, DateTime> _revokedTokens = {};
+
+  @override
+  FutureOr<void> recordRevoked(String token, {required DateTime expiresAt}) {
+    _prune();
+    _revokedTokens[token] = expiresAt;
+  }
+
+  @override
+  FutureOr<bool> isRevoked(String token) {
+    _prune();
+    return _revokedTokens.containsKey(token);
+  }
+
+  void _prune() {
+    final now = DateTime.now().toUtc();
+    _revokedTokens.removeWhere((_, exp) => now.isAfter(exp));
+  }
+
+  /// Number of active revoked token records.
+  int get count {
+    _prune();
+    return _revokedTokens.length;
+  }
+}
+
+/// Verifies a password reset token and atomically consumes/revokes it via [revocationStore].
+///
+/// Returns `true` only if:
+/// 1. The token has not already been marked as revoked/consumed in [revocationStore].
+/// 2. [verifyPasswordResetToken] succeeds with valid signature, non-expired TTL, and matching password hash.
+///
+/// Upon successful verification, records the token in [revocationStore] so subsequent attempts fail.
+Future<bool> verifyAndConsumePasswordResetToken({
+  required String token,
+  required String userId,
+  required String currentPasswordHash,
+  required BloomPasswordResetRevocationStore revocationStore,
+  String? secret,
+}) async {
+  if (await revocationStore.isRevoked(token)) {
+    return false;
+  }
+
+  final isValid = verifyPasswordResetToken(
+    token: token,
+    userId: userId,
+    currentPasswordHash: currentPasswordHash,
+    secret: secret,
+  );
+
+  if (!isValid) return false;
+
+  final payload = parsePasswordResetToken(token);
+  if (payload != null) {
+    await revocationStore.recordRevoked(token, expiresAt: payload.expiresAt);
+  }
+
+  return true;
 }

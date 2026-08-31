@@ -67,7 +67,8 @@ class GitHubOAuthProvider implements BloomOAuthProvider {
     this.userAgent = 'Bloom-OAuth-Client',
   }) : _client = client ?? http.Client() {
     if (clientId.isEmpty) {
-      throw ArgumentError.value(clientId, 'clientId', 'GitHub clientId cannot be empty');
+      throw ArgumentError.value(
+          clientId, 'clientId', 'GitHub clientId cannot be empty');
     }
     if (clientSecret.isEmpty) {
       throw ArgumentError.value(
@@ -95,7 +96,8 @@ class GitHubOAuthProvider implements BloomOAuthProvider {
       );
     }
     if (state.isEmpty) {
-      throw ArgumentError.value(state, 'state', 'state parameter cannot be empty');
+      throw ArgumentError.value(
+          state, 'state', 'state parameter cannot be empty');
     }
 
     final effectiveScopes = scopes ?? defaultScopes;
@@ -117,7 +119,8 @@ class GitHubOAuthProvider implements BloomOAuthProvider {
     required String redirectUri,
   }) async {
     if (code.isEmpty) {
-      throw ArgumentError.value(code, 'code', 'Authorization code cannot be empty');
+      throw ArgumentError.value(
+          code, 'code', 'Authorization code cannot be empty');
     }
     if (redirectUri.isEmpty) {
       throw ArgumentError.value(
@@ -269,7 +272,8 @@ class GitHubOAuthProvider implements BloomOAuthProvider {
     }
 
     String? email = userJson['email']?.toString();
-    final nameStr = userJson['name']?.toString() ?? userJson['login']?.toString();
+    final nameStr =
+        userJson['name']?.toString() ?? userJson['login']?.toString();
     final avatarUrl = userJson['avatar_url']?.toString();
 
     // If email is not public on /user profile, query /user/emails

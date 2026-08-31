@@ -25,8 +25,8 @@ void main() {
     test('ensureTable creates both the cache and the tag table', () async {
       await cache.ensureTable();
 
-      final rows = await db.fetchAll(
-          "SELECT name FROM sqlite_master WHERE type='table'");
+      final rows = await db
+          .fetchAll("SELECT name FROM sqlite_master WHERE type='table'");
       final names = rows
           .map((r) => r.tryStringByName('name') ?? r.tryString(0))
           .whereType<String>()
@@ -106,8 +106,7 @@ void main() {
       await cache.clear();
 
       expect(await cache.get<String>('k'), isNull);
-      final rows =
-          await db.fetchAll('SELECT tag FROM ${cache.tagTableName}');
+      final rows = await db.fetchAll('SELECT tag FROM ${cache.tagTableName}');
       expect(rows, isEmpty);
     });
 
@@ -121,12 +120,60 @@ void main() {
       // The window has to comfortably exceed a SQLite round trip. A 20ms TTL
       // expired before the first read, because the very first set() also
       // creates both tables.
-      await cache.set('k', 'v',
-          ttl: const Duration(milliseconds: 400), tags: ['t']);
+      await cache
+          .set('k', 'v', ttl: const Duration(milliseconds: 400), tags: ['t']);
       expect(await cache.get<String>('k'), 'v');
 
       await Future<void>.delayed(const Duration(milliseconds: 700));
       expect(await cache.get<String>('k'), isNull);
+    });
+
+    test(
+        'pruneExpired transactionally removes expired entries and their tag rows',
+        () async {
+      await cache.set('expired1', 'v1',
+          ttl: const Duration(milliseconds: 100), tags: ['tagA', 'tagB']);
+      await cache.set('live1', 'v2',
+          ttl: const Duration(minutes: 10), tags: ['tagA', 'tagC']);
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      final prunedCount = await cache.pruneExpired();
+      expect(prunedCount, 1);
+
+      // Verify cache entries
+      expect(await cache.get<String>('expired1'), isNull);
+      expect(await cache.get<String>('live1'), 'v2');
+
+      // Verify tag rows for expired1 are deleted
+      final expiredTagRows = await db.fetchAll(
+        'SELECT tag FROM ${cache.tagTableName} WHERE key = ?',
+        ['expired1'],
+      );
+      expect(expiredTagRows, isEmpty);
+
+      // Verify tag rows for live1 are still intact
+      final liveTagRows = await db.fetchAll(
+        'SELECT tag FROM ${cache.tagTableName} WHERE key = ?',
+        ['live1'],
+      );
+      expect(liveTagRows.length, 2);
+    });
+
+    test('invalidateTags operates inside a transaction', () async {
+      await cache.set('k1', 'val1', tags: ['batch1']);
+      await cache.set('k2', 'val2', tags: ['batch1', 'batch2']);
+      await cache.set('k3', 'val3', tags: ['batch2']);
+
+      await cache.invalidateTags(['batch1', 'batch2']);
+
+      expect(await cache.get<String>('k1'), isNull);
+      expect(await cache.get<String>('k2'), isNull);
+      expect(await cache.get<String>('k3'), isNull);
+
+      final tagRows =
+          await db.fetchAll('SELECT tag FROM ${cache.tagTableName}');
+      expect(tagRows, isEmpty);
     });
   });
 }

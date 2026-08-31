@@ -48,7 +48,8 @@ class InMemoryCache extends BloomCache {
   final int maxCapacity;
 
   /// Ordered map of cache keys to their entries (head = LRU, tail = MRU).
-  final LinkedHashMap<String, _MemoryEntry> _entries = LinkedHashMap<String, _MemoryEntry>();
+  final LinkedHashMap<String, _MemoryEntry> _entries =
+      LinkedHashMap<String, _MemoryEntry>();
 
   /// Reverse index mapping tags to the set of keys that carry them.
   final Map<String, Set<String>> _tagIndex = <String, Set<String>>{};
@@ -66,7 +67,8 @@ class InMemoryCache extends BloomCache {
   /// ```
   InMemoryCache({this.maxCapacity = 10000}) {
     if (maxCapacity <= 0) {
-      throw ArgumentError.value(maxCapacity, 'maxCapacity', 'maxCapacity must be greater than 0');
+      throw ArgumentError.value(
+          maxCapacity, 'maxCapacity', 'maxCapacity must be greater than 0');
     }
   }
 
@@ -112,11 +114,13 @@ class InMemoryCache extends BloomCache {
   /// If inserting a new key causes the cache to exceed [maxCapacity], the least recently used
   /// (LRU) entry at the head of the map is evicted in O(1) time.
   @override
-  Future<void> set<T>(String key, T value, {Duration? ttl, List<String>? tags}) async {
+  Future<void> set<T>(String key, T value,
+      {Duration? ttl, List<String>? tags}) async {
     final payload = jsonEncode(value);
     final expiresAt = ttl != null ? DateTime.now().toUtc().add(ttl) : null;
     final tagSet = tags != null ? Set<String>.from(tags) : <String>{};
-    final newEntry = _MemoryEntry(jsonPayload: payload, expiresAt: expiresAt, tags: tagSet);
+    final newEntry =
+        _MemoryEntry(jsonPayload: payload, expiresAt: expiresAt, tags: tagSet);
 
     // If key already exists, remove its old tag associations first
     if (_entries.containsKey(key)) {
@@ -221,4 +225,3 @@ class InMemoryCache extends BloomCache {
     }
   }
 }
-

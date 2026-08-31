@@ -106,7 +106,8 @@ class BloomAuthClaims {
   factory BloomAuthClaims.fromJwtPayload(Map<String, dynamic> payload) {
     final sub = payload['sub']?.toString() ?? payload['userId']?.toString();
     if (sub == null || sub.isEmpty) {
-      throw const SessionTokenException('JWT payload missing subject ("sub") or "userId" claim');
+      throw const SessionTokenException(
+          'JWT payload missing subject ("sub") or "userId" claim');
     }
 
     final email = payload['email']?.toString();
@@ -124,7 +125,8 @@ class BloomAuthClaims {
     DateTime issuedAt;
     final iat = payload['iat'];
     if (iat is num) {
-      issuedAt = DateTime.fromMillisecondsSinceEpoch(iat.toInt() * 1000, isUtc: true);
+      issuedAt =
+          DateTime.fromMillisecondsSinceEpoch(iat.toInt() * 1000, isUtc: true);
     } else {
       issuedAt = DateTime.now().toUtc();
     }
@@ -132,12 +134,25 @@ class BloomAuthClaims {
     DateTime expiresAt;
     final exp = payload['exp'];
     if (exp is num) {
-      expiresAt = DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
+      expiresAt =
+          DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
     } else {
       expiresAt = issuedAt.add(const Duration(days: 7));
     }
 
-    final reservedKeys = {'sub', 'userId', 'email', 'roles', 'role', 'iat', 'exp', 'nbf', 'iss', 'aud', 'token_type'};
+    final reservedKeys = {
+      'sub',
+      'userId',
+      'email',
+      'roles',
+      'role',
+      'iat',
+      'exp',
+      'nbf',
+      'iss',
+      'aud',
+      'token_type'
+    };
     final custom = <String, dynamic>{};
     for (final entry in payload.entries) {
       if (!reservedKeys.contains(entry.key)) {
@@ -193,7 +208,8 @@ class BloomAuthClaims {
       };
 
   @override
-  String toString() => 'BloomAuthClaims(userId: $userId, email: $email, roles: $roles)';
+  String toString() =>
+      'BloomAuthClaims(userId: $userId, email: $email, roles: $roles)';
 }
 
 /// Resolves the HMAC signing secret from parameter or [BloomEnv].
@@ -322,16 +338,18 @@ BloomAuthClaims verifySessionToken(
 
     final payload = jwt.payload;
     if (payload is! Map) {
-      throw const SessionTokenException('Invalid JWT payload: expected JSON map object');
+      throw const SessionTokenException(
+          'Invalid JWT payload: expected JSON map object');
     }
 
     final payloadMap = Map<String, dynamic>.from(payload);
 
     // Prevent token reuse / type substitution attacks (e.g. using password reset token as session)
+    // token_type must be present and exactly equal to 'session'.
     final tokenType = payloadMap['token_type']?.toString();
-    if (tokenType != null && tokenType != 'session') {
+    if (tokenType != 'session') {
       throw SessionTokenException(
-        'Invalid token type: expected "session" token, got "$tokenType"',
+        'Invalid token type: expected "session" token, got "${tokenType ?? "null"}"',
       );
     }
 
@@ -381,4 +399,3 @@ BloomAuthClaims? tryVerifySessionToken(
     return null;
   }
 }
-
