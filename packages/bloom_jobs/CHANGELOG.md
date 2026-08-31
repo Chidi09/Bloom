@@ -1,6 +1,6 @@
 # 0.2.1 - 2026-08-31
 
-* Maintenance release for persistent queue backends and worker scheduling.
+* Added lease recovery and ownership-token fencing for all task queue backends.
 
 # 0.2.0 - 2026-08-25
 
