@@ -1,8 +1,8 @@
 import '../events.dart';
 import '../framework.dart';
 import '../signals.dart';
-import '_resizable_dom_web.dart'
-    if (dart.library.io) '_resizable_dom_stub.dart';
+import '_resizable_dom_stub.dart'
+    if (dart.library.js_interop) '_resizable_dom_web.dart';
 import 'cn.dart';
 import 'icons.dart';
 

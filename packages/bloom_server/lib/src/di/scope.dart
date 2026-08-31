@@ -64,7 +64,8 @@ class BloomTestScope {
   /// Creates a [BloomTestScope] with optional [parent] container and initial [overrides].
   ///
   /// Automatically calls [setActiveContainer] with this scope's child container.
-  BloomTestScope({BloomContainer? parent, List<BloomTestOverride<dynamic>>? overrides})
+  BloomTestScope(
+      {BloomContainer? parent, List<BloomTestOverride<dynamic>>? overrides})
       : _previousContainer = globalContainer,
         container = BloomContainer(parent: parent ?? globalContainer) {
     if (overrides != null) {
@@ -101,4 +102,3 @@ class BloomTestScope {
     setActiveContainer(_previousContainer);
   }
 }
-

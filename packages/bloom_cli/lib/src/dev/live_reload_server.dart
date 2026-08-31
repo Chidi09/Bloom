@@ -1429,7 +1429,7 @@ class BloomLiveReloadServer {
   String _prepareHtml(String html) {
     if (isDdcMode) {
       final mainScriptRegex = RegExp(
-        r'<script\s+[^>]*src=[\x22\x27]main\.js[\x22\x27][^>]*>\s*<\/script>',
+        r'<script\b[^>]*\bsrc\s*=\s*[\x22\x27](?:\./|/)?main\.js(?:[?#][^\x22\x27]*)?[\x22\x27][^>]*>\s*<\/script\s*>',
         caseSensitive: false,
       );
       html = html.replaceAll(mainScriptRegex, '');
@@ -1661,8 +1661,12 @@ class BloomLiveReloadServer {
       'css' => 'text/css; charset=utf-8',
       'png' => 'image/png',
       'jpg' || 'jpeg' => 'image/jpeg',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
       'svg' => 'image/svg+xml',
       'ico' => 'image/x-icon',
+      'mp4' => 'video/mp4',
+      'webm' => 'video/webm',
       'woff2' => 'font/woff2',
       'woff' => 'font/woff',
       _ => 'application/octet-stream',

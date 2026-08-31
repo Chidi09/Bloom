@@ -1366,7 +1366,36 @@ void main() {
 }
 ```
 
-Watch out: In-place hydration works on static descriptor nodes (`ElNode`, `TextNode`, `FragmentNode`). If dynamic sentinel nodes (`Live`, `Show`, `ForEach`) are encountered during hydration, the hydrator safely falls back to a clean client mount (`mountToElement`) to ensure complete reactivity.
+Watch out: In-place hydration works on static descriptor nodes (`ElNode`, `TextNode`, `FragmentNode`). If dynamic sentinel nodes (`Live`, `Show`, `ForEach`) are encountered, the hydrator clears the SSR container and performs one clean client mount (`mountToElement`) to ensure complete reactivity. **Do not call `mount()` after emitting SSR HTML**: it appends a second application tree, producing duplicate IDs, navbars, dialogs, and event targets. Use `hydrate()` for a shared SSR/client entry point. Because reactive root trees with dynamic sentinels currently remount during hydration, avoid running automated screenshot comparisons during the initial font/CSS/animation startup window, and mount browser-only state (such as global modals, command palettes, and theme synchronizers) cleanly at the root level.
+
+### How do I ship a static site generated (SSG) Bloom app?
+
+Build the browser bundle before rendering static pages, then deploy the HTML
+and every browser-facing asset. A rendered document that contains
+`<script src="/main.js">` but omits that file is readable HTML with no
+hydration: every click handler, router, signal update, and dialog is inert.
+
+```bash
+bloom js build                 # writes web/main.js
+dart run bin/ssg.dart          # renders dist/**/*.html
+test -s dist/main.js           # required: copy web/main.js into dist/main.js
+```
+
+An SSG script must copy, at minimum: `web/main.js`, `web/vendor/`, images and
+video assets, generated font CSS/files, and the favicon. Test the **served
+`dist/` directory**, not just `web/`: open a page, trigger a control, and
+confirm that `/main.js` returns HTTP 200.
+
+Keep browser-only startup in `lib/main.dart`. Do not rely on inline `<script>`
+nodes emitted by `renderToHtml()` for client behavior: once a dynamic tree is
+hydrated via its clean-remount fallback, newly inserted script elements do not
+reliably execute. Register event listeners, scroll observers, focus work, and
+theme synchronization from the browser entry point or a `Mount.onMount`
+lifecycle hook, with cleanup on unmount.
+
+For a scroll blur/fade reveal, preserve the initial CSS state and add the
+visible class only when each element enters the viewport. Never eagerly mark
+all reveal elements visible at startup, or the transition is skipped.
 
 ---
 
@@ -1418,6 +1447,8 @@ void main() {
   orchestrateIslands();
 }
 ```
+
+Watch out: `HydrationStrategy.media` is designed strictly for deferring interactive JavaScript hydration until a CSS media query matches (e.g. mobile-only or desktop-only interactivity). It does **not** branch or switch the underlying HTML layout. All layout responsiveness must remain CSS-first via standard media queries or container queries.
 
 ---
 
@@ -1737,6 +1768,13 @@ BloomNode responsiveHeroPicture() {
 
 ---
 
+### How do I build responsive UI in Bloom JS Native?
+Always build responsive UI **CSS-first** and **mobile-first** using standard CSS media queries, responsive utility classes (e.g. `sm:`, `md:`, `lg:` in Tailwind), CSS container queries (`@container`), and responsive image primitives (`bloomImage`, `bloomPicture`).
+
+**Never branch ordinary layout in Dart based on viewport dimensions** (such as querying `window.innerWidth` during widget building). Doing so breaks SSR/hydration parity and prevents instant client-side responsive adaptation without Dart re-renders. `HydrationStrategy.media` in `bloomIsland(...)` is strictly for deferring interactive JavaScript hydration until a viewport condition is met—it does **not** switch or control layout structure.
+
+---
+
 ## 14. Accessibility (a11y)
 
 ### How do I generate WAI-ARIA attributes?
@@ -1941,6 +1979,11 @@ to the new initial value rather than risking a type-mismatch crash. This
 carry-over only applies to top-level/static signals in dev mode; it has
 zero effect on `bloom js build` production bundles, and `computed()`/
 `effect()`/closure-scoped signals are always reset on a remount.
+
+The dev server owns the `main.js` bootstrap path. Do not add a second
+`<script src="main.js">`, rewrite it with a relative prefix, or serve a
+stale cached `main.js`: DDC's module bootstrap expects the current entry URL
+and failures surface as browser errors such as `define is not defined`.
 
 ---
 
@@ -2297,13 +2340,28 @@ Every UI primitive in Section 19 reads these same variable names (`var(--primary
 
 ### How do I load web fonts without hand-writing `<link>` tags in `web/index.html`?
 
-Don't add a Google Fonts CDN `<link>` (or `@import`) to `web/index.html` — it's an unpinned, un-vendored, render-blocking third-party network request on every page load, and it grows a file that should otherwise stay near-empty. Self-host instead:
+Don't add a Google Fonts CDN `<link>` (or `@import`) to `web/index.html` — it's an unpinned, un-vendored, render-blocking third-party network request on every page load, and it grows a file that should otherwise stay near-empty. Self-host instead using `bloom fonts optimize`.
 
-```
+#### Basic Uniform Syntax
+```bash
 bloom fonts optimize --family Inter --weight 400 --weight 700
 ```
+When using shared `--family`, `--weight`, and `--style` options, the specified weights and styles apply uniformly across every family declared.
 
-This downloads the requested Google Font family/weights, self-hosts the `.woff2` files under `web/generated/fonts/`, and generates `web/generated/fonts/fonts.g.css` with `@font-face` rules plus a CLS-mitigation fallback face (a metric-compatible system font swapped in until the real face loads, sized to match — avoids the layout jump a bare `font-display: swap` causes).
+#### Manifest Syntax with `--face` and Strict Verification
+When different font families require different weight or style sets, pass explicit `--face "Family:weights:styles"` manifests:
+
+```bash
+bloom fonts optimize \
+  --face "Plus Jakarta Sans:300,400,500,600,700,800:normal" \
+  --face "JetBrains Mono:400,700:normal,italic" \
+  --require-all-faces
+```
+
+- **Manifest format**: `--face "Family Name:weight1,weight2,...:style1,style2,..."` (can be specified multiple times).
+- **Strict mode (`--require-all-faces`)**: Rejects and fails if any requested family, weight, or style combination is unavailable from Google Fonts, rather than silently letting the browser synthesize missing variants (avoiding distorted faux-bold or faux-italic rendering).
+
+This downloads the requested font faces, self-hosts the `.woff2` files under `lib/generated/fonts/`, and generates `lib/generated/fonts/fonts.g.css` with `@font-face` rules plus a CLS-mitigation fallback face (a metric-compatible system font swapped in until the real face loads, sized to match — avoids the layout jump a bare `font-display: swap` causes). An SSG/deployment step must copy that directory to the served `/generated/fonts/` URL.
 
 Then reference the generated stylesheet the same way you reference design tokens — as a `BloomNode` from Dart, not a hand-written `<link>` in `web/index.html` — using `fontStylesheetLink()`:
 
@@ -2352,6 +2410,12 @@ BloomNode iconAndClassDemo({required bool isActive, required bool isPending}) {
   );
 }
 ```
+
+---
+
+### When should I use SVG descriptors vs Raw HTML?
+- **SVG Descriptors (`Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, `SvgUse`)**: Prefer pure AST descriptors for standard vector graphics and inline icons. Test browser output for complex SVG until the browser mount path's SVG namespace handling is verified.
+- **Raw HTML / SVG (`Raw` / `RawHtmlNode`)**: `Raw` is an unescaped HTML string passthrough. On the server (`renderToHtml`), it streams raw HTML directly; the current browser mount path wraps raw fragments. Because this changes DOM boundaries, **`Raw` must never be used as a general layout wrapper**; prefer AST descriptors (`Div`, `Span`, `Section`, `Svg`, etc.) for UI layout. When embedding complex third-party SVG illustrations or rich media snippets via `Raw`, always test the rendered browser DOM output directly.
 
 ---
 
@@ -3597,6 +3661,16 @@ A consolidated reference of every mistake this framework's own gotchas invite. E
 
 - Under `renderToHtml()`, reactive builders inside `Live`/`Show`/`ForEach` run **exactly once, synchronously** — there is no re-render loop on the server.
 - **These do nothing under SSR** — silently, with no error: event handlers (`onClick`, `onInput`, etc.), lifecycle hooks (`Mount.onMount`/`onUnmount`), `Ref`, client router listeners, and any signal `effect()`. Code that must run server-side (data fetching, redirects) belongs in loader/route-guard hooks (Section 8, Section 9), not in these.
+- **Use `hydrate(app, '#app')` when the page was produced by `renderToHtml()`, not `mount(app, '#app')`.** `mount` appends a second tree; `hydrate` either attaches in place or does one clean fallback remount for dynamic sentinels. Mount global dialogs/toasts exactly once at that root.
+- **Reactive root trees currently remount on dynamic sentinels**: In-place hydration handles static nodes, while dynamic sentinels (`Live`, `Show`, `ForEach`) currently trigger a clean client container remount (`mountToElement`) to attach reactive subscriptions. Avoid taking automated screenshot comparisons during the initial font/CSS/animation startup window, and mount browser-only state (global modals, toasts, theme synchronizers) cleanly at the root level.
+- **Responsive UI is CSS-first**: Implement responsive layouts mobile-first using CSS media queries (`@media`), container queries (`@container`), and responsive image primitives (`bloomImage`, `bloomPicture`). Never branch ordinary layout in Dart based on viewport dimensions (`window.innerWidth`). Note that `HydrationStrategy.media` in `bloomIsland` is strictly for deferring interactive island hydration until a query matches, not for switching layout structures.
+- **Do not put required browser behavior in an SSR-emitted inline script.** A dynamic hydration fallback recreates the DOM, and inserted scripts do not reliably run. Register listeners/observers in `lib/main.dart` or `Mount.onMount`; dispose them on unmount.
+- **Scroll-reveal animations must begin hidden and be revealed per viewport entry.** Adding the visible class to all targets on startup makes the blur/fade animation invisible.
+
+### Raw HTML and SVG Descriptors (Section 4, Section 19)
+
+- **`Raw` is not a general layout wrapper**: `Raw` (`RawHtmlNode`) behaves differently between SSR (direct HTML string stream) and browser DOM mounting (a current wrapper element). Always use pure Dart AST descriptors (`Div`, `Span`, `Section`, `Svg`, etc.) for page layout and component containers.
+- **Use SVG descriptors for vector graphics**: Use `Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, and `SvgUse` for normal SVG elements, and test browser output for complex SVG until namespace behavior is verified. When embedding complex raw SVG or media via `Raw`, test the rendered browser DOM output directly.
 
 ### Disposal (Section 2)
 
@@ -3612,7 +3686,16 @@ Anything that attaches an external listener, DOM observer, or timer must be disp
 
 - Keep `web/index.html` as close to empty as possible: `<meta>` tags, SEO/JSON-LD/`robots` content once you add those, and the `main.js` script tag. No design tokens, no font `<link>`s, no inline `<style>`/`<script>` logic — all of that is Dart-driven and belongs in `lib/`.
 - Define design tokens as a `const String` of raw CSS in `lib/design/tokens.dart`, injected once via `Style(tokensCss)` as the first child of your app shell — not pasted into `web/index.html`. See Section 19's "How do I define my own design tokens as Dart" recipe.
-- Load fonts with `bloom fonts optimize --family <name> --weight <n>` (self-hosts `.woff2`, generates `fonts.g.css` with a CLS-mitigation fallback) and inject the result with `fontStylesheetLink()` from Dart — never a Google Fonts CDN `<link>` in `web/index.html`. See Section 19's font recipe.
+- **Font manifests with `bloom fonts optimize`**:
+  - Run `bloom fonts optimize --face "Family:weights:styles" --require-all-faces` (e.g. `bloom fonts optimize --face "Plus Jakarta Sans:300,400,500,600,700,800:normal" --face "JetBrains Mono:400,700:normal,italic" --require-all-faces`).
+  - Shared `--family`/`--weight`/`--style` applies the same faces to every specified family; `--face` allows precise per-family weight and style manifests.
+  - Strict mode (`--require-all-faces`) rejects unavailable faces immediately instead of letting the browser synthesize missing variants (avoiding faux bold or faux italic distortion).
+  - Inject the generated `lib/generated/fonts/fonts.g.css` with `fontStylesheetLink()` from Dart — never use Google Fonts CDN `<link>`s or `@import` rules in `web/index.html`. In SSG output, copy `lib/generated/fonts` to `/generated/fonts/`.
+- **Visual parity and font metrics**:
+  - Match exact source fonts, weights, and styles from your reference design.
+  - Maintain a single font stylesheet source in `<head>` (via `fontStylesheetLink()`) and avoid duplicate font loads from CDN links, `@import`, or `<body>` links.
+  - Prefer static Tailwind CSS output over browser JIT (`@tailwindcss/browser`) when performing screenshot comparisons to avoid timing race conditions.
+  - Compare browser-computed font metrics (`getComputedStyle` font-family, font-size, font-weight, line-height) and line wrapping against reference targets to ensure zero layout shift.
 - Prefer `scopedCss()` for component-local styles — it produces class names that match bit-for-bit between SSR output and client hydration; hand-rolled unique class names risk a hydration mismatch.
 - The UI primitives library (Section 19) is themed entirely through CSS custom properties (`uiTokensCss` — `--n-0`…`--n-950`, `--primary`, `--radius`, etc.). Override a token in your own `lib/design/tokens.dart`, not by overriding a component's generated classes directly — the components read the variables, not hardcoded colors.
 - Merge conditional class names with `cn([...])` (filters `null`/`false`/empty/whitespace-only entries and joins with a single space) rather than string-interpolating ternaries — every UI primitive's `extraClassName`/`className` parameter is designed to compose with `cn()`.

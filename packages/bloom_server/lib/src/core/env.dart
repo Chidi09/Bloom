@@ -101,7 +101,8 @@ class BloomEnv {
   ///     'PORT': const String.fromEnvironment('PORT'),
   /// });
   /// ```
-  static void loadDartDefines(Map<String, String> defines, {bool overwrite = false}) =>
+  static void loadDartDefines(Map<String, String> defines,
+          {bool overwrite = false}) =>
       loadMap(defines, overwrite: overwrite);
 
   /// Validates a typed [BloomEnvironmentSchema] instance against the currently loaded environment variables.
@@ -152,7 +153,8 @@ class BloomEnv {
       if (parsed != null) return parsed;
     }
     if (defaultValue != null) return defaultValue;
-    throw StateError('BloomEnv: Missing required integer environment variable "$key".');
+    throw StateError(
+        'BloomEnv: Missing required integer environment variable "$key".');
   }
 
   /// Retrieves the double value for [key].
@@ -166,7 +168,8 @@ class BloomEnv {
       if (parsed != null) return parsed;
     }
     if (defaultValue != null) return defaultValue;
-    throw StateError('BloomEnv: Missing required double environment variable "$key".');
+    throw StateError(
+        'BloomEnv: Missing required double environment variable "$key".');
   }
 
   /// Retrieves the boolean value for [key].
@@ -184,7 +187,8 @@ class BloomEnv {
       if (lower == 'false' || lower == '0' || lower == 'no') return false;
     }
     if (defaultValue != null) return defaultValue;
-    throw StateError('BloomEnv: Missing required boolean environment variable "$key".');
+    throw StateError(
+        'BloomEnv: Missing required boolean environment variable "$key".');
   }
 
   /// Checks whether an environment variable exists in the runtime store for [key].
@@ -201,4 +205,3 @@ class BloomEnv {
   /// A read-only snapshot map of all currently loaded environment variables.
   static Map<String, String> get all => UnmodifiableMapView(_env);
 }
-

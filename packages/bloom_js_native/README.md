@@ -1,6 +1,8 @@
 # bloom_js_native
 
-> React-wrapped JavaScript. Bloom JS Native wraps Dart around HTML/JS — Dart owns reactivity, compilation, and tooling; the browser owns rendering; npm is consumed surgically, never wholesale.
+> **Bloom JS Native is the reactive web layer of Bloom: Dart components to real DOM, with SSR · SSG · ISR-friendly rendering, SEO, and browser-native APIs.** It is not Flutter rendered in a browser.
+
+Dart owns reactivity, compilation, and tooling; the browser owns rendering; npm is consumed surgically, never wholesale. Pair it with `bloom_server` for a full-stack Dart web application.
 
 **No Flutter on web. No VDOM. No hand-rolled package manager. Real DOM, real CSS, fine-grained signals.**
 

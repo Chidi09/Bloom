@@ -1,12 +1,14 @@
 // lib/src/server/bloom_request.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'bloom_multipart.dart';
 
 /// Represents an incoming HTTP request in Bloom API routes, SSR endpoints, and middleware.
 ///
 /// Encapsulates the HTTP [method], request [uri], incoming [headers], route [params],
-/// [queryParams], binary [rawBody], and helper accessors for parsing JSON, UTF-8 text,
-/// and URL-encoded form data.
+/// [queryParams], binary [rawBody] (or streaming body for multipart uploads), and helper
+/// accessors for parsing JSON, UTF-8 text, URL-encoded form data, and streaming multipart data.
 ///
 /// ### Example
 /// ```dart
@@ -37,8 +39,27 @@ class BloomRequest {
   /// URL path parameters extracted by the router regex matching (e.g. `{'id': '123'}`).
   final Map<String, String> params;
 
+  final Uint8List? _rawBody;
+  final Stream<List<int>>? _streamBody;
+  final int? _maxRequestBodyBytes;
+  bool _bodyStreamTaken = false;
+
   /// Raw binary request payload bytes.
-  final Uint8List rawBody;
+  ///
+  /// Throws [StateError] if this request is a streaming request (e.g. multipart/form-data upload).
+  /// To consume streaming bodies, use [multipart].
+  Uint8List get rawBody {
+    if (_streamBody != null) {
+      throw StateError(
+        'Cannot access rawBody on a streaming request body. '
+        'Use multipart() to consume the multipart stream.',
+      );
+    }
+    return _rawBody ?? Uint8List(0);
+  }
+
+  /// Whether this request's body is delivered via an unbuffered stream rather than pre-buffered bytes.
+  bool get isStreaming => _streamBody != null;
 
   /// Whether the request was received over a secure HTTPS connection or behind an SSL proxy.
   final bool isSecure;
@@ -46,7 +67,8 @@ class BloomRequest {
   /// Creates a [BloomRequest] instance.
   ///
   /// [body] can be a [Uint8List], `List<int>`, [String], or a JSON-encodable [Map]/[List].
-  /// If [rawBody] is not provided directly, it is automatically converted from [body].
+  /// If [rawBody] is not provided directly and [streamBody] is null, it is automatically converted from [body].
+  /// If [streamBody] is provided, the request body is treated as a stream and not pre-buffered.
   /// If [isSecure] is omitted, it is inferred from [uri.scheme].
   BloomRequest({
     required this.method,
@@ -55,9 +77,13 @@ class BloomRequest {
     Map<String, String>? params,
     dynamic body,
     Uint8List? rawBody,
+    Stream<List<int>>? streamBody,
+    int? maxRequestBodyBytes,
     bool? isSecure,
   })  : params = params ?? <String, String>{},
-        rawBody = rawBody ?? _convertBody(body),
+        _streamBody = streamBody,
+        _maxRequestBodyBytes = maxRequestBodyBytes,
+        _rawBody = streamBody != null ? null : (rawBody ?? _convertBody(body)),
         isSecure = isSecure ?? (uri.scheme.toLowerCase() == 'https');
 
   static Uint8List _convertBody(dynamic body) {
@@ -65,7 +91,9 @@ class BloomRequest {
     if (body is Uint8List) return body;
     if (body is List<int>) return Uint8List.fromList(body);
     if (body is String) return Uint8List.fromList(utf8.encode(body));
-    if (body is Map || body is List) return Uint8List.fromList(utf8.encode(jsonEncode(body)));
+    if (body is Map || body is List) {
+      return Uint8List.fromList(utf8.encode(jsonEncode(body)));
+    }
     return Uint8List(0);
   }
 
@@ -78,12 +106,14 @@ class BloomRequest {
   /// Decodes and returns the raw request body as a UTF-8 string.
   ///
   /// Returns an empty string if [rawBody] is empty.
+  /// Throws [StateError] if this request is a streaming request.
   String text() => utf8.decode(rawBody);
 
   /// Parses the request body as JSON.
   ///
   /// Returns `null` if the decoded body text is empty or whitespace-only.
   /// Throws [FormatException] if the body is not valid JSON.
+  /// Throws [StateError] if this request is a streaming request.
   ///
   /// ### Example
   /// ```dart
@@ -103,6 +133,7 @@ class BloomRequest {
   /// Parses the request body as URL-encoded form data (`application/x-www-form-urlencoded`).
   ///
   /// Returns an empty map if the body is empty.
+  /// Throws [StateError] if this request is a streaming request.
   ///
   /// ### Example
   /// ```dart
@@ -115,6 +146,49 @@ class BloomRequest {
     return Uri.splitQueryString(str);
   }
 
+  /// Parses the incoming streaming multipart/form-data request body.
+  ///
+  /// Yields each [BloomMultipartPart] ([BloomMultipartField] or [BloomMultipartFile])
+  /// as it is parsed from the stream without buffering entire files into memory.
+  ///
+  /// Throws [StateError] if this request is not a streaming request or if the
+  /// request body stream has already been consumed.
+  /// Throws [FormatException] if the Content-Type header or multipart payload is malformed.
+  ///
+  /// ### Example
+  /// ```dart
+  /// await for (final part in request.multipart()) {
+  ///   if (part is BloomMultipartField) {
+  ///     print('${part.name}: ${part.value}');
+  ///   } else if (part is BloomMultipartFile) {
+  ///     await File('uploads/${part.filename}').openWrite().addStream(part.bytes);
+  ///   }
+  /// }
+  /// ```
+  Stream<BloomMultipartPart> multipart({int? maxBytes}) {
+    if (_streamBody == null) {
+      throw StateError(
+        'BloomRequest.multipart() called on a non-streaming request. '
+        'Ensure the request was sent with multipart/form-data and not pre-buffered.',
+      );
+    }
+    if (_bodyStreamTaken) {
+      throw StateError(
+        'BloomRequest streaming body has already been consumed. '
+        'A request stream may only be read once.',
+      );
+    }
+    final contentType = headers['content-type'] ?? '';
+    final boundary = extractMultipartBoundary(contentType);
+
+    _bodyStreamTaken = true;
+    return parseMultipartStream(
+      stream: _streamBody,
+      boundary: boundary,
+      maxBytes: maxBytes ?? _maxRequestBodyBytes,
+    );
+  }
+
   /// Creates a copy of this request with the specified fields replaced.
   ///
   /// Useful in middleware pipelines for mutating request context, headers, or parameters.
@@ -124,6 +198,8 @@ class BloomRequest {
     Map<String, String>? headers,
     Map<String, String>? params,
     Uint8List? rawBody,
+    Stream<List<int>>? streamBody,
+    int? maxRequestBodyBytes,
     bool? isSecure,
   }) {
     return BloomRequest(
@@ -131,9 +207,10 @@ class BloomRequest {
       uri: uri ?? this.uri,
       headers: headers ?? this.headers,
       params: params ?? this.params,
-      rawBody: rawBody ?? this.rawBody,
+      rawBody: rawBody ?? _rawBody,
+      streamBody: streamBody ?? _streamBody,
+      maxRequestBodyBytes: maxRequestBodyBytes ?? _maxRequestBodyBytes,
       isSecure: isSecure ?? this.isSecure,
     );
   }
 }
-

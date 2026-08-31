@@ -90,7 +90,8 @@ abstract class BloomEnvironmentSchema {
   ///
   /// Returns [defaultValue] if the variable is not set or empty.
   /// [description] provides optional context for documentation.
-  String? optionalString(String key, {String? defaultValue, String? description}) {
+  String? optionalString(String key,
+      {String? defaultValue, String? description}) {
     final val = BloomEnv.getOrNull(key)?.trim();
     if (val == null || val.isEmpty) {
       return defaultValue;
@@ -164,7 +165,8 @@ abstract class BloomEnvironmentSchema {
   /// Returns [defaultValue] (default `false`) if the variable is unset or empty.
   /// Accepts `'true'`, `'1'`, `'yes'` as `true`, and `'false'`, `'0'`, `'no'` as `false`.
   /// Throws [BloomEnvironmentException] if the variable is present but cannot be parsed as a boolean.
-  bool optionalBool(String key, {bool defaultValue = false, String? description}) {
+  bool optionalBool(String key,
+      {bool defaultValue = false, String? description}) {
     final val = BloomEnv.getOrNull(key)?.trim();
     if (val == null || val.isEmpty) {
       return defaultValue;
@@ -203,7 +205,8 @@ abstract class BloomEnvironmentSchema {
   ///
   /// Returns [defaultValue] (or `0.0` if null) if unset or empty.
   /// Throws [BloomEnvironmentException] if the variable is present but cannot be parsed as a double.
-  double optionalDouble(String key, {double? defaultValue, String? description}) {
+  double optionalDouble(String key,
+      {double? defaultValue, String? description}) {
     final val = BloomEnv.getOrNull(key)?.trim();
     if (val == null || val.isEmpty) {
       return defaultValue ?? 0.0;
@@ -225,7 +228,8 @@ abstract class BloomEnvironmentSchema {
     final str = requireString(key, description: description);
     final parsed = Uri.tryParse(str);
     if (parsed == null || !parsed.hasScheme) {
-      final err = 'Environment variable "$key" is not a valid absolute URI: "$str".';
+      final err =
+          'Environment variable "$key" is not a valid absolute URI: "$str".';
       _validationErrors.add(err);
       throw BloomEnvironmentException(err, errors: [err]);
     }
@@ -250,4 +254,3 @@ abstract class BloomEnvironmentSchema {
     return parsed;
   }
 }
-

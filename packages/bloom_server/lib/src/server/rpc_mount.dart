@@ -118,7 +118,8 @@ Future<BloomResponse> _dispatchRpcRequest(
     path: rpcPath,
     headers: request.headers,
     queryParams: request.queryParams,
-    body: request.bodyJson ?? (request.rawBody.isNotEmpty ? request.text() : null),
+    body: request.bodyJson ??
+        (request.rawBody.isNotEmpty ? request.text() : null),
     rawRequest: request,
     context: {'request': request},
   );
@@ -126,16 +127,17 @@ Future<BloomResponse> _dispatchRpcRequest(
   BloomRpcServerResponse rpcResponse;
   try {
     rpcResponse = await rpcRouter.handle(rpcRequest);
-  // Note: validation errors are NOT caught here. BloomRpcBinding.execute
-  // already converts a thrown BloomRpcValidationErrors into a 422 response
-  // before it can propagate this far, so a catch clause for it here would be
-  // unreachable. The same applies to most handler faults; the clauses below
-  // exist for failures raised while routing, outside any binding.
+    // Note: validation errors are NOT caught here. BloomRpcBinding.execute
+    // already converts a thrown BloomRpcValidationErrors into a 422 response
+    // before it can propagate this far, so a catch clause for it here would be
+    // unreachable. The same applies to most handler faults; the clauses below
+    // exist for failures raised while routing, outside any binding.
   } on BloomRpcHttpException catch (e) {
     rpcResponse = BloomRpcServerResponse(
       statusCode: e.statusCode,
       body: e.responseBody ?? {'error': e.message, 'statusCode': e.statusCode},
-      headers: e.responseHeaders ?? const {'content-type': 'application/json; charset=utf-8'},
+      headers: e.responseHeaders ??
+          const {'content-type': 'application/json; charset=utf-8'},
     );
   } on Exception catch (e) {
     rpcResponse = BloomRpcServerResponse.serverError(e.toString());
@@ -210,7 +212,7 @@ extension BloomRpcMountExtension on BloomApiRouter {
     String basePath = '/api/rpc',
     List<BloomMiddleware> middlewares = const [],
   }) {
-    mountBloomRpc(this, rpcRouter, basePath: basePath, middlewares: middlewares);
+    mountBloomRpc(this, rpcRouter,
+        basePath: basePath, middlewares: middlewares);
   }
 }
-

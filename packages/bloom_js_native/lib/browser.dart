@@ -23,3 +23,4 @@ export 'src/hydrate.dart';
 export 'src/virtual.dart';
 export 'src/islands.dart';
 export 'src/web_components.dart';
+export 'src/realtime_browser.dart';

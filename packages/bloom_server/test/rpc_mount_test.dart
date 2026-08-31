@@ -137,7 +137,8 @@ void main() {
       expect(json['completed'], true);
     });
 
-    test('validation failure returning 422 with structured field errors', () async {
+    test('validation failure returning 422 with structured field errors',
+        () async {
       final req = BloomRequest(
         method: 'POST',
         uri: Uri.parse('http://localhost:8080/api/rpc/tasks'),
@@ -152,7 +153,8 @@ void main() {
       expect(json['errors'], isNotNull);
       final errors = json['errors'] as Map<String, dynamic>;
       expect(errors['title'], isList);
-      expect(errors['title'], contains('Title is required and cannot be blank.'));
+      expect(
+          errors['title'], contains('Title is required and cannot be blank.'));
     });
 
     test('unknown route returning 404 without leaking stack trace', () async {

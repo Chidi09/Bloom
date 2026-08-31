@@ -61,7 +61,8 @@ abstract class BloomMiddleware {
 /// ```
 class FunctionalBloomMiddleware implements BloomMiddleware {
   /// The underlying middleware execution callback function.
-  final Future<BloomResponse?> Function(BloomRequest request, BloomNextFunction next) handler;
+  final Future<BloomResponse?> Function(
+      BloomRequest request, BloomNextFunction next) handler;
 
   /// Creates a [FunctionalBloomMiddleware] wrapping the given [handler] callback.
   FunctionalBloomMiddleware(this.handler);
@@ -112,22 +113,17 @@ class BloomCorsMiddleware implements BloomMiddleware {
   });
 
   @override
-  Future<BloomResponse?> handle(BloomRequest request, BloomNextFunction next) async {
-    if (request.method == 'OPTIONS') {
-      return BloomResponse.noContent(headers: {
-        'access-control-allow-origin': allowOrigin,
-        'access-control-allow-methods': allowMethods,
-        'access-control-allow-headers': allowHeaders,
-        if (allowCredentials) 'access-control-allow-credentials': 'true',
-      });
-    }
-
+  Future<BloomResponse?> handle(
+      BloomRequest request, BloomNextFunction next) async {
     final response = await next();
     response.headers['access-control-allow-origin'] = allowOrigin;
     if (allowCredentials) {
       response.headers['access-control-allow-credentials'] = 'true';
     }
+    if (request.method == 'OPTIONS') {
+      response.headers['access-control-allow-methods'] = allowMethods;
+      response.headers['access-control-allow-headers'] = allowHeaders;
+    }
     return response;
   }
 }
-

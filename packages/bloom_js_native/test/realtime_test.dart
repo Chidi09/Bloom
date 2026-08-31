@@ -83,6 +83,37 @@ void main() {
       expect(msg.channel, 'todos');
     });
 
+    test('unsubscribe() factory sets type and channel', () {
+      final msg = RealtimeMessage.unsubscribe('todos');
+      expect(msg.type, RealtimeMessage.typeUnsubscribe);
+      expect(msg.channel, 'todos');
+    });
+
+    test('presenceJoin() factory sets type, channel and userInfo payload', () {
+      final msg = RealtimeMessage.presenceJoin('room-1', {'name': 'Alice'});
+      expect(msg.type, RealtimeMessage.typePresenceJoin);
+      expect(msg.channel, 'room-1');
+      expect(msg.payload, {'name': 'Alice'});
+    });
+
+    test('presenceLeave() factory sets type, channel and userInfo payload', () {
+      final msg = RealtimeMessage.presenceLeave('room-1', {'name': 'Alice'});
+      expect(msg.type, RealtimeMessage.typePresenceLeave);
+      expect(msg.channel, 'room-1');
+      expect(msg.payload, {'name': 'Alice'});
+    });
+
+    test('presenceState() factory sets type, channel and presences list', () {
+      final msg = RealtimeMessage.presenceState('room-1', [
+        {'id': 'u1', 'name': 'Alice'}
+      ]);
+      expect(msg.type, RealtimeMessage.typePresenceState);
+      expect(msg.channel, 'room-1');
+      expect(msg.payload['presences'], [
+        {'id': 'u1', 'name': 'Alice'}
+      ]);
+    });
+
     test('encode/tryParse round-trips a broadcast message', () {
       final msg = RealtimeMessage.broadcast('todos', {'id': 1, 'title': 'x'});
       final encoded = msg.encode();
@@ -90,6 +121,22 @@ void main() {
       expect(parsed.type, RealtimeMessage.typeBroadcast);
       expect(parsed.channel, 'todos');
       expect(parsed.payload, {'id': 1, 'title': 'x'});
+    });
+
+    test('tryParse parses from Map and UTF8 bytes', () {
+      final parsedMap = RealtimeMessage.tryParse({
+        'type': 'broadcast',
+        'channel': 'room',
+        'payload': {'key': 'val'},
+      });
+      expect(parsedMap?.type, 'broadcast');
+      expect(parsedMap?.channel, 'room');
+      expect(parsedMap?.payload, {'key': 'val'});
+
+      final jsonStr = '{"type":"ping"}';
+      final bytes = jsonStr.codeUnits;
+      final parsedBytes = RealtimeMessage.tryParse(bytes);
+      expect(parsedBytes?.type, 'ping');
     });
 
     test('tryParse returns null for invalid JSON', () {

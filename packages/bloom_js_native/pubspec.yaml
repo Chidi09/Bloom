@@ -1,5 +1,5 @@
 name: bloom_js_native
-description: React-wrapped JavaScript, Dart-wrapped reactivity. Fine-grained DOM framework — Dart owns signals & tooling, the browser owns rendering.
+description: Reactive Dart web framework for real DOM apps — SSR, SSG, ISR-friendly rendering, signals, SEO, and browser APIs. Not Flutter web.
 version: 0.3.5
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues

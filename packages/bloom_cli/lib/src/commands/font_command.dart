@@ -40,13 +40,32 @@ class _OptimizeFontsCommand extends Command<int> {
       ..addMultiOption(
         'family',
         abbr: 'f',
-        help: 'Google Font family name to download (can be specified multiple times).',
+        help:
+            'Google Font family name to download (can be specified multiple times).',
       )
       ..addMultiOption(
         'weight',
         abbr: 'w',
         defaultsTo: ['400', '700'],
         help: 'Font weights to download (e.g. 400, 700).',
+      )
+      ..addMultiOption(
+        'style',
+        abbr: 's',
+        defaultsTo: ['normal'],
+        help: 'Font styles to download (normal, italic).',
+      )
+      ..addMultiOption(
+        'face',
+        splitCommas: false,
+        help:
+            'Font face manifest spec in "Family:weights:styles" format (can be specified multiple times).',
+      )
+      ..addFlag(
+        'require-all-faces',
+        defaultsTo: false,
+        help:
+            'Require all requested family, weight, and style combinations to be downloaded successfully.',
       )
       ..addOption(
         'project-dir',
@@ -62,36 +81,71 @@ class _OptimizeFontsCommand extends Command<int> {
 
     final project = BloomProject.find(projectDir);
     if (project == null) {
-      print(Ansi.error('✖ Not a valid Bloom project directory: ${projectDir.path}'));
+      print(Ansi.error(
+          '✖ Not a valid Bloom project directory: ${projectDir.path}'));
       return 1;
     }
 
-    final families = (argResults?['family'] as List<String>?) ?? [];
-    if (families.isEmpty) {
-      print(Ansi.error('✖ At least one --family must be specified.'));
-      return 1;
-    }
-
-    final weights = (argResults?['weight'] as List<String>?) ?? ['400', '700'];
+    final faces = (argResults?['face'] as List<String>?) ?? [];
+    final requireAllFaces =
+        (argResults?['require-all-faces'] as bool?) ?? false;
 
     final optimizer = BloomFontOptimizer(project: project);
-    final result = await optimizer.optimize(
-      families: families,
-      weights: weights,
-    );
+    final BloomFontOptimizeResult result;
+    try {
+      if (faces.isNotEmpty) {
+        if (argResults?.wasParsed('family') == true ||
+            argResults?.wasParsed('weight') == true ||
+            argResults?.wasParsed('style') == true) {
+          throw ArgumentError(
+            'Cannot mix --face with explicit --family, --weight, or --style options.',
+          );
+        }
+
+        final requests = faces.map(FontFaceRequest.parse).toList();
+        result = await optimizer.optimizeManifest(
+          requests,
+          requireAllRequestedFaces: requireAllFaces,
+        );
+      } else {
+        final families = (argResults?['family'] as List<String>?) ?? [];
+        if (families.isEmpty) {
+          print(Ansi.error('✖ At least one --family must be specified.'));
+          return 1;
+        }
+
+        final weights =
+            (argResults?['weight'] as List<String>?) ?? ['400', '700'];
+        final styles = (argResults?['style'] as List<String>?) ?? ['normal'];
+
+        result = await optimizer.optimize(
+          families: families,
+          weights: weights,
+          styles: styles,
+          requireAllRequestedFaces: requireAllFaces,
+        );
+      }
+    } on ArgumentError catch (e) {
+      print(Ansi.error('✖ ${e.message}'));
+      return 1;
+    }
 
     print(Ansi.boldText('\n🔤 Font Optimization Summary:'));
     print('  • Families processed: ${result.families.length}');
     print('  • Files written: ${result.filesWritten.length}');
     if (result.cssPath.isNotEmpty) {
-      print('  • CSS bundle: ${p.relative(result.cssPath, from: project.rootDir.path)}');
+      print(
+          '  • CSS bundle: ${p.relative(result.cssPath, from: project.rootDir.path)}');
     }
     for (final warning in result.warnings) {
       print(Ansi.warn('  $warning'));
     }
 
-    if (result.filesWritten.isEmpty && result.warnings.isNotEmpty) {
-      print(Ansi.error('\n✖ Font optimization failed: all requested families failed.\n'));
+    if ((result.filesWritten.isEmpty ||
+            (requireAllFaces && result.cssPath.isEmpty)) &&
+        result.warnings.isNotEmpty) {
+      print(Ansi.error(
+          '\n✖ Font optimization failed: requested faces could not be fully resolved.\n'));
       return 1;
     }
 

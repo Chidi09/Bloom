@@ -95,7 +95,8 @@ void main() {
       client.close();
     });
 
-    test('middleware can still mutate headers on a streaming response', () async {
+    test('middleware can still mutate headers on a streaming response',
+        () async {
       // The whole design rests on this: the response travels back up the
       // middleware chain before any byte is written, so late header
       // mutation stays legal exactly as it is for buffered responses.
@@ -128,7 +129,8 @@ void main() {
       });
 
       final client = HttpClient();
-      final req = await client.open('HEAD', '127.0.0.1', server.port, '/head-stream');
+      final req =
+          await client.open('HEAD', '127.0.0.1', server.port, '/head-stream');
       final res = await req.close();
 
       expect(res.statusCode, 200);
@@ -158,7 +160,8 @@ void main() {
       final req = await client.get('127.0.0.1', server.port, '/explode');
       final res = await req.close();
 
-      expect(res.statusCode, 200, reason: 'status was committed before the throw');
+      expect(res.statusCode, 200,
+          reason: 'status was committed before the throw');
 
       // Reading the truncated chunked body may itself throw; either outcome is
       // acceptable, a hang is not. What must NOT happen is a clean, complete
@@ -239,7 +242,8 @@ void main() {
 
     test('throws for a missing file', () {
       final missing = File('${tempDir.path}/nope.txt');
-      expect(() => BloomResponse.file(missing), throwsA(isA<FileSystemException>()));
+      expect(() => BloomResponse.file(missing),
+          throwsA(isA<FileSystemException>()));
     });
   });
 }
