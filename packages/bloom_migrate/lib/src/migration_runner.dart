@@ -1,5 +1,6 @@
 // lib/src/migration_runner.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:bloom_db/bloom_db.dart';
 import 'errors.dart';
@@ -27,6 +28,9 @@ class AppliedMigration {
   /// The migration name (e.g. `0001_accounts`).
   final String name;
 
+  /// The SHA-256 checksum of the migration's `-- up` SQL when it was applied.
+  final String checksum;
+
   /// The timestamp when this migration was executed.
   final DateTime appliedAt;
 
@@ -35,11 +39,13 @@ class AppliedMigration {
     required this.id,
     required this.app,
     required this.name,
+    required this.checksum,
     required this.appliedAt,
   });
 
   @override
-  String toString() => 'AppliedMigration(id: $id, app: $app, name: $name, appliedAt: $appliedAt)';
+  String toString() =>
+      'AppliedMigration(id: $id, app: $app, name: $name, checksum: $checksum, appliedAt: $appliedAt)';
 }
 
 /// The database migration engine for Bloom applications.
@@ -74,6 +80,8 @@ class MigrationRunner {
 
   /// The name of the database table used to track executed migrations.
   static const String trackingTableName = 'bloom_migrations';
+  static const String _lockTableName = 'bloom_migration_lock';
+  static const int _postgresLockId = 764931242;
 
   /// Creates a [MigrationRunner] bound to the given [db] executor and optional [migrationsDirectory].
   MigrationRunner({
@@ -103,11 +111,22 @@ class MigrationRunner {
     id $idType,
     app $textType NOT NULL,
     name $textType NOT NULL,
+    checksum $textType NOT NULL,
     applied_at $timestampType NOT NULL DEFAULT $currentTs,
     CONSTRAINT uniq_${trackingTableName}_app_name UNIQUE (app, name)
 );''';
 
     await db.execute(sql);
+    await _ensureChecksumColumn();
+  }
+
+  Future<void> _ensureChecksumColumn() async {
+    try {
+      await db.execute(
+          'ALTER TABLE $trackingTableName ADD COLUMN checksum TEXT NOT NULL DEFAULT \'\'');
+    } catch (_) {
+      // The column already exists on newly created and previously upgraded tables.
+    }
   }
 
   /// Fetches all applied migration records from the tracking table, ordered by ID ascending.
@@ -122,7 +141,8 @@ class MigrationRunner {
     await ensureTrackingTable();
     final dialect = db.dialect;
 
-    String sql = 'SELECT id, app, name, applied_at FROM $trackingTableName';
+    String sql =
+        'SELECT id, app, name, checksum, applied_at FROM $trackingTableName';
     final params = <dynamic>[];
 
     if (app != null) {
@@ -137,14 +157,17 @@ class MigrationRunner {
       final id = row.tryIntByName('id') ?? row.tryInt(0) ?? 0;
       final appName = row.tryStringByName('app') ?? row.tryString(1) ?? '';
       final migName = row.tryStringByName('name') ?? row.tryString(2) ?? '';
+      final checksum =
+          row.tryStringByName('checksum') ?? row.tryString(3) ?? '';
       final appliedAt = row.tryDateTimeByName('applied_at') ??
-          row.tryDateTime(3) ??
+          row.tryDateTime(4) ??
           DateTime.now().toUtc();
 
       return AppliedMigration(
         id: id,
         app: appName,
         name: migName,
+        checksum: checksum,
         appliedAt: appliedAt,
       );
     }).toList();
@@ -248,11 +271,17 @@ class MigrationRunner {
   /// print('Applied at ${record.appliedAt}');
   /// ```
   Future<AppliedMigration> applyMigration(BloomMigration migration) async {
+    return _applyMigration(migration, manageTransaction: true);
+  }
+
+  Future<AppliedMigration> _applyMigration(
+    BloomMigration migration, {
+    required bool manageTransaction,
+  }) async {
     await ensureTrackingTable();
     final dialect = db.dialect;
 
-    // Begin transaction
-    await db.execute('BEGIN');
+    if (manageTransaction) await db.execute('BEGIN');
 
     try {
       // Execute each up statement in sequence
@@ -264,22 +293,24 @@ class MigrationRunner {
       }
 
       // Record in tracking table
-      final insertSql = '''INSERT INTO $trackingTableName (app, name)
-VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)})''';
+      final insertSql = '''INSERT INTO $trackingTableName (app, name, checksum)
+VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)}, ${dialect.placeholder(3)})''';
 
-      await db.execute(insertSql, [migration.app, migration.name]);
+      await db.execute(
+          insertSql, [migration.app, migration.name, _checksum(migration)]);
 
-      await db.execute('COMMIT');
+      if (manageTransaction) await db.execute('COMMIT');
 
       return AppliedMigration(
         id: 0,
         app: migration.app,
         name: migration.name,
+        checksum: _checksum(migration),
         appliedAt: DateTime.now().toUtc(),
       );
     } catch (e, st) {
       try {
-        await db.execute('ROLLBACK');
+        if (manageTransaction) await db.execute('ROLLBACK');
       } catch (_) {}
 
       throw MigrationExecutionException(
@@ -306,20 +337,28 @@ VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)})''';
     String? app,
     int? limit,
   }) async {
-    final pending = await getPendingMigrations(app: app);
-    if (pending.isEmpty) {
-      return [];
-    }
+    return _withDeploymentLock(() async {
+      final applied = await getAppliedMigrations(app: app);
+      final discovered = discoverMigrations(app: app);
+      _validateAppliedChecksums(applied, discovered);
+      final appliedSet = {
+        for (final migration in applied) '${migration.app}:${migration.name}'
+      };
+      final pending = discovered
+          .where((migration) =>
+              !appliedSet.contains('${migration.app}:${migration.name}'))
+          .toList();
+      final toApply = limit != null ? pending.take(limit).toList() : pending;
+      final results = <AppliedMigration>[];
 
-    final toApply = limit != null ? pending.take(limit).toList() : pending;
-    final results = <AppliedMigration>[];
-
-    for (final mig in toApply) {
-      final applied = await applyMigration(mig);
-      results.add(applied);
-    }
-
-    return results;
+      for (final migration in toApply) {
+        results.add(await _applyMigration(
+          migration,
+          manageTransaction: db.dialect.type != DialectType.sqlite,
+        ));
+      }
+      return results;
+    });
   }
 
   /// Rolls back a single applied [migration] using its `-- down` section within a transaction.
@@ -336,14 +375,22 @@ VALUES (${dialect.placeholder(1)}, ${dialect.placeholder(2)})''';
   /// print('Reverted: ${reverted.name}');
   /// ```
   Future<BloomMigration> rollbackMigration(BloomMigration migration) async {
+    return _rollbackMigration(migration, manageTransaction: true);
+  }
+
+  Future<BloomMigration> _rollbackMigration(
+    BloomMigration migration, {
+    required bool manageTransaction,
+  }) async {
     if (!migration.hasDown) {
-      throw MigrationNonInvertibleException('${migration.app}/${migration.name}');
+      throw MigrationNonInvertibleException(
+          '${migration.app}/${migration.name}');
     }
 
     await ensureTrackingTable();
     final dialect = db.dialect;
 
-    await db.execute('BEGIN');
+    if (manageTransaction) await db.execute('BEGIN');
 
     try {
       // Execute down statements in sequence
@@ -360,11 +407,11 @@ WHERE app = ${dialect.placeholder(1)} AND name = ${dialect.placeholder(2)}''';
 
       await db.execute(deleteSql, [migration.app, migration.name]);
 
-      await db.execute('COMMIT');
+      if (manageTransaction) await db.execute('COMMIT');
       return migration;
     } catch (e, st) {
       try {
-        await db.execute('ROLLBACK');
+        if (manageTransaction) await db.execute('ROLLBACK');
       } catch (_) {}
 
       throw MigrationExecutionException(
@@ -400,35 +447,80 @@ WHERE app = ${dialect.placeholder(1)} AND name = ${dialect.placeholder(2)}''';
   }) async {
     if (count <= 0) return [];
 
-    final applied = await getAppliedMigrations(app: app);
-    if (applied.isEmpty) {
-      return [];
-    }
+    return _withDeploymentLock(() async {
+      final applied = await getAppliedMigrations(app: app);
+      if (applied.isEmpty) return <BloomMigration>[];
 
-    final allDiscovered = discoverMigrations(app: app);
-    final migrationMap = {
-      for (final m in allDiscovered) '${m.app}:${m.name}': m,
-    };
+      final allDiscovered = discoverMigrations(app: app);
+      _validateAppliedChecksums(applied, allDiscovered);
+      final migrationMap = {
+        for (final migration in allDiscovered)
+          '${migration.app}:${migration.name}': migration,
+      };
+      final toRollback = applied.reversed.take(count).toList();
+      final results = <BloomMigration>[];
 
-    // Take the most recently applied migrations (end of the list)
-    final toRollback = applied.reversed.take(count).toList();
-    final results = <BloomMigration>[];
-
-    for (final record in toRollback) {
-      final key = '${record.app}:${record.name}';
-      final migration = migrationMap[key];
-
-      if (migration == null) {
-        throw MigrationFileNotFoundException(
-          'Could not find local migration file for applied migration $key',
+      for (final record in toRollback) {
+        final key = '${record.app}:${record.name}';
+        final migration = migrationMap[key];
+        if (migration == null) {
+          throw MigrationFileNotFoundException(
+            'Could not find local migration file for applied migration $key',
+          );
+        }
+        await _rollbackMigration(
+          migration,
+          manageTransaction: db.dialect.type != DialectType.sqlite,
         );
+        results.add(migration);
       }
+      return results;
+    });
+  }
 
-      await rollbackMigration(migration);
-      results.add(migration);
+  String _checksum(BloomMigration migration) => _sha256(migration.upSql);
+
+  void _validateAppliedChecksums(
+    List<AppliedMigration> applied,
+    List<BloomMigration> discovered,
+  ) {
+    final migrations = {
+      for (final migration in discovered)
+        '${migration.app}:${migration.name}': migration,
+    };
+    for (final record in applied) {
+      final migration = migrations['${record.app}:${record.name}'];
+      if (migration != null && record.checksum != _checksum(migration)) {
+        throw StateError(
+            'Migration ${record.app}/${record.name} was changed after being applied.');
+      }
+    }
+  }
+
+  Future<T> _withDeploymentLock<T>(Future<T> Function() operation) async {
+    if (db.dialect.type == DialectType.postgres) {
+      await db.execute('SELECT pg_advisory_lock($_postgresLockId)');
+      try {
+        return await operation();
+      } finally {
+        await db.execute('SELECT pg_advisory_unlock($_postgresLockId)');
+      }
     }
 
-    return results;
+    await db.execute(
+        'CREATE TABLE IF NOT EXISTS $_lockTableName (id INTEGER PRIMARY KEY CHECK (id = 1))');
+    await db.execute('BEGIN IMMEDIATE');
+    try {
+      await db.execute('INSERT OR IGNORE INTO $_lockTableName (id) VALUES (1)');
+      final result = await operation();
+      await db.execute('COMMIT');
+      return result;
+    } catch (_) {
+      try {
+        await db.execute('ROLLBACK');
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   static bool _isMigrationFile(String fileName) {
@@ -436,4 +528,154 @@ WHERE app = ${dialect.placeholder(1)} AND name = ${dialect.placeholder(2)}''';
     final stem = p.basenameWithoutExtension(fileName);
     return RegExp(r'^\d{4}_').hasMatch(stem);
   }
+}
+
+String _sha256(String value) {
+  const mask = 0xffffffff;
+  const initialHash = [
+    0x6a09e667,
+    0xbb67ae85,
+    0x3c6ef372,
+    0xa54ff53a,
+    0x510e527f,
+    0x9b05688c,
+    0x1f83d9ab,
+    0x5be0cd19,
+  ];
+  const constants = [
+    0x428a2f98,
+    0x71374491,
+    0xb5c0fbcf,
+    0xe9b5dba5,
+    0x3956c25b,
+    0x59f111f1,
+    0x923f82a4,
+    0xab1c5ed5,
+    0xd807aa98,
+    0x12835b01,
+    0x243185be,
+    0x550c7dc3,
+    0x72be5d74,
+    0x80deb1fe,
+    0x9bdc06a7,
+    0xc19bf174,
+    0xe49b69c1,
+    0xefbe4786,
+    0x0fc19dc6,
+    0x240ca1cc,
+    0x2de92c6f,
+    0x4a7484aa,
+    0x5cb0a9dc,
+    0x76f988da,
+    0x983e5152,
+    0xa831c66d,
+    0xb00327c8,
+    0xbf597fc7,
+    0xc6e00bf3,
+    0xd5a79147,
+    0x06ca6351,
+    0x14292967,
+    0x27b70a85,
+    0x2e1b2138,
+    0x4d2c6dfc,
+    0x53380d13,
+    0x650a7354,
+    0x766a0abb,
+    0x81c2c92e,
+    0x92722c85,
+    0xa2bfe8a1,
+    0xa81a664b,
+    0xc24b8b70,
+    0xc76c51a3,
+    0xd192e819,
+    0xd6990624,
+    0xf40e3585,
+    0x106aa070,
+    0x19a4c116,
+    0x1e376c08,
+    0x2748774c,
+    0x34b0bcb5,
+    0x391c0cb3,
+    0x4ed8aa4a,
+    0x5b9cca4f,
+    0x682e6ff3,
+    0x748f82ee,
+    0x78a5636f,
+    0x84c87814,
+    0x8cc70208,
+    0x90befffa,
+    0xa4506ceb,
+    0xbef9a3f7,
+    0xc67178f2,
+  ];
+  final bytes = List<int>.from(utf8.encode(value));
+  final bitLength = bytes.length * 8;
+  bytes.add(0x80);
+  while (bytes.length % 64 != 56) {
+    bytes.add(0);
+  }
+  for (var shift = 56; shift >= 0; shift -= 8) {
+    bytes.add((bitLength >> shift) & 0xff);
+  }
+
+  final hash = List<int>.from(initialHash);
+  int rotateRight(int number, int amount) =>
+      ((number >>> amount) | (number << (32 - amount))) & mask;
+
+  for (var offset = 0; offset < bytes.length; offset += 64) {
+    final words = List<int>.filled(64, 0);
+    for (var index = 0; index < 16; index++) {
+      final start = offset + index * 4;
+      words[index] = (bytes[start] << 24) |
+          (bytes[start + 1] << 16) |
+          (bytes[start + 2] << 8) |
+          bytes[start + 3];
+    }
+    for (var index = 16; index < 64; index++) {
+      final lower = words[index - 15];
+      final upper = words[index - 2];
+      words[index] = (words[index - 16] +
+              (rotateRight(lower, 7) ^ rotateRight(lower, 18) ^ (lower >>> 3)) +
+              words[index - 7] +
+              (rotateRight(upper, 17) ^
+                  rotateRight(upper, 19) ^
+                  (upper >>> 10))) &
+          mask;
+    }
+
+    var a = hash[0];
+    var b = hash[1];
+    var c = hash[2];
+    var d = hash[3];
+    var e = hash[4];
+    var f = hash[5];
+    var g = hash[6];
+    var h = hash[7];
+    for (var index = 0; index < 64; index++) {
+      final sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      final choice = (e & f) ^ ((~e) & g);
+      final temporary1 =
+          (h + sum1 + choice + constants[index] + words[index]) & mask;
+      final sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      final majority = (a & b) ^ (a & c) ^ (b & c);
+      final temporary2 = (sum0 + majority) & mask;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + temporary1) & mask;
+      d = c;
+      c = b;
+      b = a;
+      a = (temporary1 + temporary2) & mask;
+    }
+    hash[0] = (hash[0] + a) & mask;
+    hash[1] = (hash[1] + b) & mask;
+    hash[2] = (hash[2] + c) & mask;
+    hash[3] = (hash[3] + d) & mask;
+    hash[4] = (hash[4] + e) & mask;
+    hash[5] = (hash[5] + f) & mask;
+    hash[6] = (hash[6] + g) & mask;
+    hash[7] = (hash[7] + h) & mask;
+  }
+  return hash.map((word) => word.toRadixString(16).padLeft(8, '0')).join();
 }

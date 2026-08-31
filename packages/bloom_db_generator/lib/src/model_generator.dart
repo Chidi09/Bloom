@@ -1,5 +1,8 @@
 // lib/src/model_generator.dart
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:bloom_db/bloom_db.dart';
 import 'package:build/build.dart';
@@ -104,7 +107,8 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
     }
 
     final className = element.name;
-    final appLabel = annotation.peek('app')?.stringValue ?? _inferAppLabel(buildStep);
+    final appLabel =
+        annotation.peek('app')?.stringValue ?? _inferAppLabel(buildStep);
     final rawTableName = annotation.peek('tableName')?.stringValue;
     final tableName = rawTableName ?? '${appLabel}_${_snakeCase(className)}';
 
@@ -120,7 +124,8 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
       final columnName = fieldAnn?.columnName ?? _snakeCase(fieldName);
       final isPk = fieldAnn?.primaryKey ?? (fieldName == 'id');
       final isAuto = fieldAnn?.auto ?? (isPk && _isInt(fieldType));
-      final isNullable = fieldAnn?.nullable ?? fieldType.nullabilitySuffix.toString().contains('?');
+      final isNullable = fieldAnn?.nullable ??
+          (fieldType.nullabilitySuffix == NullabilitySuffix.question);
       final kindStr = fieldAnn?.kindString ?? _inferFieldKind(fieldType);
 
       fields.add(_ParsedField(
@@ -165,23 +170,82 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
       final typeName = value.type?.element?.name;
       if (typeName == 'BloomField') {
         final reader = ConstantReader(value);
+        final src = meta.toSource();
+
+        if (!src.contains('(')) {
+          final isIdField = src.contains('idField');
+          return _FieldAnnotationData(
+            columnName: reader.peek('column')?.stringValue,
+            primaryKey: isIdField ? true : reader.peek('primaryKey')?.boolValue,
+            auto: isIdField ? true : reader.peek('auto')?.boolValue,
+            nullable: isIdField ? null : reader.peek('nullable')?.boolValue,
+            unique: isIdField ? null : reader.peek('unique')?.boolValue,
+            dbIndex: isIdField ? null : reader.peek('dbIndex')?.boolValue,
+            kindString: _readKind(reader.peek('kind')),
+          );
+        }
+
+        final namedArgs = _parseAnnotationNamedArgs(src);
         return _FieldAnnotationData(
-          columnName: reader.peek('column')?.stringValue,
-          primaryKey: reader.peek('primaryKey')?.boolValue ?? false,
-          auto: reader.peek('auto')?.boolValue ?? false,
-          nullable: reader.peek('nullable')?.boolValue ?? false,
-          unique: reader.peek('unique')?.boolValue ?? false,
-          dbIndex: reader.peek('dbIndex')?.boolValue ?? false,
-          kindString: _readKind(reader.peek('kind')),
+          columnName: namedArgs.contains('column')
+              ? reader.peek('column')?.stringValue
+              : null,
+          primaryKey: namedArgs.contains('primaryKey')
+              ? reader.peek('primaryKey')?.boolValue
+              : null,
+          auto: namedArgs.contains('auto')
+              ? reader.peek('auto')?.boolValue
+              : null,
+          nullable: namedArgs.contains('nullable')
+              ? reader.peek('nullable')?.boolValue
+              : null,
+          unique: namedArgs.contains('unique')
+              ? reader.peek('unique')?.boolValue
+              : null,
+          dbIndex: namedArgs.contains('dbIndex')
+              ? reader.peek('dbIndex')?.boolValue
+              : null,
+          kindString: namedArgs.contains('kind')
+              ? _readKind(reader.peek('kind'))
+              : null,
         );
       }
     }
     return null;
   }
 
+  static Set<String> _parseAnnotationNamedArgs(String src) {
+    try {
+      final parsed = parseString(content: '$src final _dummy = 0;');
+      if (parsed.unit.declarations.isNotEmpty) {
+        final decl = parsed.unit.declarations.first;
+        if (decl is TopLevelVariableDeclaration && decl.metadata.isNotEmpty) {
+          final ann = decl.metadata.first;
+          final args = ann.arguments?.arguments;
+          if (args != null) {
+            final set = <String>{};
+            for (final arg in args) {
+              if (arg is NamedExpression) {
+                set.add(arg.name.label.name);
+              }
+            }
+            return set;
+          }
+        }
+      }
+    } catch (_) {}
+    return const {};
+  }
+
   static String? _readKind(ConstantReader? reader) {
     if (reader == null || reader.isNull) return null;
     final obj = reader.objectValue;
+    final typeName = obj.type?.element?.name;
+    if (typeName == 'DecimalFieldKind') {
+      final prec = obj.getField('precision')?.toIntValue() ?? 10;
+      final scale = obj.getField('scale')?.toIntValue() ?? 2;
+      return 'const FieldKind.decimal(precision: $prec, scale: $scale)';
+    }
     final nameField = obj.getField('name')?.toStringValue();
     if (nameField != null) {
       if (nameField == 'decimal') {
@@ -447,20 +511,20 @@ $fromRowAssignments    );
 
 class _FieldAnnotationData {
   final String? columnName;
-  final bool primaryKey;
-  final bool auto;
-  final bool nullable;
-  final bool unique;
-  final bool dbIndex;
+  final bool? primaryKey;
+  final bool? auto;
+  final bool? nullable;
+  final bool? unique;
+  final bool? dbIndex;
   final String? kindString;
 
   _FieldAnnotationData({
     this.columnName,
-    this.primaryKey = false,
-    this.auto = false,
-    this.nullable = false,
-    this.unique = false,
-    this.dbIndex = false,
+    this.primaryKey,
+    this.auto,
+    this.nullable,
+    this.unique,
+    this.dbIndex,
     this.kindString,
   });
 }
