@@ -252,7 +252,8 @@ class BloomSearchFilter<T extends Model> extends BloomFilterBackend<T> {
     for (final field in searchFields) {
       if (meta.findField(field) != null) {
         orNodes.add(
-          UnresolvedExpr.compare('${field}__icontains', BloomValue.text(trimmed)),
+          UnresolvedExpr.compare(
+              '${field}__icontains', BloomValue.text(trimmed)),
         );
       }
     }
@@ -299,11 +300,13 @@ class BloomOrderingFilter<T extends Model> extends BloomFilterBackend<T> {
     }
 
     var orderedQs = qs;
-    final parts = raw.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty);
+    final parts =
+        raw.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty);
     for (final part in parts) {
       final isDesc = part.startsWith('-');
       final cleanField = isDesc ? part.substring(1) : part;
-      if (orderableFields.contains(cleanField) && meta.findField(cleanField) != null) {
+      if (orderableFields.contains(cleanField) &&
+          meta.findField(cleanField) != null) {
         orderedQs = orderedQs.orderBy(part);
       }
     }
@@ -311,4 +314,3 @@ class BloomOrderingFilter<T extends Model> extends BloomFilterBackend<T> {
     return orderedQs;
   }
 }
-

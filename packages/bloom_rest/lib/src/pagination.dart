@@ -372,4 +372,3 @@ class CursorPagination extends BloomPagination {
     };
   }
 }
-

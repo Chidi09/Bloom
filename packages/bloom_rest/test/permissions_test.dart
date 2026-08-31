@@ -2,7 +2,8 @@ import 'package:bloom_server/bloom_server.dart';
 import 'package:bloom_rest/bloom_rest.dart';
 import 'package:test/test.dart';
 
-BloomRequest _reqWith({String? authUserId, String? authRoles, Map<String, String>? headers}) {
+BloomRequest _reqWith(
+    {String? authUserId, String? authRoles, Map<String, String>? headers}) {
   final req = BloomRequest(
     method: 'GET',
     uri: Uri.parse('http://localhost/x'),
@@ -30,7 +31,8 @@ void main() {
       // request.params['auth_user_id'], populated by verified auth
       // middleware — never fall back to reading the Authorization header
       // itself, since an unverified bearer token string proves nothing.
-      final req = _reqWith(headers: {'authorization': 'Bearer attacker-supplied-token'});
+      final req = _reqWith(
+          headers: {'authorization': 'Bearer attacker-supplied-token'});
       expect(resolveCurrentUserId(req), isNull);
     });
   });
@@ -70,42 +72,60 @@ void main() {
     });
 
     test('allows when a verified user id is present', () {
-      expect(const IsAuthenticated().hasPermission(_reqWith(authUserId: '1')), isTrue);
+      expect(const IsAuthenticated().hasPermission(_reqWith(authUserId: '1')),
+          isTrue);
     });
   });
 
   group('IsStaff', () {
     test('denies a plain authenticated user', () {
-      expect(const IsStaff().hasPermission(_reqWith(authUserId: '1', authRoles: 'user')), isFalse);
+      expect(
+          const IsStaff()
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'user')),
+          isFalse);
     });
 
     test('allows a user with the staff role', () {
-      expect(const IsStaff().hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')), isTrue);
+      expect(
+          const IsStaff()
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')),
+          isTrue);
     });
 
     test('allows an admin (implicitly satisfies staff)', () {
-      expect(const IsStaff().hasPermission(_reqWith(authUserId: '1', authRoles: 'admin')), isTrue);
+      expect(
+          const IsStaff()
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'admin')),
+          isTrue);
     });
   });
 
   group('IsSuperuser', () {
     test('denies staff-only users', () {
-      expect(const IsSuperuser().hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')), isFalse);
+      expect(
+          const IsSuperuser()
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')),
+          isFalse);
     });
 
     test('allows superuser role', () {
-      expect(const IsSuperuser().hasPermission(_reqWith(authUserId: '1', authRoles: 'superuser')), isTrue);
+      expect(
+          const IsSuperuser()
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'superuser')),
+          isTrue);
     });
   });
 
   group('IsReadOnly', () {
     test('allows GET/HEAD/OPTIONS, denies mutating methods', () {
       for (final m in ['GET', 'HEAD', 'OPTIONS']) {
-        final req = BloomRequest(method: m, uri: Uri.parse('http://localhost/x'));
+        final req =
+            BloomRequest(method: m, uri: Uri.parse('http://localhost/x'));
         expect(const IsReadOnly().hasPermission(req), isTrue, reason: m);
       }
       for (final m in ['POST', 'PUT', 'PATCH', 'DELETE']) {
-        final req = BloomRequest(method: m, uri: Uri.parse('http://localhost/x'));
+        final req =
+            BloomRequest(method: m, uri: Uri.parse('http://localhost/x'));
         expect(const IsReadOnly().hasPermission(req), isFalse, reason: m);
       }
     });
@@ -114,22 +134,31 @@ void main() {
   group('Combinators', () {
     test('and() requires both to pass', () async {
       final policy = const IsAuthenticated().and(const IsStaff());
-      expect(await policy.hasPermission(_reqWith(authUserId: '1', authRoles: 'user')), isFalse);
-      expect(await policy.hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')), isTrue);
+      expect(
+          await policy
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'user')),
+          isFalse);
+      expect(
+          await policy
+              .hasPermission(_reqWith(authUserId: '1', authRoles: 'staff')),
+          isTrue);
     });
 
     test('or() requires at least one to pass', () async {
       final policy = const IsReadOnly().or(const IsStaff());
 
-      final getReq = BloomRequest(method: 'GET', uri: Uri.parse('http://localhost/x'));
+      final getReq =
+          BloomRequest(method: 'GET', uri: Uri.parse('http://localhost/x'));
       expect(await policy.hasPermission(getReq), isTrue);
 
-      final postFromStaff = BloomRequest(method: 'POST', uri: Uri.parse('http://localhost/x'));
+      final postFromStaff =
+          BloomRequest(method: 'POST', uri: Uri.parse('http://localhost/x'));
       postFromStaff.params['auth_user_id'] = '1';
       postFromStaff.params['auth_roles'] = 'staff';
       expect(await policy.hasPermission(postFromStaff), isTrue);
 
-      final postFromPlainUser = BloomRequest(method: 'POST', uri: Uri.parse('http://localhost/x'));
+      final postFromPlainUser =
+          BloomRequest(method: 'POST', uri: Uri.parse('http://localhost/x'));
       postFromPlainUser.params['auth_user_id'] = '1';
       postFromPlainUser.params['auth_roles'] = 'user';
       expect(await policy.hasPermission(postFromPlainUser), isFalse);

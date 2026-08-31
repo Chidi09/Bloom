@@ -235,10 +235,17 @@ class BloomViewSet<T extends Model> {
       }
     }
 
-    // 2. Enforce permission check
+    // 2. Enforce permission check (401 for unauthenticated, 403 for authenticated but denied)
     final hasPerm = await options.permission.hasPermission(req);
     if (!hasPerm) {
-      return BloomResponse.unauthorized('Permission denied');
+      final userId = resolveCurrentUserId(req);
+      if (userId == null || userId.isEmpty) {
+        return BloomResponse.unauthorized(
+          'Authentication credentials were not provided or are invalid.',
+        );
+      } else {
+        return BloomResponse.forbidden('Permission denied.');
+      }
     }
 
     return null;
@@ -264,21 +271,30 @@ class BloomViewSet<T extends Model> {
     // 2. Apply configured filter backends (search, ordering, custom)
     qs = applyFilterBackends(options.filterBackends, req, qs, meta);
 
-    // 3. Apply orderable_fields allowlist if ordering param present and not already handled
+    final isCursorPagination = options.config.cursorPagination ||
+        options.pagination is CursorPagination;
+
+    // 3. Resolve ordering
     final orderingParam = req.queryParams['ordering'];
     String? cursorOrderField;
     bool cursorDescending = false;
 
     if (orderingParam != null && orderingParam.trim().isNotEmpty) {
-      for (final part in orderingParam.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty)) {
+      for (final part in orderingParam
+          .split(',')
+          .map((p) => p.trim())
+          .where((p) => p.isNotEmpty)) {
         final isDesc = part.startsWith('-');
         final cleanField = isDesc ? part.substring(1) : part;
-        if (options.config.orderableFields.contains(cleanField) && meta.findField(cleanField) != null) {
+        if (options.config.orderableFields.contains(cleanField) &&
+            meta.findField(cleanField) != null) {
           if (cursorOrderField == null) {
             cursorOrderField = cleanField;
             cursorDescending = isDesc;
           }
-          qs = qs.orderBy(part);
+          if (!isCursorPagination) {
+            qs = qs.orderBy(part);
+          }
         }
       }
     }
@@ -286,9 +302,31 @@ class BloomViewSet<T extends Model> {
     final total = await qs.count(db);
 
     // 4. Cursor Pagination path
-    if (options.config.cursorPagination || options.pagination is CursorPagination) {
-      final orderField = cursorOrderField ?? meta.primaryKeyField.name;
+    if (isCursorPagination) {
+      // Honor CursorPagination.orderingField when request query param ordering is absent
+      if (cursorOrderField == null && options.pagination is CursorPagination) {
+        final cpOrdering =
+            (options.pagination as CursorPagination).orderingField.trim();
+        final isDesc = cpOrdering.startsWith('-');
+        final cleanField = isDesc ? cpOrdering.substring(1) : cpOrdering;
+        if (meta.findField(cleanField) != null) {
+          cursorOrderField = cleanField;
+          cursorDescending = isDesc;
+        }
+      }
+
       final pkField = meta.primaryKeyField.name;
+      cursorOrderField ??= pkField;
+
+      // Apply deterministic ordering with primary-key tie-breaker
+      if (cursorOrderField != pkField) {
+        qs = qs.orderBy(
+            cursorDescending ? '-$cursorOrderField' : cursorOrderField);
+        qs = qs.orderBy(cursorDescending ? '-$pkField' : pkField);
+      } else {
+        qs = qs.orderBy(cursorDescending ? '-$pkField' : pkField);
+      }
+
       final perPage = options.pagination.pageSize(req);
 
       final rawCursor = req.queryParams['cursor'];
@@ -296,24 +334,36 @@ class BloomViewSet<T extends Model> {
         final decoded = decodeCursor(rawCursor);
         if (decoded != null) {
           final (cursorPk, rawVal) = decoded;
-          final pkBloomVal = cursorPk is int
-              ? BloomValue.i64(cursorPk)
-              : BloomValue.text(cursorPk.toString());
-          if (rawVal != null) {
-            final parsedVal = parseTypedValue(meta, orderField, rawVal);
+          final pkBloomVal =
+              parseTypedValue(meta, pkField, cursorPk.toString()) ??
+                  (cursorPk is int
+                      ? BloomValue.i64(cursorPk)
+                      : BloomValue.text(cursorPk.toString()));
+          if (rawVal != null && cursorOrderField != pkField) {
+            final parsedVal = parseTypedValue(meta, cursorOrderField, rawVal);
             if (parsedVal != null) {
               final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
+              final pkOp = cursorDescending ? CompareOp.lt : CompareOp.gt;
               qs = qs.filter(BloomExpr.or([
-                BloomExpr.compare(field: orderField, op: op, value: parsedVal),
+                BloomExpr.compare(
+                    field: cursorOrderField, op: op, value: parsedVal),
                 BloomExpr.and([
-                  BloomExpr.compare(field: orderField, op: CompareOp.eq, value: parsedVal),
+                  BloomExpr.compare(
+                      field: cursorOrderField,
+                      op: CompareOp.eq,
+                      value: parsedVal),
                   BloomExpr.compare(
                     field: pkField,
-                    op: cursorDescending ? CompareOp.lt : CompareOp.gt,
+                    op: pkOp,
                     value: pkBloomVal,
                   ),
                 ]),
               ]));
+            } else {
+              final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
+              qs = qs.filter(
+                BloomExpr.compare(field: pkField, op: op, value: pkBloomVal),
+              );
             }
           } else {
             final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
@@ -332,15 +382,27 @@ class BloomViewSet<T extends Model> {
       if (hasNext && items.isNotEmpty) {
         final lastItem = items.last;
         final values = lastItem.fieldValues();
-        final pkVal = values.firstWhere((v) => v.$1 == pkField, orElse: () => (pkField, const BloomValue.nullVal())).$2.raw;
-        final sortVal = values.firstWhere((v) => v.$1 == orderField, orElse: () => (orderField, const BloomValue.nullVal())).$2.raw;
+        final pkVal = values
+            .firstWhere((v) => v.$1 == pkField,
+                orElse: () => (pkField, const BloomValue.nullVal()))
+            .$2
+            .raw;
+        final sortVal = values
+            .firstWhere((v) => v.$1 == cursorOrderField,
+                orElse: () => (cursorOrderField!, const BloomValue.nullVal()))
+            .$2
+            .raw;
         nextCursor = encodeCursor(pkVal ?? 0, sortVal);
       }
 
       final results = options.serializer.toRepresentationMany(items);
       final pagination = options.pagination is CursorPagination
           ? options.pagination as CursorPagination
-          : CursorPagination(defaultPageSize: perPage);
+          : CursorPagination(
+              defaultPageSize: perPage,
+              orderingField:
+                  cursorDescending ? '-$cursorOrderField' : cursorOrderField,
+            );
 
       return BloomResponse.json(
         pagination.envelopeWithCursor(total, results, nextCursor: nextCursor),
@@ -376,7 +438,8 @@ class BloomViewSet<T extends Model> {
     final db = getDb(req);
     final pkStr = req.params['pk'] ?? req.params['id'];
     if (pkStr == null) {
-      return BloomResponse.error('Missing primary key parameter', statusCode: 400);
+      return BloomResponse.error('Missing primary key parameter',
+          statusCode: 400);
     }
     final pk = _parsePk(pkStr);
     if (pk == null) {
@@ -425,15 +488,15 @@ class BloomViewSet<T extends Model> {
       final pk = await QuerySet.insertRaw(db, meta, values ?? {});
       final pkField = meta.primaryKeyField.name;
       final createdItem = await QuerySet<T>(meta: meta, fromRow: fromRow)
-          .filter({pkField: pk})
-          .get(db);
+          .filter({pkField: pk}).get(db);
 
       return BloomResponse.json(
         options.serializer.toRepresentation(createdItem),
         statusCode: 201,
       );
     } catch (e) {
-      return BloomResponse.error('Failed to create record: $e', statusCode: 500);
+      return BloomResponse.error('Failed to create record: $e',
+          statusCode: 500);
     }
   }
 
@@ -448,7 +511,8 @@ class BloomViewSet<T extends Model> {
     final db = getDb(req);
     final pkStr = req.params['pk'] ?? req.params['id'];
     if (pkStr == null) {
-      return BloomResponse.error('Missing primary key parameter', statusCode: 400);
+      return BloomResponse.error('Missing primary key parameter',
+          statusCode: 400);
     }
     final pk = _parsePk(pkStr);
     if (pk == null) {
@@ -464,7 +528,8 @@ class BloomViewSet<T extends Model> {
     }
 
     final isPartial = req.method.toUpperCase() == 'PATCH';
-    final (values, errors) = options.serializer.parse(bodyJson, partial: isPartial);
+    final (values, errors) =
+        options.serializer.parse(bodyJson, partial: isPartial);
     if (errors != null && errors.isNotEmpty) {
       return BloomResponse.json(
         {'errors': errors.toJson()},
@@ -481,9 +546,11 @@ class BloomViewSet<T extends Model> {
         return BloomResponse.notFound('Record not found');
       }
       final updatedItem = await qs.get(db);
-      return BloomResponse.json(options.serializer.toRepresentation(updatedItem));
+      return BloomResponse.json(
+          options.serializer.toRepresentation(updatedItem));
     } catch (e) {
-      return BloomResponse.error('Failed to update record: $e', statusCode: 500);
+      return BloomResponse.error('Failed to update record: $e',
+          statusCode: 500);
     }
   }
 
@@ -498,7 +565,8 @@ class BloomViewSet<T extends Model> {
     final db = getDb(req);
     final pkStr = req.params['pk'] ?? req.params['id'];
     if (pkStr == null) {
-      return BloomResponse.error('Missing primary key parameter', statusCode: 400);
+      return BloomResponse.error('Missing primary key parameter',
+          statusCode: 400);
     }
     final pk = _parsePk(pkStr);
     if (pk == null) {
@@ -515,7 +583,8 @@ class BloomViewSet<T extends Model> {
       }
       return BloomResponse.noContent();
     } catch (e) {
-      return BloomResponse.error('Failed to delete record: $e', statusCode: 500);
+      return BloomResponse.error('Failed to delete record: $e',
+          statusCode: 500);
     }
   }
 
@@ -583,4 +652,3 @@ void mountViewSet<T extends Model>({
   );
   viewSet.mount(router, basePath);
 }
-
