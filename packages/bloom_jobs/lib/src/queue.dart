@@ -6,11 +6,18 @@ import 'task.dart';
 /// Defines the core contract for enqueueing, scheduling, claiming, and updating
 /// background tasks across in-memory, database-backed, and distributed Redis backends.
 abstract class BloomTaskQueue {
+  /// Default duration before a running task's lease expires. Defaults to 5 minutes.
+  static const Duration standardLeaseDuration = Duration(minutes: 5);
+
+  /// The configured default lease duration for tasks claimed from this queue.
+  Duration get defaultLeaseDuration;
+
   /// Creates the default in-memory task queue.
-  factory BloomTaskQueue() = InMemoryTaskQueue;
+  factory BloomTaskQueue({Duration defaultLeaseDuration}) = InMemoryTaskQueue;
 
   /// Creates an in-memory task queue.
-  factory BloomTaskQueue.inMemory() = InMemoryTaskQueue;
+  factory BloomTaskQueue.inMemory({Duration defaultLeaseDuration}) =
+      InMemoryTaskQueue;
 
   /// Const constructor for subclassing.
   const BloomTaskQueue.base();
@@ -41,20 +48,33 @@ abstract class BloomTaskQueue {
   ///
   /// Safe against concurrent invocations across asynchronous yields and processes.
   /// If a pending and due task exists, transitions its status to [BloomTaskStatus.running],
-  /// increments [BloomQueuedTask.attempts], and returns the task.
+  /// increments [BloomQueuedTask.attempts], generates an ownership token [BloomQueuedTask.token],
+  /// and sets [BloomQueuedTask.leaseExpiresAt] based on [leaseDuration] (or [defaultLeaseDuration]).
+  ///
+  /// Before claiming pending work, any expired running leases (where `leaseExpiresAt <= now`)
+  /// are atomically reclaimed: tasks with attempts < maxAttempts are returned to pending,
+  /// while tasks that exhausted maxAttempts are marked failed.
+  ///
   /// Returns `null` if no tasks are pending and due.
-  Future<BloomQueuedTask?> claimNext([DateTime? now]);
+  Future<BloomQueuedTask?> claimNext([DateTime? now, Duration? leaseDuration]);
 
   /// Marks a task as succeeded.
   ///
-  /// Throws [StateError] if no task with [taskId] is found in the queue.
-  Future<void> markCompleted(String taskId);
+  /// Requires that [taskId] matches an actively [BloomTaskStatus.running] task and that
+  /// [token] matches the task's current ownership token.
+  ///
+  /// Throws [StateError] if no matching running task with the provided [token] is found.
+  Future<void> markCompleted(String taskId, {String? token});
 
   /// Marks a task as failed. If attempts < maxAttempts, it is requeued as pending.
   ///
-  /// Throws [StateError] if no task with [taskId] is found in the queue.
+  /// Requires that [taskId] matches an actively [BloomTaskStatus.running] task and that
+  /// [token] matches the task's current ownership token.
+  ///
+  /// Throws [StateError] if no matching running task with the provided [token] is found.
   Future<void> markFailed(
     String taskId, {
+    String? token,
     required String errorMessage,
     String? stackTrace,
     DateTime? retryAfter,
@@ -77,12 +97,18 @@ abstract class BloomTaskQueue {
 /// concurrent `claimNext()` callers never interleave across asynchronous suspension
 /// points and cannot claim the same task.
 class InMemoryTaskQueue extends BloomTaskQueue {
+  @override
+  final Duration defaultLeaseDuration;
+
   final List<BloomQueuedTask> _tasks = [];
   int _idCounter = 0;
+  int _tokenSeq = 0;
   Future<void> _lastLock = Future.value();
 
   /// Creates a new in-memory task queue.
-  InMemoryTaskQueue() : super.base();
+  InMemoryTaskQueue({
+    this.defaultLeaseDuration = BloomTaskQueue.standardLeaseDuration,
+  }) : super.base();
 
   @override
   Future<BloomQueuedTask> enqueue(
@@ -123,11 +149,33 @@ class InMemoryTaskQueue extends BloomTaskQueue {
   }
 
   @override
-  Future<BloomQueuedTask?> claimNext([DateTime? now]) {
+  Future<BloomQueuedTask?> claimNext([DateTime? now, Duration? leaseDuration]) {
     return _synchronized(() {
       final referenceTime = now ?? DateTime.now();
+      final effectiveLease = leaseDuration ?? defaultLeaseDuration;
 
-      // Find candidate tasks that are pending and due
+      // 1. Atomically reclaim expired running leases before pending work
+      for (final t in _tasks) {
+        if (t.status == BloomTaskStatus.running &&
+            t.leaseExpiresAt != null &&
+            (t.leaseExpiresAt!.isBefore(referenceTime) ||
+                t.leaseExpiresAt!.isAtSameMomentAs(referenceTime))) {
+          t.token = null;
+          t.leaseExpiresAt = null;
+          if (t.attempts >= t.maxAttempts) {
+            t.status = BloomTaskStatus.failed;
+            t.finishedAt = referenceTime;
+            t.lastError ??= 'Task lease expired';
+          } else {
+            t.status = BloomTaskStatus.pending;
+            if (t.scheduledAt.isAfter(referenceTime)) {
+              t.scheduledAt = referenceTime;
+            }
+          }
+        }
+      }
+
+      // 2. Find candidate tasks that are pending and due
       final dueTasks = _tasks.where((t) => t.isDue(referenceTime)).toList();
       if (dueTasks.isEmpty) {
         return null;
@@ -137,46 +185,81 @@ class InMemoryTaskQueue extends BloomTaskQueue {
       dueTasks.sort((a, b) {
         final cmp = a.scheduledAt.compareTo(b.scheduledAt);
         if (cmp != 0) return cmp;
-        return int.parse(a.id).compareTo(int.parse(b.id));
+        final aNum = int.tryParse(a.id);
+        final bNum = int.tryParse(b.id);
+        if (aNum != null && bNum != null) {
+          return aNum.compareTo(bNum);
+        }
+        return a.id.compareTo(b.id);
       });
 
       final task = dueTasks.first;
       task.status = BloomTaskStatus.running;
       task.attempts += 1;
-      task.startedAt = DateTime.now();
+      task.startedAt = referenceTime;
+      _tokenSeq++;
+      task.token = 'tok_${referenceTime.microsecondsSinceEpoch}_$_tokenSeq';
+      task.leaseExpiresAt = referenceTime.add(effectiveLease);
       return task;
     });
   }
 
   @override
-  Future<void> markCompleted(String taskId) {
+  Future<void> markCompleted(String taskId, {String? token}) {
     return _synchronized(() {
-      final task = _tasks.firstWhere(
-        (t) => t.id == taskId,
-        orElse: () => throw StateError('Task with id "$taskId" not found in queue.'),
-      );
+      final matches = _tasks.where((t) => t.id == taskId);
+      if (matches.isEmpty) {
+        throw StateError('Task with id "$taskId" not found in queue.');
+      }
+      final task = matches.first;
+      if (task.status != BloomTaskStatus.running) {
+        throw StateError(
+          'Task with id "$taskId" is not in running state (status: ${task.status.name}).',
+        );
+      }
+      if (token == null || token.isEmpty || task.token != token) {
+        throw StateError(
+          'Invalid or stale ownership token for task with id "$taskId".',
+        );
+      }
       task.status = BloomTaskStatus.succeeded;
       task.lastError = null;
       task.lastStackTrace = null;
       task.finishedAt = DateTime.now();
+      task.token = null;
+      task.leaseExpiresAt = null;
     });
   }
 
   @override
   Future<void> markFailed(
     String taskId, {
+    String? token,
     required String errorMessage,
     String? stackTrace,
     DateTime? retryAfter,
   }) {
     return _synchronized(() {
-      final task = _tasks.firstWhere(
-        (t) => t.id == taskId,
-        orElse: () => throw StateError('Task with id "$taskId" not found in queue.'),
-      );
+      final matches = _tasks.where((t) => t.id == taskId);
+      if (matches.isEmpty) {
+        throw StateError('Task with id "$taskId" not found in queue.');
+      }
+      final task = matches.first;
+      if (task.status != BloomTaskStatus.running) {
+        throw StateError(
+          'Task with id "$taskId" is not in running state (status: ${task.status.name}).',
+        );
+      }
+      if (token == null || token.isEmpty || task.token != token) {
+        throw StateError(
+          'Invalid or stale ownership token for task with id "$taskId".',
+        );
+      }
       task.lastError = errorMessage;
       task.lastStackTrace = stackTrace;
       task.finishedAt = DateTime.now();
+      task.token = null;
+      task.leaseExpiresAt = null;
 
       if (task.attempts < task.maxAttempts) {
         task.status = BloomTaskStatus.pending;

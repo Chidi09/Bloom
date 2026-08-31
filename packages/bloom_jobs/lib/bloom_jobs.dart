@@ -31,5 +31,3 @@ export 'src/redis_task_queue.dart';
 export 'src/database_task_queue.dart';
 export 'src/recurring.dart';
 export 'src/worker.dart';
-
-
