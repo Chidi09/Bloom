@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-08-31
+
+* Maintenance release for the current ORM runtime and transaction API.
+
 ## 0.1.2 - 2026-08-26
 
 ### Added

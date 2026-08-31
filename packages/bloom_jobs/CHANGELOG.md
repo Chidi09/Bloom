@@ -1,3 +1,7 @@
+# 0.2.1 - 2026-08-31
+
+* Maintenance release for persistent queue backends and worker scheduling.
+
 # 0.2.0 - 2026-08-25
 
 ### Added
