@@ -1,6 +1,6 @@
 name: bloom_jobs
 description: Background job queue and worker system for Bloom server applications.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:

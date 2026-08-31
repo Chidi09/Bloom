@@ -1,6 +1,6 @@
 name: bloom_db_generator
 description: build_runner code generator for bloom_db models — generates ModelMeta and row-mapping boilerplate from @BloomModel annotations.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:

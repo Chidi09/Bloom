@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-08-31
+
+* Maintenance release for the migration runtime and CLI.
+
 ## 0.1.1 - 2026-08-23
 
 - Fixed `CREATE INDEX` statement generation for column lists.
