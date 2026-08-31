@@ -21,7 +21,8 @@ class AdminCsrf {
 
   /// Creates an [AdminCsrf] instance with an optional HMAC signing [_secret].
   AdminCsrf({String? secret})
-      : _secret = secret ?? 'bloom_admin_default_secret_key_change_in_production';
+      : _secret =
+            secret ?? 'bloom_admin_default_secret_key_change_in_production';
 
   /// Generates a signed, opaque CSRF token for a given session / nonce identifier.
   String generateToken([String identifier = 'session']) {
@@ -92,7 +93,10 @@ class AdminCsrf {
   bool validateRequest(BloomRequest request, [Map<String, String>? formData]) {
     final method = request.method.toUpperCase();
     // Safe HTTP methods do not require CSRF validation
-    if (method == 'GET' || method == 'HEAD' || method == 'OPTIONS' || method == 'TRACE') {
+    if (method == 'GET' ||
+        method == 'HEAD' ||
+        method == 'OPTIONS' ||
+        method == 'TRACE') {
       return true;
     }
 

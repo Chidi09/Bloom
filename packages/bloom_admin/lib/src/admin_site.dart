@@ -23,8 +23,8 @@ class BloomSiteBranding {
 
   /// Creates a [BloomSiteBranding] configuration with customizable header, title, logo, and accent color.
   const BloomSiteBranding({
-    this.siteHeader = 'Bloom Administration',
-    this.siteTitle = 'Bloom site admin',
+    this.siteHeader = 'Bloom Console',
+    this.siteTitle = 'Bloom Console',
     this.logoUrl,
     this.accentColor,
   });
@@ -63,7 +63,6 @@ class BloomAdminSite {
     AdminCsrf? csrf,
   })  : branding = branding ?? const BloomSiteBranding(),
         csrf = csrf ?? AdminCsrf();
-
 
   /// Sets the admin site header text.
   BloomAdminSite withSiteHeader(String header) {
@@ -124,8 +123,11 @@ class BloomAdminSite {
   ///
   /// [db] provides the database connection / executor for ORM operations.
   /// [basePath] is the prefix under which admin routes are mounted (e.g. `""` or `"/admin"`).
-  void mount(BloomApiRouter router, {required DbExecutor db, String basePath = ''}) {
-    final prefix = basePath.endsWith('/') ? basePath.substring(0, basePath.length - 1) : basePath;
+  void mount(BloomApiRouter router,
+      {required DbExecutor db, String basePath = ''}) {
+    final prefix = basePath.endsWith('/')
+        ? basePath.substring(0, basePath.length - 1)
+        : basePath;
 
     // Index / Dashboard View
     router.get('$prefix/', (req) async {
@@ -155,7 +157,8 @@ class BloomAdminSite {
 
     // Changelist / Table View
     router.get('$prefix/:app/:model/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return changelistView(
         request: req,
@@ -168,7 +171,8 @@ class BloomAdminSite {
 
     // CSV Export
     router.get('$prefix/:app/:model/export-csv/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return exportCsvView(
         request: req,
@@ -179,7 +183,8 @@ class BloomAdminSite {
 
     // Add GET
     router.get('$prefix/:app/:model/add/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return addGetView(
         request: req,
@@ -192,7 +197,8 @@ class BloomAdminSite {
 
     // Add POST
     router.post('$prefix/:app/:model/add/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return addPostView(
         request: req,
@@ -205,7 +211,8 @@ class BloomAdminSite {
 
     // Change GET
     router.get('$prefix/:app/:model/:pk/change/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return changeGetView(
         request: req,
@@ -218,7 +225,8 @@ class BloomAdminSite {
 
     // Change POST
     router.post('$prefix/:app/:model/:pk/change/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return changePostView(
         request: req,
@@ -231,7 +239,8 @@ class BloomAdminSite {
 
     // Delete GET
     router.get('$prefix/:app/:model/:pk/delete/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return deleteGetView(
         request: req,
@@ -244,7 +253,8 @@ class BloomAdminSite {
 
     // Delete POST
     router.post('$prefix/:app/:model/:pk/delete/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return deletePostView(
         request: req,
@@ -256,7 +266,8 @@ class BloomAdminSite {
 
     // Bulk Delete POST
     router.post('$prefix/:app/:model/bulk-delete/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return bulkDeletePostView(
         request: req,
@@ -269,7 +280,8 @@ class BloomAdminSite {
 
     // Save Changelist POST
     router.post('$prefix/:app/:model/save-changelist/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return saveChangelistView(
         request: req,
@@ -281,7 +293,8 @@ class BloomAdminSite {
 
     // Bulk Action POST
     router.post('$prefix/:app/:model/bulk-action/', (req) async {
-      final admin = findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
+      final admin =
+          findAdmin(req.params['app'] ?? '', req.params['model'] ?? '');
       if (admin == null) return BloomResponse.notFound('Admin model not found');
       return bulkActionView(
         request: req,

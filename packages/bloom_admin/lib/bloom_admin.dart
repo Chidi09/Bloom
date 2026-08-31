@@ -47,4 +47,3 @@ export 'src/edit_view.dart';
 export 'src/model_admin.dart';
 export 'src/templates/admin_templates.dart';
 export 'src/templates/template_engine.dart';
-
