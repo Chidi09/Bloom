@@ -248,8 +248,8 @@ class BloomMigration implements Comparable<BloomMigration> {
 /// Splits a raw SQL block into executable statements, properly handling semicolons
 /// and ignoring comments and string literals.
 ///
-/// Recognizes single-line comments starting with `--`, string literals wrapped in single
-/// (`'`) or double (`"`) quotes, and escaped single quotes (`''`). Empty statements are excluded.
+/// Recognizes line comments, nested block comments, quoted strings, and PostgreSQL
+/// dollar-quoted literals. Empty statements are excluded.
 ///
 /// Example:
 /// ```dart
@@ -266,49 +266,86 @@ List<String> splitSqlStatements(String sql) {
 
   final statements = <String>[];
   final buffer = StringBuffer();
-  var inString = false;
-  var stringChar = '';
+  String? quote;
+  String? dollarQuote;
+  var lineComment = false;
+  var blockCommentDepth = 0;
 
-  final lines = sql.split('\n');
-  for (final rawLine in lines) {
-    final line = rawLine.trim();
-    // Skip full comment lines
-    if (line.startsWith('--')) continue;
+  for (var i = 0; i < sql.length; i++) {
+    final char = sql[i];
+    final next = i + 1 < sql.length ? sql[i + 1] : '';
 
-    for (var i = 0; i < rawLine.length; i++) {
-      final char = rawLine[i];
-
-      if (inString) {
-        buffer.write(char);
-        if (char == stringChar) {
-          // Check for escaped quote (e.g. '')
-          if (i + 1 < rawLine.length && rawLine[i + 1] == stringChar) {
-            buffer.write(rawLine[i + 1]);
-            i++;
-          } else {
-            inString = false;
-          }
-        }
+    if (lineComment) {
+      buffer.write(char);
+      if (char == '\n') lineComment = false;
+      continue;
+    }
+    if (blockCommentDepth > 0) {
+      buffer.write(char);
+      if (char == '/' && next == '*') {
+        buffer.write(next);
+        i++;
+        blockCommentDepth++;
+      } else if (char == '*' && next == '/') {
+        buffer.write(next);
+        i++;
+        blockCommentDepth--;
+      }
+      continue;
+    }
+    if (dollarQuote != null) {
+      if (sql.startsWith(dollarQuote, i)) {
+        buffer.write(dollarQuote);
+        i += dollarQuote.length - 1;
+        dollarQuote = null;
       } else {
-        if (char == "'" || char == '"') {
-          inString = true;
-          stringChar = char;
-          buffer.write(char);
-        } else if (char == '-' && i + 1 < rawLine.length && rawLine[i + 1] == '-') {
-          // Rest of line is comment
-          break;
-        } else if (char == ';') {
-          final stmt = buffer.toString().trim();
-          if (stmt.isNotEmpty) {
-            statements.add('$stmt;');
-          }
-          buffer.clear();
+        buffer.write(char);
+      }
+      continue;
+    }
+    if (quote != null) {
+      buffer.write(char);
+      if (char == quote) {
+        if (next == quote) {
+          buffer.write(next);
+          i++;
         } else {
-          buffer.write(char);
+          quote = null;
         }
       }
+      continue;
     }
-    buffer.write('\n');
+
+    if (char == '-' && next == '-') {
+      buffer.write(char);
+      buffer.write(next);
+      i++;
+      lineComment = true;
+    } else if (char == '/' && next == '*') {
+      buffer.write(char);
+      buffer.write(next);
+      i++;
+      blockCommentDepth = 1;
+    } else if (char == "'" || char == '"') {
+      quote = char;
+      buffer.write(char);
+    } else if (char == r'$') {
+      final match = RegExp(r'^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$')
+          .matchAsPrefix(sql.substring(i));
+      if (match != null) {
+        dollarQuote = match.group(0)!;
+        buffer.write(dollarQuote);
+        i += dollarQuote.length - 1;
+      } else {
+        buffer.write(char);
+      }
+    } else if (char == ';') {
+      final statement = buffer.toString().trim();
+      if (statement.isNotEmpty) statements.add('$statement;');
+      buffer.clear();
+    } else {
+      buffer.write(char);
+    }
   }
 
   final remaining = buffer.toString().trim();
