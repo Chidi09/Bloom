@@ -1,11 +1,15 @@
 // lib/src/commands/deploy_command.dart
 import 'dart:async';
 import 'dart:io';
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../deployment/deployment_target_detector.dart';
+import '../deployment/docker_bundle_generator.dart';
 import '../deployment/shorebird_config.dart';
 import '../deployment/web_deploy_targets.dart';
 import '../native/prebuild_engine.dart';
+import '../templates/deployment_templates.dart';
 import '../templates/templates.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
@@ -30,22 +34,30 @@ const List<String> supportedTargets = [
 ///
 /// Supports static web hosting targets (Netlify, Vercel, Nginx, Docker) and mobile
 /// Over-The-Air code patches or base binary releases across Android and iOS.
+/// Also provides subcommands: `bloom deploy init` and `bloom deploy docker`.
 ///
 /// Example:
 /// ```
 /// bloom deploy --target web --host-format netlify --host-format vercel
 /// bloom deploy --target android --flavor production --patch --channel production
-/// bloom deploy --target ios --release --flavor staging --dry-run
+/// bloom deploy init
+/// bloom deploy docker --production-only
 /// ```
 class DeployCommand extends Command<int> {
   @override
   final String name = 'deploy';
   @override
   final String description =
-      'Deploys web hosting configurations or Over-The-Air (OTA) mobile patches/releases using Shorebird.';
+      'Deploys web hosting configurations, OTA mobile patches/releases, or Docker lifecycle bundles.';
 
   DeployCommand() {
-    argParser
+    _setupRootArgParser(argParser);
+    _setupInitSubparser(argParser.addCommand('init'));
+    _setupDockerSubparser(argParser.addCommand('docker'));
+  }
+
+  void _setupRootArgParser(ArgParser parser) {
+    parser
       ..addOption(
         'channel',
         abbr: 'c',
@@ -99,8 +111,289 @@ class DeployCommand extends Command<int> {
       );
   }
 
+  void _setupInitSubparser(ArgParser parser) {
+    parser
+      ..addOption(
+        'target',
+        abbr: 't',
+        help: 'Override detected target platform (flutter, js_native, server, hybrid).',
+        allowed: ['flutter', 'js_native', 'server', 'hybrid'],
+      )
+      ..addOption(
+        'project-dir',
+        help: 'Explicit path to the Bloom project directory.',
+      )
+      ..addFlag(
+        'force',
+        abbr: 'f',
+        help: 'Overwrite existing deployment configuration in bloom.yaml.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'dry-run',
+        help: 'Preview deployment initialization changes without modifying files on disk.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'non-interactive',
+        abbr: 'y',
+        aliases: ['yes'],
+        help: 'Run in non-interactive mode without prompting.',
+        defaultsTo: false,
+      );
+  }
+
+  void _setupDockerSubparser(ArgParser parser) {
+    parser
+      ..addOption(
+        'target',
+        abbr: 't',
+        help: 'Target platform override (flutter, js_native, server, hybrid).',
+        allowed: ['flutter', 'js_native', 'server', 'hybrid'],
+      )
+      ..addFlag(
+        'production-only',
+        help: 'Generate only production Dockerfile and omit Compose local development bundle.',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'output',
+        abbr: 'o',
+        help: 'Explicit output directory for generated deployment files (defaults to project root).',
+      )
+      ..addOption(
+        'project-dir',
+        help: 'Explicit path to the Bloom project directory.',
+      )
+      ..addFlag(
+        'dry-run',
+        help: 'Preview planned deployment files without writing them to disk.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'force',
+        abbr: 'f',
+        help: 'Overwrite existing Docker and deployment files.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'non-interactive',
+        abbr: 'y',
+        aliases: ['yes'],
+        help: 'Run non-interactively in automated / CI pipelines.',
+        defaultsTo: false,
+      );
+  }
+
   @override
   Future<int> run() async {
+    final subcommand = argResults?.command;
+    if (subcommand != null) {
+      if (subcommand.name == 'init') {
+        return _runInit(subcommand);
+      } else if (subcommand.name == 'docker') {
+        return _runDocker(subcommand);
+      }
+    }
+
+    // Check rest arguments for init or docker fallback
+    final rest = argResults?.rest ?? [];
+    if (rest.isNotEmpty) {
+      if (rest.first == 'init') {
+        return _runInit(argResults!);
+      } else if (rest.first == 'docker') {
+        return _runDocker(argResults!);
+      }
+    }
+
+    return _runRootDeploy();
+  }
+
+  Future<int> _runInit(ArgResults args) async {
+    final explicitDir =
+        args.options.contains('project-dir') && args['project-dir'] != null
+            ? Directory(args['project-dir'] as String)
+            : null;
+
+    final project = BloomProject.find(explicitDir);
+    if (project == null) {
+      print(Ansi.error('No Bloom project found in current directory or parent directories.'));
+      return 1;
+    }
+
+    final targetOverride = args.options.contains('target') ? args['target'] as String? : null;
+    final isForce = args.options.contains('force') ? args['force'] as bool? ?? false : false;
+    final isDryRun = args.options.contains('dry-run') ? args['dry-run'] as bool? ?? false : false;
+    final isNonInteractive = args.options.contains('non-interactive') ? args['non-interactive'] as bool? ?? false : false;
+
+    if (isNonInteractive) {
+      print(Ansi.dimText('Running deployment initialization non-interactively in automated / CI mode.'));
+    }
+
+    print(Ansi.boldText('\n🔍 Bloom Deployment Target Auto-Detection\n'));
+
+    final detector = const BloomDeploymentTargetDetector();
+    final result = detector.detect(project, explicitTarget: targetOverride);
+
+    print('${Ansi.cyan}› Target Detected: ${Ansi.boldText(result.target.displayName)} (${result.target.id})${Ansi.reset}');
+    print('${Ansi.cyan}› Description:     ${Ansi.dimText(result.target.description)}${Ansi.reset}');
+    print('${Ansi.cyan}› App Name:        ${Ansi.boldText(result.appName)}${Ansi.reset}');
+    if (result.services.isNotEmpty) {
+      print('${Ansi.cyan}› Services:        ${Ansi.boldText(result.services.join(', '))}${Ansi.reset}');
+    }
+    if (result.defaultPorts.isNotEmpty) {
+      final portsStr = result.defaultPorts.entries.map((e) => '${e.key}:${e.value}').join(', ');
+      print('${Ansi.cyan}› Default Ports:   ${Ansi.boldText(portsStr)}${Ansi.reset}');
+    }
+
+    print('\n${Ansi.boldText('Evidence & Indicators:')}');
+    for (final reason in result.reasons) {
+      print('  • $reason');
+    }
+
+    if (isDryRun) {
+      print(Ansi.step('\nPlanned deployment initialization changes (Dry Run):'));
+      final yamlFile = project.bloomYamlFile;
+      if (yamlFile.existsSync()) {
+        final content = yamlFile.readAsStringSync();
+        if (!content.contains('deployment:') || isForce) {
+          print(Ansi.info('  • Update ${yamlFile.path} (target: ${result.target.id})'));
+        } else {
+          print(Ansi.dimText('  - ${yamlFile.path} (already configured, skipped)'));
+        }
+      }
+      final envExample = File(p.join(project.rootDir.path, '.env.example'));
+      if (!envExample.existsSync() || isForce) {
+        print(Ansi.info('  • Create ${envExample.path} (.env.example template)'));
+      } else {
+        print(Ansi.dimText('  - ${envExample.path} (already exists, skipped)'));
+      }
+      print(Ansi.success('\n✔ Dry run complete. 0 files written or modified on disk.\n'));
+      return 0;
+    }
+
+    // Update bloom.yaml if needed
+    final yamlFile = project.bloomYamlFile;
+    if (yamlFile.existsSync()) {
+      var content = yamlFile.readAsStringSync();
+      if (!content.contains('deployment:') || isForce) {
+        if (!content.contains('deployment:')) {
+          content = '$content\ndeployment:\n  target: ${result.target.id}\n';
+        } else if (isForce) {
+          content = content.replaceAll(
+            RegExp(r'deployment:\s*\n\s*target:\s*[a-zA-Z0-9_\-]+'),
+            'deployment:\n  target: ${result.target.id}',
+          );
+        }
+        yamlFile.writeAsStringSync(content);
+        print(Ansi.success('\n✔ Updated bloom.yaml with deployment target: ${result.target.id}'));
+      } else {
+        print(Ansi.info('\nbloom.yaml already contains deployment configuration. Use --force to overwrite.'));
+      }
+    }
+
+    // Ensure .env.example exists
+    final envExample = File(p.join(project.rootDir.path, '.env.example'));
+    if (!envExample.existsSync() || isForce) {
+      envExample.writeAsStringSync(
+        BloomDeploymentTemplates.envExample(
+          target: result.target,
+          appName: result.appName,
+        ),
+      );
+      print(Ansi.success('✔ Generated .env.example environment template (Zero secrets embedded).'));
+    }
+
+    print(Ansi.boldText('\nNext Steps:'));
+    print('  1. Generate Docker production bundle: ${Ansi.cyan}bloom deploy docker${Ansi.reset}');
+    print('  2. Verify deployment toolchains:      ${Ansi.cyan}bloom doctor${Ansi.reset}\n');
+
+    return 0;
+  }
+
+  Future<int> _runDocker(ArgResults args) async {
+    final explicitDir =
+        args.options.contains('project-dir') && args['project-dir'] != null
+            ? Directory(args['project-dir'] as String)
+            : null;
+
+    final project = BloomProject.find(explicitDir);
+    if (project == null) {
+      print(Ansi.error('No Bloom project found in current directory or parent directories.'));
+      return 1;
+    }
+
+    final targetOverride = args.options.contains('target') ? args['target'] as String? : null;
+    final isProductionOnly = args.options.contains('production-only') ? args['production-only'] as bool? ?? false : false;
+    final isDryRun = args.options.contains('dry-run') ? args['dry-run'] as bool? ?? false : false;
+    final isForce = args.options.contains('force') ? args['force'] as bool? ?? false : false;
+    final isNonInteractive = args.options.contains('non-interactive') ? args['non-interactive'] as bool? ?? false : false;
+    final explicitOutput = args.options.contains('output') ? args['output'] as String? : null;
+    final outputDir = explicitOutput != null ? Directory(explicitOutput) : project.rootDir;
+
+    if (isNonInteractive) {
+      print(Ansi.dimText('Running Docker generation non-interactively in automated / CI mode.'));
+    }
+
+    final detector = const BloomDeploymentTargetDetector();
+    final result = detector.detect(project, explicitTarget: targetOverride);
+
+    final generator = const BloomDockerGenerator();
+    final bundle = generator.generate(
+      project: project,
+      target: result.target,
+      productionOnly: isProductionOnly,
+      hasSsr: result.hasSsr,
+      dbDialect: result.databaseDialect,
+    );
+
+    print(Ansi.boldText('\n🐳 Bloom Docker Deployment Generator\n'));
+    print('${Ansi.cyan}› Target:          ${Ansi.boldText(result.target.displayName)} (${result.target.id})${Ansi.reset}');
+    print('${Ansi.cyan}› Output Mode:     ${Ansi.boldText(isProductionOnly ? "Production Only (Compose omitted)" : "Full Local Dev + Production Bundle")}${Ansi.reset}');
+    print('${Ansi.cyan}› Target Directory:${Ansi.boldText(outputDir.path)}${Ansi.reset}');
+    print('${Ansi.cyan}› Artifacts:       ${Ansi.boldText(bundle.files.keys.join(', '))}${Ansi.reset}\n');
+
+    if (isDryRun) {
+      print(Ansi.step('Planned deployment files to generate (Dry Run):'));
+      for (final entry in bundle.files.entries) {
+        final filePath = p.join(outputDir.path, entry.key);
+        print(Ansi.info('  • $filePath (${entry.value.length} bytes)'));
+      }
+      print(Ansi.success('\n✔ Dry run complete. 0 files written to disk.'));
+      return 0;
+    }
+
+    // Write files to disk
+    final writtenFiles = generator.writeBundle(
+      bundle: bundle,
+      targetDir: outputDir,
+      overwrite: isForce,
+    );
+
+    if (writtenFiles.isEmpty && bundle.files.isNotEmpty) {
+      print(Ansi.warn('Files already exist in target directory. Re-run with --force to overwrite.'));
+      for (final key in bundle.files.keys) {
+        print(Ansi.dimText('  - ${p.join(outputDir.path, key)} (skipped)'));
+      }
+      return 0;
+    }
+
+    print(Ansi.step('Generated deployment artifacts:'));
+    for (final file in writtenFiles) {
+      print(Ansi.success('  ✔ ${file.path}'));
+    }
+
+    print(Ansi.success('\n✔ Docker deployment bundle generated successfully!'));
+    print('  Build image:    ${Ansi.cyan}docker build -t ${project.projectName}:latest .${Ansi.reset}');
+    if (!isProductionOnly) {
+      print('  Run local dev:  ${Ansi.cyan}docker compose up --build${Ansi.reset}');
+    }
+    print('  Verify health:  ${Ansi.cyan}bloom doctor${Ansi.reset}\n');
+
+    return 0;
+  }
+
+  Future<int> _runRootDeploy() async {
     final project = BloomProject.find();
     if (project == null) {
       print(Ansi.error('No Bloom project found in current directory or parent directories.'));

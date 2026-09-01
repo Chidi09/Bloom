@@ -2226,6 +2226,269 @@ void main() {
 
 ---
 
+### How do I configure production Docker lifecycle and deployment bundles?
+Use `bloom deploy init` to auto-detect the project target (`flutter`, `js_native`, `server`, or `hybrid`) and write deployment metadata to `bloom.yaml` along with a secret-free `.env.example`. Then generate container artifacts with `bloom deploy docker`.
+
+```bash
+# 1. Detect target and configure deployment
+bloom deploy init
+
+# 2. Generate multi-stage Dockerfile, .dockerignore, and docker-compose.yml
+bloom deploy docker
+
+# 3. Generate production-only container bundle (omits docker-compose.yml)
+bloom deploy docker --production-only
+
+# 4. Preview planned deployment files without writing to disk
+bloom deploy docker --dry-run
+
+# 5. Scan project for accidental secret leaks before building
+bloom security scan
+
+# 6. Build and run container locally
+docker compose up --build
+```
+
+Watch out: `.dockerignore` enforces a zero-secrets guarantee by ignoring `.env`, private keys, and credential stores. Always supply runtime secrets through container environment variables or orchestration secrets managers.
+
+---
+
+### How do I apply secure HTTP headers, strict CORS, and rate limiting with bloom_security?
+`package:bloom_security` provides hardened security middleware with safe, production-ready defaults:
+- **`BloomSecurityHeadersMiddleware`**: Emits `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and `default-src 'self'` CSP. HSTS is emitted **only over HTTPS** (or forwarded HTTPS) by default, protecting local HTTP development from lockouts.
+- **`BloomAdvancedCorsMiddleware`**: Strict **deny-by-default** policy (`allowedOrigins: const []`). Rejects invalid cross-origin preflights with 403 Forbidden. Disallows wildcard `'*'` when `allowCredentials: true`. Use `BloomAdvancedCorsMiddleware.permissive()` only for public APIs.
+- **`BloomRateLimitMiddleware`**: Sliding-window rate limiting with `BloomTrustedProxyPredicate` to safely inspect reverse proxy headers (`X-Forwarded-For`, `CF-Connecting-IP`).
+
+```dart
+import 'package:bloom_server/bloom_server.dart';
+import 'package:bloom_security/bloom_security.dart';
+
+void main() async {
+  final router = BloomApiRouter();
+
+  // 1. Standard security headers (HSTS active only on HTTPS)
+  router.use(const BloomSecurityHeadersMiddleware());
+
+  // 2. Strict CORS allowlist
+  router.use(BloomAdvancedCorsMiddleware.strict(
+    origins: ['https://app.example.com'],
+    allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowCredentials: true,
+  ));
+
+  // 3. Sliding-window rate limit (100 req/min per IP)
+  router.use(BloomRateLimitMiddleware(
+    maxRequests: 100,
+    window: const Duration(minutes: 1),
+    isTrustedProxy: (peer) => peer == '127.0.0.1',
+  ));
+
+  router.get('/api/health', (req) => BloomResponse.json({'status': 'ok'}));
+  await router.serve(port: 8080);
+}
+```
+
+---
+
+### How do I run durable background jobs with DatabaseTaskQueue and RedisTaskQueue?
+`package:bloom_jobs` provides durable task execution across processes and isolates:
+- **`DatabaseTaskQueue`**: Backed by PostgreSQL (`FOR UPDATE SKIP LOCKED` for zero-contention atomic claims) or SQLite (atomic conditional update). Tasks include ownership tokens and lease expiration timestamps to reclaim dead worker leases automatically. Call `await queue.ensureSchema()` on boot.
+- **`RedisTaskQueue`**: Distributed cross-process queue using atomic Redis Lua scripts (`EVAL`) against scheduled ZSETs.
+- **`BloomTaskRegistry` & `BloomJobWorker`**: Register handlers and process queued tasks with concurrency controls.
+
+```dart
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_jobs/bloom_jobs.dart';
+
+Future<void> setupBackgroundJobs(DbExecutor db) async {
+  final registry = BloomTaskRegistry();
+  final queue = DatabaseTaskQueue(db);
+  await queue.ensureSchema();
+
+  // Register task handler
+  registry.register('send_welcome_email', (payload) async {
+    final email = payload['email'] as String;
+    // Process email sending
+  });
+
+  // Enqueue durable task with 5-minute lease
+  await queue.enqueue('send_welcome_email', {'email': 'user@example.com'});
+
+  // Run worker loop
+  final worker = BloomJobWorker(queue: queue, registry: registry);
+  await worker.runOnce();
+}
+```
+
+---
+
+### How do I manage database migrations and maintain schema integrity with bloom_migrate?
+`package:bloom_migrate` handles declarative and transactional schema migrations:
+- **`MigrationRunner`**: Discovers `migrations/<app>/NNNN_name.sql` files, tracks execution in `bloom_migrations`, and wraps executions in transactions (`BEGIN` / `COMMIT`).
+- **Checksum Integrity Verification**: Computes a SHA-256 checksum for each migration's `-- up` SQL. If an already-applied migration file is modified on disk, `migrate()` aborts with a `StateError`. **Never modify applied migration files in place—create a new sequential migration instead.**
+- **Deployment Locking**: Automatically acquires PostgreSQL advisory locks (`pg_advisory_lock`) or SQLite table locks (`bloom_migration_lock`) to serialize migrations during parallel server boot.
+
+```dart
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_migrate/bloom_migrate.dart';
+
+Future<void> runMigrations(DbExecutor db) async {
+  final runner = MigrationRunner(db: db, migrationsDirectory: 'migrations');
+  await runner.ensureTrackingTable();
+
+  final pending = await runner.getPendingMigrations();
+  if (pending.isNotEmpty) {
+    final applied = await runner.migrate();
+    for (final m in applied) {
+      print('Applied migration: ${m.app}/${m.name} (${m.checksum})');
+    }
+  }
+}
+```
+
+---
+
+### How do I mount secure REST ViewSets with safe defaults using bloom_rest?
+`package:bloom_rest` provides Django REST Framework-style generic CRUD ViewSets:
+- **Secure By Default**: All ViewSets require authentication (`IsAuthenticated()`) unless explicitly overridden with `AllowAny()`. Combine policies with `.and()`, `.or()`, `&`, `|`, `~`.
+- **Deny-by-Default Query Filtering**: `filterableFields` and `orderableFields` default to empty lists (`const []`). Unlisted query parameters are discarded to prevent SQL injection and un-indexed table scans.
+- **Serializer Protection**: Use `BloomFieldSet.all().withReadOnly([...])` to prevent clients from overwriting auto-generated primary keys and timestamps.
+
+```dart
+import 'package:bloom_cache/bloom_cache.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_server/bloom_server.dart';
+import 'package:bloom_rest/bloom_rest.dart';
+
+void mountArticlesApi(BloomApiRouter router, DbExecutor db, BloomCache cache) {
+  final serializer = BloomModelSerializer<Article>(
+    meta: Article.meta,
+    fields: BloomFieldSet.all().withReadOnly(['id', 'createdAt']),
+  );
+
+  final options = BloomViewSetOptions<Article>(
+    serializer: serializer,
+    permission: const IsAuthenticated().and(const IsStaff()),
+    config: const BloomViewSetConfig(
+      filterableFields: ['status', 'authorId'],
+      orderableFields: ['createdAt', 'title'],
+      defaultPageSize: 20,
+    ),
+    pagination: const PageNumberPagination(defaultPageSize: 20),
+    throttle: BloomThrottle.fromRate(
+      scope: 'articles_api',
+      rate: '120/hour',
+      cache: cache,
+    ),
+  );
+
+  mountViewSet<Article>(
+    router: router,
+    basePath: '/api/articles',
+    meta: Article.meta,
+    fromRow: Article.fromRow,
+    getDb: (req) => db,
+    options: options,
+  );
+}
+```
+
+---
+
+### How do I customize Bloom Console branding and CSRF protection with bloom_admin?
+`package:bloom_admin` provides automatic server-rendered administration interfaces:
+- **Bloom Console Branding**: Default header and title are set to `'Bloom Console'`. Customize with `BloomSiteBranding(siteHeader: ..., siteTitle: ..., logoUrl: ..., accentColor: ...)`.
+- **HMAC-SHA256 CSRF Protection**: All mutating form requests (`POST`/`DELETE`) require valid HMAC-SHA256 CSRF verification via `AdminCsrf`.
+- **Model Registration**: Configure list displays, search fields, filters, and inline editing via `BloomModelAdminConfig`.
+
+```dart
+import 'package:bloom_server/bloom_server.dart';
+import 'package:bloom_db/bloom_db.dart';
+import 'package:bloom_admin/bloom_admin.dart';
+
+void setupAdminConsole(BloomApiRouter router, DbExecutor db) {
+  final adminSite = BloomAdminSite(
+    branding: const BloomSiteBranding(
+      siteHeader: 'Bloom Console',
+      siteTitle: 'Operations Dashboard',
+    ),
+  );
+
+  adminSite.register<Article>(
+    meta: Article.meta,
+    fromRow: Article.fromRow,
+    config: const BloomModelAdminConfig(
+      listDisplay: ['id', 'title', 'status', 'createdAt'],
+      searchFields: ['title', 'content'],
+      listFilter: ['status'],
+      listEditable: ['status'],
+    ),
+  );
+
+  adminSite.mount(router, db: db, basePath: '/admin');
+}
+```
+
+---
+
+### How do I implement secure authentication, caching, and transactional mail?
+- **`package:bloom_auth_server`**: BCrypt password hashing (`hashPassword`), constant-time `dummyVerifyPassword()` to neutralize user enumeration timing attacks, signed JWT session tokens (`issueSessionToken`, `verifySessionToken`), `AuthRateLimiter` with `InMemoryLockoutManager` for consecutive failure lockouts, and single-purpose password reset tokens bound to the user's password hash.
+- **`package:bloom_cache`**: Unified caching abstraction (`BloomCacheReader`, `BloomCacheWriter`) supporting `InMemoryCache` (bounded LRU), `DatabaseCache`, and `RedisCache`. Use `cache.getOrSet()` for atomic cache stampede protection and `cache.invalidateTag()` for bulk invalidation.
+- **`package:bloom_mail`**: Transactional email using `BloomMailMessage` and `BloomMailTemplate`. Supports `BloomSmtpBackend`, `BloomConsoleBackend` (development logging), `BloomFileBackend`, and `BloomInMemoryBackend` (unit test assertions via dependency injection).
+
+```dart
+import 'package:bloom_auth_server/bloom_auth_server.dart';
+import 'package:bloom_cache/bloom_cache.dart';
+import 'package:bloom_mail/bloom_mail.dart';
+
+Future<void> handleUserLogin(
+  String email,
+  String password,
+  BloomCache cache,
+  BloomMailBackend mailer,
+) async {
+  // 1. Rate-limit login attempts per email
+  final limiter = AuthRateLimiter(maxAttempts: 5, window: const Duration(minutes: 15));
+  if (!limiter.isAllowed(email)) {
+    throw StateError('Account temporarily locked');
+  }
+
+  // 2. Constant-time dummy verification on missing user to stop user enumeration
+  final user = await cache.getOrSet('user:$email', () async => findUser(email));
+  if (user == null) {
+    dummyVerifyPassword(password);
+    limiter.recordFailure(email);
+    throw StateError('Invalid credentials');
+  }
+
+  // 3. Verify BCrypt password hash
+  if (!verifyPassword(password, user.passwordHash)) {
+    limiter.recordFailure(email);
+    throw StateError('Invalid credentials');
+  }
+
+  limiter.recordSuccess(email);
+
+  // 4. Issue session token
+  final token = issueSessionToken(
+    userId: user.id,
+    email: user.email,
+    roles: user.roles,
+    ttl: const Duration(days: 7),
+  );
+
+  // 5. Send security alert email
+  await mailer.send(BloomMailMessage(
+    to: [user.email],
+    from: 'security@bloom.dev',
+    subject: 'New login detected',
+    body: 'A new login occurred on your account.',
+  ));
+}
+```
+
+---
+
 ## 19. UI Component Primitives
 
 Bloom provides a comprehensive, 47-component UI primitives library (`package:bloom_js_native/bloom_js_native.dart`) inspired by modern design systems like shadcn/ui. Every primitive is built on pure Dart AST descriptors (`BloomNode`), styled with CSS custom property design tokens (`var(--primary)`, `var(--card)`, etc.), and adheres to strict accessibility semantics (`role`, `aria-*`).
@@ -3709,3 +3972,43 @@ Anything that attaches an external listener, DOM observer, or timer must be disp
 ### Testing (Section 16)
 
 - Test files run on the Dart VM (`dart test`), which has no DOM — never import `browser.dart` in a `test/*.dart` file. Test SSR-safe logic (signals, computed values, `renderToHtml()` output, route matching) directly; browser-only behavior (`mount()`, hydration, real DOM events) is not unit-testable and belongs behind manual/E2E verification instead.
+
+### Docker & Deployment Lifecycle (Section 18)
+
+- Always run `bloom deploy init` before generating container configurations to guarantee proper target classification (`flutter`, `js_native`, `server`, or `hybrid`).
+- Run `bloom security scan` in CI/CD before `docker build` or `bloom deploy` to catch hardcoded tokens and private keys before image packaging.
+- Do not check in `.env` files. Generated `.dockerignore` ignores `.env` and `.dart_tool` to ensure a zero-secrets build. Use `bloom deploy docker --dry-run` to preview generated Dockerfiles and Compose bundles.
+
+### Security & CORS Defaults (Section 18)
+
+- `BloomAdvancedCorsMiddleware` defaults to **deny-by-default** (`allowedOrigins: const []`). Never combine wildcard `'*'` with `allowCredentials: true`.
+- `BloomSecurityHeadersMiddleware` sets strict defaults (`nosniff`, `DENY`, `strict-origin-when-cross-origin`). HSTS is emitted only when requests arrive over HTTPS (or trusted `X-Forwarded-Proto: https`) to avoid locking out local HTTP development.
+- Configure `BloomTrustedProxyPredicate` on `BloomRateLimitMiddleware` when running behind reverse proxies (Cloudflare, Nginx, ALB) to prevent client IP spoofing via forged `X-Forwarded-For` headers.
+
+### Durable Background Queues (Section 18)
+
+- When using `DatabaseTaskQueue`, always call `await queue.ensureSchema()` during application boot.
+- Postgres `DatabaseTaskQueue` uses `FOR UPDATE SKIP LOCKED` for lock-free parallel execution; SQLite uses atomic conditional updates.
+- All tasks have automatic lease expiration and ownership tokens; long-running workers must renew leases or allow expired tasks to be automatically reclaimed by surviving workers.
+
+### Database Migration Integrity (Section 18)
+
+- **Applied migrations are immutable**: `MigrationRunner` records and checks SHA-256 checksums of applied `-- up` SQL. Modifying an already-applied migration file on disk causes `migrate()` to throw `StateError`. Never edit past migrations; add a new sequential migration instead.
+- `MigrationRunner` automatically acquires PostgreSQL advisory locks (`pg_advisory_lock`) or SQLite table locks (`bloom_migration_lock`) to prevent race conditions during parallel container rollouts.
+
+### REST Safe Defaults (Section 18)
+
+- ViewSets mounted via `mountViewSet` default to **`IsAuthenticated()`** permission. Explicitly set `permission: const AllowAny()` only for intentionally public routes.
+- `BloomViewSetConfig.filterableFields` and `orderableFields` default to empty lists (`const []`). Query parameters not in the allowlist are ignored to eliminate SQL injection vectors and un-indexed full-table scans.
+- Wrap auto-managed database columns (e.g. `id`, `created_at`, `updated_at`) with `BloomFieldSet.all().withReadOnly(...)` in serializers to prevent client-side field tampering.
+
+### Bloom Console Branding & CSRF (Section 18)
+
+- `BloomAdminSite` defaults to **`Bloom Console`** for `siteHeader` and `siteTitle`. Customize using `BloomSiteBranding` when necessary.
+- All mutating administration endpoints (`POST`/`DELETE`) enforce HMAC-SHA256 CSRF verification via `AdminCsrf`.
+
+### Auth, Cache, and Mail Constraints (Section 18)
+
+- Neutralize user enumeration timing attacks by calling `dummyVerifyPassword()` when looking up non-existent usernames.
+- Wrap expensive async computations in `cache.getOrSet()` to benefit from automatic in-flight deduplication (stampede protection).
+- Inject `BloomMailBackend` via dependency injection (`BloomContainer`), using `BloomInMemoryBackend` in tests to inspect sent messages without sending network traffic.
