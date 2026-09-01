@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'style_resolver.dart';
 
@@ -83,33 +84,34 @@ class _BloomNativeInputHostState extends State<BloomNativeInputHost> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return ui.BloomEditableField(
       controller: _controller,
       obscureText: widget.isPassword,
       maxLines: widget.maxLines,
       style: TextStyle(
         fontSize: widget.style.fontSize,
-        color: widget.style.textColor ?? Colors.white,
+        color: widget.style.textColor ?? const Color(0xFFFFFFFF),
         fontFamily: widget.style.fontFamily,
         fontWeight: widget.style.fontWeight,
       ),
-      decoration: InputDecoration(
-        hintText: widget.placeholder,
-        hintStyle: const TextStyle(color: Color(0xFF52525B), fontSize: 13),
-        filled: true,
-        fillColor: widget.style.backgroundColor ?? const Color(0xFF14141A),
-        contentPadding: widget.style.padding.isNonNegative ? widget.style.padding : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(
-          borderRadius: widget.style.borderRadius ?? BorderRadius.circular(8),
-          borderSide: BorderSide(color: widget.style.borderColor ?? const Color(0xFF1E1E24)),
+      placeholder: widget.placeholder,
+      placeholderStyle: const TextStyle(color: Color(0xFF52525B), fontSize: 13),
+      padding: widget.style.padding.isNonNegative
+          ? widget.style.padding
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: widget.style.backgroundColor ?? const Color(0xFF14141A),
+        borderRadius: widget.style.borderRadius ?? BorderRadius.circular(8),
+        border: Border.all(
+          color: widget.style.borderColor ?? const Color(0xFF1E1E24),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: widget.style.borderRadius ?? BorderRadius.circular(8),
-          borderSide: BorderSide(color: widget.style.borderColor ?? const Color(0xFF1E1E24)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: widget.style.borderRadius ?? BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+      ),
+      focusedDecoration: BoxDecoration(
+        color: widget.style.backgroundColor ?? const Color(0xFF14141A),
+        borderRadius: widget.style.borderRadius ?? BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF6366F1),
+          width: 1.5,
         ),
       ),
       onChanged: (val) {

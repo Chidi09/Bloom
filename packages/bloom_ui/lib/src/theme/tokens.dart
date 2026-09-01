@@ -1,5 +1,5 @@
 // lib/src/theme/tokens.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// 5-Petal Brand Colors and Semantic Surface tokens from the Bloom Design System.
 ///
@@ -14,6 +14,17 @@ import 'package:flutter/material.dart';
 /// );
 /// ```
 class BloomColors {
+  // Base Colors
+
+  /// Fully transparent color. Replaces Material's `Colors.transparent`.
+  static const Color transparent = Color(0x00000000);
+
+  /// Opaque white. Replaces Material's `Colors.white`.
+  static const Color white = Color(0xFFFFFFFF);
+
+  /// Opaque black. Replaces Material's `Colors.black`.
+  static const Color black = Color(0xFF000000);
+
   // Brand Petals
 
   /// Vibrant pink petal brand accent (`#FFFF4B8B`).

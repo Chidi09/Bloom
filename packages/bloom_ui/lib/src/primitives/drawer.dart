@@ -1,6 +1,7 @@
 // lib/src/primitives/drawer.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 
 /// A gesture-driven swipeable drawer bottom sheet component.
@@ -66,12 +67,11 @@ class BloomDrawer extends StatelessWidget {
     bool isDismissible = true,
     bool enableDrag = true,
   }) {
-    return showModalBottomSheet<T>(
+    return showBloomSheet<T>(
       context: context,
       isDismissible: isDismissible,
       enableDrag: enableDrag,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      side: BloomSheetSide.bottom,
       builder: builder,
     );
   }
@@ -81,36 +81,39 @@ class BloomDrawer extends StatelessWidget {
     final colors = context.bloomColors;
     final radius = context.bloomRadius.xl;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface1,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
-        border: Border(top: BorderSide(color: colors.border)),
-        boxShadow: const [BloomShadows.s3],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (showHandle)
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: colors.border,
-                    borderRadius: BorderRadius.circular(999),
+    return BloomSurface(
+      elevation: 8,
+      color: colors.surface1,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (showHandle)
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
-            if (header != null) header!,
-            if (content != null) content!,
-            if (child != null) Padding(padding: const EdgeInsets.all(16), child: child!),
-            if (footer != null) footer!,
-          ],
+              if (header != null) header!,
+              if (content != null) content!,
+              if (child != null) Padding(padding: const EdgeInsets.all(16), child: child!),
+              if (footer != null) footer!,
+            ],
+          ),
         ),
       ),
     );

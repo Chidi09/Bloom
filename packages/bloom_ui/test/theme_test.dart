@@ -1,6 +1,6 @@
 // test/theme_test.dart
 import 'package:bloom_ui/bloom_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -26,10 +26,8 @@ void main() {
       late BloomColorScheme colors;
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(
-            extensions: const [BloomTheme.light],
-          ),
+        BloomApp(
+          theme: BloomTheme.light,
           home: Builder(
             builder: (context) {
               colors = context.bloomColors;

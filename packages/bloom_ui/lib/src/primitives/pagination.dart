@@ -1,5 +1,7 @@
 // lib/src/primitives/pagination.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
 
@@ -47,7 +49,7 @@ class BloomPagination extends StatelessWidget {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.chevron_left, size: 14),
+              BloomIcon(BloomIcons.chevronLeft, size: 14),
               SizedBox(width: 4),
               Text('Previous'),
             ],
@@ -82,7 +84,7 @@ class BloomPagination extends StatelessWidget {
             children: [
               Text('Next'),
               SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 14),
+              BloomIcon(BloomIcons.chevronRight, size: 14),
             ],
           ),
         ),
@@ -121,7 +123,7 @@ class BloomPaginationNext extends StatelessWidget {
         children: [
           Text('Next'),
           SizedBox(width: 4),
-          Icon(Icons.chevron_right, size: 14),
+          BloomIcon(BloomIcons.chevronRight, size: 14),
         ],
       ),
     );
@@ -143,7 +145,7 @@ class BloomPaginationPrevious extends StatelessWidget {
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chevron_left, size: 14),
+          BloomIcon(BloomIcons.chevronLeft, size: 14),
           SizedBox(width: 4),
           Text('Previous'),
         ],
@@ -159,7 +161,7 @@ class BloomPaginationEllipsis extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Icon(Icons.more_horiz, size: 14, color: context.bloomColors.textTertiary),
+      child: BloomIcon(BloomIcons.moreHorizontal, size: 14, color: context.bloomColors.textTertiary),
     );
   }
 }

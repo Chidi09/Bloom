@@ -1,5 +1,7 @@
 // lib/src/primitives/input_group.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
 
@@ -30,7 +32,7 @@ class BloomInputGroup extends StatelessWidget {
     return Container(
       height: 32, // h-8
       decoration: BoxDecoration(
-        color: Colors.transparent,
+        color: BloomColors.transparent,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         border: Border.all(color: colors.border),
       ),

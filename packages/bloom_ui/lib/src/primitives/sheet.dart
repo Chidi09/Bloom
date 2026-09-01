@@ -1,22 +1,13 @@
 // lib/src/primitives/sheet.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 
-/// The screen edge from which a [BloomSheet] slides in.
-enum BloomSheetSide {
-  /// Slides in from the left edge of the screen.
-  left,
-
-  /// Slides in from the right edge of the screen.
-  right,
-
-  /// Slides in from the top edge of the screen.
-  top,
-
-  /// Slides in from the bottom edge of the screen.
-  bottom,
-}
+export '../utils/bloom_modal_routes.dart' show BloomSheetSide;
 
 /// A multi-directional slide-over sheet overlay component.
 ///
@@ -36,8 +27,8 @@ enum BloomSheetSide {
 ///     ),
 ///     content: Center(child: Text('Profile form content')),
 ///     footer: BloomSheetFooter(
-///       child: ElevatedButton(
-///         onPressed: () => Navigator.of(context).pop(),
+///       child: BloomPressable(
+///         onTap: () => Navigator.of(context).pop(),
 ///         child: const Text('Save Changes'),
 ///       ),
 ///     ),
@@ -85,10 +76,6 @@ class BloomSheet extends StatelessWidget {
 
   /// Displays a [BloomSheet] modal overlay sliding in from the specified [side].
   ///
-  /// When [side] is [BloomSheetSide.bottom], this uses [showModalBottomSheet].
-  /// For [BloomSheetSide.left], [BloomSheetSide.right], and [BloomSheetSide.top],
-  /// it uses [showGeneralDialog] with custom slide transitions.
-  ///
   /// * [context]: The build context to mount the modal into.
   /// * [builder]: Builder returning the sheet widget tree.
   /// * [side]: Viewport origin side (defaults to [BloomSheetSide.right]).
@@ -97,53 +84,10 @@ class BloomSheet extends StatelessWidget {
     required WidgetBuilder builder,
     BloomSheetSide side = BloomSheetSide.right,
   }) {
-    if (side == BloomSheetSide.bottom) {
-      return showModalBottomSheet<T>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: builder,
-      );
-    }
-
-    return showGeneralDialog<T>(
+    return showBloomSheet<T>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Sheet',
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      pageBuilder: (ctx, _, __) => builder(ctx),
-      transitionBuilder: (ctx, anim, _, page) {
-        Offset begin;
-        switch (side) {
-          case BloomSheetSide.left:
-            begin = const Offset(-1, 0);
-            break;
-          case BloomSheetSide.right:
-            begin = const Offset(1, 0);
-            break;
-          case BloomSheetSide.top:
-            begin = const Offset(0, -1);
-            break;
-          case BloomSheetSide.bottom:
-            begin = const Offset(0, 1);
-            break;
-        }
-        return SlideTransition(
-          position: Tween<Offset>(begin: begin, end: Offset.zero).animate(
-            CurvedAnimation(parent: anim, curve: BloomMotion.easeOut),
-          ),
-          child: Align(
-            alignment: side == BloomSheetSide.left
-                ? Alignment.centerLeft
-                : side == BloomSheetSide.right
-                    ? Alignment.centerRight
-                    : side == BloomSheetSide.top
-                        ? Alignment.topCenter
-                        : Alignment.bottomCenter,
-            child: page,
-          ),
-        );
-      },
+      builder: builder,
+      side: side,
     );
   }
 
@@ -152,20 +96,19 @@ class BloomSheet extends StatelessWidget {
     final colors = context.bloomColors;
     final isHoriz = side == BloomSheetSide.left || side == BloomSheetSide.right;
 
-    return Material(
-      color: Colors.transparent,
+    return BloomSurface(
+      elevation: 8,
+      color: colors.surface1,
       child: Container(
         width: isHoriz ? 380 : double.infinity,
         height: isHoriz ? double.infinity : 380,
         decoration: BoxDecoration(
-          color: colors.surface1,
           border: Border(
             left: side == BloomSheetSide.right ? BorderSide(color: colors.border) : BorderSide.none,
             right: side == BloomSheetSide.left ? BorderSide(color: colors.border) : BorderSide.none,
             top: side == BloomSheetSide.bottom ? BorderSide(color: colors.border) : BorderSide.none,
             bottom: side == BloomSheetSide.top ? BorderSide(color: colors.border) : BorderSide.none,
           ),
-          boxShadow: const [BloomShadows.s3],
         ),
         child: SafeArea(
           child: Stack(
@@ -183,12 +126,12 @@ class BloomSheet extends StatelessWidget {
                 Positioned(
                   top: 12,
                   right: 12,
-                  child: InkWell(
+                  child: BloomPressable(
                     onTap: onClose ?? () => Navigator.of(context).pop(),
                     borderRadius: BorderRadius.circular(context.bloomRadius.sm),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.close, size: 16, color: colors.textSecondary),
+                      child: BloomIcon(BloomIcons.close, size: 16, color: colors.textSecondary),
                     ),
                   ),
                 ),

@@ -1,5 +1,8 @@
 // lib/src/primitives/navigation_menu.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 class BloomNavigationMenuItem {
@@ -50,46 +53,46 @@ class BloomNavigationMenu extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: items.map((item) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: InkWell(
-                  onTap: item.onTap,
-                  borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                  child: Container(
-                    height: 32, // h-8
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: item.isCurrent ? colors.surface0 : Colors.transparent,
-                      borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (item.icon != null) ...[
-                          IconTheme(
-                            data: IconThemeData(
-                              color: item.isCurrent ? colors.textPrimary : colors.textSecondary,
-                              size: 14,
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: BloomPressable(
+                    onTap: item.onTap,
+                    borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                    child: Container(
+                      height: 32, // h-8
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: item.isCurrent ? colors.surface0 : BloomColors.transparent,
+                        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (item.icon != null) ...[
+                            IconTheme(
+                              data: IconThemeData(
+                                color: item.isCurrent ? colors.textPrimary : colors.textSecondary,
+                                size: 14,
+                              ),
+                              child: item.icon!,
                             ),
-                            child: item.icon!,
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            item.label,
+                            style: TextStyle(
+                              color: item.isCurrent ? colors.textPrimary : colors.textSecondary,
+                              fontSize: 13.5,
+                              fontWeight: item.isCurrent ? FontWeight.w600 : FontWeight.w500,
+                              fontFamily: context.bloomTypography.sans,
+                            ),
                           ),
-                          const SizedBox(width: 6),
                         ],
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            color: item.isCurrent ? colors.textPrimary : colors.textSecondary,
-                            fontSize: 13.5,
-                            fontWeight: item.isCurrent ? FontWeight.w600 : FontWeight.w500,
-                            fontFamily: context.bloomTypography.sans,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              );
+                );
             }).toList(),
           ),
           const Spacer(),
@@ -99,3 +102,4 @@ class BloomNavigationMenu extends StatelessWidget {
     );
   }
 }
+

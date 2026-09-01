@@ -1,6 +1,8 @@
 // lib/src/primitives/questionnaire.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
@@ -339,31 +341,29 @@ class BloomQuestionnaireChoice extends StatelessWidget {
         button: true,
         enabled: isInteractive,
         selected: selected,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: isInteractive ? onTap : null,
-            borderRadius: BorderRadius.circular(theme.radius.md),
-            child: AnimatedContainer(
-              duration: BloomMotion.instant,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: selected ? colors.muted : Colors.transparent,
-                borderRadius: BorderRadius.circular(theme.radius.md),
-                border: Border.all(
-                  color: selected ? colors.primary.withValues(alpha: 0.3) : colors.border,
-                  width: selected ? 1.5 : 1,
-                ),
+        child: BloomPressable(
+          enabled: isInteractive,
+          onTap: isInteractive ? onTap : null,
+          borderRadius: BorderRadius.circular(theme.radius.md),
+          child: AnimatedContainer(
+            duration: BloomMotion.instant,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? colors.muted : BloomColors.transparent,
+              borderRadius: BorderRadius.circular(theme.radius.md),
+              border: Border.all(
+                color: selected ? colors.primary.withValues(alpha: 0.3) : colors.border,
+                width: selected ? 1.5 : 1,
               ),
-              child: Row(
-                children: [
-                  if (indicator != null) ...[
-                    indicator!,
-                    const SizedBox(width: 10),
-                  ],
-                  Expanded(child: child),
+            ),
+            child: Row(
+              children: [
+                if (indicator != null) ...[
+                  indicator!,
+                  const SizedBox(width: 10),
                 ],
-              ),
+                Expanded(child: child),
+              ],
             ),
           ),
         ),

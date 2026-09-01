@@ -1,6 +1,11 @@
 // lib/src/primitives/combobox.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 import 'input.dart';
 
@@ -121,6 +126,7 @@ class _BloomComboboxState<T extends Object> extends State<BloomCombobox<T>> {
           _closeOverlay();
         },
         onSearchChanged: () => _overlayEntry?.markNeedsBuild(),
+        onDismiss: _closeOverlay,
       ),
     );
     Overlay.of(context).insert(_overlayEntry!);
@@ -130,7 +136,9 @@ class _BloomComboboxState<T extends Object> extends State<BloomCombobox<T>> {
   void _closeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() => _isOpen = false);
+    if (mounted) {
+      setState(() => _isOpen = false);
+    }
   }
 
   @override
@@ -175,7 +183,7 @@ class _BloomComboboxState<T extends Object> extends State<BloomCombobox<T>> {
                     ),
                   ),
                 ),
-                Icon(Icons.arrow_drop_down, color: colors.textSecondary, size: 20),
+                BloomIcon(BloomIcons.arrowDropDown, color: colors.textSecondary, size: 20),
               ],
             ),
           ),
@@ -193,6 +201,7 @@ class _ComboboxPopup<T extends Object> extends StatefulWidget {
   final double menuMaxHeight;
   final ValueChanged<BloomComboboxItem<T>> onSelected;
   final VoidCallback onSearchChanged;
+  final VoidCallback onDismiss;
 
   const _ComboboxPopup({
     required this.layerLink,
@@ -202,6 +211,7 @@ class _ComboboxPopup<T extends Object> extends StatefulWidget {
     required this.menuMaxHeight,
     required this.onSelected,
     required this.onSearchChanged,
+    required this.onDismiss,
   });
 
   @override
@@ -225,66 +235,78 @@ class _ComboboxPopupState<T extends Object> extends State<_ComboboxPopup<T>> {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return CompositedTransformFollower(
-      link: widget.layerLink,
-      targetAnchor: Alignment.bottomLeft,
-      followerAnchor: Alignment.topLeft,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          constraints: BoxConstraints(
-            minWidth: 200,
-            maxHeight: widget.menuMaxHeight,
-          ),
-          margin: const EdgeInsets.only(top: 4),
-          decoration: BoxDecoration(
-            color: colors.surface1,
-            borderRadius: BorderRadius.circular(context.bloomRadius.md),
-            border: Border.all(color: colors.border),
-            boxShadow: const [BloomShadows.s2],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                child: BloomInput(
-                  controller: widget.searchController,
-                  hintText: widget.searchPlaceholder,
-                  prefixIcon: Icon(Icons.search, color: colors.textTertiary, size: 16),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Flexible(
-                child: widget.filteredItems.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No results',
-                          style: TextStyle(
-                            color: colors.textTertiary,
-                            fontSize: 14,
-                            fontFamily: context.bloomTypography.sans,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        shrinkWrap: true,
-                        itemCount: widget.filteredItems.length,
-                        itemBuilder: (context, index) {
-                          final item = widget.filteredItems[index];
-                          return _ComboboxItemRow<T>(
-                            item: item,
-                            onTap: () => widget.onSelected(item),
-                          );
-                        },
-                      ),
-              ),
-            ],
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: widget.onDismiss,
           ),
         ),
-      ),
+        CompositedTransformFollower(
+          link: widget.layerLink,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          child: BloomSurface(
+            elevation: 4.0,
+            borderRadius: BorderRadius.circular(context.bloomRadius.md),
+            color: colors.surface1,
+            child: Container(
+              constraints: BoxConstraints(
+                minWidth: 200,
+                maxHeight: widget.menuMaxHeight,
+              ),
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: colors.surface1,
+                borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                border: Border.all(color: colors.border),
+                boxShadow: const [BloomShadows.s2],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                    child: BloomInput(
+                      controller: widget.searchController,
+                      hintText: widget.searchPlaceholder,
+                      prefixIcon: BloomIcon(BloomIcons.search, color: colors.textTertiary, size: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Flexible(
+                    child: widget.filteredItems.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              'No results',
+                              style: TextStyle(
+                                color: colors.textTertiary,
+                                fontSize: 14,
+                                fontFamily: context.bloomTypography.sans,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            shrinkWrap: true,
+                            itemCount: widget.filteredItems.length,
+                            itemBuilder: (context, index) {
+                              final item = widget.filteredItems[index];
+                              return _ComboboxItemRow<T>(
+                                item: item,
+                                onTap: () => widget.onSelected(item),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -304,26 +326,24 @@ class _ComboboxItemRow<T extends Object> extends StatelessWidget {
 
     return Semantics(
       button: true,
-      child: InkWell(
+      child: BloomPressable(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              if (item.icon != null) ...[
-                item.icon!,
-                const SizedBox(width: 8),
-              ],
-              Text(
-                item.label,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 14,
-                  fontFamily: context.bloomTypography.sans,
-                ),
-              ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            if (item.icon != null) ...[
+              item.icon!,
+              const SizedBox(width: 8),
             ],
-          ),
+            Text(
+              item.label,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 14,
+                fontFamily: context.bloomTypography.sans,
+              ),
+            ),
+          ],
         ),
       ),
     );

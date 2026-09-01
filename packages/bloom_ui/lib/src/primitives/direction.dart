@@ -1,5 +1,5 @@
 // lib/src/primitives/direction.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// Wraps content in an LTR or RTL text direction context, mirroring
 /// shadcn/ui Direction support. Useful for reading-mode and i18n layouts.

@@ -1,11 +1,12 @@
 // lib/src/primitives/toast.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../utils/bloom_surface.dart';
+import '../utils/bloom_toast_host.dart';
 import '../utils/extensions.dart';
 
 /// A lightweight floating toast notification utility.
 ///
-/// Dispatches floating SnackBar-based toast messages with structured title, optional description,
+/// Dispatches floating toast messages hosted in the overlay with structured title, optional description,
 /// leading icon, and surface container styling.
 ///
 /// Example:
@@ -14,14 +15,13 @@ import '../utils/extensions.dart';
 ///   context,
 ///   title: 'Changes saved',
 ///   description: 'Your profile settings have been updated.',
-///   icon: Icons.check_circle_outline,
 ///   duration: const Duration(seconds: 3),
 /// );
 /// ```
 class BloomToast {
   /// Displays a floating toast notification.
   ///
-  /// * [context]: Build context used to locate [ScaffoldMessenger].
+  /// * [context]: Build context used to locate the ambient overlay.
   /// * [title]: Primary headline message.
   /// * [description]: Optional secondary message details.
   /// * [icon]: Optional leading icon displayed next to the text.
@@ -34,29 +34,29 @@ class BloomToast {
     Duration duration = const Duration(seconds: 4),
   }) {
     final colors = context.bloomColors;
-    final scaffold = ScaffoldMessenger.of(context);
 
-    scaffold.showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: duration,
-        content: Container(
+    BloomToastHost.show(
+      context,
+      duration: duration,
+      alignment: BloomToastAlignment.bottomCenter,
+      child: BloomSurface(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        color: colors.surface1,
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: colors.surface1,
             borderRadius: BorderRadius.circular(context.bloomRadius.md),
             border: Border.all(color: colors.border),
-            boxShadow: const [BloomShadows.s3],
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
                 Icon(icon, color: colors.primary, size: 20),
                 const SizedBox(width: 12),
               ],
-              Expanded(
+              Flexible(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,4 +91,5 @@ class BloomToast {
     );
   }
 }
+
 

@@ -1,19 +1,23 @@
 // test/primitives_test.dart
 import 'package:bloom_ui/bloom_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Widget wrapWithTheme(Widget child) {
-    return MaterialApp(
-      theme: ThemeData(
-        extensions: const [BloomTheme.light],
-      ),
-      home: Scaffold(body: child),
+    return BloomApp(
+      theme: BloomTheme.light,
+      home: BloomScaffold(body: child),
     );
   }
+
+  /// Finds a [BloomIcon] rendering the given [icon], the Material-free
+  /// equivalent of `find.byIcon(Icons.x)`.
+  Finder findBloomIcon(BloomIconData icon) => find.byWidgetPredicate(
+        (Widget w) => w is BloomIcon && w.icon == icon,
+      );
 
   group('Bloom UI: Form Primitives', () {
     testWidgets('BloomButton renders and triggers onPressed callback', (tester) async {
@@ -43,7 +47,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(BloomSpinner), findsOneWidget);
     });
 
     testWidgets('BloomInput renders and allows entering text', (tester) async {
@@ -58,7 +62,7 @@ void main() {
       );
 
       expect(find.text('Enter name'), findsOneWidget);
-      await tester.enterText(find.byType(TextField), 'Alice');
+      await tester.enterText(find.byType(EditableText), 'Alice');
       expect(controller.text, 'Alice');
     });
 
@@ -132,7 +136,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(Slider), findsOneWidget);
+      expect(find.byType(BloomSlider), findsOneWidget);
     });
 
     testWidgets('BloomSelect renders dropdown with initial value', (tester) async {
@@ -160,13 +164,13 @@ void main() {
           BloomToggle(
             defaultChecked: false,
             onPressed: (val) => toggled = val,
-            child: const Icon(Icons.format_bold),
+            child: const BloomIcon(BloomIcons.formatBold),
           ),
         ),
       );
 
-      expect(find.byIcon(Icons.format_bold), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.format_bold));
+      expect(findBloomIcon(BloomIcons.formatBold), findsOneWidget);
+      await tester.tap(findBloomIcon(BloomIcons.formatBold));
       expect(toggled, isTrue);
     });
 
@@ -404,8 +408,8 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(findBloomIcon(BloomIcons.chevronLeft), findsOneWidget);
+      expect(findBloomIcon(BloomIcons.chevronRight), findsOneWidget);
     });
   });
 
@@ -475,7 +479,7 @@ void main() {
       expect(find.text('Go to Dashboard'), findsOneWidget);
       expect(find.text('⌘,'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField), 'Settings');
+      await tester.enterText(find.byType(EditableText), 'Settings');
       await tester.pump();
 
       expect(find.text('Open Settings'), findsOneWidget);

@@ -1,5 +1,7 @@
 // lib/src/primitives/alert.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../utils/extensions.dart';
 
 enum BloomAlertVariant {
@@ -37,19 +39,19 @@ class BloomAlert extends StatelessWidget {
     Widget defaultIcon;
     switch (variant) {
       case BloomAlertVariant.defaultVariant:
-        defaultIcon = const Icon(Icons.info_outline, size: 16);
+        defaultIcon = const BloomIcon(BloomIcons.infoOutline, size: 16);
         break;
       case BloomAlertVariant.destructive:
-        defaultIcon = const Icon(Icons.error_outline, size: 16);
+        defaultIcon = const BloomIcon(BloomIcons.errorOutline, size: 16);
         break;
       case BloomAlertVariant.success:
-        defaultIcon = const Icon(Icons.check_circle_outline, size: 16);
+        defaultIcon = const BloomIcon(BloomIcons.checkCircleOutline, size: 16);
         break;
       case BloomAlertVariant.warning:
-        defaultIcon = const Icon(Icons.warning_amber_rounded, size: 16);
+        defaultIcon = const BloomIcon(BloomIcons.warning, size: 16);
         break;
       case BloomAlertVariant.info:
-        defaultIcon = const Icon(Icons.info_outline, size: 16);
+        defaultIcon = const BloomIcon(BloomIcons.infoOutline, size: 16);
         break;
     }
 
@@ -114,7 +116,7 @@ class BloomAlert extends StatelessWidget {
 
   _AlertColors _resolveColors(BuildContext context, BloomAlertVariant variant) {
     final colors = context.bloomColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = context.bloomColors.brightness == Brightness.dark;
 
     switch (variant) {
       case BloomAlertVariant.defaultVariant:

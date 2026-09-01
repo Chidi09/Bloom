@@ -1,6 +1,7 @@
 // lib/src/primitives/app_shell.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
+import '../widgets/bloom_app.dart';
 import 'sidebar.dart';
 
 class BloomNavigationItem {
@@ -31,12 +32,18 @@ class BloomAppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BloomScaffold(
       backgroundColor: context.bloomColors.surface0,
-      appBar: appBar != null ? PreferredSize(preferredSize: const Size.fromHeight(56), child: appBar!) : null,
-      body: body,
-      bottomNavigationBar: bottomNavigationBar,
-      floatingActionButton: floatingActionButton,
+      header: appBar != null ? SizedBox(height: 56, child: appBar!) : null,
+      footer: bottomNavigationBar,
+      body: floatingActionButton != null
+          ? Stack(
+              children: <Widget>[
+                Positioned.fill(child: body),
+                Positioned(right: 16, bottom: 16, child: floatingActionButton!),
+              ],
+            )
+          : body,
     );
   }
 }
@@ -63,7 +70,7 @@ class BloomDashboardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BloomScaffold(
       backgroundColor: context.bloomColors.surface0,
       body: Row(
         children: [

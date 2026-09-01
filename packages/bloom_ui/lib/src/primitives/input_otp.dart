@@ -1,6 +1,9 @@
 // lib/src/primitives/input_otp.dart
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+
+import '../theme/tokens.dart';
+import '../utils/bloom_editable_field.dart';
 import '../utils/extensions.dart';
 
 /// A grouped one-time passcode (OTP) input component matching shadcn base-nova design.
@@ -115,8 +118,8 @@ class _BloomInputOTPState extends State<BloomInputOTP> {
         return Row(
           children: [
             if (i > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: BloomInputOTPSeparator(),
               ),
             groups[i],
@@ -225,7 +228,7 @@ class BloomInputOTPSlot extends StatelessWidget {
     return SizedBox(
       width: 40,
       height: 48,
-      child: TextField(
+      child: BloomEditableField(
         controller: controller,
         focusNode: focusNode,
         obscureText: obscureText,
@@ -242,22 +245,14 @@ class BloomInputOTPSlot extends StatelessWidget {
           color: colors.textPrimary,
           fontFamily: theme.typography.sans,
         ),
-        decoration: InputDecoration(
-          counterText: '',
-          filled: true,
-          fillColor: colors.surface2,
-          contentPadding: EdgeInsets.zero,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(theme.radius.sm),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(theme.radius.sm),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(theme.radius.sm),
-            borderSide: BorderSide(color: colors.primary, width: 2),
+        cursorColor: colors.primary,
+        padding: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: colors.surface2,
+          borderRadius: BorderRadius.circular(theme.radius.sm),
+          border: Border.all(
+            color: focusNode.hasFocus ? colors.primary : BloomColors.transparent,
+            width: focusNode.hasFocus ? 2 : 0,
           ),
         ),
         onChanged: onChanged,

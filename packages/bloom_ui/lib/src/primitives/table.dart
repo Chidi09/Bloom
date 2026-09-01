@@ -1,5 +1,5 @@
 // lib/src/primitives/table.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// Structured data table container matching shadcn base-nova.

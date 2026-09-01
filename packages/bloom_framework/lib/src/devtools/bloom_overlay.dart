@@ -2,7 +2,8 @@
 library;
 
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:http/http.dart' as http;
 import '../core/boot.dart';
 import '../core/env.dart';
@@ -17,7 +18,7 @@ import '../widgets/bloom_logo.dart';
 /// ```dart
 /// FloatingActionButton(
 ///   onPressed: () => BloomDevOverlay.show(context),
-///   child: const Icon(Icons.developer_mode),
+///   child: const ui.BloomIcon(ui.BloomIcons.developerMode),
 /// );
 /// ```
 class BloomDevOverlay extends StatefulWidget {
@@ -29,11 +30,8 @@ class BloomDevOverlay extends StatefulWidget {
 
   /// Shows the Bloom developer bottom sheet modal with optional remote dev server inspection.
   static Future<void> show(BuildContext context, {String? remoteBaseUrl}) {
-
-    return showModalBottomSheet(
+    return ui.showBloomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => BloomDevOverlay(remoteBaseUrl: remoteBaseUrl),
     );
   }
@@ -79,7 +77,8 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.bloomColors;
+    final typography = context.bloomTypography;
     final isRemote = widget.remoteBaseUrl != null;
 
     final projectName = _remoteConfig?['name']?.toString() ?? Bloom.config.name;
@@ -94,10 +93,10 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: colors.surface1,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 20, spreadRadius: 4),
+          BoxShadow(color: Color(0x42000000), blurRadius: 20, spreadRadius: 4),
         ],
       ),
       child: Column(
@@ -108,7 +107,7 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
             width: 48,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.grey.shade400,
+              color: const Color(0xFFBDBDBD),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -121,115 +120,140 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
                 const SizedBox(width: 10),
                 Text(
                   isRemote ? 'Connected: $projectName' : 'Bloom Dev Inspector',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontFamily: typography.sans,
+                    fontSize: typography.xl,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textPrimary,
+                  ),
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
+                ui.BloomIconButton(
+                  icon: const ui.BloomIcon(ui.BloomIcons.close),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const ui.BloomSeparator(thickness: 1.0, margin: EdgeInsets.zero),
           // Content Tabs
           Expanded(
             child: _isLoadingRemote
-                ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
-                : DefaultTabController(
-                    length: 3,
-                    child: Column(
-                      children: [
-                        const TabBar(
-                          labelColor: Colors.deepPurple,
-                          unselectedLabelColor: Colors.grey,
-                          indicatorColor: Colors.deepPurple,
-                          tabs: [
-                            Tab(icon: Icon(Icons.info_outline), text: 'App Info'),
-                            Tab(icon: Icon(Icons.storage_rounded), text: 'Cache'),
-                            Tab(icon: Icon(Icons.tune_rounded), text: 'Environment'),
-                          ],
-                        ),
-                        Expanded(
-                          child: TabBarView(
-                            children: [
-                              // Tab 1: App Info
-                              ListView(
-                                padding: const EdgeInsets.all(16),
-                                children: [
-                                  _buildInfoTile('Target App', projectName),
-                                  _buildInfoTile('Version', projectVersion),
-                                  _buildInfoTile('Mode', projectMode),
-                                  if (isRemote)
-                                    _buildInfoTile('Host URL', widget.remoteBaseUrl!)
-                                  else
-                                    _buildInfoTile('Active Flavor', Bloom.activeFlavor ?? 'None (Default)'),
-                                  _buildInfoTile('Active Cache Entries', '${BloomData.entryCount}'),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      BloomData.clear();
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Query cache purged successfully')),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.delete_sweep_rounded),
-                                    label: const Text('Purge Query Cache'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red.shade700,
-                                      foregroundColor: Colors.white,
-                                    ),
+                ? const Center(child: ui.BloomSpinner(color: Color(0xFF673AB7)))
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: ui.BloomTabs<String>(
+                      defaultValue: 'app_info',
+                      items: [
+                        ui.BloomTabItem<String>(
+                          value: 'app_info',
+                          label: const Text('App Info'),
+                          icon: const ui.BloomIcon(ui.BloomIcons.infoOutline),
+                          content: Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              children: [
+                                _buildInfoTile('Target App', projectName),
+                                _buildInfoTile('Version', projectVersion),
+                                _buildInfoTile('Mode', projectMode),
+                                if (isRemote)
+                                  _buildInfoTile('Host URL', widget.remoteBaseUrl!)
+                                else
+                                  _buildInfoTile('Active Flavor', Bloom.activeFlavor ?? 'None (Default)'),
+                                _buildInfoTile('Active Cache Entries', '${BloomData.entryCount}'),
+                                const SizedBox(height: 16),
+                                ui.BloomButton(
+                                  variant: ui.BloomButtonVariant.destructive,
+                                  onPressed: () {
+                                    BloomData.clear();
+                                    ui.BloomToastHost.show(
+                                      context,
+                                      child: const Text('Query cache purged successfully'),
+                                    );
+                                  },
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ui.BloomIcon(
+                                        ui.BloomIcons.deleteOutline,
+                                        color: Color(0xFFFFFFFF),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Purge Query Cache',
+                                        style: TextStyle(color: Color(0xFFFFFFFF)),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              // Tab 2: Cache Entries
-                              cacheEntries.isEmpty
-                                  ? const Center(child: Text('No active cache entries'))
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: cacheEntries.length,
-                                      itemBuilder: (context, index) {
-                                        final entry = cacheEntries[index];
-                                        final isExpired = entry['isExpired'] as bool;
-                                        final isStale = entry['isStale'] as bool;
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        ui.BloomTabItem<String>(
+                          value: 'cache',
+                          label: const Text('Cache'),
+                          icon: const ui.BloomIcon(ui.BloomIcons.storage),
+                          content: Expanded(
+                            child: cacheEntries.isEmpty
+                                ? const Center(child: Text('No active cache entries'))
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: cacheEntries.length,
+                                    itemBuilder: (context, index) {
+                                      final entry = cacheEntries[index];
+                                      final isExpired = entry['isExpired'] as bool;
+                                      final isStale = entry['isStale'] as bool;
 
-                                        return Card(
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          child: ListTile(
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 8),
+                                        child: ui.BloomCard(
+                                          child: ui.BloomItem(
                                             title: Text(
                                               entry['key'].toString(),
                                               style: const TextStyle(fontWeight: FontWeight.w600),
                                             ),
-                                            subtitle: Text('Updated: ${entry['updatedAt']}'),
-                                            trailing: Chip(
-                                              label: Text(
-                                                isExpired ? 'Expired' : (isStale ? 'Stale' : 'Fresh'),
-                                                style: const TextStyle(fontSize: 12),
+                                            description: Text('Updated: ${entry['updatedAt']}'),
+                                            actions: Container(
+                                              decoration: BoxDecoration(
+                                                color: isExpired
+                                                    ? const Color(0xFFFFCDD2)
+                                                    : (isStale ? const Color(0xFFFFECB3) : const Color(0xFFC8E6C9)),
+                                                borderRadius: BorderRadius.circular(999),
                                               ),
-                                              backgroundColor: isExpired
-                                                  ? Colors.red.shade100
-                                                  : (isStale ? Colors.amber.shade100 : Colors.green.shade100),
+                                              child: ui.BloomBadge(
+                                                variant: ui.BloomBadgeVariant.ghost,
+                                                child: Text(
+                                                  isExpired ? 'Expired' : (isStale ? 'Stale' : 'Fresh'),
+                                                  style: const TextStyle(fontSize: 12),
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        );
-                                      },
-                                    ),
-                              // Tab 3: Environment Variables
-                              envEntries.isEmpty
-                                  ? const Center(child: Text('No environment variables loaded'))
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: envEntries.length,
-                                      itemBuilder: (context, index) {
-                                        final entry = envEntries[index];
-                                        return ListTile(
-                                          dense: true,
-                                          title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                          subtitle: Text(entry.value),
-                                        );
-                                      },
-                                    ),
-                            ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ),
+                        ui.BloomTabItem<String>(
+                          value: 'environment',
+                          label: const Text('Environment'),
+                          icon: const ui.BloomIcon(ui.BloomIcons.tune),
+                          content: Expanded(
+                            child: envEntries.isEmpty
+                                ? const Center(child: Text('No environment variables loaded'))
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: envEntries.length,
+                                    itemBuilder: (context, index) {
+                                      final entry = envEntries[index];
+                                      return ui.BloomItem(
+                                        title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        description: Text(entry.value),
+                                      );
+                                    },
+                                  ),
                           ),
                         ),
                       ],
@@ -247,7 +271,7 @@ class _BloomDevOverlayState extends State<BloomDevOverlay> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+          Text(label, style: const TextStyle(color: Color(0xFF9E9E9E), fontWeight: FontWeight.w500)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),

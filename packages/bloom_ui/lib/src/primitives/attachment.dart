@@ -1,5 +1,5 @@
 // lib/src/primitives/attachment.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 enum BloomAttachmentOrientation {

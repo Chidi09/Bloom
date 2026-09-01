@@ -1,6 +1,7 @@
 // lib/src/primitives/radio.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -32,7 +33,7 @@ class BloomRadio<T> extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isSelected ? colors.primary : Colors.transparent,
+        color: isSelected ? colors.primary : BloomColors.transparent,
         border: Border.all(
           color: isSelected ? colors.primary : colors.border,
           width: 1.2,
@@ -52,9 +53,10 @@ class BloomRadio<T> extends StatelessWidget {
     );
 
     if (label != null) {
-      return InkWell(
+      return BloomPressable(
         onTap: disabled ? null : () => onChanged?.call(value),
         borderRadius: BorderRadius.circular(999),
+        enabled: !disabled,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           child: Row(
@@ -78,9 +80,10 @@ class BloomRadio<T> extends StatelessWidget {
       );
     }
 
-    return InkWell(
+    return BloomPressable(
       onTap: disabled ? null : () => onChanged?.call(value),
       borderRadius: BorderRadius.circular(999),
+      enabled: !disabled,
       child: circle,
     );
   }

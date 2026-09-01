@@ -1,5 +1,5 @@
 // lib/src/primitives/typography.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 class BloomTypographyBlock extends StatelessWidget {

@@ -1,5 +1,7 @@
 // lib/src/primitives/error_state.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
 
@@ -33,7 +35,7 @@ class BloomErrorState extends StatelessWidget {
                 color: colors.error.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.error_outline, size: 36, color: colors.error),
+              child: BloomIcon(BloomIcons.errorOutline, size: 36, color: colors.error),
             ),
             const SizedBox(height: 16),
             Text(

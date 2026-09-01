@@ -1,7 +1,8 @@
 /// Root application widget for Bloom Flutter applications.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:go_router/go_router.dart';
 import '../core/boot.dart';
 import '../lifecycle/lifecycle.dart';
@@ -10,7 +11,7 @@ import '../web/prerender_bridge.dart';
 
 /// Root application widget for Bloom applications.
 ///
-/// Wraps Flutter's [MaterialApp.router], initializes the [BloomLifecycleManager],
+/// Wraps [ui.BloomApp.router], initializes the [BloomLifecycleManager],
 /// attaches SSR/prerender signaling hooks, and wires GoRouter navigation.
 ///
 /// Example:
@@ -38,13 +39,13 @@ class BloomApp extends StatefulWidget {
   final String initialLocation;
 
   /// Light theme definition.
-  final ThemeData? theme;
+  final ui.BloomTheme? theme;
 
   /// Dark theme definition.
-  final ThemeData? darkTheme;
+  final ui.BloomTheme? darkTheme;
 
   /// Active theme mode (system, light, or dark).
-  final ThemeMode themeMode;
+  final ui.BloomThemeMode themeMode;
 
   /// Active application locale.
   final Locale? locale;
@@ -70,7 +71,7 @@ class BloomApp extends StatefulWidget {
     this.initialLocation = '/',
     this.theme,
     this.darkTheme,
-    this.themeMode = ThemeMode.system,
+    this.themeMode = ui.BloomThemeMode.system,
     this.locale,
     this.localizationsDelegates,
     this.supportedLocales,
@@ -107,8 +108,20 @@ class _BloomAppState extends State<BloomApp> {
             path: '/',
             builder: (context, state) =>
                 widget.home ??
-                Scaffold(
-                  appBar: AppBar(title: Text(widget.title ?? Bloom.config.name)),
+                ui.BloomScaffold(
+                  header: SizedBox(
+                    height: 56,
+                    child: Container(
+                      color: context.bloomColors.surface1,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          Text(widget.title ?? Bloom.config.name),
+                        ],
+                      ),
+                    ),
+                  ),
                   body: Center(
                     child: Text('Welcome to ${widget.title ?? Bloom.config.name}'),
                   ),
@@ -122,16 +135,11 @@ class _BloomAppState extends State<BloomApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return ui.BloomApp.router(
       title: widget.title ?? Bloom.config.name,
       routerConfig: _resolvedRouter,
-      theme: widget.theme ?? ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepPurple),
-      darkTheme: widget.darkTheme ??
-          ThemeData(
-            useMaterial3: true,
-            brightness: Brightness.dark,
-            colorSchemeSeed: Colors.deepPurple,
-          ),
+      theme: widget.theme ?? ui.BloomTheme.light,
+      darkTheme: widget.darkTheme ?? ui.BloomTheme.dark,
       themeMode: widget.themeMode,
       locale: widget.locale,
       localizationsDelegates: widget.localizationsDelegates,

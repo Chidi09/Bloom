@@ -1,6 +1,13 @@
 // lib/src/primitives/command_palette.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_editable_field.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
+import 'separator.dart';
 
 /// A selectable action or search result entry in a [BloomCommandPalette].
 ///
@@ -9,7 +16,7 @@ import '../utils/extensions.dart';
 /// BloomCommandItem(
 ///   title: 'Open Settings',
 ///   subtitle: 'Configure application preferences',
-///   icon: Icon(Icons.settings),
+///   icon: BloomIcon(BloomIcons.settings),
 ///   shortcut: 'Cmd+,',
 ///   onSelected: () => openSettings(),
 /// )
@@ -136,7 +143,7 @@ class BloomCommandPalette extends StatefulWidget {
     List<BloomCommandGroup>? groups,
     String placeholder = 'Type a command or search...',
   }) {
-    return showDialog(
+    return showBloomDialog<void>(
       context: context,
       builder: (context) => BloomCommandPalette(
         items: items,
@@ -188,120 +195,124 @@ class _BloomCommandPaletteState extends State<BloomCommandPalette> {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return Dialog(
-      backgroundColor: colors.surface1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.bloomRadius.lg),
-        side: BorderSide(color: colors.border),
-      ),
-      child: Container(
-        width: 500,
-        constraints: const BoxConstraints(maxHeight: 400),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Search Input
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: 500,
+            maxHeight: 400,
+          ),
+          child: BloomSurface(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(context.bloomRadius.lg),
+            color: colors.surface1,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(context.bloomRadius.lg),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.search, size: 20, color: colors.textSecondary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      autofocus: true,
-                      onChanged: _onQuery,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 15,
-                        fontFamily: context.bloomTypography.sans,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: widget.placeholder,
-                        hintStyle: TextStyle(color: colors.textTertiary, fontSize: 15),
-                        border: InputBorder.none,
-                        isDense: true,
-                      ),
+                  // Search Input
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        BloomIcon(BloomIcons.search, size: 20, color: colors.textSecondary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: BloomEditableField(
+                            controller: _query,
+                            autofocus: true,
+                            placeholder: widget.placeholder,
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                            decoration: const BoxDecoration(),
+                            onChanged: _onQuery,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: colors.border),
-            // Results list
-            Expanded(
-              child: _filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No results found.',
-                        style: TextStyle(color: colors.textSecondary, fontSize: 14),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(8),
-                      itemCount: _filtered.length,
-                      itemBuilder: (context, index) {
-                        final item = _filtered[index];
-                        return InkWell(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            item.onSelected();
-                          },
-                          borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            child: Row(
-                              children: [
-                                if (item.icon != null) ...[
-                                  item.icon!,
-                                  const SizedBox(width: 12),
-                                ],
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const BloomSeparator(thickness: 1),
+                  // Results list
+                  Expanded(
+                    child: _filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No results found.',
+                              style: TextStyle(color: colors.textSecondary, fontSize: 14),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(8),
+                            itemCount: _filtered.length,
+                            itemBuilder: (context, index) {
+                              final item = _filtered[index];
+                              return BloomPressable(
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  item.onSelected();
+                                },
+                                borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        item.title,
-                                        style: TextStyle(
-                                          color: colors.textPrimary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: context.bloomTypography.sans,
+                                      if (item.icon != null) ...[
+                                        item.icon!,
+                                        const SizedBox(width: 12),
+                                      ],
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.title,
+                                              style: TextStyle(
+                                                color: colors.textPrimary,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                fontFamily: context.bloomTypography.sans,
+                                              ),
+                                            ),
+                                            if (item.subtitle != null) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                item.subtitle!,
+                                                style: TextStyle(
+                                                  color: colors.textSecondary,
+                                                  fontSize: 12,
+                                                  fontFamily: context.bloomTypography.sans,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
-                                      if (item.subtitle != null) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          item.subtitle!,
-                                          style: TextStyle(
-                                            color: colors.textSecondary,
-                                            fontSize: 12,
-                                            fontFamily: context.bloomTypography.sans,
-                                          ),
-                                        ),
+                                      if (item.shortcut != null) ...[
+                                        const SizedBox(width: 8),
+                                        BloomCommandShortcut(item.shortcut!),
+                                      ],
+                                      if (item.isChecked) ...[
+                                        const SizedBox(width: 8),
+                                        BloomIcon(BloomIcons.check, size: 16, color: colors.primary),
                                       ],
                                     ],
                                   ),
                                 ),
-                                if (item.shortcut != null) ...[
-                                  const SizedBox(width: 8),
-                                  BloomCommandShortcut(item.shortcut!),
-                                ],
-                                if (item.isChecked) ...[
-                                  const SizedBox(width: 8),
-                                  Icon(Icons.check, size: 16, color: colors.primary),
-                                ],
-                              ],
-                            ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
+

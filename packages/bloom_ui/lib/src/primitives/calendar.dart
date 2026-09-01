@@ -1,6 +1,10 @@
 // lib/src/primitives/calendar.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icon_data.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// Selection mode for [BloomCalendar].
@@ -199,7 +203,7 @@ class _BloomCalendarState extends State<BloomCalendar> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _MonthNavButton(icon: Icons.chevron_left, onTap: _prevMonth),
+        _MonthNavButton(icon: BloomIcons.chevronLeft, onTap: _prevMonth),
         Text(
           monthLabel,
           style: TextStyle(
@@ -209,7 +213,7 @@ class _BloomCalendarState extends State<BloomCalendar> {
             fontFamily: theme.typography.sans,
           ),
         ),
-        _MonthNavButton(icon: Icons.chevron_right, onTap: _nextMonth),
+        _MonthNavButton(icon: BloomIcons.chevronRight, onTap: _nextMonth),
       ],
     );
   }
@@ -227,7 +231,7 @@ class _BloomCalendarState extends State<BloomCalendar> {
     final isRangeStart = _isRangeStart(day);
     final isRangeEnd = _isRangeEnd(day);
 
-    Color bg = Colors.transparent;
+    Color bg = BloomColors.transparent;
     Color fg = inCurrentMonth ? colors.textPrimary : colors.textTertiary.withValues(alpha: 0.4);
 
     if (isSelected || isRangeStart || isRangeEnd) {
@@ -240,9 +244,10 @@ class _BloomCalendarState extends State<BloomCalendar> {
       selected: isSelected || isRangeStart || isRangeEnd,
       onTap: inCurrentMonth ? () => _handleSelect(day) : null,
       label: day.toLocal().toIso8601String().substring(0, 10),
-      child: InkWell(
+      child: BloomPressable(
         onTap: inCurrentMonth ? () => _handleSelect(day) : null,
         borderRadius: BorderRadius.circular(theme.radius.md),
+        enabled: inCurrentMonth,
         child: AnimatedContainer(
           duration: BloomMotion.instant,
           height: 36,
@@ -308,7 +313,7 @@ class _BloomCalendarState extends State<BloomCalendar> {
 }
 
 class _MonthNavButton extends StatelessWidget {
-  final IconData icon;
+  final BloomIconData icon;
   final VoidCallback onTap;
 
   const _MonthNavButton({required this.icon, required this.onTap});
@@ -318,7 +323,7 @@ class _MonthNavButton extends StatelessWidget {
     final theme = context.bloomTheme;
     return Semantics(
       button: true,
-      child: InkWell(
+      child: BloomPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(theme.radius.md),
         child: Container(
@@ -329,7 +334,7 @@ class _MonthNavButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(theme.radius.md),
             border: Border.all(color: theme.colors.border),
           ),
-          child: Icon(icon, size: 18, color: theme.colors.textSecondary),
+          child: BloomIcon(icon, size: 18, color: theme.colors.textSecondary),
         ),
       ),
     );

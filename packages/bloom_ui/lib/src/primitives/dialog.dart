@@ -1,6 +1,10 @@
 // lib/src/primitives/dialog.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 
 /// Modal dialog container matching shadcn/ui base-nova dialog architecture.
@@ -30,10 +34,9 @@ class BloomDialog extends StatelessWidget {
     required WidgetBuilder builder,
     bool barrierDismissible = true,
   }) {
-    return showDialog<T>(
+    return showBloomDialog<T>(
       context: context,
       barrierDismissible: barrierDismissible,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: builder,
     );
   }
@@ -43,54 +46,55 @@ class BloomDialog extends StatelessWidget {
     final colors = context.bloomColors;
     final radius = context.bloomRadius.xl;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          decoration: BoxDecoration(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: BloomSurface(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(radius),
             color: colors.surface1,
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: colors.border),
-            boxShadow: const [BloomShadows.s3],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
-            child: Stack(
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (header != null) header!,
-                    if (content != null) content!,
-                    if (child != null)
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: child!,
-                      ),
-                    if (footer != null) footer!,
-                  ],
-                ),
-                if (showClose)
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: InkWell(
-                      onTap: onClose ?? () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(context.bloomRadius.sm),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close,
-                          size: 16,
-                          color: colors.textSecondary,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(radius),
+                border: Border.all(color: colors.border),
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (header != null) header!,
+                      if (content != null) content!,
+                      if (child != null)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: child!,
+                        ),
+                      if (footer != null) footer!,
+                    ],
+                  ),
+                  if (showClose)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: BloomPressable(
+                        onTap: onClose ?? () => Navigator.of(context).pop(),
+                        borderRadius: BorderRadius.circular(context.bloomRadius.sm),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: BloomIcon(
+                            BloomIcons.close,
+                            size: 16,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

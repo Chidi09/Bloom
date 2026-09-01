@@ -1,5 +1,5 @@
 // lib/src/primitives/empty.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// An empty state container matching shadcn base-nova dashed border container.
@@ -9,7 +9,7 @@ import '../utils/extensions.dart';
 ///
 /// ```dart
 /// BloomEmpty(
-///   icon: const Icon(Icons.inbox_outlined),
+///   icon: const BloomIcon(BloomIcons.inbox),
 ///   title: const BloomEmptyTitle('No messages'),
 ///   description: const BloomEmptyDescription('Your inbox is completely clear.'),
 ///   action: BloomButton(

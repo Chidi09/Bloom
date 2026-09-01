@@ -1,7 +1,12 @@
 // lib/src/primitives/sonner.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
+import '../utils/bloom_toast_host.dart';
 import '../utils/extensions.dart';
+import 'spinner.dart';
 
 /// Semantic notification type for [BloomSonner] toasts.
 enum BloomSonnerType {
@@ -42,7 +47,7 @@ enum BloomSonnerType {
 class BloomSonner {
   /// Displays a floating [BloomSonner] toast with fully customizable parameters.
   ///
-  /// * [context]: The build context containing the target [ScaffoldMessenger].
+  /// * [context]: The build context containing the target overlay.
   /// * [message]: Main headline message text.
   /// * [description]: Optional secondary description text.
   /// * [type]: Semantic category determining the leading indicator icon (defaults to [BloomSonnerType.normal]).
@@ -62,27 +67,26 @@ class BloomSonner {
   }) {
     final colors = context.bloomColors;
     final typography = context.bloomTypography;
-    final scaffold = ScaffoldMessenger.of(context);
 
     Widget? leadingIcon;
     switch (type) {
       case BloomSonnerType.success:
-        leadingIcon = Icon(Icons.check_circle_outline, color: colors.success, size: 18);
+        leadingIcon = BloomIcon(BloomIcons.checkCircleOutline, color: colors.success, size: 18);
         break;
       case BloomSonnerType.error:
-        leadingIcon = Icon(Icons.error_outline, color: colors.error, size: 18);
+        leadingIcon = BloomIcon(BloomIcons.errorOutline, color: colors.error, size: 18);
         break;
       case BloomSonnerType.warning:
-        leadingIcon = Icon(Icons.warning_amber_outlined, color: colors.warning, size: 18);
+        leadingIcon = BloomIcon(BloomIcons.warning, color: colors.warning, size: 18);
         break;
       case BloomSonnerType.info:
-        leadingIcon = Icon(Icons.info_outline, color: colors.info, size: 18);
+        leadingIcon = BloomIcon(BloomIcons.infoOutline, color: colors.info, size: 18);
         break;
       case BloomSonnerType.loading:
-        leadingIcon = SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(colors.primary)),
+        leadingIcon = BloomSpinner(
+          size: 16,
+          strokeWidth: 2,
+          color: colors.primary,
         );
         break;
       case BloomSonnerType.normal:
@@ -90,27 +94,29 @@ class BloomSonner {
         break;
     }
 
-    scaffold.showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: duration,
-        content: Container(
+    late final BloomToastHandle handle;
+    handle = BloomToastHost.show(
+      context,
+      duration: duration,
+      alignment: BloomToastAlignment.bottomCenter,
+      child: BloomSurface(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        color: colors.surface1,
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: colors.surface1,
             borderRadius: BorderRadius.circular(context.bloomRadius.md),
             border: Border.all(color: colors.border),
-            boxShadow: const [BloomShadows.s3],
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (leadingIcon != null) ...[
                 leadingIcon,
                 const SizedBox(width: 12),
               ],
-              Expanded(
+              Flexible(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,18 +149,22 @@ class BloomSonner {
                 action,
               ] else if (actionLabel != null && onAction != null) ...[
                 const SizedBox(width: 12),
-                TextButton(
-                  onPressed: () {
-                    scaffold.hideCurrentSnackBar();
+                BloomPressable(
+                  onTap: () {
+                    handle.dismiss();
                     onAction();
                   },
-                  child: Text(
-                    actionLabel,
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: typography.sans,
+                  borderRadius: BorderRadius.circular(context.bloomRadius.sm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      actionLabel,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: typography.sans,
+                      ),
                     ),
                   ),
                 ),

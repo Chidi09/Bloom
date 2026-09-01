@@ -1,6 +1,7 @@
 // test/bloom_adapters_test.dart
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:bloom_framework/bloom_testing.dart';
 
 abstract class GreetingService {
@@ -159,7 +160,7 @@ void main() {
         home: Builder(
           builder: (context) {
             final service = inject<GreetingService>();
-            return Scaffold(
+            return ui.BloomScaffold(
               body: Center(
                 child: Text(service.getGreeting()),
               ),

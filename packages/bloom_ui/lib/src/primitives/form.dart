@@ -1,5 +1,6 @@
 // lib/src/primitives/form.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../utils/extensions.dart';
 import 'label.dart';
 

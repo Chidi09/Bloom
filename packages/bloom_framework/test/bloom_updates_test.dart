@@ -2,8 +2,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:bloom_framework/bloom_updates.dart';
@@ -345,8 +345,8 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
+        const ui.BloomApp(
+          home: ui.BloomScaffold(
             body: BloomUpdateBanner(),
           ),
         ),
@@ -388,8 +388,8 @@ void main() {
       await BloomUpdates.checkForUpdate();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        ui.BloomApp(
+          home: ui.BloomScaffold(
             body: BloomUpdateDialog(
               releaseNotes: 'Brand new dark mode theme',
               onDismiss: () {},

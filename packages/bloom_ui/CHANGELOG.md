@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.3.0 - 2026-09-01
+
+Bloom UI no longer depends on Flutter's Material library. Every primitive is now built
+on `package:flutter/widgets.dart` alone. The package still has zero runtime dependencies.
+
+### Breaking
+
+* `BloomTheme` no longer extends `ThemeExtension`. Install it with the new
+  `BloomThemeProvider` (or `BloomApp`) instead of `ThemeData(extensions: [...])`.
+  `context.bloomTheme`, `context.bloomColors`, `context.bloomRadius`,
+  `context.bloomSpacing` and `context.bloomTypography` are unchanged, so widget code
+  that reads the theme needs no edit.
+* `BloomTheme.lerp` now takes a `BloomTheme?` rather than a `ThemeExtension<BloomTheme>?`.
+
+### Added
+
+* `BloomApp` and `BloomScaffold`, Material-free replacements for `MaterialApp` and
+  `Scaffold`, built on `WidgetsApp`. `BloomApp.router` supports declarative routing
+  (go_router and friends) via `WidgetsApp.router`.
+* `BloomThemeProvider`, an `InheritedWidget` carrying the active `BloomTheme`.
+* `BloomPressable` (hover/focus/press states without an ink ripple), `BloomSurface`
+  (elevated surface on `PhysicalModel`), and `BloomPageRoute`.
+* `BloomEditableField`, a text input on core `EditableText`, together with
+  `BloomTextSelectionControls` — hand-painted selection handles and a context-menu
+  toolbar, replacing the ones Material used to supply.
+* `showBloomDialog` and `showBloomSheet` on `PopupRoute`, and `BloomToastHost` in place
+  of `ScaffoldMessenger`/`SnackBar`.
+* `BloomIcon` and `BloomIcons`, a 40-icon vector set drawn on a 24×24 grid — no icon
+  font and no third-party icon package.
+* `BloomSpinner.value` for a determinate progress ring; the spinner remains
+  indeterminate when `value` is null, with unchanged rendering.
+* `BloomEditableField.focusedDecoration`, so a field with a custom `decoration` can
+  still show a focus ring. Previously an explicit `decoration` silently suppressed it.
+
+### Changed
+
+* `BloomColors` gained `transparent`, `white` and `black` constants.
+
 ## 0.2.0 - 2026-08-23
 
 - Substantial expansion of the component set and token system across 70 files.

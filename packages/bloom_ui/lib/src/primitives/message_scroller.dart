@@ -1,6 +1,10 @@
 // lib/src/primitives/message_scroller.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 
 /// An auto-scrolling container optimized for chat and conversation threads.
@@ -139,7 +143,7 @@ class _BloomMessageScrollerState extends State<BloomMessageScroller> {
             borderRadius: BorderRadius.circular(theme.radius.md),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Scrollbar(
+          child: RawScrollbar(
             controller: _scrollController,
             thumbVisibility: true,
             child: SingleChildScrollView(
@@ -248,19 +252,19 @@ class BloomMessageScrollerButton extends StatelessWidget {
       child: AnimatedScale(
         duration: BloomMotion.fast,
         scale: 1,
-        child: Material(
+        child: BloomSurface(
           color: colors.secondary,
-          shape: const CircleBorder(),
+          borderRadius: BorderRadius.circular(20),
           elevation: 2,
-          child: InkWell(
+          child: BloomPressable(
             onTap: onPressed,
-            customBorder: const CircleBorder(),
+            borderRadius: BorderRadius.circular(20),
             child: Container(
               width: 40,
               height: 40,
               alignment: Alignment.center,
-              child: Icon(
-                isReverse ? Icons.arrow_upward : Icons.arrow_downward,
+              child: BloomIcon(
+                isReverse ? BloomIcons.arrowUpward : BloomIcons.arrowDownward,
                 color: colors.secondaryForeground,
                 size: 20,
               ),

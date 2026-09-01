@@ -1,6 +1,7 @@
 // lib/src/primitives/toggle.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -34,7 +35,7 @@ enum BloomToggleSize {
 /// BloomToggle(
 ///   checked: isBold,
 ///   onPressed: (val) => setState(() => isBold = val),
-///   child: const Icon(Icons.format_bold),
+///   child: const BloomIcon(BloomIcons.formatBold),
 /// )
 /// ```
 class BloomToggle extends StatefulWidget {
@@ -121,44 +122,42 @@ class _BloomToggleState extends State<BloomToggle> {
     if (isSelected) {
       bg = colors.surface0; // bg-muted
     } else {
-      bg = Colors.transparent;
+      bg = BloomColors.transparent;
     }
 
     Color textCol = isSelected ? colors.textPrimary : colors.textSecondary;
     Color borderCol = widget.variant == BloomToggleVariant.outline
         ? colors.border
-        : Colors.transparent;
+        : BloomColors.transparent;
 
     return Semantics(
       toggled: isSelected,
       enabled: !widget.disabled,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.disabled ? null : _toggle,
-          borderRadius: BorderRadius.circular(context.bloomRadius.md),
-          child: AnimatedContainer(
-            duration: BloomMotion.instant,
-            height: dims.height,
-            constraints: BoxConstraints(minWidth: dims.height),
-            padding: dims.padding,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(context.bloomRadius.md),
-              border: borderCol != Colors.transparent ? Border.all(color: borderCol) : null,
-            ),
-            child: IconTheme(
-              data: IconThemeData(color: textCol, size: dims.iconSize),
-              child: DefaultTextStyle(
-                style: TextStyle(
-                  color: textCol,
-                  fontSize: dims.fontSize,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: context.bloomTypography.sans,
-                ),
-                child: widget.child,
+      child: BloomPressable(
+        onTap: widget.disabled ? null : _toggle,
+        borderRadius: BorderRadius.circular(context.bloomRadius.md),
+        enabled: !widget.disabled,
+        child: AnimatedContainer(
+          duration: BloomMotion.instant,
+          height: dims.height,
+          constraints: BoxConstraints(minWidth: dims.height),
+          padding: dims.padding,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(context.bloomRadius.md),
+            border: borderCol != BloomColors.transparent ? Border.all(color: borderCol) : null,
+          ),
+          child: IconTheme(
+            data: IconThemeData(color: textCol, size: dims.iconSize),
+            child: DefaultTextStyle(
+              style: TextStyle(
+                color: textCol,
+                fontSize: dims.fontSize,
+                fontWeight: FontWeight.w500,
+                fontFamily: context.bloomTypography.sans,
               ),
+              child: widget.child,
             ),
           ),
         ),
@@ -228,9 +227,9 @@ class BloomToggleGroupItem<T> {
 /// BloomToggleGroup<String>(
 ///   value: selectedAlign,
 ///   items: const [
-///     BloomToggleGroupItem(value: 'left', label: Icon(Icons.format_align_left)),
-///     BloomToggleGroupItem(value: 'center', label: Icon(Icons.format_align_center)),
-///     BloomToggleGroupItem(value: 'right', label: Icon(Icons.format_align_right)),
+///     BloomToggleGroupItem(value: 'left', label: BloomIcon(BloomIcons.formatAlignLeft)),
+///     BloomToggleGroupItem(value: 'center', label: BloomIcon(BloomIcons.formatAlignCenter)),
+///     BloomToggleGroupItem(value: 'right', label: BloomIcon(BloomIcons.formatAlignRight)),
 ///   ],
 ///   onChanged: (val) => setState(() => selectedAlign = val),
 /// )
@@ -240,9 +239,9 @@ class BloomToggleGroupItem<T> {
 ///   isMultiple: true,
 ///   values: activeFormats,
 ///   items: const [
-///     BloomToggleGroupItem(value: 'bold', label: Icon(Icons.format_bold)),
-///     BloomToggleGroupItem(value: 'italic', label: Icon(Icons.format_italic)),
-///     BloomToggleGroupItem(value: 'underline', label: Icon(Icons.format_underlined)),
+///     BloomToggleGroupItem(value: 'bold', label: BloomIcon(BloomIcons.formatBold)),
+///     BloomToggleGroupItem(value: 'italic', label: BloomIcon(BloomIcons.formatItalic)),
+///     BloomToggleGroupItem(value: 'underline', label: BloomIcon(BloomIcons.formatUnderlined)),
 ///   ],
 ///   onMultipleChanged: (vals) => setState(() => activeFormats = vals),
 /// )

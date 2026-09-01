@@ -1,5 +1,5 @@
 // lib/src/primitives/skeleton.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// An animated pulsing placeholder used to indicate loading state of UI elements.

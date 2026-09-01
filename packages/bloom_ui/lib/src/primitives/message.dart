@@ -1,5 +1,6 @@
 // lib/src/primitives/message.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
 /// Visual styling variants for [BloomMessage] and [BloomMessageGroup].
@@ -125,7 +126,7 @@ class BloomMessage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: resolved.background,
-            border: resolved.border != Colors.transparent ? Border.all(color: resolved.border) : null,
+            border: resolved.border != BloomColors.transparent ? Border.all(color: resolved.border) : null,
             borderRadius: BorderRadius.circular(theme.radius.lg),
           ),
           child: DefaultTextStyle(
@@ -167,15 +168,15 @@ class BloomMessage extends StatelessWidget {
     final c = context.bloomColors;
     switch (variant) {
       case BloomMessageVariant.defaultVariant:
-        return _MessageColors(background: c.primary, foreground: c.primaryForeground, border: Colors.transparent);
+        return _MessageColors(background: c.primary, foreground: c.primaryForeground, border: BloomColors.transparent);
       case BloomMessageVariant.secondary:
-        return _MessageColors(background: c.secondary, foreground: c.secondaryForeground, border: Colors.transparent);
+        return _MessageColors(background: c.secondary, foreground: c.secondaryForeground, border: BloomColors.transparent);
       case BloomMessageVariant.muted:
-        return _MessageColors(background: c.surface0, foreground: c.textPrimary, border: Colors.transparent);
+        return _MessageColors(background: c.surface0, foreground: c.textPrimary, border: BloomColors.transparent);
       case BloomMessageVariant.outline:
-        return _MessageColors(background: Colors.transparent, foreground: c.textPrimary, border: c.border);
+        return _MessageColors(background: BloomColors.transparent, foreground: c.textPrimary, border: c.border);
       case BloomMessageVariant.ghost:
-        return _MessageColors(background: Colors.transparent, foreground: c.textPrimary, border: Colors.transparent);
+        return _MessageColors(background: BloomColors.transparent, foreground: c.textPrimary, border: BloomColors.transparent);
     }
   }
 }

@@ -1,5 +1,5 @@
 import 'package:bloom_ui/bloom_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 void main() {
   runApp(const BloomUiExampleApp());
@@ -13,29 +13,23 @@ class BloomUiExampleApp extends StatefulWidget {
 }
 
 class _BloomUiExampleAppState extends State<BloomUiExampleApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+  BloomThemeMode _themeMode = BloomThemeMode.light;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return BloomApp(
       title: 'Bloom UI Showcase',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
-        extensions: const [BloomTheme.light],
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF030509),
-        extensions: const [BloomTheme.dark],
-      ),
+      theme: BloomTheme.light,
+      darkTheme: BloomTheme.dark,
       home: ShowcaseScreen(
-        isDark: _themeMode == ThemeMode.dark,
+        isDark: _themeMode == BloomThemeMode.dark,
         onToggleTheme: () {
           setState(() {
-            _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+            _themeMode = _themeMode == BloomThemeMode.dark
+                ? BloomThemeMode.light
+                : BloomThemeMode.dark;
           });
         },
       ),
@@ -67,28 +61,53 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Text('🌸 Bloom UI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            SizedBox(width: 8),
-            BloomBadge(
-              variant: BloomBadgeVariant.secondary,
-              size: BloomBadgeSize.sm,
-              child: Text('v0.1.0'),
+    return BloomScaffold(
+      header: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Row(
+                    children: [
+                      Text(
+                        '🌸 Bloom UI',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      BloomBadge(
+                        variant: BloomBadgeVariant.secondary,
+                        size: BloomBadgeSize.sm,
+                        child: Text('v0.1.0'),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  BloomPressable(
+                    onTap: widget.onToggleTheme,
+                    borderRadius: BorderRadius.circular(context.bloomRadius.md),
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Center(
+                        child: BloomIcon(
+                          widget.isDark ? BloomIcons.lightMode : BloomIcons.darkMode,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: widget.onToggleTheme,
           ),
-          const SizedBox(width: 8),
+          const BloomSeparator(),
         ],
-        elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -148,7 +167,7 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
                           Expanded(
                             child: BloomInput(
                               placeholder: 'Search components...',
-                              leading: const Icon(Icons.search, size: 16),
+                              leading: const BloomIcon(BloomIcons.search, size: 16),
                             ),
                           ),
                           const SizedBox(width: 8),

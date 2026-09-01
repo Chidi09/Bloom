@@ -6,22 +6,19 @@
 ///
 /// Key features:
 /// * **Design Tokens**: Standardized scales for spacing, border radii, shadows, motion curves, and typography.
-/// * **Dynamic Theming**: Integrated [BloomTheme] and [BloomColorScheme] extensions.
+/// * **Dynamic Theming**: Integrated [BloomTheme] and [BloomColorScheme] with [BloomThemeProvider].
 /// * **Comprehensive Primitives**: Buttons, inputs, forms, overlays, navigation, and data display components.
 /// * **Zero Magic**: Pure Flutter implementations with fine-grained customization.
 ///
 /// ## Usage
 /// ```dart
 /// import 'package:bloom_ui/bloom_ui.dart';
-/// import 'package:flutter/material.dart';
 ///
 /// void main() {
 ///   runApp(
-///     MaterialApp(
-///       theme: ThemeData(
-///         extensions: [BloomTheme.novaLight],
-///       ),
-///       home: const Scaffold(
+///     const BloomApp(
+///       theme: BloomTheme.novaLight,
+///       home: BloomScaffold(
 ///         body: Center(
 ///           child: BloomButton(
 ///             onPressed: null,
@@ -39,8 +36,19 @@ library bloom_ui;
 export 'src/theme/tokens.dart';
 export 'src/theme/bloom_color_scheme.dart';
 export 'src/theme/bloom_theme.dart';
+export 'src/theme/bloom_theme_provider.dart';
 export 'src/utils/extensions.dart';
 export 'src/utils/controllable_value.dart';
+export 'src/utils/bloom_pressable.dart';
+export 'src/utils/bloom_surface.dart';
+export 'src/utils/bloom_editable_field.dart';
+export 'src/utils/bloom_text_selection_controls.dart';
+export 'src/utils/bloom_modal_routes.dart';
+export 'src/utils/bloom_toast_host.dart';
+export 'src/widgets/bloom_app.dart';
+export 'src/icons/bloom_icons.dart';
+export 'src/icons/bloom_icon.dart';
+export 'src/icons/bloom_icon_data.dart';
 
 // Form Primitives
 export 'src/primitives/button.dart';

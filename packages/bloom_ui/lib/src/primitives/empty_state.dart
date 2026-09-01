@@ -1,5 +1,5 @@
 // lib/src/primitives/empty_state.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 class BloomEmptyState extends StatelessWidget {

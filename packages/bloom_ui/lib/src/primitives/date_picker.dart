@@ -1,11 +1,16 @@
 // lib/src/primitives/date_picker.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
+import 'calendar.dart';
 
 /// A date picker trigger button primitive styled with an outline border and calendar icon.
 ///
-/// Tapping the button opens Flutter's themed [showDatePicker] dialog and invokes [onDateSelected] upon confirmation.
+/// Tapping the button opens a themed [BloomCalendar] dialog and invokes [onDateSelected] upon confirmation.
 ///
 /// ```dart
 /// BloomDatePicker(
@@ -48,20 +53,32 @@ class BloomDatePicker extends StatelessWidget {
 
   Future<void> _pickDate(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final initial = selectedDate ?? now;
+    final minDate = firstDate ?? DateTime(2000);
+    final maxDate = lastDate ?? DateTime(2100);
+
+    final picked = await showBloomDialog<DateTime>(
       context: context,
-      initialDate: selectedDate ?? now,
-      firstDate: firstDate ?? DateTime(2000),
-      lastDate: lastDate ?? DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: context.bloomColors.primary,
-              surface: context.bloomColors.surface1,
+      builder: (dialogContext) {
+        return Center(
+          child: BloomSurface(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(context.bloomRadius.lg),
+            child: Container(
+              width: 320,
+              padding: EdgeInsets.all(context.bloomSpacing.s4),
+              child: BloomCalendar.single(
+                selected: initial,
+                initialMonth: initial,
+                onDaySelected: (day) {
+                  if (day.isBefore(minDate) || day.isAfter(maxDate)) {
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop(day);
+                },
+              ),
             ),
           ),
-          child: child!,
         );
       },
     );
@@ -80,7 +97,7 @@ class BloomDatePicker extends StatelessWidget {
 
     return BloomButton(
       variant: BloomButtonVariant.outline,
-      leftIcon: Icon(Icons.calendar_today, size: 16, color: colors.textSecondary),
+      leftIcon: BloomIcon(BloomIcons.calendar, size: 16, color: colors.textSecondary),
       onPressed: () => _pickDate(context),
       child: Text(
         dateStr,

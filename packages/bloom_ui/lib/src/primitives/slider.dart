@@ -1,10 +1,11 @@
 // lib/src/primitives/slider.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// A styled range slider matching shadcn base-nova design specifications with a 4px track and custom thumb ring.
 ///
-/// Wraps Flutter's [Slider] with themed styling tokens, rounded track shapes, and circular thumb shadow.
+/// Provides a self-contained slider with themed styling tokens, rounded track shapes, and circular thumb shadow.
 ///
 /// ```dart
 /// BloomSlider(
@@ -55,86 +56,189 @@ class BloomSlider extends StatelessWidget {
     this.disabled = false,
   });
 
+  void _updateValueFromPosition(double localDx, double totalWidth) {
+    if (disabled || onChanged == null || max <= min) return;
+    const thumbRadius = 7.0;
+    final usableWidth = totalWidth - 2 * thumbRadius;
+    if (usableWidth <= 0) return;
+
+    double fraction = (localDx - thumbRadius) / usableWidth;
+    fraction = fraction.clamp(0.0, 1.0);
+    double newValue = min + fraction * (max - min);
+
+    if (divisions != null && divisions! > 0) {
+      final step = (max - min) / divisions!;
+      newValue = (min + ((newValue - min) / step).round() * step).clamp(min, max);
+    }
+    onChanged!(newValue);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
+    final isInteractive = !disabled && onChanged != null && max > min;
+    final clampedValue = value.clamp(min, max);
 
-    return SliderTheme(
-      data: SliderThemeData(
-        trackHeight: 4.0, // h-1 (4px)
-        activeTrackColor: colors.primary,
-        inactiveTrackColor: colors.surface0, // bg-muted
-        thumbColor: colors.surface1, // white thumb
-        overlayColor: colors.primary.withValues(alpha: 0.12),
-        thumbShape: const _BloomThumbShape(),
-        trackShape: const _BloomTrackShape(),
-      ),
-      child: Slider(
-        value: value.clamp(min, max),
-        onChanged: disabled ? null : onChanged,
-        min: min,
-        max: max,
-        divisions: divisions,
+    final step = (divisions != null && divisions! > 0)
+        ? (max - min) / divisions!
+        : (max - min) / 20.0;
+    final increasedValue = (clampedValue + step).clamp(min, max);
+    final decreasedValue = (clampedValue - step).clamp(min, max);
+
+    void increase() {
+      if (isInteractive) {
+        onChanged!(increasedValue);
+      }
+    }
+
+    void decrease() {
+      if (isInteractive) {
+        onChanged!(decreasedValue);
+      }
+    }
+
+    return Semantics(
+      slider: true,
+      enabled: isInteractive,
+      value: clampedValue.toStringAsFixed(1),
+      increasedValue: increasedValue.toStringAsFixed(1),
+      decreasedValue: decreasedValue.toStringAsFixed(1),
+      onIncrease: isInteractive ? increase : null,
+      onDecrease: isInteractive ? decrease : null,
+      child: Focus(
+        canRequestFocus: isInteractive,
+        onKeyEvent: (node, event) {
+          if (!isInteractive || event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+              event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            increase();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+              event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            decrease();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final totalWidth = constraints.maxWidth;
+            final isFinite = totalWidth.isFinite && totalWidth > 0;
+
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: isInteractive && isFinite
+                  ? (details) => _updateValueFromPosition(details.localPosition.dx, totalWidth)
+                  : null,
+              onTapDown: isInteractive && isFinite
+                  ? (details) => _updateValueFromPosition(details.localPosition.dx, totalWidth)
+                  : null,
+              child: SizedBox(
+                height: 32.0,
+                width: double.infinity,
+                child: CustomPaint(
+                  painter: _BloomSliderPainter(
+                    value: clampedValue,
+                    min: min,
+                    max: max,
+                    activeTrackColor: colors.primary,
+                    inactiveTrackColor: colors.surface0,
+                    thumbColor: colors.surface1,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _BloomTrackShape extends RoundedRectSliderTrackShape {
-  const _BloomTrackShape();
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final trackHeight = sliderTheme.trackHeight ?? 4.0;
-    final trackLeft = offset.dx;
-    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final trackWidth = parentBox.size.width;
-    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
-  }
-}
+class _BloomSliderPainter extends CustomPainter {
+  final double value;
+  final double min;
+  final double max;
+  final Color activeTrackColor;
+  final Color inactiveTrackColor;
+  final Color thumbColor;
 
-class _BloomThumbShape extends RoundSliderThumbShape {
-  const _BloomThumbShape() : super(enabledThumbRadius: 7.0, elevation: 1.5);
+  const _BloomSliderPainter({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.activeTrackColor,
+    required this.inactiveTrackColor,
+    required this.thumbColor,
+  });
 
   @override
-  void paint(
-    PaintingContext context,
-    Offset center, {
-    required Animation<double> activationAnimation,
-    required Animation<double> enableAnimation,
-    required bool isDiscrete,
-    required TextPainter labelPainter,
-    required RenderBox parentBox,
-    required SliderThemeData sliderTheme,
-    TextDirection textDirection = TextDirection.ltr,
-    double value = 0.0,
-    double textScaleFactor = 1.0,
-    Size sizeWithOverflow = Size.zero,
-  }) {
-    final canvas = context.canvas;
+  void paint(Canvas canvas, Size size) {
+    const trackHeight = 4.0;
+    const thumbRadius = 7.0;
+    final trackTop = (size.height - trackHeight) / 2.0;
+
+    final usableWidth = size.width - 2 * thumbRadius;
+    final fraction = (max > min && usableWidth > 0)
+        ? ((value - min) / (max - min)).clamp(0.0, 1.0)
+        : 0.0;
+    final thumbX = thumbRadius + fraction * (usableWidth > 0 ? usableWidth : 0.0);
+    final thumbY = size.height / 2.0;
+
+    // Inactive track
+    final inactiveTrackRect = Rect.fromLTWH(0, trackTop, size.width, trackHeight);
+    final inactiveRRect = RRect.fromRectAndRadius(
+      inactiveTrackRect,
+      const Radius.circular(trackHeight / 2),
+    );
+    final inactivePaint = Paint()
+      ..color = inactiveTrackColor
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(inactiveRRect, inactivePaint);
+
+    // Active track
+    if (thumbX > 0) {
+      final activeTrackRect = Rect.fromLTWH(0, trackTop, thumbX, trackHeight);
+      final activeRRect = RRect.fromRectAndRadius(
+        activeTrackRect,
+        const Radius.circular(trackHeight / 2),
+      );
+      final activePaint = Paint()
+        ..color = activeTrackColor
+        ..style = PaintingStyle.fill;
+      canvas.save();
+      canvas.clipRRect(inactiveRRect);
+      canvas.drawRRect(activeRRect, activePaint);
+      canvas.restore();
+    }
 
     // Outer ring shadow
     final shadowPaint = Paint()
       ..color = const Color(0x1F000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    canvas.drawCircle(center + const Offset(0, 1), 7.0, shadowPaint);
+    canvas.drawCircle(Offset(thumbX, thumbY + 1), thumbRadius, shadowPaint);
 
     // Inner thumb body
     final fillPaint = Paint()
-      ..color = sliderTheme.thumbColor ?? Colors.white
+      ..color = thumbColor
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 7.0, fillPaint);
+    canvas.drawCircle(Offset(thumbX, thumbY), thumbRadius, fillPaint);
 
     // Border ring
     final borderPaint = Paint()
-      ..color = sliderTheme.activeTrackColor ?? const Color(0xFF171717)
+      ..color = activeTrackColor
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    canvas.drawCircle(center, 7.0, borderPaint);
+    canvas.drawCircle(Offset(thumbX, thumbY), thumbRadius, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(_BloomSliderPainter oldDelegate) {
+    return oldDelegate.value != value ||
+        oldDelegate.min != min ||
+        oldDelegate.max != max ||
+        oldDelegate.activeTrackColor != activeTrackColor ||
+        oldDelegate.inactiveTrackColor != inactiveTrackColor ||
+        oldDelegate.thumbColor != thumbColor;
   }
 }

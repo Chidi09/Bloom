@@ -1,5 +1,5 @@
 // lib/src/theme/bloom_theme.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'bloom_color_scheme.dart';
 import 'tokens.dart';
 
@@ -15,7 +15,8 @@ enum BloomThemeStyle {
   rhea,
 }
 
-/// Flutter ThemeExtension carrying the full Bloom Token & Component Theme.
+/// Standalone immutable theme carrying the full Bloom Token & Component Theme,
+/// provided through `BloomThemeProvider`.
 ///
 /// Shadcn/ui defines 8 official styles that change radius, spacing,
 /// density and typography without changing component code:
@@ -23,7 +24,7 @@ enum BloomThemeStyle {
 ///   lyra (sharp zero-radius), mira (ultra-compact), luma (balanced refined),
 ///   sera (editorial serif), rhea (smooth modern).
 @immutable
-class BloomTheme extends ThemeExtension<BloomTheme> {
+class BloomTheme {
   final BloomColorScheme colors;
   final BloomSpacing spacing;
   final BloomRadius radius;
@@ -188,7 +189,6 @@ class BloomTheme extends ThemeExtension<BloomTheme> {
     };
   }
 
-  @override
   BloomTheme copyWith({
     BloomColorScheme? colors,
     BloomSpacing? spacing,
@@ -203,9 +203,8 @@ class BloomTheme extends ThemeExtension<BloomTheme> {
     );
   }
 
-  @override
-  BloomTheme lerp(ThemeExtension<BloomTheme>? other, double t) {
-    if (other is! BloomTheme) return this;
+  BloomTheme lerp(BloomTheme? other, double t) {
+    if (other == null) return this;
     return BloomTheme(
       colors: BloomColorScheme.lerp(colors, other.colors, t),
       spacing: spacing,
@@ -213,4 +212,17 @@ class BloomTheme extends ThemeExtension<BloomTheme> {
       typography: typography,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BloomTheme &&
+          runtimeType == other.runtimeType &&
+          colors == other.colors &&
+          spacing == other.spacing &&
+          radius == other.radius &&
+          typography == other.typography;
+
+  @override
+  int get hashCode => Object.hash(colors, spacing, radius, typography);
 }

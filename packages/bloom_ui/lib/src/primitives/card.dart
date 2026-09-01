@@ -1,6 +1,7 @@
 // lib/src/primitives/card.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// Size variants for [BloomCard] and its subcomponents.
@@ -103,14 +104,10 @@ class BloomCard extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
+      return BloomPressable(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(radius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(radius),
-          child: cardContent,
-        ),
+        child: cardContent,
       );
     }
 

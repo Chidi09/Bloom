@@ -1,6 +1,7 @@
 // lib/src/primitives/switch.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -136,9 +137,10 @@ class _BloomSwitchState extends State<BloomSwitch> {
     );
 
     if (widget.label != null) {
-      return InkWell(
+      return BloomPressable(
         onTap: widget.disabled ? null : _toggle,
         borderRadius: BorderRadius.circular(999),
+        enabled: !widget.disabled,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           child: Row(
@@ -161,9 +163,10 @@ class _BloomSwitchState extends State<BloomSwitch> {
       );
     }
 
-    return InkWell(
+    return BloomPressable(
       onTap: widget.disabled ? null : _toggle,
       borderRadius: BorderRadius.circular(999),
+      enabled: !widget.disabled,
       child: track,
     );
   }
