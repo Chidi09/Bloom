@@ -13,7 +13,8 @@ void main() {
     setUp(() async {
       tempWebDir = await Directory.systemTemp.createTemp('bloom_web_test_');
       final indexHtml = File('${tempWebDir.path}/index.html');
-      await indexHtml.writeAsString('<!DOCTYPE html><html><body><h1>Hello Bloom</h1></body></html>');
+      await indexHtml.writeAsString(
+          '<!DOCTYPE html><html><body><h1>Hello Bloom</h1></body></html>');
 
       testPort = 19876;
       devServer = BloomLiveReloadServer(
@@ -31,7 +32,8 @@ void main() {
       }
     });
 
-    test('serves index.html with live reload script automatically injected', () async {
+    test('serves index.html with live reload script automatically injected',
+        () async {
       final client = HttpClient();
       final req = await client.get('127.0.0.1', testPort, '/');
       final res = await req.close();
@@ -40,6 +42,10 @@ void main() {
       expect(res.statusCode, 200);
       expect(body, contains('__BLOOM_HR_ACTIVE__'));
       expect(body, contains('EventSource(\'/_bloom_hr\')'));
+      expect(body, contains('data-bloom-devtools-host'));
+      expect(body, contains('attachShadow'));
+      expect(body, contains('Bloom DevTools'));
+      expect(body, contains('role="dialog"'));
       client.close(force: true);
     });
 
@@ -80,13 +86,15 @@ void main() {
       client.close(force: true);
     });
 
-    test('establishes SSE stream on /_bloom_hr and receives broadcast', () async {
+    test('establishes SSE stream on /_bloom_hr and receives broadcast',
+        () async {
       final socket = await Socket.connect('127.0.0.1', testPort);
       socket.write('GET /_bloom_hr HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n');
       await socket.flush();
 
       final completer = Completer<String>();
-      final sub = socket.cast<List<int>>().transform(utf8.decoder).listen((data) {
+      final sub =
+          socket.cast<List<int>>().transform(utf8.decoder).listen((data) {
         if (!completer.isCompleted && data.contains('event: reload')) {
           completer.complete(data);
         }

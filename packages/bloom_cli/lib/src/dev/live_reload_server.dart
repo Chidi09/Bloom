@@ -98,6 +98,78 @@ class BloomLiveReloadServer {
     if (window.__BLOOM_HR_ACTIVE__) return;
     window.__BLOOM_HR_ACTIVE__ = true;
 
+    // Current Next DevTools uses one isolated surface for status, diagnostics,
+    // and error detail. Keep this client dependency-free, but use the same
+    // interaction model: an unobtrusive indicator, a compact menu/panel, then
+    // an accessible diagnostic dialog. The legacy drawer remains below only so
+    // older cached pages can finish parsing this injected script; it is not run.
+    bloomNextStyleDevtools();
+    return;
+
+    function bloomNextStyleDevtools() {
+      const MAX_ISSUES = 50;
+      const MAX_LOGS = 200;
+      const storageKey = 'bloom.devtools.position.v1';
+      const host = document.createElement('div');
+      host.setAttribute('data-bloom-devtools-host', 'true');
+      const shadow = host.attachShadow({ mode: 'open' });
+      (document.body || document.documentElement).appendChild(host);
+
+      shadow.innerHTML = `
+        <style>
+          :host { color-scheme: light dark; }
+          *,*::before,*::after { box-sizing:border-box; }
+          button { font:inherit; }
+          #bloom-devtools { --bg:#fff;--surface:#fff;--surface-2:#f6f6f6;--text:#171717;--muted:#666;--line:#e5e5e5;--blue:#0070f3;--red:#d00;--amber:#a15c00; position:fixed;inset:0;z-index:2147483647;pointer-events:none;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);font-size:14px;line-height:1.4; }
+          @media(prefers-color-scheme:dark) { #bloom-devtools { --bg:#111;--surface:#171717;--surface-2:#242424;--text:#ededed;--muted:#a1a1a1;--line:#333;--blue:#3291ff;--red:#ff5b5b;--amber:#f5b942; } }
+          .indicator { position:fixed;bottom:20px;left:20px;width:40px;height:40px;border:1px solid var(--line);border-radius:999px;background:var(--surface);box-shadow:0 4px 14px #0002;display:grid;place-items:center;cursor:grab;pointer-events:auto;padding:0;color:var(--text);transition:transform .16s ease,box-shadow .16s ease; }
+          .indicator:hover,.indicator:focus-visible { transform:scale(1.06);box-shadow:0 7px 20px #0003;outline:2px solid var(--blue);outline-offset:2px; }
+          .indicator[data-status="compiling"] { animation:pulse 1s ease-in-out infinite; } .indicator[data-status="error"] { border-color:var(--red); }
+          .mark { width:19px;height:19px;border-radius:6px;background:conic-gradient(from 210deg,#7928ca,#ff0080,#ff4d4d,#0070f3,#7928ca);position:relative; } .mark::after { content:"";position:absolute;inset:6px;border-radius:3px;background:var(--surface); }
+          .count { position:absolute;right:-5px;top:-5px;min-width:18px;height:18px;border-radius:99px;background:var(--red);color:#fff;border:2px solid var(--surface);font:600 10px/14px ui-monospace,monospace;text-align:center;padding:0 3px;display:none; }
+          .status { position:absolute;right:1px;bottom:1px;width:8px;height:8px;border-radius:50%;background:#20a35b;border:1px solid var(--surface); } .status[data-disconnected="true"]{background:var(--amber)}
+          .popover,.panel { pointer-events:auto;background:var(--surface);border:1px solid var(--line);box-shadow:0 16px 48px #0003;border-radius:12px; } .popover { position:fixed;bottom:70px;left:20px;width:272px;padding:6px;display:none; } .popover[data-open="true"]{display:block;animation:enter .14s ease-out;}
+          .menu-title { padding:9px 10px 6px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between; } .menu-item { border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:9px;width:100%;border-radius:7px;padding:9px 10px;text-align:left;cursor:pointer; } .menu-item:hover,.menu-item:focus-visible { background:var(--surface-2);outline:0; } .menu-item b { margin-left:auto;font-size:12px;color:var(--muted);font-weight:500; } .menu-sep { height:1px;background:var(--line);margin:6px 0; }
+          .panel { position:fixed;bottom:20px;left:72px;width:min(520px,calc(100vw - 92px));height:min(560px,calc(100vh - 40px));display:none;overflow:hidden;resize:both;min-width:330px;min-height:280px; } .panel[data-open="true"]{display:flex;flex-direction:column;animation:enter .16s ease-out;}
+          .panel-header { min-height:48px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 10px 0 16px;gap:8px; } .panel-header strong{font-size:14px}.panel-header span{color:var(--muted);font-size:12px}.spacer{flex:1}.icon-btn { border:0;background:transparent;color:var(--muted);border-radius:6px;padding:7px 9px;cursor:pointer;}.icon-btn:hover,.icon-btn:focus-visible{background:var(--surface-2);color:var(--text);outline:0}
+          .tabs{display:flex;border-bottom:1px solid var(--line);padding:0 8px;gap:2px}.tab{border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);padding:11px 9px 9px;cursor:pointer}.tab[data-active="true"]{color:var(--text);border-color:var(--text)}.tab:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+          .body{overflow:auto;flex:1;padding:12px}.overview{display:grid;gap:8px}.card{border:1px solid var(--line);border-radius:8px;padding:12px}.row{display:flex;gap:12px;justify-content:space-between;padding:4px 0}.row label{color:var(--muted)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.issue{width:100%;background:none;border:1px solid var(--line);border-radius:8px;padding:11px;text-align:left;color:var(--text);cursor:pointer;margin-bottom:8px}.issue:hover,.issue:focus-visible{border-color:var(--blue);outline:0}.issue-head{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:6px}.dot{width:8px;height:8px;border-radius:50%;background:var(--red)}.dot.warn{background:var(--amber)}.issue-msg{font:500 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}.empty{height:100%;display:grid;place-content:center;text-align:center;color:var(--muted);gap:8px}.log{padding:7px 0;border-bottom:1px solid var(--line);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}.log[data-level="error"]{color:var(--red)}.log[data-level="warn"]{color:var(--amber)}
+          .backdrop{position:fixed;inset:0;background:#0008;display:none;pointer-events:auto;padding:24px;place-items:center}.backdrop[data-open="true"]{display:grid}.dialog{width:min(900px,100%);max-height:min(720px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 80px #0008;display:flex;flex-direction:column;overflow:hidden}.dialog-head{padding:16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start}.dialog-head h2{font-size:15px;margin:0}.dialog-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.dialog-body{padding:16px;overflow:auto}.message{font:600 15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}.frame{margin-top:16px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:12px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow:auto}.frame .hint{color:var(--blue);font-weight:600}.dialog-foot{border-top:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:8px}.button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:7px;padding:7px 10px;cursor:pointer}.button:hover,.button:focus-visible{background:var(--surface-2);outline:2px solid var(--blue);outline-offset:1px}.primary{background:var(--text);color:var(--surface);border-color:var(--text)}.primary:hover{opacity:.88;background:var(--text)}@keyframes enter{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}@keyframes pulse{50%{box-shadow:0 0 0 5px #f5a62333}}
+        </style>
+        <div id="bloom-devtools"><button class="indicator" type="button" aria-label="Open Bloom DevTools" aria-expanded="false" data-status="ready"><span class="mark"></span><span class="count"></span><span class="status"></span></button><div class="popover" role="menu"><div class="menu-title"><span>Bloom DevTools</span><span class="connection">Connected</span></div><button class="menu-item" data-open-tab="overview">Overview <b>⌘I</b></button><button class="menu-item" data-open-tab="issues">Issues <b class="menu-issues">0</b></button><button class="menu-item" data-open-tab="console">Console <b class="menu-logs">0</b></button><button class="menu-item" data-open-tab="history">Reload history</button><div class="menu-sep"></div><button class="menu-item" data-action="reload">Reload page <b>⌘R</b></button></div><section class="panel" aria-label="Bloom DevTools"><header class="panel-header"><strong>Bloom DevTools</strong><span class="panel-state">Ready</span><i class="spacer"></i><button class="icon-btn" data-action="clear" title="Clear diagnostics">Clear</button><button class="icon-btn" data-action="close" aria-label="Close DevTools">×</button></header><nav class="tabs" aria-label="DevTools sections"><button class="tab" data-tab="overview">Overview</button><button class="tab" data-tab="issues">Issues</button><button class="tab" data-tab="console">Console</button><button class="tab" data-tab="history">History</button></nav><main class="body"></main></section><div class="backdrop" role="presentation"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="bloom-error-title"><header class="dialog-head"><span class="dot"></span><div><h2 id="bloom-error-title">Runtime Error</h2><p class="dialog-meta"></p></div><i class="spacer"></i><button class="icon-btn" data-action="dismiss" aria-label="Dismiss error">×</button></header><div class="dialog-body"><div class="message"></div><pre class="frame"></pre></div><footer class="dialog-foot"><span class="dialog-count"></span><i class="spacer"></i><button class="button" data-action="copy">Copy details</button><button class="button primary" data-action="dismiss">Dismiss</button></footer></section></div></div>`;
+
+      const $ = (selector) => shadow.querySelector(selector);
+      const $$ = (selector) => Array.from(shadow.querySelectorAll(selector));
+      const indicator = $('.indicator'), popover = $('.popover'), panel = $('.panel'), body = $('.body'), backdrop = $('.backdrop');
+      const state = { issues: [], logs: [], history: [], connected: false, compiling: false, tab: 'overview', selected: null };
+      const safe = (value) => value == null ? '' : String(value);
+      const short = (value, length = 170) => { value = safe(value); return value.length > length ? value.slice(0, length - 1) + '…' : value; };
+      function locationHint(message) { const match = safe(message).match(/([\w./-]+\.dart):(\d+)(?::(\d+))?/); return match ? match[1] + ':' + match[2] + (match[3] ? ':' + match[3] : '') : ''; }
+      function setText(selector, value) { const node = $(selector); if (node) node.textContent = safe(value); }
+      function addIssue(type, message, stack, hint) { const fingerprint = type + '|' + safe(message) + '|' + safe(stack); if (state.issues.some((issue) => issue.fingerprint === fingerprint)) return false; state.issues.unshift({ type, message: safe(message), stack: safe(stack), hint: hint || locationHint(message), timestamp: Date.now(), fingerprint }); state.issues.splice(MAX_ISSUES); render(); return true; }
+      function addLog(level, message) { state.logs.unshift({ level, message: safe(message), timestamp: Date.now() }); state.logs.splice(MAX_LOGS); render(); }
+      function addHistory(kind, reason) { state.history.unshift({ kind, reason: safe(reason || ''), timestamp: Date.now() }); state.history.splice(MAX_LOGS); render(); }
+      function setConnection(value) { state.connected = value; $('.status').dataset.disconnected = String(!value); setText('.connection', value ? 'Connected' : 'Reconnecting…'); renderHeader(); }
+      function renderHeader() { const issueCount = state.issues.length; $('.count').style.display = issueCount ? 'block' : 'none'; $('.count').textContent = issueCount > 99 ? '99+' : String(issueCount); $('.menu-issues').textContent = String(issueCount); $('.menu-logs').textContent = String(state.logs.length); indicator.dataset.status = issueCount ? 'error' : state.compiling ? 'compiling' : 'ready'; setText('.panel-state', state.compiling ? 'Compiling…' : state.connected ? 'Ready' : 'Reconnecting…'); }
+      function appendRow(container, label, value, mono) { const row = document.createElement('div'); row.className = 'row'; const l = document.createElement('label'); l.textContent = label; const v = document.createElement('span'); v.textContent = value; if (mono) v.className = 'mono'; row.append(l, v); container.append(row); }
+      function empty(message) { const node = document.createElement('div'); node.className = 'empty'; node.textContent = message; return node; }
+      function render() { renderHeader(); if (!panel.dataset.open) return; body.replaceChildren(); $$('.tab').forEach((tab) => tab.dataset.active = String(tab.dataset.tab === state.tab)); if (state.tab === 'overview') { const wrap = document.createElement('div'); wrap.className = 'overview'; const card = document.createElement('section'); card.className = 'card'; appendRow(card, 'Route', location.pathname || '/', true); appendRow(card, 'Connection', state.connected ? 'Connected' : 'Reconnecting…'); appendRow(card, 'Build status', state.compiling ? 'Compiling…' : 'Idle'); appendRow(card, 'Issues', String(state.issues.length)); appendRow(card, 'Live reload', 'SSE /_bloom_hr', true); wrap.append(card); const action = document.createElement('button'); action.className = 'button'; action.textContent = 'Reload page'; action.onclick = () => location.reload(); wrap.append(action); body.append(wrap); return; } const list = state.tab === 'issues' ? state.issues : state.tab === 'console' ? state.logs : state.history; if (!list.length) { body.append(empty(state.tab === 'issues' ? 'No build, runtime, or console issues.' : state.tab === 'console' ? 'No captured console output.' : 'No reloads yet.')); return; } list.forEach((item, index) => { if (state.tab === 'issues') { const button = document.createElement('button'); button.className = 'issue'; const head = document.createElement('div'); head.className = 'issue-head'; const dot = document.createElement('span'); dot.className = 'dot' + (item.type === 'Console warning' ? ' warn' : ''); const type = document.createElement('span'); type.textContent = item.type; const time = document.createElement('span'); time.style.marginLeft = 'auto'; time.textContent = new Date(item.timestamp).toLocaleTimeString(); head.append(dot, type, time); const message = document.createElement('div'); message.className = 'issue-msg'; message.textContent = item.message; button.append(head, message); button.onclick = () => openIssue(index); body.append(button); } else { const entry = document.createElement('div'); entry.className = 'log'; entry.dataset.level = item.level || ''; entry.textContent = (item.kind ? '[' + item.kind + '] ' : '') + (item.message || item.reason || ''); body.append(entry); } }); }
+      function openIssue(index) { state.selected = index; const issue = state.issues[index]; if (!issue) return; setText('#bloom-error-title', issue.type); setText('.dialog-meta', issue.hint || new Date(issue.timestamp).toLocaleTimeString()); setText('.message', issue.message); const frame = $('.frame'); frame.replaceChildren(); if (issue.hint) { const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = '› ' + issue.hint + '\n\n'; frame.append(hint); } frame.append(document.createTextNode(issue.stack || 'No stack trace was supplied.')); setText('.dialog-count', (index + 1) + ' of ' + state.issues.length + ' issue' + (state.issues.length === 1 ? '' : 's')); backdrop.dataset.open = 'true'; $('.dialog [data-action="dismiss"]').focus(); }
+      function dismiss() { backdrop.dataset.open = 'false'; state.selected = null; indicator.focus(); }
+      function openPanel(tab) { state.tab = tab || state.tab; popover.dataset.open = 'false'; panel.dataset.open = 'true'; indicator.setAttribute('aria-expanded', 'true'); render(); }
+      function closePanel() { panel.dataset.open = 'false'; popover.dataset.open = 'false'; indicator.setAttribute('aria-expanded', 'false'); indicator.focus(); }
+      indicator.onclick = () => { if (panel.dataset.open === 'true') closePanel(); else { popover.dataset.open = popover.dataset.open === 'true' ? 'false' : 'true'; indicator.setAttribute('aria-expanded', popover.dataset.open); } };
+      $$('[data-open-tab]').forEach((button) => button.onclick = () => openPanel(button.dataset.openTab)); $$('[data-tab]').forEach((button) => button.onclick = () => openPanel(button.dataset.tab)); $$('[data-action="close"]').forEach((button) => button.onclick = closePanel); $$('[data-action="dismiss"]').forEach((button) => button.onclick = dismiss); $$('[data-action="reload"]').forEach((button) => button.onclick = () => location.reload()); $$('[data-action="clear"]').forEach((button) => button.onclick = () => { state.issues.length = 0; state.logs.length = 0; render(); }); $('[data-action="copy"]').onclick = async () => { const issue = state.issues[state.selected]; if (!issue) return; const text = issue.type + '\n' + issue.message + '\n' + issue.hint + '\n\n' + issue.stack; try { await navigator.clipboard.writeText(text); setText('[data-action="copy"]', 'Copied'); setTimeout(() => setText('[data-action="copy"]', 'Copy details'), 1200); } catch (_) {} };
+      backdrop.onclick = (event) => { if (event.target === backdrop) dismiss(); }; document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { if (backdrop.dataset.open === 'true') dismiss(); else if (panel.dataset.open === 'true' || popover.dataset.open === 'true') closePanel(); } });
+      let drag = null; const saved = (() => { try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (_) { return null; } })(); if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) { indicator.style.left = saved.x + 'px'; indicator.style.top = saved.y + 'px'; indicator.style.bottom = 'auto'; }
+      indicator.addEventListener('pointerdown', (event) => { drag = { x: event.clientX, y: event.clientY, left: indicator.offsetLeft, top: indicator.offsetTop, moved: false }; indicator.setPointerCapture(event.pointerId); }); indicator.addEventListener('pointermove', (event) => { if (!drag) return; const x = Math.max(12, Math.min(innerWidth - 52, drag.left + event.clientX - drag.x)); const y = Math.max(12, Math.min(innerHeight - 52, drag.top + event.clientY - drag.y)); drag.moved ||= Math.abs(event.clientX - drag.x) > 4 || Math.abs(event.clientY - drag.y) > 4; indicator.style.left = x + 'px'; indicator.style.top = y + 'px'; indicator.style.bottom = 'auto'; }); indicator.addEventListener('pointerup', () => { if (!drag) return; try { localStorage.setItem(storageKey, JSON.stringify({ x: indicator.offsetLeft, y: indicator.offsetTop })); } catch (_) {} drag = null; });
+      window.addEventListener('error', (event) => { if (addIssue('Runtime Error', event.message || 'Uncaught error', event.error && event.error.stack || '', locationHint(event.message))) openIssue(0); }); window.addEventListener('unhandledrejection', (event) => { const reason = event.reason; if (addIssue('Unhandled Promise Rejection', reason && (reason.message || String(reason)), reason && reason.stack || '')) openIssue(0); }); window.addEventListener('bloom-runtime-error', (event) => { const detail = event.detail || {}; if (addIssue('Runtime Error', detail.message || detail.error || 'Bloom runtime error', detail.stack || detail.stackTrace || '', detail.sourceHint)) openIssue(0); });
+      const nativeConsole = { error: console.error, warn: console.warn }; ['error', 'warn'].forEach((level) => { console[level] = function(...args) { try { const message = args.map((arg) => arg instanceof Error ? (arg.stack || arg.message) : typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' '); addLog(level, message); if (!message.startsWith('[Bloom Build Error]')) addIssue(level === 'error' ? 'Console Error' : 'Console warning', message, ''); } catch (_) {} return nativeConsole[level].apply(console, args); }; });
+      const observer = new MutationObserver(() => { document.querySelectorAll('[data-bloom-dev-error-overlay]').forEach((overlay) => { const message = overlay.textContent || 'Bloom runtime error'; if (addIssue('Runtime Error', message, '')) openIssue(0); // Keep the marker for existing integrations and tests, but prevent the legacy red screen from covering the unified dialog.
+        overlay.style.display = 'none'; }); }); observer.observe(document.documentElement, { childList:true, subtree:true });
+      function parse(event) { try { return event.data ? JSON.parse(event.data) : {}; } catch (_) { return {}; } } function connect() { const es = new EventSource('/_bloom_hr'); es.addEventListener('open', () => setConnection(true)); es.addEventListener('compiling', (event) => { const data = parse(event); state.compiling = true; addHistory('Compiling', data.reason); render(); }); es.addEventListener('reload', (event) => { const data = parse(event); addHistory('Reload', data.reason); location.reload(); }); es.addEventListener('hot-remount', (event) => { const data = parse(event); addHistory('Hot remount', data.reason); state.compiling = false; if (typeof window.__bloomDdcRemount === 'function') window.__bloomDdcRemount(); else location.reload(); render(); }); es.addEventListener('css-patch', (event) => { const data = parse(event); const matches = Array.from(document.querySelectorAll('style')).filter((style) => style.textContent === data.oldCss); if (matches.length === 1) { matches[0].textContent = data.newCss; state.compiling = false; addHistory('CSS patch', 'Patched stylesheet'); render(); } else location.reload(); }); es.addEventListener('error', (event) => { const data = parse(event); if (data.message) { state.compiling = false; if (addIssue('Build Error', data.message, '', locationHint(data.message))) openIssue(0); } render(); }); es.onerror = () => { setConnection(false); es.close(); setTimeout(connect, 1000); }; } connect(); setConnection(true); renderHeader();
+    }
+
     const NS = 'http://www.w3.org/2000/svg';
     const bloomMarkPaths = [
       ['M100 20 C130 20 145 60 125 90 C110 100 90 100 75 90 C55 60 70 20 100 20 Z', '#pf_pink'],
@@ -1559,7 +1631,8 @@ class BloomLiveReloadServer {
     if (path == '/__open-in-editor') {
       req.response.headers.add('Access-Control-Allow-Origin', '*');
       req.response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      req.response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      req.response.headers
+          .add('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
       if (req.method == 'OPTIONS') {
         req.response.statusCode = HttpStatus.ok;
@@ -1596,7 +1669,8 @@ class BloomLiveReloadServer {
         final file = File(p.join(ddcCacheDir!.path, fileName));
         if (file.existsSync()) {
           final ext = p.extension(file.path).replaceAll('.', '').toLowerCase();
-          req.response.headers.set(HttpHeaders.contentTypeHeader, _getContentType(ext));
+          req.response.headers
+              .set(HttpHeaders.contentTypeHeader, _getContentType(ext));
           req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
           req.response.add(file.readAsBytesSync());
           await req.response.close();
@@ -1611,11 +1685,15 @@ class BloomLiveReloadServer {
 
       var targetPath = p.canonicalize(p.join(webDir.path, reqPath));
 
-      if (p.isWithin(webDir.path, targetPath) || targetPath == p.canonicalize(webDir.path)) {
+      if (p.isWithin(webDir.path, targetPath) ||
+          targetPath == p.canonicalize(webDir.path)) {
         var targetFile = File(targetPath);
-        if (targetFile.existsSync() && !FileSystemEntity.isDirectorySync(targetFile.path)) {
-          final ext = p.extension(targetFile.path).replaceAll('.', '').toLowerCase();
-          req.response.headers.set(HttpHeaders.contentTypeHeader, _getContentType(ext));
+        if (targetFile.existsSync() &&
+            !FileSystemEntity.isDirectorySync(targetFile.path)) {
+          final ext =
+              p.extension(targetFile.path).replaceAll('.', '').toLowerCase();
+          req.response.headers
+              .set(HttpHeaders.contentTypeHeader, _getContentType(ext));
           req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
 
           if (ext == 'html') {
@@ -1634,7 +1712,8 @@ class BloomLiveReloadServer {
         if (indexFile.existsSync()) {
           var html = indexFile.readAsStringSync();
           html = _prepareHtml(html);
-          req.response.headers.set(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');
+          req.response.headers
+              .set(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');
           req.response.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
           req.response.write(html);
           await req.response.close();
@@ -1690,7 +1769,8 @@ class BloomLiveReloadServer {
       if (decoded is! Map<String, dynamic>) {
         req.response.statusCode = HttpStatus.badRequest;
         req.response.headers.contentType = ContentType.json;
-        req.response.write(jsonEncode({'error': 'Invalid JSON body: expected an object'}));
+        req.response.write(
+            jsonEncode({'error': 'Invalid JSON body: expected an object'}));
         await req.response.close();
         return;
       }
@@ -1701,7 +1781,8 @@ class BloomLiveReloadServer {
       if (rawFile is! String || rawFile.trim().isEmpty) {
         req.response.statusCode = HttpStatus.badRequest;
         req.response.headers.contentType = ContentType.json;
-        req.response.write(jsonEncode({'error': 'Missing or invalid "file" parameter'}));
+        req.response.write(
+            jsonEncode({'error': 'Missing or invalid "file" parameter'}));
         await req.response.close();
         return;
       }
@@ -1714,7 +1795,8 @@ class BloomLiveReloadServer {
         if (parsed == null) {
           req.response.statusCode = HttpStatus.badRequest;
           req.response.headers.contentType = ContentType.json;
-          req.response.write(jsonEncode({'error': 'Invalid "line" parameter: integer expected'}));
+          req.response.write(jsonEncode(
+              {'error': 'Invalid "line" parameter: integer expected'}));
           await req.response.close();
           return;
         }
@@ -1729,20 +1811,24 @@ class BloomLiveReloadServer {
           : p.canonicalize(p.join(canonicalWebDir, rawFile));
 
       // Security boundary 1: Project path containment
-      final isInside = targetPath == canonicalWebDir || p.isWithin(canonicalWebDir, targetPath);
+      final isInside = targetPath == canonicalWebDir ||
+          p.isWithin(canonicalWebDir, targetPath);
       if (!isInside) {
         req.response.statusCode = HttpStatus.badRequest;
         req.response.headers.contentType = ContentType.json;
-        req.response.write(jsonEncode({'error': 'Path escapes project directory: $rawFile'}));
+        req.response.write(
+            jsonEncode({'error': 'Path escapes project directory: $rawFile'}));
         await req.response.close();
         return;
       }
 
       final fileEntity = File(targetPath);
-      if (!fileEntity.existsSync() || FileSystemEntity.isDirectorySync(targetPath)) {
+      if (!fileEntity.existsSync() ||
+          FileSystemEntity.isDirectorySync(targetPath)) {
         req.response.statusCode = HttpStatus.badRequest;
         req.response.headers.contentType = ContentType.json;
-        req.response.write(jsonEncode({'error': 'File does not exist: $rawFile'}));
+        req.response
+            .write(jsonEncode({'error': 'File does not exist: $rawFile'}));
         await req.response.close();
         return;
       }
@@ -1763,8 +1849,10 @@ class BloomLiveReloadServer {
     }
   }
 
-  Future<Map<String, dynamic>> _launchEditor(String absoluteFilePath, int line) async {
-    final envEditor = Platform.environment['VISUAL'] ?? Platform.environment['EDITOR'];
+  Future<Map<String, dynamic>> _launchEditor(
+      String absoluteFilePath, int line) async {
+    final envEditor =
+        Platform.environment['VISUAL'] ?? Platform.environment['EDITOR'];
 
     String editorBin;
     List<String> args;
@@ -1803,7 +1891,8 @@ class BloomLiveReloadServer {
       if (envEditor == null || envEditor.trim().isEmpty) {
         return {
           'opened': false,
-          'error': 'No known editor found. Set \$EDITOR or \$VISUAL, or install VS Code (`code` command).',
+          'error':
+              'No known editor found. Set \$EDITOR or \$VISUAL, or install VS Code (`code` command).',
         };
       }
       return {

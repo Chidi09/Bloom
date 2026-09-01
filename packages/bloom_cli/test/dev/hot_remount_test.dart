@@ -30,7 +30,11 @@ void main() {
 
       browser = await puppeteer.launch(
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage'
+        ],
       );
     });
 
@@ -41,7 +45,8 @@ void main() {
       } catch (_) {}
     });
 
-    test('DDC hot-remount updates DOM in place without browser navigation', () async {
+    test('DDC hot-remount updates DOM in place without browser navigation',
+        () async {
       final entryFile = File(p.join(libDir.path, 'main.dart'));
       final outputFile = File(p.join(webDir.path, 'main.js'));
       final indexHtml = File(p.join(webDir.path, 'index.html'));
@@ -84,7 +89,8 @@ void main() {
       );
 
       final compile1 = await compiler.compile();
-      expect(compile1.success, isTrue, reason: 'Initial compile failed: ${compile1.error}');
+      expect(compile1.success, isTrue,
+          reason: 'Initial compile failed: ${compile1.error}');
 
       final devServer = BloomLiveReloadServer(
         webDir: webDir,
@@ -143,7 +149,8 @@ void main() {
 ''');
 
         final compile2 = await compiler.compile();
-        expect(compile2.success, isTrue, reason: 'Second compile failed: ${compile2.error}');
+        expect(compile2.success, isTrue,
+            reason: 'Second compile failed: ${compile2.error}');
 
         // Trigger hot-remount SSE broadcast
         devServer.broadcastHotRemount(reason: 'main.dart');
@@ -174,16 +181,20 @@ void main() {
         final state = jsonDecode(stateJson as String) as Map<String, dynamic>;
 
         expect(state['sentinel'], equals(424242),
-            reason: 'Window sentinel survived in-place remount (no page reload)');
+            reason:
+                'Window sentinel survived in-place remount (no page reload)');
         expect(state['navigationOccurred'], isFalse,
-            reason: 'No beforeunload / page navigation occurred during hot-remount');
+            reason:
+                'No beforeunload / page navigation occurred during hot-remount');
         expect(state['pText'], equals('Updated paragraph content'));
       } finally {
         await devServer.stop();
       }
     }, timeout: const Timeout(Duration(seconds: 45)));
 
-    test('deliberate error in second main() invocation renders dev error overlay in DOM', () async {
+    test(
+        'deliberate error in second main() invocation renders dev error overlay in DOM',
+        () async {
       final entryFile = File(p.join(libDir.path, 'main.dart'));
       final outputFile = File(p.join(webDir.path, 'main.js'));
       final indexHtml = File(p.join(webDir.path, 'index.html'));
@@ -225,7 +236,8 @@ void main() {
       );
 
       final compile1 = await compiler.compile();
-      expect(compile1.success, isTrue, reason: 'Test 2 initial compile failed: ${compile1.error}');
+      expect(compile1.success, isTrue,
+          reason: 'Test 2 initial compile failed: ${compile1.error}');
 
       final devServer = BloomLiveReloadServer(
         webDir: webDir,
@@ -260,7 +272,8 @@ void main() {
 ''');
 
         final compile2 = await compiler.compile();
-        expect(compile2.success, isTrue, reason: 'Test 2 recompile failed: ${compile2.error}');
+        expect(compile2.success, isTrue,
+            reason: 'Test 2 recompile failed: ${compile2.error}');
 
         devServer.broadcastHotRemount(reason: 'main.dart');
 
@@ -287,14 +300,45 @@ void main() {
         }
 
         expect(overlayFound, isTrue,
-            reason: 'Dev error overlay should be rendered when re-invoked main() throws');
-        expect(overlayText, contains('Simulated runtime crash during hot remount'));
+            reason:
+                'Dev error overlay should be rendered when re-invoked main() throws');
+        expect(overlayText,
+            contains('Simulated runtime crash during hot remount'));
+
+        // The Next-style surface consumes the legacy marker into its own
+        // isolated dialog instead of leaving a second full-page error UI.
+        String? devtoolsJson;
+        for (var i = 0; i < 50; i++) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          devtoolsJson = await page.evaluate(r'''
+            (() => {
+              const host = document.querySelector('[data-bloom-devtools-host]');
+              const root = host && host.shadowRoot;
+              const dialog = root && root.querySelector('.backdrop');
+              const message = root && root.querySelector('.message');
+              return JSON.stringify({
+                exists: !!host,
+                dialogOpen: dialog && dialog.dataset.open === 'true',
+                text: message ? message.textContent : null
+              });
+            })()
+          ''') as String?;
+          final details = jsonDecode(devtoolsJson!) as Map<String, dynamic>;
+          if (details['exists'] == true && details['dialogOpen'] == true) break;
+        }
+        final devtools = jsonDecode(devtoolsJson!) as Map<String, dynamic>;
+        expect(devtools['exists'], isTrue);
+        expect(devtools['dialogOpen'], isTrue);
+        expect(devtools['text'],
+            contains('Simulated runtime crash during hot remount'));
       } finally {
         await devServer.stop();
       }
     }, timeout: const Timeout(Duration(seconds: 45)));
 
-    test('non-DDC dev path broadcasts reload and performs full browser page navigation', () async {
+    test(
+        'non-DDC dev path broadcasts reload and performs full browser page navigation',
+        () async {
       final indexHtml = File(p.join(webDir.path, 'index.html'));
       indexHtml.writeAsStringSync('''
 <!DOCTYPE html>
@@ -354,7 +398,8 @@ void main() {
         }
 
         expect(postReloadSentinel, isNull,
-            reason: 'Full page reload should clear JavaScript global state for non-DDC mode');
+            reason:
+                'Full page reload should clear JavaScript global state for non-DDC mode');
       } finally {
         await devServer.stop();
       }
