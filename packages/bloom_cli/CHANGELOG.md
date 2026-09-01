@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5 - 2026-09-01
+
+### Added
+* **Next-style `bloom js dev` DevTools**: an isolated, draggable indicator with a compact menu and resizable diagnostics panel for route details, build/runtime errors, captured console output, and reload history.
+* Build and runtime failures now open an accessible diagnostic dialog with source hints, stack details, copy, clear, and dismissal controls. The DDC hot-remount and CSS hot-swap loops remain in place.
+
 ## 0.7.4 - 2026-08-31
 
 ### Added
