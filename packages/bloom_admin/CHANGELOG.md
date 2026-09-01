@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-08-31
+
+### Added
+* Bloom Console default branding with an inline Bloom mark and responsive server-rendered console layout.
+
 ## 0.2.1 - 2026-08-25
 
 ### Fixed
