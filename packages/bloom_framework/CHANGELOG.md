@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1
+
+### Fixed
+
+* **`bloom_framework` could not be resolved by any consumer outside this repository.** Its
+  hosted constraints on `bloom_seo` (`^0.1.1`) and `bloom_js_native` (`^0.2.0`) contradicted
+  what its own siblings require — `bloom_server ^0.2.0` depends on `bloom_seo ^0.2.0`, and
+  both `bloom_seo` and `bloom_server` depend on `bloom_js_native ^0.3.0` — so `pub get`
+  failed with "version solving failed" on 0.3.1 and 0.4.0. The constraints are now `^0.2.0`
+  and `^0.3.0`, matching the versions the monorepo's `dependency_overrides` already resolve
+  to, so the published package resolves to exactly what is built and tested here. The
+  overrides had masked the contradiction locally.
+
 ## 0.4.0
 
 Bloom Framework no longer depends on Flutter's Material library. Every widget it ships is
