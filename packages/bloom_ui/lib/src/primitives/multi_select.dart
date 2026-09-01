@@ -1,5 +1,8 @@
 // lib/src/primitives/multi_select.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../utils/extensions.dart';
 import 'badge.dart';
 import 'checkbox.dart';
@@ -116,7 +119,7 @@ class BloomMultiSelect<T> extends StatelessWidget {
                             final next = List<T>.from(selectedValues)..remove(item);
                             onChanged(next);
                           },
-                          child: const Icon(Icons.close, size: 12),
+                          child: const BloomIcon(BloomIcons.close, size: 12),
                         ),
                       ],
                     ),

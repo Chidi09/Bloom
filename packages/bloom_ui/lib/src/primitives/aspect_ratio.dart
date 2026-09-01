@@ -1,5 +1,5 @@
 // lib/src/primitives/aspect_ratio.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// A layout container that sizes its [child] to a specific aspect ratio with optional border radius clipping.
 ///

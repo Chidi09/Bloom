@@ -1,5 +1,5 @@
 // lib/src/primitives/resizable.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// A split-pane container that allows the user to resize two adjacent children by dragging a handle.

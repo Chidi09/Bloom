@@ -1,7 +1,7 @@
 /// Vector logo widget for the Bloom framework.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// The real Bloom five-petal gradient flower mark, matching the brand SVG
 /// used across bloom.dev and the Cloud dashboard (`bloom-logo.tsx`).
@@ -84,7 +84,7 @@ class _BloomLogoPainter extends CustomPainter {
       canvas.drawPath(path, paint..color = paint.color.withValues(alpha: 0.95));
     }
 
-    canvas.drawPath(_parseSvgPath(_sparkle), Paint()..color = Colors.white);
+    canvas.drawPath(_parseSvgPath(_sparkle), Paint()..color = const Color(0xFFFFFFFF));
     canvas.restore();
   }
 

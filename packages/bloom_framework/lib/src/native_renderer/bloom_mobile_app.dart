@@ -1,7 +1,8 @@
 /// Native mobile host application renderer for Bloom JS Native descriptors.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:bloom_js_native/bloom_js_native.dart';
 import '../native_engine/native_renderer.dart';
 
@@ -36,20 +37,30 @@ class BloomMobileApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final darkTheme = ui.BloomTheme.dark.copyWith(
+      colors: ui.BloomColorScheme.dark.copyWith(
+        surface0: const Color(0xFF09090B),
+        primary: const Color(0xFF6366F1),
+        secondary: const Color(0xFF14141A),
+      ),
+      // Only the font family differs from BloomTheme.dark's typography; the
+      // rest of that scale (sm: 13, base: 14) must be carried over verbatim,
+      // since BloomTypography's own defaults are 14/16.
+      typography: const ui.BloomTypography(
+        sans: 'sans-serif',
+        mono: 'GeistMono',
+        sm: 13,
+        base: 14,
+      ),
+    );
+
+    return ui.BloomApp(
       title: title,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF09090B),
-        colorScheme: const ColorScheme.dark(
-          surface: Color(0xFF09090B),
-          primary: Color(0xFF6366F1),
-          secondary: Color(0xFF14141A),
-        ),
-        fontFamily: 'sans-serif',
-      ),
-      home: Scaffold(
+      theme: darkTheme,
+      darkTheme: darkTheme,
+      themeMode: ui.BloomThemeMode.dark,
+      home: ui.BloomScaffold(
         backgroundColor: const Color(0xFF09090B),
         body: SafeArea(
           child: SingleChildScrollView(

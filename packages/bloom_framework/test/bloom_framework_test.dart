@@ -1,6 +1,7 @@
 // test/bloom_framework_test.dart
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:bloom_framework/bloom_testing.dart';
-import 'package:flutter/material.dart';
 
 class CounterService {
   int value = 42;
@@ -198,8 +199,8 @@ void main() {
       final count = signal(0);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        ui.BloomApp(
+          home: ui.BloomScaffold(
             body: Watch((context) {
               return Text('Count: ${count.value}');
             }),

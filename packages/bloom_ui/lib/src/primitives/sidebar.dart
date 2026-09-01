@@ -1,6 +1,7 @@
 // lib/src/primitives/sidebar.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// Composable collapsible sidebar matching shadcn/ui base-nova.
@@ -143,14 +144,14 @@ class BloomSidebarMenuButton extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1.5),
-      child: InkWell(
+      child: BloomPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         child: Container(
           height: 32, // h-8
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: isCurrent ? colors.surface1 : Colors.transparent,
+            color: isCurrent ? colors.surface1 : BloomColors.transparent,
             borderRadius: BorderRadius.circular(context.bloomRadius.md),
             border: isCurrent ? Border.all(color: colors.border.withValues(alpha: 0.5)) : null,
           ),

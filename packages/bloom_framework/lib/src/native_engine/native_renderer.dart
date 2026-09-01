@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/widgets.dart' hide Text;
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'flex_layout.dart';

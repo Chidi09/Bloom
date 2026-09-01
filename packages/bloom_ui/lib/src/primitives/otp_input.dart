@@ -1,6 +1,8 @@
 // lib/src/primitives/otp_input.dart
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+
+import '../utils/bloom_editable_field.dart';
 import '../utils/extensions.dart';
 
 /// A multi-digit one-time passcode (OTP) input row primitive.
@@ -95,7 +97,7 @@ class _BloomOtpInputState extends State<BloomOtpInput> {
         return SizedBox(
           width: 44,
           height: 52,
-          child: TextField(
+          child: BloomEditableField(
             controller: _controllers[index],
             focusNode: _focusNodes[index],
             obscureText: widget.obscureText,
@@ -108,22 +110,14 @@ class _BloomOtpInputState extends State<BloomOtpInput> {
               fontWeight: FontWeight.bold,
               color: colors.textPrimary,
             ),
-            decoration: InputDecoration(
-              counterText: '',
-              filled: true,
-              fillColor: colors.surface2,
-              contentPadding: EdgeInsets.zero,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(context.bloomRadius.md),
-                borderSide: BorderSide(color: colors.primary, width: 2),
+            cursorColor: colors.primary,
+            padding: EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: colors.surface2,
+              borderRadius: BorderRadius.circular(context.bloomRadius.md),
+              border: Border.all(
+                color: _focusNodes[index].hasFocus ? colors.primary : colors.border,
+                width: _focusNodes[index].hasFocus ? 2 : 1,
               ),
             ),
             onChanged: (val) => _onDigitChanged(index, val),

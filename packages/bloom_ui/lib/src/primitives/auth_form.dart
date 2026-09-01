@@ -1,5 +1,6 @@
 // lib/src/primitives/auth_form.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../utils/extensions.dart';
 import 'button.dart';
 import 'card.dart';

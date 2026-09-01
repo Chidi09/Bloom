@@ -1,6 +1,10 @@
 // lib/src/primitives/settings_list.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
+import 'separator.dart';
 
 class BloomSettingsTile extends StatelessWidget {
   final Widget? leading;
@@ -22,30 +26,54 @@ class BloomSettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return ListTile(
-      leading: leading,
-      title: Text(
-        title,
-        style: TextStyle(
-          color: colors.textPrimary,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          fontFamily: context.bloomTypography.sans,
-        ),
+    final tile = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 16),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: context.bloomTypography.sans,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                      fontFamily: context.bloomTypography.sans,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          trailing ?? BloomIcon(BloomIcons.chevronRight, size: 20, color: colors.textTertiary),
+        ],
       ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 13,
-                fontFamily: context.bloomTypography.sans,
-              ),
-            )
-          : null,
-      trailing: trailing ?? Icon(Icons.chevron_right, size: 20, color: colors.textTertiary),
-      onTap: onTap,
     );
+
+    if (onTap != null) {
+      return BloomPressable(
+        onTap: onTap,
+        child: tile,
+      );
+    }
+    return tile;
   }
 }
 
@@ -90,7 +118,7 @@ class BloomSettingsSection extends StatelessWidget {
           child: Column(
             children: List.generate(tiles.length * 2 - 1, (index) {
               if (index.isOdd) {
-                return Divider(height: 1, color: colors.border);
+                return const BloomSeparator(thickness: 1, margin: EdgeInsets.zero);
               }
               return tiles[index ~/ 2];
             }),

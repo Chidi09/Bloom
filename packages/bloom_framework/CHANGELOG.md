@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.4.0
+
+Bloom Framework no longer depends on Flutter's Material library. Every widget it ships is
+now built on `package:flutter/widgets.dart` and the Bloom UI primitives.
+
+### Breaking
+
+* `BloomApp.theme` and `BloomApp.darkTheme` are now `BloomTheme` rather than `ThemeData`,
+  and `BloomApp.themeMode` is `BloomThemeMode` rather than `ThemeMode`. Pass
+  `BloomTheme.light` / `BloomTheme.dark` (or your own `BloomTheme`) instead of a
+  `ThemeData`. There is no Material-free equivalent of `ThemeData`, so this change is
+  unavoidable rather than stylistic.
+* `pumpBloomApp`'s `theme:` parameter follows the same change, from `ThemeData?` to
+  `BloomTheme?`.
+
+### Added
+
+* `bloom_ui` is now a dependency. The framework's widgets — the app shell, the 404 page,
+  the OTA update banner and dialog, the dev inspector overlay and the native view
+  fallback — are built from Bloom UI primitives rather than Material ones.
+
+### Changed
+
+* `BloomApp` now wraps `BloomApp.router` from `bloom_ui` instead of `MaterialApp.router`.
+  Note that `bloom_ui` also exports a `BloomApp`; framework sources import `bloom_ui`
+  under a `ui` prefix, and the framework does not re-export it, so consumers see no
+  ambiguity.
+* `BloomMobileApp`'s dark theme is expressed as a `BloomTheme`, preserving its exact
+  palette (`0xFF09090B` surface, `0xFF6366F1` primary, `0xFF14141A` secondary) and its
+  type scale.
+* The dev inspector's tab strip is now token-themed via `BloomTabs`; its Material
+  `labelColor`/`indicatorColor` overrides no longer apply.
+
+### Fixed
+
+* The native text input's focus ring was previously drawn by Material's
+  `focusedBorder`. It is preserved via the new `BloomEditableField.focusedDecoration`.
+* The OTA update banner's download indicator is determinate again — it fills with real
+  download progress rather than spinning indefinitely.
+
 ## 0.3.1
 
 ### Fixed

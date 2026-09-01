@@ -1,5 +1,7 @@
 // lib/src/primitives/marker.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 enum BloomMarkerVariant {
@@ -34,7 +36,7 @@ class BloomMarker extends StatelessWidget {
       decoration: BoxDecoration(
         color: variant == BloomMarkerVariant.defaultVariant
             ? colors.surface2
-            : Colors.transparent,
+            : BloomColors.transparent,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         border: variant == BloomMarkerVariant.border
             ? Border.all(color: colors.border)
@@ -66,7 +68,7 @@ class BloomMarker extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return InkWell(
+      return BloomPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         child: markerWidget,

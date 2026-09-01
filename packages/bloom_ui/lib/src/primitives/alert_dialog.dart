@@ -1,6 +1,7 @@
 // lib/src/primitives/alert_dialog.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../utils/bloom_modal_routes.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 import 'button.dart';
 
@@ -35,9 +36,8 @@ class BloomAlertDialog extends StatelessWidget {
     String cancelLabel = 'Cancel',
     bool isDestructive = false,
   }) {
-    return showDialog<bool>(
+    return showBloomDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => BloomAlertDialog(
         media: media,
         title: Text(title),
@@ -63,24 +63,24 @@ class BloomAlertDialog extends StatelessWidget {
     final colors = context.bloomColors;
     final radius = context.bloomRadius.xl;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          decoration: BoxDecoration(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: BloomSurface(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(radius),
             color: colors.surface1,
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: colors.border),
-            boxShadow: const [BloomShadows.s3],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(radius),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                   child: Row(
@@ -149,7 +149,8 @@ class BloomAlertDialog extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

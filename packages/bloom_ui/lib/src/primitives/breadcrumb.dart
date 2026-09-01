@@ -1,5 +1,8 @@
 // lib/src/primitives/breadcrumb.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 class BloomBreadcrumbItem {
@@ -24,7 +27,7 @@ class BloomBreadcrumb extends StatelessWidget {
     super.key,
     this.items,
     this.children,
-    this.separator = const Icon(Icons.chevron_right, size: 14),
+    this.separator = const BloomIcon(BloomIcons.chevronRight, size: 14),
   }) : assert(items != null || children != null, 'Provide items or children');
 
   @override
@@ -60,7 +63,7 @@ class BloomBreadcrumb extends StatelessWidget {
         );
       } else {
         kids.add(
-          InkWell(
+          BloomPressable(
             onTap: item.onTap,
             borderRadius: BorderRadius.circular(4),
             child: Text(
@@ -104,7 +107,7 @@ class BloomBreadcrumbLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return BloomPressable(
       onTap: onTap,
       child: Text(
         text,
@@ -141,8 +144,8 @@ class BloomBreadcrumbEllipsis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
-      Icons.more_horiz,
+    return BloomIcon(
+      BloomIcons.moreHorizontal,
       size: 14,
       color: context.bloomColors.textTertiary,
     );

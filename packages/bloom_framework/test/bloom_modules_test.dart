@@ -1,6 +1,7 @@
 // test/bloom_modules_test.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:bloom_framework/bloom.dart';
 
 class MockPlatformCameraModule extends BloomNativeModule {
@@ -216,8 +217,8 @@ config_plugin:
   group('Phase 9: BloomNativeView Widget', () {
     testWidgets('Renders platform view fallback with props in test environment', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
+        const ui.BloomApp(
+          home: ui.BloomScaffold(
             body: BloomNativeView(
               viewType: 'BloomCameraPreview',
               props: {
@@ -235,8 +236,8 @@ config_plugin:
 
     testWidgets('Renders custom fallback widget when provided', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        ui.BloomApp(
+          home: ui.BloomScaffold(
             body: BloomNativeView(
               viewType: 'CustomMapView',
               fallback: const Center(

@@ -1,6 +1,9 @@
 // lib/src/primitives/badge.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// Visual style variants for [BloomBadge].
@@ -47,7 +50,7 @@ enum BloomBadgeSize {
 /// ```dart
 /// BloomBadge(
 ///   variant: BloomBadgeVariant.success,
-///   leading: const Icon(Icons.check, size: 12),
+///   leading: const BloomIcon(BloomIcons.check, size: 12),
 ///   child: const Text('Active'),
 /// );
 /// ```
@@ -93,7 +96,7 @@ class BloomBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: BorderRadius.circular(999), // rounded-4xl
-        border: colors.border != Colors.transparent
+        border: colors.border != BloomColors.transparent
             ? Border.all(color: colors.border)
             : null,
       ),
@@ -131,7 +134,7 @@ class BloomBadge extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return InkWell(
+      return BloomPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: badge,
@@ -143,51 +146,51 @@ class BloomBadge extends StatelessWidget {
 
   _BadgeColors _resolveColors(BuildContext context, BloomBadgeVariant variant) {
     final colors = context.bloomColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = context.bloomColors.brightness == Brightness.dark;
 
     switch (variant) {
       case BloomBadgeVariant.defaultVariant:
         return _BadgeColors(
           background: colors.primary,
           foreground: colors.primaryForeground,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomBadgeVariant.secondary:
         return _BadgeColors(
           background: colors.secondary,
           foreground: colors.secondaryForeground,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomBadgeVariant.destructive:
         // Soft tint in shadcn base-nova
         return _BadgeColors(
           background: colors.destructive.withValues(alpha: isDark ? 0.2 : 0.1),
           foreground: colors.destructive,
-          border: isDark ? colors.destructive.withValues(alpha: 0.3) : Colors.transparent,
+          border: isDark ? colors.destructive.withValues(alpha: 0.3) : BloomColors.transparent,
         );
       case BloomBadgeVariant.outline:
         return _BadgeColors(
-          background: Colors.transparent,
+          background: BloomColors.transparent,
           foreground: colors.textPrimary,
           border: colors.border,
         );
       case BloomBadgeVariant.ghost:
         return _BadgeColors(
-          background: Colors.transparent,
+          background: BloomColors.transparent,
           foreground: colors.textPrimary,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomBadgeVariant.link:
         return _BadgeColors(
-          background: Colors.transparent,
+          background: BloomColors.transparent,
           foreground: colors.primary,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomBadgeVariant.success:
         return _BadgeColors(
           background: colors.success.withValues(alpha: isDark ? 0.2 : 0.1),
           foreground: colors.success,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
     }
   }
@@ -269,7 +272,7 @@ class BloomChip extends StatelessWidget {
       trailing: onDeleted != null
           ? GestureDetector(
               onTap: onDeleted,
-              child: const Icon(Icons.close, size: 12),
+              child: const BloomIcon(BloomIcons.close, size: 12),
             )
           : null,
       child: label,

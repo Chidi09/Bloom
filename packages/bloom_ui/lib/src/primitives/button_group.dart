@@ -1,6 +1,7 @@
 // lib/src/primitives/button_group.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -123,8 +124,9 @@ class _BloomButtonGroupState<T> extends State<BloomButtonGroup<T>> {
         );
       }
 
-      return InkWell(
+      return BloomPressable(
         onTap: widget.disabled ? null : () => _select(item.value),
+        borderRadius: itemRadius,
         child: AnimatedContainer(
           duration: BloomMotion.instant,
           height: 32, // h-8

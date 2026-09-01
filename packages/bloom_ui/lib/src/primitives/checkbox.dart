@@ -1,6 +1,9 @@
 // lib/src/primitives/checkbox.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -81,7 +84,7 @@ class _BloomCheckboxState extends State<BloomCheckbox> {
       width: 16, // size-4 (16px)
       height: 16,
       decoration: BoxDecoration(
-        color: (isChecked || isIndeterminate) ? colors.primary : Colors.transparent,
+        color: (isChecked || isIndeterminate) ? colors.primary : BloomColors.transparent,
         borderRadius: BorderRadius.circular(4), // rounded-[4px]
         border: Border.all(
           color: (isChecked || isIndeterminate) ? colors.primary : colors.border,
@@ -90,7 +93,7 @@ class _BloomCheckboxState extends State<BloomCheckbox> {
       ),
       alignment: Alignment.center,
       child: isChecked
-          ? Icon(Icons.check, size: 12, color: colors.primaryForeground)
+          ? BloomIcon(BloomIcons.check, size: 12, color: colors.primaryForeground)
           : isIndeterminate
               ? Container(
                   width: 8,
@@ -101,9 +104,10 @@ class _BloomCheckboxState extends State<BloomCheckbox> {
     );
 
     if (widget.label != null) {
-      return InkWell(
+      return BloomPressable(
         onTap: widget.disabled ? null : _toggle,
         borderRadius: BorderRadius.circular(4),
+        enabled: !widget.disabled,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           child: Row(
@@ -127,9 +131,10 @@ class _BloomCheckboxState extends State<BloomCheckbox> {
       );
     }
 
-    return InkWell(
+    return BloomPressable(
       onTap: widget.disabled ? null : _toggle,
       borderRadius: BorderRadius.circular(4),
+      enabled: !widget.disabled,
       child: box,
     );
   }

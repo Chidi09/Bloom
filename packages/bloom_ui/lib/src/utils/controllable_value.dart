@@ -1,5 +1,6 @@
 // lib/src/utils/controllable_value.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// Helper class to bridge controlled and uncontrolled widget state patterns.
 class BloomControllableValue<T> {

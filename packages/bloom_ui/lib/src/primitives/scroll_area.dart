@@ -1,10 +1,10 @@
 // lib/src/primitives/scroll_area.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// A scrollable area container with customized minimalist scrollbars matching the Bloom design system.
 ///
-/// Wraps its [child] in a [SingleChildScrollView] paired with a visible, rounded [Scrollbar]
+/// Wraps its [child] in a [SingleChildScrollView] paired with a visible, rounded [RawScrollbar]
 /// styled with [BloomColorScheme.border] color and pill-shaped thumb radius.
 ///
 /// ```dart
@@ -46,23 +46,17 @@ class BloomScrollArea extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return Theme(
-      data: Theme.of(context).copyWith(
-        scrollbarTheme: ScrollbarThemeData(
-          thumbColor: WidgetStateProperty.all(colors.border),
-          radius: const Radius.circular(999),
-          thickness: WidgetStateProperty.all(6),
-        ),
-      ),
-      child: Scrollbar(
+    return RawScrollbar(
+      controller: controller,
+      thumbVisibility: true,
+      thumbColor: colors.border,
+      radius: const Radius.circular(999),
+      thickness: 6,
+      child: SingleChildScrollView(
         controller: controller,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          controller: controller,
-          scrollDirection: scrollDirection,
-          padding: padding,
-          child: child,
-        ),
+        scrollDirection: scrollDirection,
+        padding: padding,
+        child: child,
       ),
     );
   }

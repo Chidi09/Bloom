@@ -1,21 +1,18 @@
 // lib/src/primitives/tooltip.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
 /// An informative tooltip component with inverted contrast styling.
 ///
-/// Wraps Flutter's [Tooltip] with Bloom tokens for elevation, primary foreground
-/// text coloring, rounded corners, and customizable activation delays.
+/// Wraps Flutter's [RawTooltip] with Bloom tokens for elevation, surface2
+/// background, text coloring, rounded corners, and customizable activation delays.
 ///
 /// Example:
 /// ```dart
 /// BloomTooltip(
 ///   message: 'Add item to favorites',
-///   child: IconButton(
-///     icon: const Icon(Icons.favorite_border),
-///     onPressed: () {},
-///   ),
+///   child: BloomIcon(BloomIcons.favoriteBorder),
 /// );
 /// ```
 class BloomTooltip extends StatelessWidget {
@@ -51,40 +48,46 @@ class BloomTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
+    final radius = context.bloomRadius;
+    final typography = context.bloomTypography;
 
-    if (richMessage != null) {
-      return Tooltip(
-        richMessage: WidgetSpan(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: richMessage!,
+    return RawTooltip(
+      semanticsTooltip: message,
+      hoverDelay: waitDuration,
+      tooltipBuilder: (BuildContext context, Animation<double> animation) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+
+        final Widget content = richMessage ??
+            Text(
+              message!,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: typography.sm,
+                fontWeight: FontWeight.w500,
+                fontFamily: typography.sans,
+              ),
+            );
+
+        return FadeTransition(
+          opacity: curvedAnimation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(curvedAnimation),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.surface2,
+                borderRadius: BorderRadius.circular(radius.sm),
+                border: Border.all(color: colors.border),
+                boxShadow: const [BloomShadows.s1],
+              ),
+              child: content,
+            ),
           ),
-        ),
-        decoration: BoxDecoration(
-          color: colors.primary,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [BloomShadows.s1],
-        ),
-        waitDuration: waitDuration,
-        child: child,
-      );
-    }
-
-    return Tooltip(
-      message: message!,
-      textStyle: TextStyle(
-        color: colors.primaryForeground,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        fontFamily: context.bloomTypography.sans,
-      ),
-      decoration: BoxDecoration(
-        color: colors.primary,
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: const [BloomShadows.s1],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      waitDuration: waitDuration,
+        );
+      },
       child: child,
     );
   }

@@ -1,9 +1,12 @@
 // lib/src/primitives/pricing_card.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 import 'badge.dart';
 import 'button.dart';
+import 'separator.dart';
 
 class BloomPricingCard extends StatelessWidget {
   final String planName;
@@ -97,7 +100,7 @@ class BloomPricingCard extends StatelessWidget {
             child: Text(ctaText),
           ),
           const SizedBox(height: 24),
-          Divider(color: colors.border),
+          const BloomSeparator(margin: EdgeInsets.zero),
           const SizedBox(height: 16),
           Text(
             'FEATURES INCLUDED',
@@ -114,7 +117,7 @@ class BloomPricingCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Row(
                 children: [
-                  Icon(Icons.check, size: 16, color: colors.success),
+                  BloomIcon(BloomIcons.check, size: 16, color: colors.success),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

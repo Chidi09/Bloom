@@ -1,6 +1,8 @@
 // lib/src/primitives/data_table.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
+import 'separator.dart';
 
 class BloomDataColumn<T> {
   final String label;
@@ -60,10 +62,10 @@ class BloomDataTable<T> extends StatelessWidget {
               }).toList(),
             ),
           ),
-          Divider(height: 1, color: colors.border),
+          const BloomSeparator(thickness: 1, margin: EdgeInsets.zero),
           // Rows
           ...data.map((item) {
-            return InkWell(
+            return BloomPressable(
               onTap: onRowTap != null ? () => onRowTap!(item) : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

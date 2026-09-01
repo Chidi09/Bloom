@@ -1,6 +1,6 @@
 // lib/src/primitives/popover.dart
-import 'package:flutter/material.dart';
-import '../theme/tokens.dart';
+import 'package:flutter/widgets.dart';
+import '../utils/bloom_surface.dart';
 import '../utils/extensions.dart';
 
 /// An anchored floating popover overlay component.
@@ -108,15 +108,15 @@ class _BloomPopoverState extends State<BloomPopover> {
               targetAnchor: widget.anchorAlignment,
               followerAnchor: widget.popoverAlignment,
               offset: const Offset(0, 4),
-              child: Material(
-                color: Colors.transparent,
+              child: BloomSurface(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(context.bloomRadius.lg),
+                color: context.bloomColors.surface1,
                 child: Container(
                   padding: const EdgeInsets.all(10), // p-2.5
                   decoration: BoxDecoration(
-                    color: context.bloomColors.surface1,
                     borderRadius: BorderRadius.circular(context.bloomRadius.lg),
                     border: Border.all(color: context.bloomColors.border),
-                    boxShadow: const [BloomShadows.s2],
                   ),
                   child: widget.content,
                 ),

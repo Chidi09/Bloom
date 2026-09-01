@@ -21,8 +21,9 @@
 /// ```
 library bloom_testing;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'bloom.dart';
 
 export 'package:flutter_test/flutter_test.dart';
@@ -71,14 +72,14 @@ extension BloomWidgetTesterExtensions on WidgetTester {
   /// - [routes]: Custom route configurations for the test.
   /// - [overrides]: DI service overrides for mocking dependencies.
   /// - [home]: A direct root widget to render at [initialLocation].
-  /// - [theme]: Custom [ThemeData] for testing UI themes.
+  /// - [theme]: Custom [ui.BloomTheme] for testing UI themes.
   /// - [settleTimeout]: Maximum duration to wait when settling animations.
   Future<BloomTestScope> pumpBloomApp({
     String initialLocation = '/',
     List<RouteBase>? routes,
     List<BloomTestOverride<dynamic>>? overrides,
     Widget? home,
-    ThemeData? theme,
+    ui.BloomTheme? theme,
     Duration settleTimeout = const Duration(seconds: 5),
   }) async {
     Bloom.reset();

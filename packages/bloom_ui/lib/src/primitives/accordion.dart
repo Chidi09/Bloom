@@ -1,6 +1,9 @@
 // lib/src/primitives/accordion.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// A single expandable item entry within a [BloomAccordion].
@@ -103,7 +106,7 @@ class _BloomAccordionState extends State<BloomAccordion> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InkWell(
+              BloomPressable(
                 onTap: () => _toggle(index),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -122,8 +125,8 @@ class _BloomAccordionState extends State<BloomAccordion> {
                       AnimatedRotation(
                         duration: BloomMotion.fast,
                         turns: isOpen ? 0.5 : 0.0,
-                        child: Icon(
-                          Icons.keyboard_arrow_down,
+                        child: BloomIcon(
+                          BloomIcons.keyboardArrowDown,
                           color: colors.textSecondary,
                           size: 20,
                         ),

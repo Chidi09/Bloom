@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// CSS flex wrap behavior modes supported by the native engine.
 enum BloomFlexWrap {
@@ -22,8 +22,8 @@ enum BloomFlexWrap {
 /// final style = BloomComputedStyle()
 ///   ..isFlex = true
 ///   ..flexDirection = Axis.horizontal
-///   ..backgroundColor = Colors.black
-///   ..textColor = Colors.white;
+///   ..backgroundColor = Color(0xFF000000)
+///   ..textColor = Color(0xFFFFFFFF);
 /// ```
 class BloomComputedStyle {
   /// Background fill color.
@@ -298,7 +298,7 @@ class BloomStyleResolver {
 
     // Text
     else if (token == 'text-white') {
-      s.textColor = Colors.white;
+      s.textColor = const Color(0xFFFFFFFF);
     } else if (token == 'text-zinc-100') {
       s.textColor = const Color(0xFFF4F4F5);
     } else if (token == 'text-zinc-200') {

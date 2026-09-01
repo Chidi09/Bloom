@@ -1,5 +1,6 @@
 // lib/src/primitives/field.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../utils/extensions.dart';
 
 /// A versatile form field container component matching shadcn/ui base-nova field architecture.

@@ -1,5 +1,10 @@
 // lib/src/primitives/search_bar.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_editable_field.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 class BloomSearchBar extends StatelessWidget {
@@ -22,39 +27,45 @@ class BloomSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
 
-    return Container(
+    final suffix = controller != null && controller!.text.isNotEmpty
+        ? BloomPressable(
+            borderRadius: BorderRadius.circular(context.bloomRadius.sm),
+            padding: const EdgeInsets.all(4),
+            onTap: () {
+              controller!.clear();
+              onClear?.call();
+              onChanged?.call('');
+            },
+            child: BloomIcon(BloomIcons.clear, size: 16, color: colors.textSecondary),
+          )
+        : null;
+
+    return BloomEditableField(
+      controller: controller,
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      style: TextStyle(
+        color: colors.textPrimary,
+        fontSize: 14,
+        fontFamily: context.bloomTypography.sans,
+      ),
+      placeholder: hintText,
+      placeholderStyle: TextStyle(
+        color: colors.textTertiary,
+        fontSize: 14,
+        fontFamily: context.bloomTypography.sans,
+      ),
+      prefix: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: BloomIcon(BloomIcons.search, size: 20, color: colors.textSecondary),
+      ),
+      suffix: suffix,
       decoration: BoxDecoration(
         color: colors.surface2,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         border: Border.all(color: colors.border),
       ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        onSubmitted: onSubmitted,
-        style: TextStyle(
-          color: colors.textPrimary,
-          fontSize: 14,
-          fontFamily: context.bloomTypography.sans,
-        ),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(color: colors.textTertiary, fontSize: 14),
-          prefixIcon: Icon(Icons.search, size: 20, color: colors.textSecondary),
-          suffixIcon: controller != null && controller!.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear, size: 16, color: colors.textSecondary),
-                  onPressed: () {
-                    controller!.clear();
-                    onClear?.call();
-                    onChanged?.call('');
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
 }

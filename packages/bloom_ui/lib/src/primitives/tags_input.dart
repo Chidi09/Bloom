@@ -1,5 +1,9 @@
 // lib/src/primitives/tags_input.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
+import '../utils/bloom_editable_field.dart';
 import '../utils/extensions.dart';
 import 'badge.dart';
 
@@ -37,6 +41,12 @@ class BloomTagsInput extends StatefulWidget {
 
 class _BloomTagsInputState extends State<BloomTagsInput> {
   final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _addTag(String val) {
     final text = val.trim();
@@ -76,7 +86,7 @@ class _BloomTagsInputState extends State<BloomTagsInput> {
                   const SizedBox(width: 4),
                   GestureDetector(
                     onTap: () => _removeTag(tag),
-                    child: const Icon(Icons.close, size: 12),
+                    child: const BloomIcon(BloomIcons.close, size: 12),
                   ),
                 ],
               ),
@@ -84,17 +94,14 @@ class _BloomTagsInputState extends State<BloomTagsInput> {
           }),
           SizedBox(
             width: 160,
-            child: TextField(
+            child: BloomEditableField(
               controller: _controller,
               onSubmitted: _addTag,
               style: TextStyle(color: colors.textPrimary, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: widget.placeholder,
-                hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              ),
+              placeholder: widget.placeholder,
+              placeholderStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: const BoxDecoration(),
             ),
           ),
         ],

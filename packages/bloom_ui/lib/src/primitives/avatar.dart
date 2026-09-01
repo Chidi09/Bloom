@@ -1,5 +1,5 @@
 // lib/src/primitives/avatar.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// Size variants for [BloomAvatar].
@@ -28,7 +28,7 @@ enum BloomAvatarSize {
 ///     width: 10,
 ///     height: 10,
 ///     decoration: const BoxDecoration(
-///       color: Colors.green,
+///       color: BloomColors.success,
 ///       shape: BoxShape.circle,
 ///     ),
 ///   ),

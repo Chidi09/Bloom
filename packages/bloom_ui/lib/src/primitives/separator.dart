@@ -1,5 +1,5 @@
 // lib/src/primitives/separator.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// A visual divider or rule used to separate sections of content horizontally or vertically.

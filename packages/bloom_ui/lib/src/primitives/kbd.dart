@@ -1,5 +1,5 @@
 // lib/src/primitives/kbd.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// Styled keyboard shortcut indicator matching shadcn base-nova.

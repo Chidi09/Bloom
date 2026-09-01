@@ -1,7 +1,8 @@
 /// Central Bloom router orchestrating `GoRouter` navigation and route guards.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 import 'package:go_router/go_router.dart';
 import '../core/logger.dart';
 import '../native/deep_links.dart';
@@ -231,22 +232,43 @@ class BloomRouter {
 
   /// Default error builder for unhandled routes (404).
   static Widget _defaultErrorBuilder(BuildContext context, GoRouterState state) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Page Not Found')),
+    return ui.BloomScaffold(
+      header: SizedBox(
+        height: 56,
+        child: Container(
+          color: context.bloomColors.surface1,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.centerLeft,
+          child: const Row(
+            children: [
+              Text('Page Not Found'),
+            ],
+          ),
+        ),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const ui.BloomIcon(
+              ui.BloomIcons.errorOutline,
+              size: 64,
+              color: Color(0xFFF44336),
+            ),
             const SizedBox(height: 16),
             Text(
               '404 - Not Found',
-              style: Theme.of(context).textTheme.headlineMedium,
+              style: TextStyle(
+                fontSize: context.bloomTypography.xl3,
+                fontWeight: FontWeight.bold,
+                color: context.bloomColors.textPrimary,
+                fontFamily: context.bloomTypography.sans,
+              ),
             ),
             const SizedBox(height: 8),
             Text('No route registered for: ${state.uri}'),
             const SizedBox(height: 24),
-            ElevatedButton(
+            ui.BloomButton(
               onPressed: () => go('/'),
               child: const Text('Go to Home'),
             ),

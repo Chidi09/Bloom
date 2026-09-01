@@ -1,5 +1,5 @@
 // lib/src/theme/bloom_color_scheme.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'tokens.dart';
 
 /// Semantic color palette for Bloom UI components.
@@ -200,11 +200,11 @@ class BloomColorScheme {
   static const BloomColorScheme petalLight = BloomColorScheme(
     brightness: Brightness.light,
     primary: BloomColors.petalPurple,
-    primaryForeground: Colors.white,
+    primaryForeground: BloomColors.white,
     secondary: Color(0xFFF1F5F9),
     secondaryForeground: Color(0xFF0F172A),
     destructive: BloomColors.error,
-    destructiveForeground: Colors.white,
+    destructiveForeground: BloomColors.white,
     surface0: BloomColors.surface0Light,
     surface1: BloomColors.surface1Light,
     surface2: BloomColors.surface2Light,
@@ -229,11 +229,11 @@ class BloomColorScheme {
   static const BloomColorScheme petalDark = BloomColorScheme(
     brightness: Brightness.dark,
     primary: BloomColors.petalPurple,
-    primaryForeground: Colors.white,
+    primaryForeground: BloomColors.white,
     secondary: Color(0xFF1E293B),
     secondaryForeground: Color(0xFFF8FAFC),
     destructive: BloomColors.error,
-    destructiveForeground: Colors.white,
+    destructiveForeground: BloomColors.white,
     surface0: BloomColors.surface0Dark,
     surface1: BloomColors.surface1Dark,
     surface2: BloomColors.surface2Dark,

@@ -1,6 +1,7 @@
 // lib/src/primitives/tabs.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/controllable_value.dart';
 import '../utils/extensions.dart';
 
@@ -56,13 +57,13 @@ class BloomTabItem<T> {
 ///     BloomTabItem(
 ///       value: 'account',
 ///       label: Text('Account'),
-///       icon: Icon(Icons.person),
+///       icon: BloomIcon(BloomIcons.person),
 ///       content: Text('Account Settings'),
 ///     ),
 ///     BloomTabItem(
 ///       value: 'password',
 ///       label: Text('Password'),
-///       icon: Icon(Icons.lock),
+///       icon: BloomIcon(BloomIcons.lock),
 ///       content: Text('Password Settings'),
 ///     ),
 ///   ],
@@ -163,7 +164,7 @@ class _BloomTabsState<T> extends State<BloomTabs<T>> {
           mainAxisSize: MainAxisSize.min,
           children: widget.items.map((item) {
             final isSelected = item.value == selected;
-            return InkWell(
+            return BloomPressable(
               onTap: () => _select(item.value),
               borderRadius: BorderRadius.circular(theme.radius.sm),
               child: AnimatedContainer(
@@ -171,7 +172,7 @@ class _BloomTabsState<T> extends State<BloomTabs<T>> {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isSelected ? colors.surface1 : Colors.transparent,
+                  color: isSelected ? colors.surface1 : BloomColors.transparent,
                   borderRadius: BorderRadius.circular(theme.radius.sm),
                   boxShadow: isSelected ? const [BloomShadows.s1] : null,
                 ),
@@ -215,14 +216,14 @@ class _BloomTabsState<T> extends State<BloomTabs<T>> {
           mainAxisSize: MainAxisSize.min,
           children: widget.items.map((item) {
             final isSelected = item.value == selected;
-            return InkWell(
+            return BloomPressable(
               onTap: () => _select(item.value),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: isSelected ? colors.primary : Colors.transparent,
+                      color: isSelected ? colors.primary : BloomColors.transparent,
                       width: 2,
                     ),
                   ),

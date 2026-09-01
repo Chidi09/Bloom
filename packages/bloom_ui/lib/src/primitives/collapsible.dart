@@ -1,5 +1,5 @@
 // lib/src/primitives/collapsible.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
 
 class BloomCollapsible extends StatelessWidget {

@@ -1,5 +1,8 @@
 // lib/src/primitives/textarea.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../theme/tokens.dart';
+import '../utils/bloom_editable_field.dart';
 import '../utils/extensions.dart';
 
 /// Multi-line expanded text area matching shadcn base-nova.
@@ -26,9 +29,17 @@ class BloomTextarea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bloomColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = colors.brightness == Brightness.dark;
 
-    return TextField(
+    final decoration = BoxDecoration(
+      color: isDark ? colors.border.withValues(alpha: 0.15) : BloomColors.transparent,
+      borderRadius: BorderRadius.circular(context.bloomRadius.md),
+      border: Border.all(
+        color: enabled ? colors.border : colors.border.withValues(alpha: 0.5),
+      ),
+    );
+
+    return BloomEditableField(
       controller: controller,
       focusNode: focusNode,
       minLines: minLines,
@@ -40,31 +51,16 @@ class BloomTextarea extends StatelessWidget {
         fontSize: 14,
         fontFamily: context.bloomTypography.sans,
       ),
+      placeholder: placeholder,
+      placeholderStyle: TextStyle(
+        color: colors.textTertiary,
+        fontSize: 14,
+        fontFamily: context.bloomTypography.sans,
+      ),
       cursorColor: colors.primary,
       cursorWidth: 1.5,
-      decoration: InputDecoration(
-        hintText: placeholder,
-        hintStyle: TextStyle(
-          color: colors.textTertiary,
-          fontSize: 14,
-          fontFamily: context.bloomTypography.sans,
-        ),
-        filled: isDark,
-        fillColor: isDark ? colors.border.withValues(alpha: 0.15) : Colors.transparent,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.bloomRadius.md),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.bloomRadius.md),
-          borderSide: BorderSide(color: colors.ring, width: 1.5),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.bloomRadius.md),
-          borderSide: BorderSide(color: colors.border.withValues(alpha: 0.5)),
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: decoration,
     );
   }
 }

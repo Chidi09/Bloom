@@ -1,5 +1,7 @@
 // lib/src/primitives/item.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
 
 /// Versatile list item component matching shadcn/ui base-nova.
@@ -32,7 +34,7 @@ class BloomItem extends StatelessWidget {
     final tile = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isSelected ? colors.surface0 : Colors.transparent,
+        color: isSelected ? colors.surface0 : BloomColors.transparent,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
       ),
       child: child ??
@@ -82,7 +84,7 @@ class BloomItem extends StatelessWidget {
     );
 
     if (onTap != null && !disabled) {
-      return InkWell(
+      return BloomPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(context.bloomRadius.md),
         child: tile,

@@ -1,7 +1,10 @@
 // lib/src/primitives/button.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart';
+import '../utils/bloom_pressable.dart';
 import '../utils/extensions.dart';
+import 'spinner.dart';
+import 'tooltip.dart';
 
 /// Button visual variants matching shadcn/ui base-nova.
 enum BloomButtonVariant {
@@ -85,75 +88,68 @@ class BloomButton extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: isInteractive,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isInteractive ? onPressed : null,
-          borderRadius: BorderRadius.circular(radius),
-          splashColor: colors.foreground.withValues(alpha: 0.12),
-          highlightColor: colors.foreground.withValues(alpha: 0.06),
-          child: AnimatedContainer(
-            duration: BloomMotion.instant,
-            curve: BloomMotion.easeOut,
-            width: isIconOnly ? dims.height : null,
-            height: dims.height,
-            padding: dims.padding,
-            decoration: BoxDecoration(
+      child: BloomPressable(
+        onTap: isInteractive ? onPressed : null,
+        borderRadius: BorderRadius.circular(radius),
+        enabled: isInteractive,
+        child: AnimatedContainer(
+          duration: BloomMotion.instant,
+          curve: BloomMotion.easeOut,
+          width: isIconOnly ? dims.height : null,
+          height: dims.height,
+          padding: dims.padding,
+          decoration: BoxDecoration(
+            color: isInteractive
+                ? colors.background
+                : colors.background.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(radius),
+            border: colors.border != BloomColors.transparent
+                ? Border.all(color: colors.border)
+                : null,
+          ),
+          child: IconTheme(
+            data: IconThemeData(
               color: isInteractive
-                  ? colors.background
-                  : colors.background.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(radius),
-              border: colors.border != Colors.transparent
-                  ? Border.all(color: colors.border)
-                  : null,
+                  ? colors.foreground
+                  : colors.foreground.withValues(alpha: 0.5),
+              size: dims.iconSize,
             ),
-            child: IconTheme(
-              data: IconThemeData(
+            child: DefaultTextStyle(
+              style: TextStyle(
                 color: isInteractive
                     ? colors.foreground
                     : colors.foreground.withValues(alpha: 0.5),
-                size: dims.iconSize,
+                fontSize: dims.fontSize,
+                fontWeight: FontWeight.w500,
+                fontFamily: context.bloomTypography.sans,
+                letterSpacing: -0.1,
+                decoration: variant == BloomButtonVariant.link
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
               ),
-              child: DefaultTextStyle(
-                style: TextStyle(
-                  color: isInteractive
-                      ? colors.foreground
-                      : colors.foreground.withValues(alpha: 0.5),
-                  fontSize: dims.fontSize,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: context.bloomTypography.sans,
-                  letterSpacing: -0.1,
-                  decoration: variant == BloomButtonVariant.link
-                      ? TextDecoration.underline
-                      : TextDecoration.none,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (loading) ...[
-                      SizedBox(
-                        width: dims.iconSize,
-                        height: dims.iconSize,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.8,
-                          color: colors.foreground,
-                        ),
-                      ),
-                      if (!isIconOnly) SizedBox(width: dims.gap),
-                    ] else if (leftIcon != null) ...[
-                      leftIcon!,
-                      SizedBox(width: dims.gap),
-                    ],
-                    if (!isIconOnly || (!loading && leftIcon == null && rightIcon == null))
-                      child,
-                    if (rightIcon != null && !loading) ...[
-                      SizedBox(width: dims.gap),
-                      rightIcon!,
-                    ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (loading) ...[
+                    BloomSpinner(
+                      size: dims.iconSize,
+                      strokeWidth: 1.8,
+                      color: colors.foreground,
+                    ),
+                    if (!isIconOnly) SizedBox(width: dims.gap),
+                  ] else if (leftIcon != null) ...[
+                    leftIcon!,
+                    SizedBox(width: dims.gap),
                   ],
-                ),
+                  if (!isIconOnly || (!loading && leftIcon == null && rightIcon == null))
+                    child,
+                  if (rightIcon != null && !loading) ...[
+                    SizedBox(width: dims.gap),
+                    rightIcon!,
+                  ],
+                ],
               ),
             ),
           ),
@@ -174,20 +170,20 @@ class BloomButton extends StatelessWidget {
 
   _ButtonColors _resolveColors(BuildContext context, BloomButtonVariant variant) {
     final colors = context.bloomColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = context.bloomColors.brightness == Brightness.dark;
 
     switch (variant) {
       case BloomButtonVariant.defaultVariant:
         return _ButtonColors(
           background: colors.primary,
           foreground: colors.primaryForeground,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomButtonVariant.outline:
         return _ButtonColors(
           background: isDark
               ? colors.border.withValues(alpha: 0.2)
-              : Colors.transparent,
+              : BloomColors.transparent,
           foreground: colors.textPrimary,
           border: colors.border,
         );
@@ -195,26 +191,26 @@ class BloomButton extends StatelessWidget {
         return _ButtonColors(
           background: colors.secondary,
           foreground: colors.secondaryForeground,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomButtonVariant.ghost:
         return _ButtonColors(
-          background: Colors.transparent,
+          background: BloomColors.transparent,
           foreground: colors.textPrimary,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
       case BloomButtonVariant.destructive:
         // shadcn base-nova uses soft 10% tint for destructive button
         return _ButtonColors(
           background: colors.destructive.withValues(alpha: isDark ? 0.2 : 0.1),
           foreground: colors.destructive,
-          border: isDark ? colors.destructive.withValues(alpha: 0.3) : Colors.transparent,
+          border: isDark ? colors.destructive.withValues(alpha: 0.3) : BloomColors.transparent,
         );
       case BloomButtonVariant.link:
         return _ButtonColors(
-          background: Colors.transparent,
+          background: BloomColors.transparent,
           foreground: colors.primary,
-          border: Colors.transparent,
+          border: BloomColors.transparent,
         );
     }
   }
@@ -322,7 +318,7 @@ class BloomIconButton extends StatelessWidget {
     );
 
     if (tooltip != null) {
-      return Tooltip(message: tooltip!, child: btn);
+      return BloomTooltip(message: tooltip!, child: btn);
     }
     return btn;
   }

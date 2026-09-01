@@ -1,5 +1,5 @@
 // lib/src/primitives/filter_bar.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'badge.dart';
 
 class BloomFilterBar<T> extends StatelessWidget {

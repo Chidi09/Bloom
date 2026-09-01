@@ -2,9 +2,10 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:bloom_ui/bloom_ui.dart' as ui;
 
 /// A cross-platform bridge widget for hosting hardware-accelerated native views
 /// (e.g. Camera Preview, MapKit/Google Maps, AR views, WebViews) declared in Bloom Modules.
@@ -140,23 +141,23 @@ class _BloomNativeViewState extends State<BloomNativeView> {
 
   Widget _buildFallback(String label) {
     return Container(
-      color: Colors.black87,
+      color: const Color(0xDD000000),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.layers_outlined, color: Colors.tealAccent, size: 36),
+          const ui.BloomIcon(ui.BloomIcons.layers, color: Color(0xFF64FFDA), size: 36),
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 13, fontWeight: FontWeight.bold),
           ),
           if (widget.props.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               'Props: ${widget.props}',
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
+              style: const TextStyle(color: Color(0xB3FFFFFF), fontSize: 11),
             ),
           ],
         ],

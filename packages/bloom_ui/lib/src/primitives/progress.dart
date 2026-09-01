@@ -1,5 +1,5 @@
 // lib/src/primitives/progress.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import '../utils/extensions.dart';
 
 /// A linear progress bar indicator matching shadcn/ui base-nova 4px height scale.
@@ -61,13 +61,92 @@ class BloomProgress extends StatelessWidget {
                   color: color ?? colors.primary,
                 ),
               )
-            : LinearProgressIndicator(
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation(color ?? colors.primary),
-                minHeight: height,
+            : _BloomIndeterminateProgress(
+                height: height,
+                color: color ?? colors.primary,
               ),
       ),
     );
+  }
+}
+
+class _BloomIndeterminateProgress extends StatefulWidget {
+  final double height;
+  final Color color;
+
+  const _BloomIndeterminateProgress({
+    required this.height,
+    required this.color,
+  });
+
+  @override
+  State<_BloomIndeterminateProgress> createState() => _BloomIndeterminateProgressState();
+}
+
+class _BloomIndeterminateProgressState extends State<_BloomIndeterminateProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          size: Size.fromHeight(widget.height),
+          painter: _IndeterminateProgressPainter(
+            progress: _controller.value,
+            color: widget.color,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IndeterminateProgressPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  const _IndeterminateProgressPainter({
+    required this.progress,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = progress;
+    final x1 = (t * 1.5 - 0.3).clamp(0.0, 1.0) * size.width;
+    final x2 = (t * 1.5).clamp(0.0, 1.0) * size.width;
+
+    if (x2 > x1) {
+      final rect = Rect.fromLTRB(x1, 0, x2, size.height);
+      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(size.height / 2));
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(rrect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_IndeterminateProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
 

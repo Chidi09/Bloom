@@ -1,5 +1,6 @@
 // lib/src/primitives/phone_input.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
 import '../utils/extensions.dart';
 import 'input.dart';
 
@@ -55,6 +56,7 @@ class BloomPhoneInput extends StatelessWidget {
                 color: colors.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
+                fontFamily: context.bloomTypography.sans,
               ),
             ),
             const SizedBox(width: 8),

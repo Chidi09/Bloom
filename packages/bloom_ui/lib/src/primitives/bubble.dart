@@ -1,5 +1,6 @@
 // lib/src/primitives/bubble.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../theme/tokens.dart';
 import '../utils/extensions.dart';
 
 /// Visual styling variants for chat bubbles.
@@ -174,7 +175,7 @@ class BloomBubbleContent extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: colors.background,
-        border: colors.border != Colors.transparent ? Border.all(color: colors.border) : null,
+        border: colors.border != BloomColors.transparent ? Border.all(color: colors.border) : null,
         borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.lg),
       ),
       child: DefaultTextStyle(
@@ -192,19 +193,19 @@ class BloomBubbleContent extends StatelessWidget {
     final c = context.bloomColors;
     switch (variant) {
       case BloomBubbleVariant.defaultVariant:
-        return _BubbleColors(background: c.primary, foreground: c.primaryForeground, border: Colors.transparent);
+        return _BubbleColors(background: c.primary, foreground: c.primaryForeground, border: BloomColors.transparent);
       case BloomBubbleVariant.secondary:
-        return _BubbleColors(background: c.secondary, foreground: c.secondaryForeground, border: Colors.transparent);
+        return _BubbleColors(background: c.secondary, foreground: c.secondaryForeground, border: BloomColors.transparent);
       case BloomBubbleVariant.muted:
-        return _BubbleColors(background: c.surface0, foreground: c.textPrimary, border: Colors.transparent);
+        return _BubbleColors(background: c.surface0, foreground: c.textPrimary, border: BloomColors.transparent);
       case BloomBubbleVariant.outline:
-        return _BubbleColors(background: Colors.transparent, foreground: c.textPrimary, border: c.border);
+        return _BubbleColors(background: BloomColors.transparent, foreground: c.textPrimary, border: c.border);
       case BloomBubbleVariant.ghost:
-        return _BubbleColors(background: Colors.transparent, foreground: c.textPrimary, border: Colors.transparent);
+        return _BubbleColors(background: BloomColors.transparent, foreground: c.textPrimary, border: BloomColors.transparent);
       case BloomBubbleVariant.tinted:
         return _BubbleColors(background: c.surface2, foreground: c.textPrimary, border: c.border);
       case BloomBubbleVariant.destructive:
-        return _BubbleColors(background: c.destructive, foreground: c.destructiveForeground, border: Colors.transparent);
+        return _BubbleColors(background: c.destructive, foreground: c.destructiveForeground, border: BloomColors.transparent);
     }
   }
 }

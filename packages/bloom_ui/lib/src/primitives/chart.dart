@@ -1,7 +1,9 @@
 // lib/src/primitives/chart.dart
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import '../icons/bloom_icon.dart';
+import '../icons/bloom_icons.dart';
 import '../theme/bloom_color_scheme.dart';
 import '../theme/tokens.dart';
 import '../utils/extensions.dart';
@@ -265,7 +267,7 @@ class _ChartTooltip extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.circle, size: 6, color: data.series[s].color ?? _seriesColor(colors, s)),
+                BloomIcon(BloomIcons.circle, size: 6, color: data.series[s].color ?? _seriesColor(colors, s)),
                 const SizedBox(width: 5),
                 Text(
                   data.series[s].name,
