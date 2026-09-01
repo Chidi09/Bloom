@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4 - 2026-08-31
+
+### Added
+* `bloom deploy init|docker` target-aware Docker lifecycle with Flutter, JS Native, server, and hybrid detection, plus `bloom doctor` deployment checks.
+* `bloom deploy docker --production-only` and `--dry-run` artifact preview.
+
 ## 0.7.3 - 2026-08-31
 
 ### Added

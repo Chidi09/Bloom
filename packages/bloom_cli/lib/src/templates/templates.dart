@@ -589,6 +589,10 @@ anything already in `lib/components/` before writing a new descriptor.
   utility classes. Just use `className: 'flex items-center gap-2'` etc.
   directly on any `BloomNode` afterward — see COOKBOOK.md Section 12 for
   the full recipe.
+- `bloom deploy init` — auto-detects deployment target (`flutter`, `js_native`, `server`, `hybrid`), writes `deployment.target` in `bloom.yaml`, and creates `.env.example`.
+- `bloom deploy docker` — generates multi-stage `Dockerfile`, `.dockerignore`, `docker-compose.yml` (pass `--production-only` to omit Compose), and `nginx.conf`. Use `--dry-run` to preview.
+- `bloom security scan` — scans project for hardcoded secrets, private keys, and exposed tokens before packaging or deployment.
+- `docker compose up --build` — boots local development container stack.
 
 ## Using an installed npm package from Dart
 
@@ -764,6 +768,40 @@ teardown: `BloomMountHandle.unmount()`, `BloomRouterController.dispose()`,
   `browser.dart` there. Test signals, computed values, `renderToHtml()`
   output, and route matching directly; `mount()`/hydration/real DOM events
   aren't unit-testable.
+
+### Docker & deployment lifecycle
+- Run `bloom deploy init` before generating container configurations to guarantee proper target auto-detection (`flutter`, `js_native`, `server`, `hybrid`).
+- Run `bloom security scan` in CI/CD before `docker build` or `bloom deploy` to catch exposed keys and tokens before container build.
+- Generated `.dockerignore` ignores `.env` and `.dart_tool` to enforce a zero-secrets build. Use `bloom deploy docker --dry-run` to preview artifacts.
+
+### Security defaults (bloom_security)
+- `BloomAdvancedCorsMiddleware` defaults to **deny-by-default** (`allowedOrigins: const []`). Never combine wildcard `'*'` with `allowCredentials: true`. Use `BloomAdvancedCorsMiddleware.permissive()` only for public APIs.
+- `BloomSecurityHeadersMiddleware` sets strict defaults (`nosniff`, `DENY`, `strict-origin-when-cross-origin`). HSTS is emitted only when requests arrive over HTTPS (or trusted `X-Forwarded-Proto: https`) to avoid locking out local HTTP development.
+- Configure `BloomTrustedProxyPredicate` on `BloomRateLimitMiddleware` when running behind reverse proxies to prevent client IP spoofing.
+
+### Durable background jobs (bloom_jobs)
+- When using `DatabaseTaskQueue`, call `await queue.ensureSchema()` during application boot.
+- PostgreSQL `DatabaseTaskQueue` uses `FOR UPDATE SKIP LOCKED` for lock-free parallel execution; SQLite uses atomic conditional updates.
+- Tasks feature ownership tokens and automatic lease expiration to reclaim abandoned tasks across worker processes.
+- `RedisTaskQueue` provides cross-process atomic claiming via Redis Lua scripts against scheduled ZSETs.
+
+### Database migration integrity (bloom_migrate)
+- **Applied migrations are immutable**: `MigrationRunner` records and validates SHA-256 checksums of applied `-- up` SQL. Modifying an already-applied migration file on disk causes `migrate()` to throw `StateError`. Never edit past migrations; add a new sequential migration instead.
+- `MigrationRunner` automatically acquires PostgreSQL advisory locks (`pg_advisory_lock`) or SQLite table locks (`bloom_migration_lock`) to serialize migrations during parallel container rollouts.
+
+### REST safe defaults (bloom_rest)
+- ViewSets mounted via `mountViewSet` default to **`IsAuthenticated()`** permission. Explicitly set `permission: const AllowAny()` only for intentionally public routes. Combine policies with `.and()`, `.or()`, `&`, `|`, `~`.
+- `BloomViewSetConfig.filterableFields` and `orderableFields` default to empty lists (`const []`). Query parameters not in the allowlist are ignored to eliminate SQL injection vectors and un-indexed full-table scans.
+- Wrap auto-managed database columns (e.g. `id`, `created_at`, `updated_at`) with `BloomFieldSet.all().withReadOnly(...)` in serializers to prevent client-side field tampering.
+
+### Bloom Console branding & CSRF (bloom_admin)
+- `BloomAdminSite` defaults to **`Bloom Console`** for `siteHeader` and `siteTitle`. Customize using `BloomSiteBranding` when necessary.
+- All mutating administration endpoints (`POST`/`DELETE`) enforce HMAC-SHA256 CSRF verification via `AdminCsrf`.
+
+### Auth, Cache, and Mail constraints (bloom_auth_server, bloom_cache, bloom_mail)
+- Neutralize user enumeration timing attacks by calling `dummyVerifyPassword()` when looking up non-existent usernames.
+- Wrap expensive async computations in `cache.getOrSet()` for automatic in-flight deduplication (stampede protection).
+- Inject `BloomMailBackend` via dependency injection (`BloomContainer`), using `BloomInMemoryBackend` in tests to inspect sent messages without sending network traffic.
 
 ## Anti-fabrication note for AI agents
 

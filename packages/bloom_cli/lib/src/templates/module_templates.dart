@@ -1,4 +1,6 @@
 // lib/src/templates/module_templates.dart
+import 'dart:io';
+import 'package:path/path.dart' as p;
 
 class BloomModuleTemplates {
   static String toPascalCase(String input) {
@@ -53,10 +55,28 @@ config_plugin:
     String? frameworkPath,
   }) {
     String frameworkDep;
+    String overrides = '';
     if (frameworkPath != null) {
       frameworkDep = '''
   bloom_framework:
     path: $frameworkPath''';
+      final parentDir = p.dirname(frameworkPath);
+      final jsNative = p.join(parentDir, 'bloom_js_native');
+      final seo = p.join(parentDir, 'bloom_seo');
+      final server = p.join(parentDir, 'bloom_server');
+      final overrideLines = <String>[];
+      if (Directory(jsNative).existsSync()) {
+        overrideLines.add('  bloom_js_native:\n    path: $jsNative');
+      }
+      if (Directory(seo).existsSync()) {
+        overrideLines.add('  bloom_seo:\n    path: $seo');
+      }
+      if (Directory(server).existsSync()) {
+        overrideLines.add('  bloom_server:\n    path: $server');
+      }
+      if (overrideLines.isNotEmpty) {
+        overrides = '\ndependency_overrides:\n${overrideLines.join('\n')}';
+      }
     } else {
       frameworkDep = '''
   bloom_framework: ^0.2.1''';
@@ -79,7 +99,7 @@ $frameworkDep
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^5.0.0$overrides
 ''';
   }
 

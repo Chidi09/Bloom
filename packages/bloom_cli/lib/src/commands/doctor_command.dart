@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../commands/audit_command.dart';
+import '../deployment/deployment_doctor_check.dart';
 import '../dev/mdns_discovery.dart';
 import '../native/autolink_engine.dart';
 import '../security/secret_scanner.dart';
@@ -15,7 +16,7 @@ const _bloomCliVersion = '0.4.0';
 /// Command that validates environment, toolchain, project configuration, and CI health.
 ///
 /// Inspects Dart and Flutter SDKs, native mobile toolchains, mDNS network interfaces,
-/// dependency CVEs, secret leaks, and upgrade breaking-change compatibility.
+/// dependency CVEs, secret leaks, upgrade breaking-change compatibility, and Docker deployment readiness.
 ///
 /// Example:
 /// ```
@@ -144,6 +145,14 @@ class DoctorCommand extends Command<int> {
       print('${Ansi.yellow}⚠ Loopback only (${localIpResult.ip})${Ansi.reset}');
     } else {
       print('${Ansi.green}✔ OK${Ansi.reset} ${Ansi.dimText('(LAN IP: ${localIpResult.ip})')}');
+    }
+
+    // Container & Deployment Lifecycle Checks
+    final deploymentChecker = const DeploymentDoctorChecker();
+    final deployReport = await deploymentChecker.check(project: project);
+    deploymentChecker.printReport(deployReport);
+    if (!deployReport.isPassed) {
+      allGood = false;
     }
 
     // System Information
@@ -295,6 +304,21 @@ class DoctorCommand extends Command<int> {
     } catch (e) {
       print(Ansi.error('✖ [AUTOLINK] Native module autolink failure: $e'));
       ciFailed = true;
+    }
+
+    // 5. Run Deployment Lifecycle Checks
+    final deploymentChecker = const DeploymentDoctorChecker();
+    final deployReport = await deploymentChecker.check(project: project, strictCi: true);
+    if (!deployReport.isPassed) {
+      for (final item in deployReport.items.where((i) => !i.isHealthy && !i.isWarning)) {
+        print(Ansi.error('✖ [DEPLOY] ${item.title}: ${item.details}'));
+        if (item.fixHint != null) {
+          print('    ${Ansi.dimText(item.fixHint!)}');
+        }
+      }
+      ciFailed = true;
+    } else {
+      print(Ansi.success('✔ [DEPLOY] Deployment configuration & container checks passed'));
     }
 
     print('');
