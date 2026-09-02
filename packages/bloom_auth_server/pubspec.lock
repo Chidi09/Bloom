@@ -47,7 +47,7 @@ packages:
       path: "../bloom_js_native"
       relative: true
     source: path
-    version: "0.3.3"
+    version: "0.3.6"
   bloom_seo:
     dependency: "direct overridden"
     description:
@@ -61,7 +61,7 @@ packages:
       path: "../bloom_server"
       relative: true
     source: path
-    version: "0.2.0"
+    version: "0.2.1"
   boolean_selector:
     dependency: transitive
     description:
