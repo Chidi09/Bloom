@@ -2,6 +2,16 @@
 
 ## 0.2.2 - 2026-08-31
 
+### Fixed
+
+- **`bloom_rest` could not be resolved by any consumer.** The package depended on
+  `bloom_cache ^0.2.0`, but `bloom_cache` 0.2.x depends on `bloom_server ^0.1.0`, which
+  contradicts this package's own `bloom_server ^0.2.0` — so `pub get` failed with
+  "version solving failed" on 0.2.0 and 0.2.1. The constraint is now `bloom_cache ^0.3.0`
+  (0.3.0 being the first `bloom_cache` release on `bloom_server ^0.2.0`), which is what
+  the monorepo's `dependency_overrides` already resolved to. Those overrides are why the
+  contradiction never showed up in local builds or tests.
+
 ### Security & Hardening
 - **Throttling Race Condition Elimination & Atomic Store Support**:
   - Introduced `BloomAtomicThrottleStore` and `InMemoryAtomicThrottleStore` for race-free sliding-window rate limiting.

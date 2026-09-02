@@ -15,7 +15,7 @@ dependencies:
   meta: ^1.15.0
   bloom_server: ^0.2.0
   bloom_db: ^0.1.0
-  bloom_cache: ^0.2.0
+  bloom_cache: ^0.3.0
 
 dev_dependencies:
   test: ^1.25.0
@@ -25,9 +25,12 @@ dev_dependencies:
 # and by consumers of the published package, so the hosted constraints above are
 # what ship; these keep an in-tree checkout building against sibling sources.
 #
-# The bloom_cache constraint above is ^0.2.0 because 0.2.0 is the first release
-# ported off the Flutter-requiring bloom_framework and onto bloom_server; ^0.1.0
-# would have silently re-acquired Flutter transitively.
+# The bloom_cache constraint above must stay >=0.3.0. 0.2.0 was the first release
+# ported off the Flutter-requiring bloom_framework and onto bloom_server (^0.1.0
+# would have silently re-acquired Flutter transitively), but bloom_cache 0.2.x
+# depends on bloom_server ^0.1.0, which contradicts this package's own
+# bloom_server ^0.2.0 and made bloom_rest unresolvable for consumers. bloom_cache
+# 0.3.0 is the first release on bloom_server ^0.2.0.
 dependency_overrides:
   bloom_server:
     path: ../bloom_server

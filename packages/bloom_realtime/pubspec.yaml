@@ -1,6 +1,6 @@
 name: bloom_realtime
 description: Real-time pub/sub layer for Bloom server + client apps (channels, broadcast, presence, query invalidation bridge).
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -12,7 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_js_native: ^0.2.0
+  bloom_js_native: ^0.3.0
   bloom_security: ^0.2.0
 
 dev_dependencies:
@@ -25,6 +25,12 @@ dev_dependencies:
 # The bloom_security constraint above is ^0.2.0 because 0.2.0 is the first
 # release ported off the Flutter-requiring bloom_framework and onto
 # bloom_server; ^0.1.0 would have silently re-acquired Flutter transitively.
+#
+# The bloom_js_native constraint above must stay >=0.3.0. bloom_seo and
+# bloom_server both require bloom_js_native ^0.3.0, so a ^0.2.0 here is disjoint
+# from theirs and made bloom_realtime uninstallable alongside either of them —
+# which is most real Bloom apps. The override resolves to 0.3.6, so ^0.3.0 is
+# also what this package is actually built and tested against.
 dependency_overrides:
   bloom_js_native:
     path: ../bloom_js_native
