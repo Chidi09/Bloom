@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* **Preserve `@BloomField` schema metadata (#11)**: generated `FieldMeta` now carries `maxLength` and `defaultVal`, allowing migration DDL to emit the requested `VARCHAR(n)` and `DEFAULT` definitions instead of silently falling back.
+
 ## 0.1.1 - 2026-08-31
 
 * Preserve explicit `@BloomField` false values and custom field metadata.

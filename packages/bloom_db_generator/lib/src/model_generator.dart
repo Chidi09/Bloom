@@ -138,6 +138,8 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
         nullable: isNullable,
         dbIndex: fieldAnn?.dbIndex ?? false,
         unique: fieldAnn?.unique ?? false,
+        maxLength: fieldAnn?.maxLength,
+        defaultVal: fieldAnn?.defaultVal,
       ));
     }
 
@@ -182,6 +184,9 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
             unique: isIdField ? null : reader.peek('unique')?.boolValue,
             dbIndex: isIdField ? null : reader.peek('dbIndex')?.boolValue,
             kindString: _readKind(reader.peek('kind')),
+            maxLength: isIdField ? null : reader.peek('maxLength')?.intValue,
+            defaultVal:
+                isIdField ? null : _readDefaultValue(reader.peek('defaultVal')),
           );
         }
 
@@ -207,6 +212,12 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
               : null,
           kindString: namedArgs.contains('kind')
               ? _readKind(reader.peek('kind'))
+              : null,
+          maxLength: namedArgs.contains('maxLength')
+              ? reader.peek('maxLength')?.intValue
+              : null,
+          defaultVal: namedArgs.contains('defaultVal')
+              ? _readDefaultValue(reader.peek('defaultVal'))
               : null,
         );
       }
@@ -258,6 +269,41 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
     return null;
   }
 
+  static String? _readDefaultValue(ConstantReader? reader) {
+    if (reader == null || reader.isNull) return null;
+    final obj = reader.objectValue;
+    final typeName = obj.type?.element?.name ?? '';
+    if (typeName.endsWith('NoneDefaultValue')) {
+      return 'const DefaultValue.none()';
+    }
+    final value = obj.getField('value');
+    if (value == null) return null;
+    if (typeName.endsWith('I64DefaultValue')) {
+      final intValue = value.toIntValue();
+      return intValue == null ? null : 'const DefaultValue.i64($intValue)';
+    }
+    if (typeName.endsWith('F64DefaultValue')) {
+      final doubleValue = value.toDoubleValue();
+      return doubleValue == null
+          ? null
+          : 'const DefaultValue.f64($doubleValue)';
+    }
+    if (typeName.endsWith('BoolDefaultValue')) {
+      final boolValue = value.toBoolValue();
+      return boolValue == null
+          ? null
+          : 'const DefaultValue.boolVal($boolValue)';
+    }
+    if (typeName.endsWith('TextDefaultValue')) {
+      final stringValue = value.toStringValue();
+      if (stringValue == null) return null;
+      final escaped =
+          stringValue.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+      return "const DefaultValue.text('$escaped')";
+    }
+    return null;
+  }
+
   static bool _isInt(DartType type) {
     return type.getDisplayString(withNullability: false) == 'int';
   }
@@ -290,6 +336,12 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
   }) {
     final metaFieldsBuffer = StringBuffer();
     for (final f in fields) {
+      final maxLengthLine =
+          f.maxLength == null ? '' : '      maxLength: ${f.maxLength},\n';
+      final defaultValLine =
+          f.defaultVal == null || f.defaultVal == 'const DefaultValue.none()'
+              ? ''
+              : '      defaultVal: ${f.defaultVal},\n';
       metaFieldsBuffer.writeln('''
     FieldMeta(
       name: '${f.name}',
@@ -300,7 +352,7 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
       auto: ${f.auto},
       unique: ${f.unique},
       dbIndex: ${f.dbIndex},
-    ),''');
+${maxLengthLine}${defaultValLine}    ),''');
     }
 
     final abstractGetters = StringBuffer();
@@ -517,6 +569,8 @@ class _FieldAnnotationData {
   final bool? unique;
   final bool? dbIndex;
   final String? kindString;
+  final int? maxLength;
+  final String? defaultVal;
 
   _FieldAnnotationData({
     this.columnName,
@@ -526,6 +580,8 @@ class _FieldAnnotationData {
     this.unique,
     this.dbIndex,
     this.kindString,
+    this.maxLength,
+    this.defaultVal,
   });
 }
 
@@ -539,6 +595,8 @@ class _ParsedField {
   final bool nullable;
   final bool dbIndex;
   final bool unique;
+  final int? maxLength;
+  final String? defaultVal;
 
   _ParsedField({
     required this.name,
@@ -550,5 +608,7 @@ class _ParsedField {
     required this.nullable,
     required this.dbIndex,
     required this.unique,
+    this.maxLength,
+    this.defaultVal,
   });
 }
