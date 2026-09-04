@@ -246,8 +246,9 @@ class QuerySet<T extends Model> {
   (String, List<dynamic>) compileSelectWithOrder(
     String selectList,
     bool includeOrder,
-    Dialect dialect,
-  ) {
+    Dialect dialect, {
+    bool includePaging = true,
+  }) {
     final buffer = StringBuffer('SELECT $selectList FROM "${_meta.tableName}"');
     final params = <dynamic>[];
     var paramIdx = 1;
@@ -290,14 +291,16 @@ class QuerySet<T extends Model> {
       }
     }
 
-    if (_limit != null) {
-      buffer.write(' LIMIT $_limit');
-    }
-    if (_offset != null) {
-      if (_limit == null && dialect.type == DialectType.sqlite) {
-        buffer.write(' LIMIT -1');
+    if (includePaging) {
+      if (_limit != null) {
+        buffer.write(' LIMIT $_limit');
       }
-      buffer.write(' OFFSET $_offset');
+      if (_offset != null) {
+        if (_limit == null && dialect.type == DialectType.sqlite) {
+          buffer.write(' LIMIT -1');
+        }
+        buffer.write(' OFFSET $_offset');
+      }
     }
 
     return (buffer.toString(), params);
@@ -482,14 +485,22 @@ class QuerySet<T extends Model> {
 
   /// Returns the total count of rows matching query filters in the database [db].
   ///
-  /// Compiles a `SELECT COUNT(*) FROM ...` aggregation query.
+  /// Compiles a `SELECT COUNT(*) FROM ...` aggregation query. Slicing
+  /// (`limit`/`offset`) is ignored: the count covers the whole filtered set,
+  /// so a paged queryset (e.g. with `OFFSET` beyond the row count) still
+  /// returns the total instead of throwing [BloomOrmNotFoundError].
   ///
   /// Example:
   /// ```dart
   /// final count = await qs.filter(Q('status', 'active')).count(db);
   /// ```
   Future<int> count(DbExecutor db) async {
-    final (sql, params) = compileSelectWithOrder('COUNT(*)', false, db.dialect);
+    final (sql, params) = compileSelectWithOrder(
+      'COUNT(*)',
+      false,
+      db.dialect,
+      includePaging: false,
+    );
     final row = await db.fetchOne(sql, params);
     return row.tryInt(0) ?? 0;
   }
