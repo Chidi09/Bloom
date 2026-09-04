@@ -63,7 +63,6 @@ class QuerySet<T extends Model> {
         _limit = limit,
         _offset = offset;
 
-
   /// Clones the current QuerySet with modified attributes.
   QuerySet<T> _copyWith({
     List<BloomExpr>? filters,
@@ -128,7 +127,6 @@ class QuerySet<T extends Model> {
   ///
   /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
   QuerySet<T> order_by(String field) {
-
     final isDesc = field.startsWith('-');
     final cleanField = isDesc ? field.substring(1) : field;
     final f = _meta.findField(cleanField);
@@ -148,7 +146,13 @@ class QuerySet<T extends Model> {
   /// ```dart
   /// final topTen = qs.orderBy('-score').limit(10);
   /// ```
-  QuerySet<T> limit(int n) => _copyWith(limit: n);
+  QuerySet<T> limit(int n) {
+    if (n < 0) {
+      throw ArgumentError.value(
+          n, 'n', 'limit must be greater than or equal to 0');
+    }
+    return _copyWith(limit: n);
+  }
 
   /// Returns a new [QuerySet] skipping the first [n] rows of query results.
   ///
@@ -156,7 +160,13 @@ class QuerySet<T extends Model> {
   /// ```dart
   /// final pageTwo = qs.limit(10).offset(10);
   /// ```
-  QuerySet<T> offset(int n) => _copyWith(offset: n);
+  QuerySet<T> offset(int n) {
+    if (n < 0) {
+      throw ArgumentError.value(
+          n, 'n', 'offset must be greater than or equal to 0');
+    }
+    return _copyWith(offset: n);
+  }
 
   /// Resolves an input filter into a fully validated [BloomExpr].
   BloomExpr _resolveExpression(dynamic expr) {
@@ -185,7 +195,8 @@ class QuerySet<T extends Model> {
     if (expr is UnresolvedExpr) {
       return _resolveUnresolvedExpr(expr);
     }
-    throw BloomOrmInvalidQueryError('Unsupported filter type: ${expr.runtimeType}');
+    throw BloomOrmInvalidQueryError(
+        'Unsupported filter type: ${expr.runtimeType}');
   }
 
   BloomExpr _resolveUnresolvedExpr(UnresolvedExpr expr) {
@@ -354,15 +365,17 @@ class QuerySet<T extends Model> {
           CompareOp.lte => ('<=', value.raw, false),
           CompareOp.gt => ('>', value.raw, false),
           CompareOp.gte => ('>=', value.raw, false),
-          CompareOp.regex => ('~', value.raw, false),
-          CompareOp.iregex => ('~*', value.raw, false),
+          CompareOp.regex => _regexOperator(dialect, '~', value.raw),
+          CompareOp.iregex => _regexOperator(dialect, '~*', value.raw),
           // LIKE-family: user input is escaped so `%`/`_` match literally.
           CompareOp.iexact => (dialect.ilike, escaped, true),
           CompareOp.contains => ('LIKE', '%$escaped%', true),
           CompareOp.icontains => (dialect.ilike, '%$escaped%', true),
           CompareOp.startsWith => ('LIKE', '$escaped%', true),
           CompareOp.endsWith => ('LIKE', '%$escaped', true),
-          CompareOp.isIn || CompareOp.isNull => throw StateError('Handled above'),
+          CompareOp.isIn ||
+          CompareOp.isNull =>
+            throw StateError('Handled above'),
         };
 
         params.add(bindVal);
@@ -373,14 +386,16 @@ class QuerySet<T extends Model> {
       case BloomAndExpr(:final exprs):
         if (exprs.isEmpty) return 'TRUE';
         final parts = exprs
-            .map((e) => '(${_compileExprSql(e, tableName, fieldToCol, params, nextParamIdx, dialect)})')
+            .map((e) =>
+                '(${_compileExprSql(e, tableName, fieldToCol, params, nextParamIdx, dialect)})')
             .toList();
         return parts.join(' AND ');
 
       case BloomOrExpr(:final exprs):
         if (exprs.isEmpty) return 'FALSE';
         final parts = exprs
-            .map((e) => '(${_compileExprSql(e, tableName, fieldToCol, params, nextParamIdx, dialect)})')
+            .map((e) =>
+                '(${_compileExprSql(e, tableName, fieldToCol, params, nextParamIdx, dialect)})')
             .toList();
         return parts.join(' OR ');
 
@@ -390,6 +405,11 @@ class QuerySet<T extends Model> {
       case BloomCompareFieldExpr(:final left, :final op, :final right):
         final lhs = fieldToCol(left);
         final rhs = fieldToCol(right);
+        if ((op == CompareOp.regex || op == CompareOp.iregex) &&
+            dialect.type == DialectType.sqlite) {
+          throw BloomOrmInvalidQueryError(
+              'regex/iregex lookups are not supported by SQLite');
+        }
         return switch (op) {
           CompareOp.eq => '$lhs = $rhs',
           CompareOp.ne => '$lhs <> $rhs',
@@ -412,6 +432,15 @@ class QuerySet<T extends Model> {
               'it is a unary check on a single field, not a comparison between two fields.'),
         };
     }
+  }
+
+  static (String, dynamic, bool) _regexOperator(
+      Dialect dialect, String operator, dynamic value) {
+    if (dialect.type == DialectType.sqlite) {
+      throw BloomOrmInvalidQueryError(
+          'regex/iregex lookups are not supported by SQLite');
+    }
+    return (operator, value, false);
   }
 
   /// Compiles and returns the SQL text and bind parameters for debugging and test inspection.
@@ -491,7 +520,8 @@ class QuerySet<T extends Model> {
   /// final hasBanned = await qs.filter(Q('is_banned', true)).exists(db);
   /// ```
   Future<bool> exists(DbExecutor db) async {
-    final (sql, params) = limit(1).compileSelectWithOrder('1', false, db.dialect);
+    final (sql, params) =
+        limit(1).compileSelectWithOrder('1', false, db.dialect);
     final row = await db.fetchOptional(sql, params);
     return row != null;
   }
@@ -591,12 +621,14 @@ class QuerySet<T extends Model> {
             ArithOp.mul => '*',
             ArithOp.div => '/',
           };
-          setClauses.add('$lhsCol = $rhsCol $opSql ${dialect.placeholder(paramIdx++)}');
+          setClauses.add(
+              '$lhsCol = $rhsCol $opSql ${dialect.placeholder(paramIdx++)}');
           params.add(operand.raw);
       }
     }
 
-    final buffer = StringBuffer('UPDATE "${_meta.tableName}" SET ${setClauses.join(', ')}');
+    final buffer = StringBuffer(
+        'UPDATE "${_meta.tableName}" SET ${setClauses.join(', ')}');
     if (_filters.isNotEmpty) {
       final combined = BloomExpr.and(_filters);
       final whereSql = _compileExprSql(
@@ -712,7 +744,10 @@ class QuerySet<T extends Model> {
     if (pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt) {
       return row.tryIntByName(pkCol) ?? row.tryInt(0) ?? 0;
     }
-    return row.tryStringByName(pkCol) ?? row.tryIntByName(pkCol) ?? row[pkCol] ?? row[0];
+    return row.tryStringByName(pkCol) ??
+        row.tryIntByName(pkCol) ??
+        row[pkCol] ??
+        row[0];
   }
 
   /// Inserts multiple model [items] in a single multi-row `INSERT ... VALUES (...), (...) RETURNING` statement.
@@ -768,12 +803,16 @@ class QuerySet<T extends Model> {
         'INSERT INTO "${meta.tableName}" (${insertableCols.join(', ')}) VALUES ${placeholderGroups.join(', ')} RETURNING "$pkCol"';
 
     final rows = await db.fetchAll(sql, params);
-    final isIntPk = pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt;
+    final isIntPk =
+        pkField.kind == FieldKind.integer || pkField.kind == FieldKind.bigInt;
     return rows.map((r) {
       if (isIntPk) {
         return r.tryIntByName(pkCol) ?? r.tryInt(0) ?? 0;
       }
-      return r.tryStringByName(pkCol) ?? r.tryIntByName(pkCol) ?? r[pkCol] ?? r[0];
+      return r.tryStringByName(pkCol) ??
+          r.tryIntByName(pkCol) ??
+          r[pkCol] ??
+          r[0];
     }).toList();
   }
 
@@ -841,8 +880,10 @@ class QuerySet<T extends Model> {
     if (existing != null) {
       await update(db, updates);
       final pkCol = _meta.primaryKeyField.name;
-      final pkVal = (existing.fieldValues().firstWhere((v) => v.$1 == pkCol)).$2.raw;
-      final updated = await _copyWith(filters: []).filter({pkCol: pkVal}).get(db);
+      final pkVal =
+          (existing.fieldValues().firstWhere((v) => v.$1 == pkCol)).$2.raw;
+      final updated =
+          await _copyWith(filters: []).filter({pkCol: pkVal}).get(db);
       return (updated, false);
     }
     final pk = await insertRaw(db, _meta, defaults);
@@ -930,5 +971,3 @@ class QuerySet<T extends Model> {
   }) =>
       valuesList(db, field, flat: flat);
 }
-
-
