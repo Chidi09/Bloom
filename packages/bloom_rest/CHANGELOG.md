@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+* **Object-level authorization hook (#5)**: `BloomRestPermission.hasObjectPermission(req, item)` (default: allow) is enforced after fetching the row in `retrieve`/`update`/`destroy`; denial returns 404 so denied ids are indistinguishable from missing ones. `update`/`destroy` now fetch before mutating so authz precedes writes. AND/OR/NOT combinators propagate object checks. Stock ViewSets document that request-level permission alone does not scope rows — override the hook (or scope `getDb`/filters) for owner/tenant data.
+* **`onInternalError` sink on `BloomViewSetOptions` (#6)**: unexpected 5xx errors route to this callback (print fallback) for server-side diagnosis.
+
+### Security
+* **Generic 500 bodies (#6)**: `retrieve`/`create`/`update`/`destroy` no longer interpolate raw exceptions into responses; all 5xx bodies are `Internal Server Error`.
+* **Shared anonymous bucket warning (#8)**: `ByUserOrIp` prints a loud one-time warning when all anonymous callers share the fallback bucket; README and docs show `peerAddressExtractor` wiring, and throttle-before-permission ordering rationale is recorded on the ViewSet guard.
+
+### Fixed
+* **Default max page size (#7)**: `BloomViewSetConfig.maxPageSize`, `PageNumberPagination.maxPageSize`, and `CursorPagination.maxPageSize` now default to `kRestPerPage` (100), so `?page_size=1000000` is clamped instead of becoming a full-table scan plus uncached count.
+
 ## 0.2.2 - 2026-08-31
 
 ### Fixed

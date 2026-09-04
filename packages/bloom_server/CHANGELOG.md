@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Security
+* **Reserved `auth_*` route params (#21)**: path-parameter binding never overwrites `auth_*` keys, so a route like `/users/:auth_user_id` cannot clobber verified auth-middleware identity for downstream `params` readers. Never name a route parameter `auth_*`; prefer the verified `req.authUserId` getters where available.
+
 ## 0.2.1 - 2026-08-31
 
 ### Added

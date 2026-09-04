@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Security
+* **Mapped 500s use generic messages (#28)**: ORM, storage, migrate, and `mapToHttpException`-fallback mappings no longer embed raw `error.toString()` (driver/SQL/filesystem internals) into `BloomApiException`s, which render verbatim in every environment. Raw details remain available via `onError` and non-prod output.
+* **Deny-by-default environment masking (#29)**: 500s are masked unless the environment is an explicit dev value (`local`, `dev`, `development`, `test`). `staging`/`prod`/`qa`/`preview`/unknown values no longer leak stack traces. Recognized values are documented on `BloomErrorMiddleware`.
+
 ## 0.2.1 - 2026-08-25
 
 ### Fixed

@@ -1,3 +1,9 @@
+## Unreleased
+
+### Security
+* **Reserved-claim rejection in `issueSessionToken` (#20)**: `customClaims` containing a reserved identity key (`sub`, `userId`, `email`, `roles`, `role`, `token_type`, `iat`, `exp`, `nbf`, `iss`, `aud`) now throws `ArgumentError` instead of silently minting forged identity. Reserved keys are applied after caller claims so they always win; the shared `reservedSessionClaimKeys` set keeps issuance, parsing, and `toMap` serialization in agreement.
+* **OAuth state verification fails closed by default (#22)**: `handleCallback`'s `requireStateVerification` now defaults to `true`, so a callback without a configured `BloomOAuthStateStore` raises a clear `BloomOAuthStateException` instead of silently skipping CSRF checks. Pass `requireStateVerification: false` explicitly only for non-browser flows.
+
 ## 0.3.2 - 2026-08-31
 
 ### Security & Reliability Hardening

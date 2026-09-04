@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* **`count()` ignores `limit`/`offset` (#10)**: the count aggregation no longer includes paging, so a queryset with `OFFSET` beyond the row count returns the filtered total instead of throwing `BloomOrmNotFoundError`.
+* **LIKE lookups escape wildcards (#12)**: `contains`/`icontains`/`startsWith`/`endsWith`/`iexact` escape `%`, `_`, and `\` in user input and emit `ESCAPE '\'`, so input matches literally instead of over-matching.
+* **Unfiltered bulk writes refused (#14)**: `QuerySet.update`/`delete` without filters throw `BloomOrmInvalidQueryError` unless `allowUnfiltered: true` is passed, so one call can no longer wipe a table by accident.
+
 ## 0.1.3 - 2026-08-31
 
 * Maintenance release for the current ORM runtime and transaction API.
