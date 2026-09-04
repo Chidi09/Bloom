@@ -322,7 +322,7 @@ class BloomAdvancedCorsMiddleware implements BloomMiddleware {
   }
 
   void _setHeader(Map<String, String> headers, String name, String value) {
-    headers[name] = value;
+    // Write the header once, in a single canonical (lowercase) form.
     headers[name.toLowerCase()] = value;
   }
 

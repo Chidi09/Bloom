@@ -213,7 +213,7 @@ class BloomSecurityHeadersMiddleware implements BloomMiddleware {
   }
 
   void _setHeader(Map<String, String> headers, String key, String value) {
-    headers[key] = value;
+    // Write the header once, in a single canonical (lowercase) form.
     headers[key.toLowerCase()] = value;
   }
 
