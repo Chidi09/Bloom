@@ -128,7 +128,9 @@ class BloomAuthMiddleware implements BloomMiddleware {
     }
 
     final trimmed = authHeader.trim();
-    final parts = trimmed.split(' ');
+    // Whitespace between the scheme and token is insignificant in HTTP;
+    // split on runs so clients sending multiple spaces are not rejected.
+    final parts = trimmed.split(RegExp(r'\s+'));
     if (parts.length != 2 ||
         parts[0].toLowerCase() != 'bearer' ||
         parts[1].isEmpty) {

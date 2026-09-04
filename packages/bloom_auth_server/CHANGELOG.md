@@ -3,6 +3,7 @@
 ### Security
 * **Reserved-claim rejection in `issueSessionToken` (#20)**: `customClaims` containing a reserved identity key (`sub`, `userId`, `email`, `roles`, `role`, `token_type`, `iat`, `exp`, `nbf`, `iss`, `aud`) now throws `ArgumentError` instead of silently minting forged identity. Reserved keys are applied after caller claims so they always win; the shared `reservedSessionClaimKeys` set keeps issuance, parsing, and `toMap` serialization in agreement.
 * **OAuth state verification fails closed by default (#22)**: `handleCallback`'s `requireStateVerification` now defaults to `true`, so a callback without a configured `BloomOAuthStateStore` raises a clear `BloomOAuthStateException` instead of silently skipping CSRF checks. Pass `requireStateVerification: false` explicitly only for non-browser flows.
+* **Auth hardening bundle (#23)**: `dummyVerifyPassword` accepts a configured BCrypt cost and caches cost-matched dummy hashes; verified session tokens without a valid `exp` claim are rejected; the built-in reset-token store atomically consumes tokens under concurrent requests; multi-space `Bearer` headers are accepted; login docs recommend composing identifier and trusted-IP throttles to reduce account-lockout DoS.
 
 ## 0.3.2 - 2026-08-31
 
