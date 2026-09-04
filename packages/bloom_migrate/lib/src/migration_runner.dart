@@ -125,8 +125,21 @@ class MigrationRunner {
     try {
       await db.execute(
           'ALTER TABLE $trackingTableName ADD COLUMN checksum TEXT NOT NULL DEFAULT \'\'');
-    } catch (_) {
-      // The column already exists on newly created and previously upgraded tables.
+    } catch (e) {
+      // Only the benign "column already exists" race may be swallowed
+      // (concurrent runners, or a table created by a previous partial run).
+      // Any other failure — read-only database, missing permissions, broken
+      // tracking table — must surface instead of hiding behind 'column
+      // exists'. Verify by selecting the column directly.
+      try {
+        await db.fetchAll('SELECT checksum FROM $trackingTableName LIMIT 1');
+        return;
+      } catch (_) {
+        throw StateError(
+          'Could not add the checksum column to $trackingTableName and the '
+          'column is not readable. Underlying error: $e',
+        );
+      }
     }
   }
 

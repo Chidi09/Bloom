@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 - 2026-09-04
+
+### Fixed
+* **`getOrCreate`/`updateOrCreate` race (#15)**: the check-then-insert sequence now runs inside a transaction; if the insert loses a race against a concurrent writer (unique violation), the row is re-fetched and returned with `created: false` instead of surfacing the error. Nests cleanly inside caller transactions (savepoints on SQLite).
+
 ## 0.1.4 - 2026-09-04
 
 ### Fixed

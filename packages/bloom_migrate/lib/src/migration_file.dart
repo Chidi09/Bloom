@@ -99,13 +99,27 @@ class BloomMigration implements Comparable<BloomMigration> {
 
     final upSection = _extractSection(content, 'up');
     final downSection = _extractSection(content, 'down');
+    final trimmedUp = upSection.trim();
+
+    // A migration with no executable up-SQL is almost always a marker typo
+    // ('-- UP', '--up:', trailing text) rather than intent: it would be
+    // recorded as applied while doing nothing. Warn loudly.
+    if (trimmedUp.isEmpty) {
+      // ignore: avoid_print
+      print(
+        'WARNING: migration $app/$name ($filePath) has an empty `-- up` '
+        'section. If this is intentional (e.g. a data backfill handled '
+        'elsewhere), ignore this warning; otherwise check the marker spelling '
+        '(must be exactly `-- up` on its own line).',
+      );
+    }
 
     return BloomMigration(
       app: app,
       name: name,
       number: number,
       filePath: filePath,
-      upSql: upSection.trim(),
+      upSql: trimmedUp,
       downSql: downSection.trim(),
     );
   }

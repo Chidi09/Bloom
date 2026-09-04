@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-09-04
+
+### Changed
+* **Empty `-- up` migration warning (#15)**: a migration whose `-- up` section parses empty (usually a marker typo such as `-- UP`) now emits a loud warning at parse time, since it previously applied nothing yet recorded as applied.
+* **`_ensureChecksumColumn` no longer swallows all errors (#15)**: after a failed `ALTER TABLE` it verifies the column is actually present and readable; any other failure (read-only database, missing permissions) now raises a `StateError` instead of hiding behind "column exists".
+
 ## 0.1.3 - 2026-09-04
 
 ### Changed
