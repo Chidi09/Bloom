@@ -96,6 +96,35 @@ void main() {
       expect(ex.statusCode, 429);
       expect(ex.toJson()['details']['retry_after_seconds'], 30);
     });
+
+    test('429 toResponse keeps computed Retry-After over caller headers', () {
+      final ex = BloomTooManyRequestsException('Slow down', const Duration(seconds: 30));
+      final response = ex.toResponse(headers: {'Retry-After': '999', 'X-Custom': 'yes'});
+      expect(response.headers['Retry-After'], '30');
+      expect(response.headers['X-Custom'], 'yes');
+      expect(response.statusCode, 429);
+    });
+
+    test('BloomMethodNotAllowedException serializes to a 405 JSON response', () {
+      final ex = BloomMethodNotAllowedException(allowed: ['GET', 'POST']);
+      expect(ex.statusCode, 405);
+      expect(ex.toJson()['code'], 'method_not_allowed');
+      expect(ex.toJson()['details']['allowed'], ['GET', 'POST']);
+    });
+
+    test('BloomServiceUnavailableException serializes to a 503 JSON response', () {
+      final ex = const BloomServiceUnavailableException('Down for maintenance');
+      final response = ex.toResponse();
+      expect(response.statusCode, 503);
+      expect(ex.toJson()['code'], 'service_unavailable');
+      expect(ex.toJson()['message'], 'Down for maintenance');
+    });
+
+    test('BloomUnsupportedMediaTypeException and BloomRequestTimeoutException', () {
+      expect(BloomUnsupportedMediaTypeException().toJson()['code'],
+          'unsupported_media_type');
+      expect(BloomRequestTimeoutException().toJson()['code'], 'request_timeout');
+    });
   });
 
   group('BloomErrorMapper', () {
@@ -270,6 +299,46 @@ void main() {
             expect(res.bodyText, contains('dev detail VISIBLE'));
           });
         }
+
+        group('onError hardening (#30)', () {
+          test('a throwing onError still yields a proper error response',
+              () async {
+            final m = BloomErrorMiddleware(
+              environment: 'production',
+              onErrorWithContext: (error, stackTrace, request) =>
+                  throw StateError('logging is broken'),
+            );
+            final res = await _runMiddleware(m, () async => throw Exception('boom'));
+            expect(res.statusCode, 500);
+            expect(res.bodyText, contains('Internal Server Error'));
+            expect(res.bodyText, isNot(contains('logging is broken')));
+          });
+
+          test('onError receives the originating request', () async {
+            BloomRequest? seen;
+            final m = BloomErrorMiddleware(
+              environment: 'production',
+              onErrorWithContext: (error, stackTrace, request) => seen = request,
+            );
+            await _runMiddleware(m, () async => throw Exception('boom'));
+            expect(seen, isNotNull);
+            expect(seen!.method, 'GET');
+            expect(seen!.uri.path, '/x');
+          });
+
+          test('two-parameter onError callbacks remain source-compatible',
+              () async {
+            Object? captured;
+            // ignore: avoid_types_on_closure_parameters
+            final m = BloomErrorMiddleware(
+              environment: 'production',
+              // Old-style callback with only (error, stackTrace).
+              onError: (error, stackTrace) => captured = error,
+            );
+            await _runMiddleware(m, () async => throw Exception('boom'));
+            expect(captured, isNotNull);
+          });
+        });
       });
     });
   });

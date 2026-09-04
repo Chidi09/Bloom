@@ -30,6 +30,10 @@ abstract class BloomApiException implements Exception {
   final String? errorCode;
 
   /// Additional structured context, field validation errors, or debug info.
+  ///
+  /// **Warning:** never put secrets or PII in [details]. These values are echoed
+  /// verbatim to clients in every environment and are also included when
+  /// [toString] is logged by [BloomErrorMiddleware.onError] or error trackers.
   final Map<String, dynamic>? details;
 
   /// Creates a new [BloomApiException].
@@ -345,11 +349,125 @@ class BloomTooManyRequestsException extends BloomApiException {
   @override
   BloomResponse toResponse({Map<String, String>? headers}) {
     final mergedHeaders = <String, String>{
-      if (retryAfter != null) 'Retry-After': '${retryAfter!.inSeconds}',
       ...?headers,
+      // Computed value wins so callers cannot accidentally clobber Retry-After
+      // with a stale header.
+      if (retryAfter != null) 'Retry-After': '${retryAfter!.inSeconds}',
     };
     return super.toResponse(headers: mergedHeaders);
   }
+}
+
+/// 405 Method Not Allowed exception.
+///
+/// Thrown when the HTTP method used for a resource is not supported by that
+/// route. Note that `BloomApiRouter` already renders a native 405 (with an
+/// `allow` header) for unmatched methods; this exception is for handlers and
+/// middleware that need to reject a method inside their own logic.
+///
+/// Example:
+/// ```dart
+/// if (request.method != 'POST') {
+///   throw const BloomMethodNotAllowedException(allowed: ['POST']);
+/// }
+/// ```
+class BloomMethodNotAllowedException extends BloomApiException {
+  /// HTTP methods allowed for the targeted resource (rendered into `details`).
+  final List<String> allowed;
+
+  /// Creates a new [BloomMethodNotAllowedException].
+  ///
+  /// Optionally accepts a custom [message] (defaults to `'Method Not Allowed'`),
+  /// the list of [allowed] methods, and additional structured [details].
+  BloomMethodNotAllowedException({
+    super.message = 'Method Not Allowed',
+    this.allowed = const [],
+    Map<String, dynamic>? details,
+  }) : super(
+          statusCode: 405,
+          errorCode: 'method_not_allowed',
+          details: {
+            if (allowed.isNotEmpty) 'allowed': allowed,
+            ...?details,
+          },
+        );
+}
+
+/// 408 Request Timeout exception.
+///
+/// Thrown when the client took too long to send the request.
+///
+/// Example:
+/// ```dart
+/// throw const BloomRequestTimeoutException();
+/// ```
+class BloomRequestTimeoutException extends BloomApiException {
+  /// Creates a new [BloomRequestTimeoutException].
+  ///
+  /// Optionally accepts a custom [message] (defaults to `'Request Timeout'`)
+  /// and additional structured [details].
+  const BloomRequestTimeoutException([
+    String message = 'Request Timeout',
+    Map<String, dynamic>? details,
+  ]) : super(
+          statusCode: 408,
+          message: message,
+          errorCode: 'request_timeout',
+          details: details,
+        );
+}
+
+/// 415 Unsupported Media Type exception.
+///
+/// Thrown when the request's `Content-Type` is not supported by the endpoint.
+///
+/// Example:
+/// ```dart
+/// if (request.headers['content-type'] != 'application/json') {
+///   throw BloomUnsupportedMediaTypeException();
+/// }
+/// ```
+class BloomUnsupportedMediaTypeException extends BloomApiException {
+  /// Creates a new [BloomUnsupportedMediaTypeException].
+  ///
+  /// Optionally accepts a custom [message] (defaults to `'Unsupported Media Type'`)
+  /// and additional structured [details].
+  const BloomUnsupportedMediaTypeException([
+    String message = 'Unsupported Media Type',
+    Map<String, dynamic>? details,
+  ]) : super(
+          statusCode: 415,
+          message: message,
+          errorCode: 'unsupported_media_type',
+          details: details,
+        );
+}
+
+/// 503 Service Unavailable exception.
+///
+/// Thrown when the server is temporarily unable to handle the request
+/// (e.g. maintenance mode, overloaded, or a downstream dependency is down).
+///
+/// Example:
+/// ```dart
+/// if (maintenanceMode) {
+///   throw const BloomServiceUnavailableException('Down for maintenance');
+/// }
+/// ```
+class BloomServiceUnavailableException extends BloomApiException {
+  /// Creates a new [BloomServiceUnavailableException].
+  ///
+  /// Optionally accepts a custom [message] (defaults to `'Service Unavailable'`)
+  /// and additional structured [details].
+  const BloomServiceUnavailableException([
+    String message = 'Service Unavailable',
+    Map<String, dynamic>? details,
+  ]) : super(
+          statusCode: 503,
+          message: message,
+          errorCode: 'service_unavailable',
+          details: details,
+        );
 }
 
 /// 500 Internal Server Error exception.

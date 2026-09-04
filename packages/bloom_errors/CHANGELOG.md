@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+* **New common HTTP exception types (#30)**: `BloomMethodNotAllowedException` (405 `method_not_allowed`, with optional `allowed` methods in `details`), `BloomServiceUnavailableException` (503 `service_unavailable`), plus `BloomRequestTimeoutException` (408) and `BloomUnsupportedMediaTypeException` (415) following the existing patterns.
+* **Request correlation in `onError` (#30)**: `BloomErrorMiddleware` gains `onErrorWithContext(error, stackTrace, request)`, giving observability callbacks access to the originating `BloomRequest` (method/URI) for correlation. The existing two-parameter `onError` callback is unchanged and remains source-compatible; set either or both.
+
+### Fixed
+* **Throwing `onError` no longer escapes (#30)**: exceptions thrown by the `BloomErrorMiddleware.onError` logging callback are caught (and logged to the console) instead of propagating out of the error path and breaking the error response.
+* **429 `Retry-After` header merge (#30)**: `BloomTooManyRequestsException.toResponse` now spreads caller-supplied headers first so the computed `Retry-After` value wins instead of being clobbered by a caller-provided (possibly stale) header.
+
+### Documentation
+* Warned against putting secrets/PII in `BloomApiException.details` (echoed verbatim to clients and included in `toString()` output that gets logged).
+
 ### Security
 * **Mapped 500s use generic messages (#28)**: ORM, storage, migrate, and `mapToHttpException`-fallback mappings no longer embed raw `error.toString()` (driver/SQL/filesystem internals) into `BloomApiException`s, which render verbatim in every environment. Raw details remain available via `onError` and non-prod output.
 * **Deny-by-default environment masking (#29)**: 500s are masked unless the environment is an explicit dev value (`local`, `dev`, `development`, `test`). `staging`/`prod`/`qa`/`preview`/unknown values no longer leak stack traces. Recognized values are documented on `BloomErrorMiddleware`.
