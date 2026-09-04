@@ -31,11 +31,8 @@ class PasswordHashException implements Exception {
       'PasswordHashException: $message${cause != null ? ' (Cause: $cause)' : ''}';
 }
 
-/// Constant dummy hash used for constant-time verification when a user is not found.
-/// Prevents timing attacks that could reveal whether a username or email exists in the database.
-/// Mirrors the defense pattern in `djangors-auth`'s `DUMMY_HASH`.
-const String _dummyBcryptHash =
-    r'$2a$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+/// Cached dummy hashes indexed by BCrypt work factor.
+final Map<int, String> _dummyBcryptHashes = {};
 
 /// Hashes a plaintext [password] using OpenBSD BCrypt with a secure random salt.
 ///
@@ -100,12 +97,15 @@ bool verifyPassword(String password, String hash) {
   }
 }
 
-/// Executes a dummy password verification cycle using a pre-computed constant hash.
+/// Executes a dummy password verification cycle using a cost-matched hash.
 ///
 /// Use this when a user lookup by username or email returns no record. By executing
 /// the same cryptographic workload as a real verification, response time remains
 /// uniform, neutralizing user enumeration and timing side-channel attacks.
 ///
+/// [cost] must match the cost used for real password hashes. The generated
+/// dummy hash is cached per cost, so each configured workload is performed at
+/// the same BCrypt work factor without regenerating a salt on every request.
 /// Always returns `false`.
 ///
 /// Example:
@@ -120,9 +120,17 @@ bool verifyPassword(String password, String hash) {
 ///   passwordMatches = false;
 /// }
 /// ```
-bool dummyVerifyPassword(String candidatePassword) {
+bool dummyVerifyPassword(String candidatePassword, {int cost = 12}) {
+  if (cost < 4 || cost > 31) return false;
   try {
-    return BCrypt.checkpw(candidatePassword, _dummyBcryptHash);
+    final dummyHash = _dummyBcryptHashes.putIfAbsent(
+      cost,
+      () => BCrypt.hashpw(
+        'bloom-dummy-password',
+        BCrypt.gensalt(logRounds: cost),
+      ),
+    );
+    return BCrypt.checkpw(candidatePassword, dummyHash);
   } catch (_) {
     return false;
   }

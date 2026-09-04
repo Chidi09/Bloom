@@ -59,6 +59,7 @@ const reservedSessionClaimKeys = {
   'iss',
   'aud',
 };
+
 /// Strongly-typed claims extracted from an authenticated session token.
 ///
 /// Encapsulates user identity ([userId], [email]), authorization privileges ([roles]),
@@ -151,12 +152,12 @@ class BloomAuthClaims {
 
     DateTime expiresAt;
     final exp = payload['exp'];
-    if (exp is num) {
-      expiresAt =
-          DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
-    } else {
-      expiresAt = issuedAt.add(const Duration(days: 7));
+    if (exp is! num) {
+      throw const SessionTokenException(
+          'JWT payload missing a valid "exp" expiration claim');
     }
+    expiresAt =
+        DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
 
     final custom = <String, dynamic>{};
     for (final entry in payload.entries) {
@@ -302,7 +303,7 @@ String issueSessionToken({
         customClaims,
         'customClaims',
         'customClaims contains reserved claim key(s): ${collision.join(', ')}. '
-        'Use the dedicated userId/email/roles parameters instead.',
+            'Use the dedicated userId/email/roles parameters instead.',
       );
     }
   }
@@ -377,6 +378,14 @@ BloomAuthClaims verifySessionToken(
       throw SessionTokenException(
         'Invalid token type: expected "session" token, got "${tokenType ?? "null"}"',
       );
+    }
+
+    // Issued session tokens always carry exp. Accepting a missing value here
+    // would make hand-crafted signed tokens live for the parser's fallback
+    // duration instead of being rejected as malformed sessions.
+    if (payloadMap['exp'] is! num) {
+      throw const SessionTokenException(
+          'JWT payload missing a valid "exp" expiration claim');
     }
 
     return BloomAuthClaims.fromJwtPayload(payloadMap);

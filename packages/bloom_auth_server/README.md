@@ -98,6 +98,10 @@ final authLimiter = AuthRateLimiter(
   lockoutDuration: const Duration(hours: 1),
 );
 
+// Compose this identifier limiter with a separate trusted-IP limiter in
+// production. Identifier-only lockout is useful for credential attacks but
+// can otherwise let an attacker lock out a victim by email.
+
 // ---------------------------------------------------------------------------
 // Route Handlers
 // ---------------------------------------------------------------------------
@@ -174,7 +178,7 @@ Future<BloomResponse> handleLogin(BloomRequest req) async {
 
   if (user == null) {
     // Execute dummy verification to preserve uniform timing and prevent user enumeration
-    dummyVerifyPassword(password);
+     dummyVerifyPassword(password, cost: 12);
     authLimiter.recordFailure(email);
     return BloomResponse.unauthorized('Invalid email or password');
   }

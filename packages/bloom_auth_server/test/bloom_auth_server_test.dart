@@ -28,6 +28,7 @@ void main() {
 
     test('dummyVerifyPassword always returns false without throwing', () {
       expect(dummyVerifyPassword('anything'), isFalse);
+      expect(dummyVerifyPassword('anything', cost: 4), isFalse);
     });
   });
 
@@ -167,6 +168,19 @@ void main() {
           (e) => e.message,
           'message',
           contains('Invalid token type'),
+        )),
+      );
+
+      final jwtWithoutExpiry = JWT(
+        {'sub': '1', 'token_type': 'session'},
+        issuer: 'bloom-auth-server',
+      ).sign(SecretKey(secret));
+      expect(
+        () => verifySessionToken(jwtWithoutExpiry),
+        throwsA(isA<SessionTokenException>().having(
+          (e) => e.message,
+          'message',
+          contains('exp'),
         )),
       );
     });
@@ -324,6 +338,29 @@ void main() {
         revocationStore: store,
       );
       expect(secondUse, isFalse);
+
+      final concurrentToken = generatePasswordResetToken(
+        userId: 'user_1',
+        currentPasswordHash: passwordHash,
+        // Different TTL ensures this token does not share the exact same
+        // second-rounded expiry as the token consumed above.
+        ttl: const Duration(minutes: 16),
+      );
+      final concurrentResults = await Future.wait([
+        verifyAndConsumePasswordResetToken(
+          token: concurrentToken,
+          userId: 'user_1',
+          currentPasswordHash: passwordHash,
+          revocationStore: store,
+        ),
+        verifyAndConsumePasswordResetToken(
+          token: concurrentToken,
+          userId: 'user_1',
+          currentPasswordHash: passwordHash,
+          revocationStore: store,
+        ),
+      ]);
+      expect(concurrentResults.where((result) => result).length, 1);
     });
   });
 
@@ -376,6 +413,23 @@ void main() {
 
       // userB should be unaffected by userA's lockout.
       expect(() => limiter.verifyAllowed('userB'), returnsNormally);
+    });
+  });
+
+  group('Auth middleware header parsing', () {
+    test('accepts multiple whitespace characters after Bearer', () async {
+      final token = issueSessionToken(userId: '42');
+      final req = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('/private'),
+        headers: {'Authorization': 'Bearer   $token'},
+      );
+      final res = await const BloomAuthMiddleware().handle(
+        req,
+        () async => BloomResponse.text('ok'),
+      );
+      expect(res?.statusCode, 200);
+      expect(req.authUserId, '42');
     });
   });
 }

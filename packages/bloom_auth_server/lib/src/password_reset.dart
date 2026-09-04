@@ -293,9 +293,23 @@ abstract interface class BloomPasswordResetRevocationStore {
   FutureOr<bool> isRevoked(String token);
 }
 
+/// Optional atomic extension for reset stores.
+///
+/// Implementations must check and record in one indivisible operation. The
+/// built-in in-memory store implements this contract; distributed stores
+/// should use a conditional insert/SETNX primitive. Stores that only
+/// implement [BloomPasswordResetRevocationStore] retain the legacy
+/// check-then-record behavior and must serialize consumption per token.
+abstract interface class BloomAtomicPasswordResetRevocationStore
+    implements BloomPasswordResetRevocationStore {
+  /// Returns `true` only when [token] was not already consumed and is now
+  /// atomically recorded until [expiresAt].
+  FutureOr<bool> tryConsume(String token, {required DateTime expiresAt});
+}
+
 /// In-memory implementation of [BloomPasswordResetRevocationStore] with automatic expiration cleanup.
 class InMemoryPasswordResetRevocationStore
-    implements BloomPasswordResetRevocationStore {
+    implements BloomAtomicPasswordResetRevocationStore {
   final Map<String, DateTime> _revokedTokens = {};
 
   @override
@@ -308,6 +322,14 @@ class InMemoryPasswordResetRevocationStore
   FutureOr<bool> isRevoked(String token) {
     _prune();
     return _revokedTokens.containsKey(token);
+  }
+
+  @override
+  bool tryConsume(String token, {required DateTime expiresAt}) {
+    _prune();
+    if (_revokedTokens.containsKey(token)) return false;
+    _revokedTokens[token] = expiresAt;
+    return true;
   }
 
   void _prune() {
@@ -336,7 +358,11 @@ Future<bool> verifyAndConsumePasswordResetToken({
   required BloomPasswordResetRevocationStore revocationStore,
   String? secret,
 }) async {
-  if (await revocationStore.isRevoked(token)) {
+  final BloomAtomicPasswordResetRevocationStore? atomicStore =
+      revocationStore is BloomAtomicPasswordResetRevocationStore
+          ? revocationStore
+          : null;
+  if (atomicStore == null && await revocationStore.isRevoked(token)) {
     return false;
   }
 
@@ -350,9 +376,12 @@ Future<bool> verifyAndConsumePasswordResetToken({
   if (!isValid) return false;
 
   final payload = parsePasswordResetToken(token);
-  if (payload != null) {
-    await revocationStore.recordRevoked(token, expiresAt: payload.expiresAt);
+  if (payload == null) return false;
+  if (atomicStore != null) {
+    return await atomicStore.tryConsume(token, expiresAt: payload.expiresAt);
   }
+
+  await revocationStore.recordRevoked(token, expiresAt: payload.expiresAt);
 
   return true;
 }
