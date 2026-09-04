@@ -51,4 +51,28 @@ void main() {
         .fetchAll("SELECT name FROM sqlite_master WHERE name = 'recovered'");
     expect(recovered, hasLength(1));
   });
+
+  test('stores checksums matching SHA-256 golden vectors', () async {
+    File('${migrations.path}/0001_empty_up.sql')
+        .writeAsStringSync('-- up\n-- down\nDROP TABLE nothing;');
+    File('${migrations.path}/0002_ascii_up.sql').writeAsStringSync(
+        '-- up\nCREATE TABLE original_table (id INTEGER);\n-- down\nDROP TABLE original_table;');
+    File('${migrations.path}/0003_utf8_up.sql').writeAsStringSync(
+        "-- up\nCREATE TABLE greetings (msg TEXT);\nINSERT INTO greetings VALUES ('héllo wörld 🌸');\n-- down\nDROP TABLE greetings;");
+
+    await runner.migrate();
+
+    final applied = await runner.getAppliedMigrations();
+    final checksums = {for (final m in applied) m.name: m.checksum};
+    // sha256('') — the empty-string golden vector.
+    expect(checksums['0001_empty_up'],
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    // sha256('CREATE TABLE original_table (id INTEGER);').
+    expect(checksums['0002_ascii_up'],
+        '4f93b3042499e9b8fd8044d93a147f75d776716bf0ff433b33df53e2a4e10891');
+    // sha256 of a UTF-8 multibyte up section.
+    expect(checksums['0003_utf8_up'],
+        '0e40580c023cc538a547c3e49664ab733ec70f3c4ba708f43488117936d6691c');
+  });
+
 }
