@@ -37,5 +37,52 @@ void main() {
       await sub.cancel();
       watcher.dispose();
     });
+
+    test('watches newly-created directories without restarting', () async {
+      final watcher = BloomSourceWatcher(
+        directories: [tempDir],
+        debounceDuration: const Duration(milliseconds: 30),
+      );
+      final events = <List<FileSystemEvent>>[];
+      final sub = watcher.onChange.listen(events.add);
+
+      final nested = Directory('${tempDir.path}/pages');
+      await nested.create();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await File('${nested.path}/home.dart').writeAsString('void home() {}');
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(
+          events
+              .expand((batch) => batch)
+              .any((e) => e.path.endsWith('home.dart')),
+          isTrue);
+
+      await sub.cancel();
+      watcher.dispose();
+    });
+
+    test('watches multiple roots', () async {
+      final webDir = Directory('${tempDir.path}/web');
+      await webDir.create();
+      final watcher = BloomSourceWatcher(
+        directories: [tempDir, webDir],
+        debounceDuration: const Duration(milliseconds: 30),
+      );
+      final events = <List<FileSystemEvent>>[];
+      final sub = watcher.onChange.listen(events.add);
+
+      final index = File('${webDir.path}/index.html');
+      await index.writeAsString('<title>Bloom</title>');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(
+          events
+              .expand((batch) => batch)
+              .any((e) => e.path.endsWith('index.html')),
+          isTrue);
+
+      await sub.cancel();
+      watcher.dispose();
+    });
   });
 }
