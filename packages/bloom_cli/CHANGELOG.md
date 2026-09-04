@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* **JS dev loop watches all project roots (#2)**: `bloom js dev` now watches both `lib/` and `web/`; static HTML/CSS/JS/assets reload directly, and newly-created source directories are subscribed without restarting the dev server.
+* **Builder signal state preservation (#2)**: the DDC signal-key injector now includes signals created inside anonymous `Live`/builder closures, allowing the existing browser signal registry to restore their values across hot remounts.
+
 ## 0.7.5 - 2026-09-01
 
 ### Added

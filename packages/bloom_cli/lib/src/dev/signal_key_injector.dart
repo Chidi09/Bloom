@@ -44,26 +44,24 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
       }
     }
 
-    // 2. If inside an anonymous closure / builder (e.g. Live(() => ...)), skip
-    if (_isInsideAnonymousClosure(node)) {
-      return;
-    }
-
-    // 3. Resolve enclosing declaration name
+    // 2. Resolve the enclosing named declaration. Signals created by
+    //    anonymous builders are included: their ordinal is stable within the
+    //    declaration and lets the browser registry restore their value after
+    //    a DDC remount.
     final enclosingName = _resolveEnclosingDeclarationName(node);
 
-    // 4. Compute ordinal scoped ONLY to this enclosing declaration
+    // 3. Compute ordinal scoped ONLY to this enclosing declaration
     final ordinal = _declarationSignalCount.update(
       enclosingName,
       (count) => count + 1,
       ifAbsent: () => 0,
     );
 
-    // 5. Construct stable key
+    // 4. Construct stable key
     final keyString = '$fileRelativePath#$enclosingName#$ordinal';
     final escapedKey = keyString.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
-    // 6. Record source replacement
+    // 5. Record source replacement
     if (args.isEmpty) {
       final offset = node.argumentList.leftParenthesis.end;
       replacements.add(_SignalCallReplacement(
@@ -93,28 +91,6 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
         ));
       }
     }
-  }
-
-  bool _isInsideAnonymousClosure(AstNode node) {
-    AstNode? current = node.parent;
-    while (current != null) {
-      if (current is FunctionDeclaration) {
-        return false;
-      }
-      if (current is MethodDeclaration ||
-          current is ConstructorDeclaration ||
-          current is FieldDeclaration ||
-          current is TopLevelVariableDeclaration) {
-        return false;
-      }
-      if (current is FunctionExpression) {
-        if (current.parent is! FunctionDeclaration) {
-          return true;
-        }
-      }
-      current = current.parent;
-    }
-    return false;
   }
 
   String _resolveEnclosingDeclarationName(AstNode node) {
@@ -157,7 +133,8 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
     while (current != null) {
       if (current is ClassDeclaration) return current.name.lexeme;
       if (current is MixinDeclaration) return current.name.lexeme;
-      if (current is ExtensionDeclaration) return current.name?.lexeme ?? 'extension';
+      if (current is ExtensionDeclaration)
+        return current.name?.lexeme ?? 'extension';
       if (current is EnumDeclaration) return current.name.lexeme;
       current = current.parent;
     }
@@ -174,7 +151,8 @@ class SignalKeyInjector {
   /// Returns the rewritten source text with `key: '...'` injected where applicable.
   /// If [source] contains syntax errors or no injectable `signal(...)` calls, returns
   /// the unmodified [source].
-  static String injectKeys(String source, {String relativePath = 'lib/main.dart'}) {
+  static String injectKeys(String source,
+      {String relativePath = 'lib/main.dart'}) {
     final parseResult = parseString(content: source, throwIfDiagnostics: false);
     if (parseResult.errors.isNotEmpty) {
       return source;
@@ -194,7 +172,9 @@ class SignalKeyInjector {
     visitor.replacements.sort((a, b) => b.offset.compareTo(a.offset));
     var rewritten = source;
     for (final r in visitor.replacements) {
-      rewritten = rewritten.substring(0, r.offset) + r.text + rewritten.substring(r.end);
+      rewritten = rewritten.substring(0, r.offset) +
+          r.text +
+          rewritten.substring(r.end);
     }
     return rewritten;
   }

@@ -91,8 +91,7 @@ class JsDevCommand extends Command<int> {
         'legacy-dart2js',
         defaultsTo: false,
         negatable: false,
-        help:
-            'Opt out of DDC and force whole-program dart2js -O0 compilation.',
+        help: 'Opt out of DDC and force whole-program dart2js -O0 compilation.',
       )
       ..addFlag(
         'experimental-ddc',
@@ -131,12 +130,9 @@ class JsDevCommand extends Command<int> {
     final outputFile = File(p.join(webDir.path, 'main.js'));
 
     // Check DDC fast dev-loop option (enabled by default; legacy-dart2js or --no-ddc to opt out)
-    final legacyDart2js =
-        (argResults?['legacy-dart2js'] as bool?) ?? false;
-    final ddcEnabled =
-        (argResults?['ddc'] as bool?) ?? true;
-    final experimentalDdc =
-        (argResults?['experimental-ddc'] as bool?) ?? true;
+    final legacyDart2js = (argResults?['legacy-dart2js'] as bool?) ?? false;
+    final ddcEnabled = (argResults?['ddc'] as bool?) ?? true;
+    final experimentalDdc = (argResults?['experimental-ddc'] as bool?) ?? true;
     final useDdcRequested = !legacyDart2js && ddcEnabled && experimentalDdc;
     DdcToolchain? ddcToolchain;
     DdcDevCompiler? ddcCompiler;
@@ -149,19 +145,17 @@ class JsDevCommand extends Command<int> {
             '⚠ DDC toolchain snapshots not found in Dart SDK (${ddcToolchain.snapshotPath ?? "unknown"}). Falling back to dart2js -O0.'));
       } else {
         isDdcActive = true;
-        print(Ansi.step(
-            '⚡ Using DDC (Dart Dev Compiler) fast dev-loop.'));
+        print(Ansi.step('⚡ Using DDC (Dart Dev Compiler) fast dev-loop.'));
         await ddcToolchain.ensureSdkArtifacts(
           onProgress: (msg) => print(Ansi.info('› $msg')),
         );
-        final packageConfig = File(p.join(
-            project.rootDir.path, '.dart_tool', 'package_config.json'));
+        final packageConfig = File(
+            p.join(project.rootDir.path, '.dart_tool', 'package_config.json'));
         ddcCompiler = DdcDevCompiler(
           toolchain: ddcToolchain,
           entryFile: entryFile,
           outputFile: outputFile,
-          packageConfigFile:
-              packageConfig.existsSync() ? packageConfig : null,
+          packageConfigFile: packageConfig.existsSync() ? packageConfig : null,
           moduleName: 'main',
         );
       }
@@ -202,10 +196,10 @@ class JsDevCommand extends Command<int> {
       await supervisor.start();
       supervisor.onOutput
           .listen((line) => print(Ansi.dimText('[server] $line')));
-      print(Ansi.info('› Backend server supervisor active on http://127.0.0.1:$defaultServerPort (bin/server.dart)'));
+      print(Ansi.info(
+          '› Backend server supervisor active on http://127.0.0.1:$defaultServerPort (bin/server.dart)'));
 
-      final serverWatchDir =
-          Directory(p.join(project.rootDir.path, 'lib'));
+      final serverWatchDir = Directory(p.join(project.rootDir.path, 'lib'));
       if (serverWatchDir.existsSync()) {
         final serverWatcher = BloomSourceWatcher(
           directories: [serverWatchDir],
@@ -213,8 +207,8 @@ class JsDevCommand extends Command<int> {
         );
         serverWatcher.onChange.listen((events) async {
           final changed = p.basename(events.first.path);
-          print(
-              Ansi.info('\n🔄 Server source changed: $changed — Restarting...'));
+          print(Ansi.info(
+              '\n🔄 Server source changed: $changed — Restarting...'));
           await supervisor!.restart(reason: changed);
           print(Ansi.success('⚡ Server restarted.'));
         });
@@ -225,7 +219,8 @@ class JsDevCommand extends Command<int> {
     final watchDir = Directory(p.join(project.rootDir.path, 'lib'));
     final Map<String, String> lastSource = {};
     if (watchDir.existsSync()) {
-      for (final file in watchDir.listSync(recursive: true, followLinks: false)) {
+      for (final file
+          in watchDir.listSync(recursive: true, followLinks: false)) {
         if (file is File && file.path.endsWith('.dart')) {
           try {
             lastSource[file.path] = file.readAsStringSync();
@@ -253,21 +248,24 @@ class JsDevCommand extends Command<int> {
     );
     await devServer.start();
 
-    print(Ansi.step('\n⚡ Bloom JS Hot Live-Reload Server active on http://$host:$port'));
+    print(Ansi.step(
+        '\n⚡ Bloom JS Hot Live-Reload Server active on http://$host:$port'));
     print(Ansi.info('› Serving static assets from ${webDir.path}'));
     print(Ansi.info('› Live-Reload SSE channel listening on /_bloom_hr'));
     if (proxyRules.isNotEmpty) {
       for (final rule in proxyRules) {
         final stripNote = rule.stripPrefix ? ' (strip prefix)' : '';
-        print(Ansi.info('› Proxy: ${rule.pathPrefix} ➔ ${rule.targetUri}$stripNote'));
+        print(Ansi.info(
+            '› Proxy: ${rule.pathPrefix} ➔ ${rule.targetUri}$stripNote'));
       }
     }
-    print(Ansi.boldText('› Watching for file changes in ${project.rootDir.path}/lib... (Ctrl+C to stop)\n'));
+    print(Ansi.boldText(
+        '› Watching for file changes in ${project.rootDir.path}/lib and ${webDir.path}... (Ctrl+C to stop)\n'));
 
     // 7. Watch for Dart file changes and auto-recompile + broadcast reload
     if (watchDir.existsSync()) {
       final watcher = BloomSourceWatcher(
-        directories: [watchDir],
+        directories: [watchDir, if (webDir.existsSync()) webDir],
         debounceDuration: const Duration(milliseconds: 150),
       );
 
@@ -276,6 +274,18 @@ class JsDevCommand extends Command<int> {
           final event = events.first;
           final changedPath = event.path;
           final changedFile = File(changedPath);
+
+          // Static web edits do not require a Dart compilation. Reloading
+          // directly also covers index.html, CSS, JS and newly-created assets.
+          final webPrefix = '${p.normalize(webDir.path)}${p.separator}';
+          final isWebChange = p.normalize(changedPath).startsWith(webPrefix);
+          if (isWebChange && !changedPath.endsWith('.dart')) {
+            print(Ansi.info(
+                '\n🔄 Web asset changed: ${p.basename(changedPath)} — Reloading...'));
+            devServer.broadcastReload(reason: p.basename(changedPath));
+            return;
+          }
+
           if (changedPath.endsWith('.dart') && changedFile.existsSync()) {
             final oldContent = lastSource[changedPath];
             if (oldContent != null) {
@@ -291,7 +301,8 @@ class JsDevCommand extends Command<int> {
                     oldCss: change.oldCss,
                     newCss: change.newCss,
                   );
-                  print(Ansi.success('⚡ [CSS Hot Swap] Patched stylesheet without recompiling.'));
+                  print(Ansi.success(
+                      '⚡ [CSS Hot Swap] Patched stylesheet without recompiling.'));
                   lastSource[changedPath] = newContent;
                   return;
                 }
@@ -301,7 +312,8 @@ class JsDevCommand extends Command<int> {
         }
 
         final changedName = p.basename(events.first.path);
-        print(Ansi.info('\n🔄 File change detected: $changedName — Recompiling...'));
+        print(Ansi.info(
+            '\n🔄 File change detected: $changedName — Recompiling...'));
         // Tell the browser a rebuild started BEFORE compiling, not after: the
         // compile takes seconds, and until this event existed the page gave no
         // feedback at all in the meantime.
@@ -315,10 +327,12 @@ class JsDevCommand extends Command<int> {
         if (success) {
           if (isDdcActive) {
             devServer.broadcastHotRemount(reason: changedName);
-            print(Ansi.success('⚡ [Hot Remount] Broadcasted fast remount event to browser clients.'));
+            print(Ansi.success(
+                '⚡ [Hot Remount] Broadcasted fast remount event to browser clients.'));
           } else {
             devServer.broadcastReload(reason: changedName);
-            print(Ansi.success('⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
+            print(Ansi.success(
+                '⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
           }
         }
 
@@ -363,8 +377,8 @@ class JsDevCommand extends Command<int> {
     } else {
       final sizeKb = result.outputSizeKb.toStringAsFixed(1);
       final secs = (result.duration.inMilliseconds / 1000).toStringAsFixed(2);
-      print(Ansi.success(
-          '✓ Compiled main.js ($sizeKb kB) via DDC in ${secs}s'));
+      print(
+          Ansi.success('✓ Compiled main.js ($sizeKb kB) via DDC in ${secs}s'));
       return true;
     }
   }
@@ -397,7 +411,8 @@ class JsDevCommand extends Command<int> {
       return false;
     } else {
       final sizeKb = (outputFile.lengthSync() / 1024).toStringAsFixed(1);
-      print(Ansi.success('✓ Compiled main.js ($sizeKb kB) in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s'));
+      print(Ansi.success(
+          '✓ Compiled main.js ($sizeKb kB) in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s'));
       return true;
     }
   }
@@ -445,7 +460,8 @@ class JsBuildCommand extends Command<int> {
       return 1;
     }
 
-    print(Ansi.step('🌸 Building Bloom JS Native Web Application for Production...\n'));
+    print(Ansi.step(
+        '🌸 Building Bloom JS Native Web Application for Production...\n'));
 
     // 1. Vendor NPM packages
     final assembler = NpmVendorAssembler(project);
@@ -468,7 +484,8 @@ class JsBuildCommand extends Command<int> {
 
     print(Ansi.info('› Entry  : ${entryFile.path}'));
     print(Ansi.info('› Output : ${outputFile.path}'));
-    print(Ansi.info('› Mode   : -O4 Whole-Program Optimization & Tree-Shaking\n'));
+    print(Ansi.info(
+        '› Mode   : -O4 Whole-Program Optimization & Tree-Shaking\n'));
 
     final sw = Stopwatch()..start();
     final compileRes = await Process.run('dart', [
@@ -482,14 +499,16 @@ class JsBuildCommand extends Command<int> {
     sw.stop();
 
     if (compileRes.exitCode != 0) {
-      print(Ansi.error('✖ Production compilation failed:\n${compileRes.stderr}'));
+      print(
+          Ansi.error('✖ Production compilation failed:\n${compileRes.stderr}'));
       return 1;
     }
 
     final sizeBytes = outputFile.lengthSync();
     final sizeKb = (sizeBytes / 1024).toStringAsFixed(1);
 
-    print(Ansi.success('✓ Production build succeeded in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s!'));
+    print(Ansi.success(
+        '✓ Production build succeeded in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s!'));
     print(Ansi.boldText('  • Output Bundle : ${outputFile.path} ($sizeKb kB)'));
 
     // Host configuration generation for production static hosting
@@ -504,7 +523,8 @@ class JsBuildCommand extends Command<int> {
         formats: {BloomWebHostFormat.netlify},
       );
       for (final file in written) {
-        print(Ansi.info('› Generated host configuration: ${p.basename(file.path)}'));
+        print(Ansi.info(
+            '› Generated host configuration: ${p.basename(file.path)}'));
       }
     }
 
@@ -523,7 +543,8 @@ class JsVendorCommand extends Command<int> {
   final String name = 'vendor';
 
   @override
-  final String description = 'Downloads, bundles, and vendors NPM packages declared in bloom.yaml.';
+  final String description =
+      'Downloads, bundles, and vendors NPM packages declared in bloom.yaml.';
 
   @override
   Future<int> run() async {
@@ -563,8 +584,7 @@ class JsCreateCommand extends Command<int> {
       'page',
       abbr: 'p',
       negatable: false,
-      help:
-          'Scaffold a route/page component (lib/pages/) with a BloomRoute '
+      help: 'Scaffold a route/page component (lib/pages/) with a BloomRoute '
           'registration snippet, instead of a plain component.',
     );
     argParser.addFlag(
@@ -609,9 +629,8 @@ class JsCreateCommand extends Command<int> {
     final subDir = isGuard ? 'guards' : (isPage ? 'pages' : 'components');
 
     final baseName = _pascalCase(rawName);
-    final className = isGuard && !baseName.endsWith('Guard')
-        ? '${baseName}Guard'
-        : baseName;
+    final className =
+        isGuard && !baseName.endsWith('Guard') ? '${baseName}Guard' : baseName;
     final fileBaseName = _snakeCase(className);
 
     final targetDir = Directory(p.join(project.rootDir.path, 'lib', subDir));
@@ -621,7 +640,8 @@ class JsCreateCommand extends Command<int> {
 
     final targetFile = File(p.join(targetDir.path, '$fileBaseName.dart'));
     if (targetFile.existsSync()) {
-      print(Ansi.error('${_capitalize(kind)} file already exists: ${targetFile.path}'));
+      print(Ansi.error(
+          '${_capitalize(kind)} file already exists: ${targetFile.path}'));
       return 1;
     }
 
@@ -639,7 +659,8 @@ class JsCreateCommand extends Command<int> {
       }
       final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
       if (!testFile.existsSync()) {
-        testFile.writeAsStringSync(_componentTestTemplate(className, fileBaseName));
+        testFile
+            .writeAsStringSync(_componentTestTemplate(className, fileBaseName));
         print(Ansi.success('Created test: ${testFile.path}'));
       }
     }
@@ -647,7 +668,8 @@ class JsCreateCommand extends Command<int> {
     return 0;
   }
 
-  String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   String _pascalCase(String input) {
     if (input.isEmpty) return input;

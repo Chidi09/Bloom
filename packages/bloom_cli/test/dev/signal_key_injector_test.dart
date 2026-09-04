@@ -10,8 +10,10 @@ import 'package:bloom_js_native/bloom_js_native.dart';
 final count = signal(0);
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
-      expect(output, contains("final count = signal(0, key: 'lib/main.dart#count#0');"));
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
+      expect(output,
+          contains("final count = signal(0, key: 'lib/main.dart#count#0');"));
     });
 
     test('injects typed signal declaration with generic argument', () {
@@ -19,8 +21,12 @@ final count = signal(0);
 final activeUser = signal<String?>('alice');
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/user.dart');
-      expect(output, contains("final activeUser = signal<String?>('alice', key: 'lib/user.dart#activeUser#0');"));
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/user.dart');
+      expect(
+          output,
+          contains(
+              "final activeUser = signal<String?>('alice', key: 'lib/user.dart#activeUser#0');"));
     });
 
     test('injects ordinal scoped to enclosing function declaration', () {
@@ -31,12 +37,17 @@ void main() {
 }
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
-      expect(output, contains("final a = signal(1, key: 'lib/main.dart#main#0');"));
-      expect(output, contains("final b = signal(2, key: 'lib/main.dart#main#1');"));
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
+      expect(output,
+          contains("final a = signal(1, key: 'lib/main.dart#main#0');"));
+      expect(output,
+          contains("final b = signal(2, key: 'lib/main.dart#main#1');"));
     });
 
-    test('injects class fields and methods with class-qualified enclosing names', () {
+    test(
+        'injects class fields and methods with class-qualified enclosing names',
+        () {
       const source = '''
 class Store {
   final cart = signal<Map<int, int>>({});
@@ -48,21 +59,37 @@ class Store {
 }
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/store.dart');
-      expect(output, contains("final cart = signal<Map<int, int>>({}, key: 'lib/store.dart#Store.cart#0');"));
-      expect(output, contains("final total = signal(0, key: 'lib/store.dart#Store.total#0');"));
-      expect(output, contains("final flag = signal(false, key: 'lib/store.dart#Store.reset#0');"));
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/store.dart');
+      expect(
+          output,
+          contains(
+              "final cart = signal<Map<int, int>>({}, key: 'lib/store.dart#Store.cart#0');"));
+      expect(
+          output,
+          contains(
+              "final total = signal(0, key: 'lib/store.dart#Store.total#0');"));
+      expect(
+          output,
+          contains(
+              "final flag = signal(false, key: 'lib/store.dart#Store.reset#0');"));
     });
 
-    test('adding unrelated signal in another declaration does not shift existing keys', () {
+    test(
+        'adding unrelated signal in another declaration does not shift existing keys',
+        () {
       const sourceBefore = '''
 final first = signal(10);
 void run() {
   final tracked = signal('tracked');
 }
 ''';
-      final outBefore = SignalKeyInjector.injectKeys(sourceBefore, relativePath: 'lib/main.dart');
-      expect(outBefore, contains("final tracked = signal('tracked', key: 'lib/main.dart#run#0');"));
+      final outBefore = SignalKeyInjector.injectKeys(sourceBefore,
+          relativePath: 'lib/main.dart');
+      expect(
+          outBefore,
+          contains(
+              "final tracked = signal('tracked', key: 'lib/main.dart#run#0');"));
 
       // Add unrelated signal above tracked
       const sourceAfter = '''
@@ -72,12 +99,20 @@ void run() {
   final tracked = signal('tracked');
 }
 ''';
-      final outAfter = SignalKeyInjector.injectKeys(sourceAfter, relativePath: 'lib/main.dart');
+      final outAfter = SignalKeyInjector.injectKeys(sourceAfter,
+          relativePath: 'lib/main.dart');
       // tracked's key MUST be identical
-      expect(outAfter, contains("final tracked = signal('tracked', key: 'lib/main.dart#run#0');"));
+      expect(
+          outAfter,
+          contains(
+              "final tracked = signal('tracked', key: 'lib/main.dart#run#0');"));
       // first's key MUST also be identical
-      expect(outAfter, contains("final first = signal(10, key: 'lib/main.dart#first#0');"));
-      expect(outAfter, contains("final newUnrelated = signal(999, key: 'lib/main.dart#newUnrelated#0');"));
+      expect(outAfter,
+          contains("final first = signal(10, key: 'lib/main.dart#first#0');"));
+      expect(
+          outAfter,
+          contains(
+              "final newUnrelated = signal(999, key: 'lib/main.dart#newUnrelated#0');"));
     });
 
     test('preserves explicit developer-provided key argument', () {
@@ -85,19 +120,25 @@ void run() {
 final count = signal(0, key: 'my-custom-stable-key');
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
-      expect(output, equals(source), reason: 'Explicit developer keys must not be overridden');
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
+      expect(output, equals(source),
+          reason: 'Explicit developer keys must not be overridden');
     });
 
-    test('skips signal calls nested inside anonymous closures / Live builders', () {
+    test(
+        'injects stable keys for signals inside anonymous closures / Live builders',
+        () {
       const source = '''
 BloomNode counter() => Live(() => Div(children: [
   Text('count: \${signal(0).value}'),
 ]));
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/component.dart');
-      expect(output, equals(source), reason: 'Signals inside anonymous closures/builders must not be keyed');
+      final output = SignalKeyInjector.injectKeys(source,
+          relativePath: 'lib/component.dart');
+      expect(
+          output, contains("signal(0, key: 'lib/component.dart#counter#0')"));
     });
 
     test('handles trailing commas cleanly', () {
@@ -107,8 +148,12 @@ final list = signal(
 );
 ''';
 
-      final output = SignalKeyInjector.injectKeys(source, relativePath: 'lib/data.dart');
-      expect(output, contains("final list = signal(\n  [1, 2, 3], key: 'lib/data.dart#list#0',\n);"));
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/data.dart');
+      expect(
+          output,
+          contains(
+              "final list = signal(\n  [1, 2, 3], key: 'lib/data.dart#list#0',\n);"));
     });
 
     test('returns original source on syntax errors without crashing', () {
@@ -118,7 +163,8 @@ void main() {
 }
 ''';
 
-      final output = SignalKeyInjector.injectKeys(badSource, relativePath: 'lib/bad.dart');
+      final output =
+          SignalKeyInjector.injectKeys(badSource, relativePath: 'lib/bad.dart');
       expect(output, equals(badSource));
     });
   });
