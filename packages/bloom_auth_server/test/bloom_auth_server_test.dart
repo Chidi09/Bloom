@@ -58,6 +58,43 @@ void main() {
       expect(() => issueSessionToken(userId: ''), throwsArgumentError);
     });
 
+    test('issueSessionToken rejects reserved keys in customClaims (#20)', () {
+      for (final reserved in [
+        'sub',
+        'userId',
+        'email',
+        'roles',
+        'role',
+        'token_type',
+        'iat',
+        'exp',
+        'iss',
+        'aud',
+      ]) {
+        expect(
+          () => issueSessionToken(
+            userId: 'victim',
+            customClaims: {reserved: 'attacker'},
+          ),
+          throwsArgumentError,
+          reason: 'reserved key $reserved must be rejected',
+        );
+      }
+    });
+
+    test('issueSessionToken keeps non-reserved customClaims', () {
+      final token = issueSessionToken(
+        userId: 'victim',
+        roles: const ['user'],
+        customClaims: const {'tenantId': 't1', 'orgId': 'o1'},
+      );
+      final claims = verifySessionToken(token);
+      expect(claims.userId, 'victim');
+      expect(claims.roles, ['user']);
+      expect(claims.customClaims['tenantId'], 't1');
+      expect(claims.customClaims['orgId'], 'o1');
+    });
+
     test('verifySessionToken rejects an empty token string', () {
       expect(
         () => verifySessionToken(''),

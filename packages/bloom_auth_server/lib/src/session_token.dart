@@ -41,6 +41,24 @@ class SessionTokenException implements Exception {
       'SessionTokenException: $message${cause != null ? ' (Cause: $cause)' : ''}';
 }
 
+/// Reserved JWT/session claim keys that [customClaims] must not override.
+///
+/// Keeping this as a single source of truth so issuance ([issueSessionToken]),
+/// parsing ([BloomAuthClaims.fromJwtPayload]), and serialization
+/// ([BloomAuthClaims.toMap]) agree on which keys are identity-critical.
+const reservedSessionClaimKeys = {
+  'sub',
+  'userId',
+  'email',
+  'roles',
+  'role',
+  'token_type',
+  'iat',
+  'exp',
+  'nbf',
+  'iss',
+  'aud',
+};
 /// Strongly-typed claims extracted from an authenticated session token.
 ///
 /// Encapsulates user identity ([userId], [email]), authorization privileges ([roles]),
@@ -140,22 +158,9 @@ class BloomAuthClaims {
       expiresAt = issuedAt.add(const Duration(days: 7));
     }
 
-    final reservedKeys = {
-      'sub',
-      'userId',
-      'email',
-      'roles',
-      'role',
-      'iat',
-      'exp',
-      'nbf',
-      'iss',
-      'aud',
-      'token_type'
-    };
     final custom = <String, dynamic>{};
     for (final entry in payload.entries) {
-      if (!reservedKeys.contains(entry.key)) {
+      if (!reservedSessionClaimKeys.contains(entry.key)) {
         custom[entry.key] = entry.value;
       }
     }
@@ -199,12 +204,14 @@ class BloomAuthClaims {
   /// print(claimsMap['userId']);
   /// ```
   Map<String, dynamic> toMap() => {
+        // Spread custom first so verified identity keys always win, even if
+        // a stale/custom map ever contains a reserved key.
+        ...customClaims,
         'userId': userId,
         if (email != null) 'email': email,
         'roles': roles,
         'issuedAt': issuedAt.toIso8601String(),
         'expiresAt': expiresAt.toIso8601String(),
-        ...customClaims,
       };
 
   @override
@@ -255,7 +262,10 @@ String resolveAuthSecret([String? secret]) {
 /// [issuer] sets the JWT `iss` claim (defaults to `'bloom-auth-server'`).
 /// [secret] defaults to resolving via [resolveAuthSecret].
 ///
-/// Throws [ArgumentError] if [userId] is empty.
+/// Throws [ArgumentError] if [userId] is empty, or if [customClaims] contains
+/// a reserved identity key (`sub`, `userId`, `email`, `roles`, `role`,
+/// `token_type`, `iat`, `exp`, `nbf`, `iss`, `aud`). Reserved keys are never
+/// taken from [customClaims]; pass them via the dedicated parameters instead.
 /// Throws [StateError] if no secret is provided and none is found via [BloomEnv].
 ///
 /// Example:
@@ -283,12 +293,28 @@ String issueSessionToken({
 
   final signingKey = resolveAuthSecret(secret);
 
+  if (customClaims != null) {
+    final collision = customClaims.keys.where(
+      (k) => reservedSessionClaimKeys.contains(k),
+    );
+    if (collision.isNotEmpty) {
+      throw ArgumentError.value(
+        customClaims,
+        'customClaims',
+        'customClaims contains reserved claim key(s): ${collision.join(', ')}. '
+        'Use the dedicated userId/email/roles parameters instead.',
+      );
+    }
+  }
+
   final payload = <String, dynamic>{
+    // Spread caller claims first so reserved identity keys below always win,
+    // even if a future reserved key is missed by the guard above.
+    if (customClaims != null) ...customClaims,
     'sub': userId,
     'token_type': 'session',
     if (email != null && email.isNotEmpty) 'email': email,
     if (roles != null && roles.isNotEmpty) 'roles': roles,
-    if (customClaims != null) ...customClaims,
   };
 
   final jwt = JWT(
