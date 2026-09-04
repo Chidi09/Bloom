@@ -4,6 +4,7 @@
 
 ### Fixed
 * **Per-render keyframe dedup scope (#16)**: animation `@keyframes` dedup state is now scoped to each top-level SSR render via zones instead of a shared global set, so concurrent `renderToStreamWithSuspense` streams can no longer drop or duplicate each other's `@keyframes` blocks. `renderToStream` renders eagerly (chunking stays lazy) with identical bytes.
+* **Guard redirect loop detection (#17)**: new `BloomRouter.resolveRedirects` follows guard redirect chains with visited-set + hop-budget (`maxRedirects`, default 10) protection, throwing `BloomRedirectLoopException` on cycles instead of recursing forever; the browser controller resolves redirects up-front into a single history entry. Also adds `GuardResult.deny()` for blocking without redirecting.
 
 ## 0.3.6 - 2026-08-31
 
