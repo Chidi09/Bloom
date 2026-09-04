@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:bloom_cli/src/commands/js_command.dart';
+import 'package:bloom_cli/src/commands/create_command.dart';
 
 void main() {
   late Directory tempDir;
@@ -48,8 +49,7 @@ void main() {
   }
 
   void createBloomProjectFixture(Directory dir) {
-    File(p.join(dir.path, 'bloom.yaml'))
-        .writeAsStringSync('name: test_app\n');
+    File(p.join(dir.path, 'bloom.yaml')).writeAsStringSync('name: test_app\n');
     File(p.join(dir.path, 'pubspec.yaml'))
         .writeAsStringSync('name: test_app\n');
   }
@@ -75,7 +75,8 @@ void main() {
           reason: 'Component file should exist at ${componentFile.path}');
       final content = componentFile.readAsStringSync();
       expect(content, contains('BloomNode Widget()'));
-      expect(content, contains("import 'package:bloom_js_native/bloom_js_native.dart'"));
+      expect(content,
+          contains("import 'package:bloom_js_native/bloom_js_native.dart'"));
       expect(content, contains("className: 'Widget'"));
     });
 
@@ -142,7 +143,8 @@ void main() {
           File(p.join(tempDir.path, 'lib', 'pages', 'dashboard.dart'));
       expect(pageFile.existsSync(), isTrue);
       final content = pageFile.readAsStringSync();
-      expect(content, contains('BloomNode Dashboard(Map<String, String> params)'));
+      expect(
+          content, contains('BloomNode Dashboard(Map<String, String> params)'));
       expect(content, contains('BloomRoute'));
       expect(prints.join('\n'), contains('Created page:'));
     });
@@ -162,7 +164,8 @@ void main() {
       expect(prints.join('\n'), contains('Created guard:'));
 
       // No matching test file is scaffolded for guards.
-      final testFile = File(p.join(tempDir.path, 'test', 'auth_guard_test.dart'));
+      final testFile =
+          File(p.join(tempDir.path, 'test', 'auth_guard_test.dart'));
       expect(testFile.existsSync(), isFalse);
     });
 
@@ -170,7 +173,8 @@ void main() {
         () async {
       createBloomProjectFixture(tempDir);
 
-      final (exitCode, _) = await runCreate(['create', 'AdminGuard', '--guard']);
+      final (exitCode, _) =
+          await runCreate(['create', 'AdminGuard', '--guard']);
 
       expect(exitCode, 0);
       final guardFile =
@@ -190,12 +194,44 @@ void main() {
       expect(prints.join('\n'), contains('Cannot combine --page and --guard'));
     });
 
-    test('outside Bloom project returns No Bloom project found error', () async {
+    test('outside Bloom project returns No Bloom project found error',
+        () async {
       // tempDir intentionally has no bloom.yaml — do not create fixture
       final (exitCode, prints) = await runCreate(['create', 'Widget']);
 
       expect(exitCode, isNot(0));
       expect(prints.join('\n'), contains('No Bloom project found'));
+    });
+
+    test('js-native app scaffold includes the Bloom favicon and logo',
+        () async {
+      final runner = CommandRunner<int>('bloom', 'Bloom CLI')
+        ..addCommand(CreateCommand());
+      final previousDir = Directory.current;
+      Directory.current = tempDir;
+
+      int? exitCode;
+      try {
+        exitCode = await runner.run(['create', 'brand_app', '--js-native']);
+      } finally {
+        Directory.current = previousDir;
+      }
+
+      expect(exitCode, 0);
+      final projectDir = Directory(p.join(tempDir.path, 'brand_app'));
+      final favicon = File(p.join(projectDir.path, 'web', 'favicon.svg'));
+      final index = File(p.join(projectDir.path, 'web', 'index.html'));
+      final main = File(p.join(projectDir.path, 'lib', 'main.dart'));
+
+      expect(favicon.existsSync(), isTrue);
+      expect(
+          favicon.readAsStringSync(), contains('linearGradient id="petal1"'));
+      expect(favicon.readAsStringSync(), contains('M100 82 L104 96'));
+      expect(
+          index.readAsStringSync(),
+          contains(
+              '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'));
+      expect(main.readAsStringSync(), contains("Img(src: '/favicon.svg'"));
     });
   });
 }
