@@ -148,12 +148,14 @@ class PageNumberPagination extends BloomPagination {
   final int defaultPageSize;
 
   /// Maximum allowed `?page_size=`, if client overrides are allowed.
+  ///
+  /// Defaults to [kRestPerPage] so clients cannot request unbounded windows.
   final int? maxPageSize;
 
   /// Creates a [PageNumberPagination] with optional [defaultPageSize] and [maxPageSize].
   const PageNumberPagination({
     this.defaultPageSize = kRestPerPage,
-    this.maxPageSize,
+    this.maxPageSize = kRestPerPage,
   });
 
   @override
@@ -322,7 +324,7 @@ class CursorPagination extends BloomPagination {
   /// Rows per page.
   final int defaultPageSize;
 
-  /// Optional maximum page size ceiling.
+  /// Optional maximum page size ceiling (defaults to [kRestPerPage]).
   final int? maxPageSize;
 
   /// Ordering field name used for keyset sorting (e.g. `'id'`, `'created_at'`).
@@ -331,7 +333,7 @@ class CursorPagination extends BloomPagination {
   /// Creates a [CursorPagination] strategy ordering by [orderingField].
   const CursorPagination({
     this.defaultPageSize = kRestPerPage,
-    this.maxPageSize,
+    this.maxPageSize = kRestPerPage,
     this.orderingField = 'id',
   });
 
