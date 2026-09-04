@@ -183,6 +183,28 @@ void runOrmTestSuite({
       );
     });
 
+    test('6b. count() ignores limit/offset instead of throwing (#10)',
+        () async {
+      await User(name: 'A', email: 'a@example.com', age: 1).save(db);
+      await User(name: 'B', email: 'b@example.com', age: 2).save(db);
+      await User(name: 'C', email: 'c@example.com', age: 3).save(db);
+
+      // OFFSET beyond the row count must return the total, not throw
+      // BloomOrmNotFoundError (SELECT COUNT(*) … OFFSET n yields zero rows).
+      expect(
+        await UserOrmExtension.objects().offset(10).count(db),
+        3,
+      );
+      expect(
+        await UserOrmExtension.objects().limit(1).offset(10).count(db),
+        3,
+      );
+      expect(
+        await UserOrmExtension.objects().limit(2).count(db),
+        3,
+      );
+    });
+
     test('7. Model instance update() and delete() with NotFound error semantics', () async {
       final user = await User(name: 'Eva', email: 'eva@example.com', age: 22).save(db);
 
