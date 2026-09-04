@@ -1,7 +1,17 @@
 # Unreleased
 
 ### Security
+* **WS Host-header fallback gated behind opt-in (#27)**: the same-origin check's reverse-proxy fallback (comparing `Origin` to the client-supplied `Host` header) is now off by default (`allowProxyHostFallback: false`); enable only when a trusted proxy restores the original Host.
 * **Shared anonymous bucket warning (#24)**: the default key extractor prints a loud one-time warning when all anonymous clients share the `anonymous_peer` bucket; middleware/library/README docs now show `peerAddressExtractor` wiring from the server adapter.
+
+### Fixed
+* **WS subprotocol negotiation (#27)**: `BloomWebSocketServer` now accepts a `protocols` list. When a client offers subprotocols and none match, the handshake is rejected with 400 instead of upgrading — dart:io cannot omit the `Sec-WebSocket-Protocol` header once the client offers protocols, so echoing nothing requires declining the upgrade.
+* **WS route patterns escape literal segments (#27)**: static characters in registered path patterns (e.g. `.`) are regex-escaped so `/ws/v1.2/endpoint` no longer matches `/ws/v1x2/endpoint`.
+* **WS idle keepalive (#27)**: new configurable `pingInterval` sets `WebSocket.pingInterval` on upgraded sockets so half-open connections are detected and closed instead of pinning `maxConnections` capacity. Validated to be positive when provided.
+* **Dual-case header writes (#27)**: the CORS, rate-limit, and security-headers middlewares now write each header in a single canonical case instead of both `X-...` and `x-...` variants.
+
+### Documentation
+* **Security docs lead with `.strict()` (#27)**: the package-level example now starts from the strict CORS policy instead of `.permissive()`.
 
 ### Fixed
 * **Window-aware stale-bucket prune (#25)**: `BloomInMemoryRateLimitStore` retains entries for the longest enforced window (min 60s) instead of a hardcoded 10-minute cutoff, so hour-long windows stay enforced. Added a `debugPrune` testing hook; failed middleware construction now disposes its owned store instead of leaking a timer.

@@ -460,15 +460,11 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
     required int resetEpochSeconds,
     int? retryAfterSeconds,
   }) {
-    headers['X-RateLimit-Limit'] = limit.toString();
     headers['x-ratelimit-limit'] = limit.toString();
-    headers['X-RateLimit-Remaining'] = remaining.toString();
     headers['x-ratelimit-remaining'] = remaining.toString();
-    headers['X-RateLimit-Reset'] = resetEpochSeconds.toString();
     headers['x-ratelimit-reset'] = resetEpochSeconds.toString();
 
     if (retryAfterSeconds != null) {
-      headers['Retry-After'] = retryAfterSeconds.toString();
       headers['retry-after'] = retryAfterSeconds.toString();
     }
   }

@@ -69,6 +69,7 @@ class BloomWebSocketUpgrade {
     required HttpRequest request,
     List<String> allowedOrigins = const [],
     bool allowNullOrigin = true,
+    bool allowProxyHostFallback = false,
   }) {
     final origin = request.headers.value('origin');
     if (origin == null || origin.trim().isEmpty) {
@@ -86,15 +87,21 @@ class BloomWebSocketUpgrade {
       final inAllowlist =
           allowedOrigins.any((o) => o.trim().toLowerCase() == lowerOrigin);
       if (inAllowlist) return true;
-      return _isSameOrigin(cleanOrigin, request);
+      return _isSameOrigin(cleanOrigin, request,
+          allowProxyHostFallback: allowProxyHostFallback);
     }
 
     // Deny-by-default for cross-origin browser handshakes:
     // When no allowlist is configured, only same-origin handshakes are permitted.
-    return _isSameOrigin(cleanOrigin, request);
+    return _isSameOrigin(cleanOrigin, request,
+        allowProxyHostFallback: allowProxyHostFallback);
   }
 
-  static bool _isSameOrigin(String origin, HttpRequest request) {
+  static bool _isSameOrigin(
+    String origin,
+    HttpRequest request, {
+    bool allowProxyHostFallback = false,
+  }) {
     try {
       final originUri = Uri.parse(origin);
       final reqUri = request.requestedUri;
@@ -116,18 +123,22 @@ class BloomWebSocketUpgrade {
         return true;
       }
 
-      // Also check against Host header if requestedUri differs due to reverse proxying
-      final hostHeader = request.headers.value('host');
-      if (hostHeader != null && hostHeader.isNotEmpty) {
-        final parts = hostHeader.split(':');
-        final headerHost = parts[0].toLowerCase();
-        final headerPort = parts.length > 1
-            ? int.tryParse(parts[1]) ?? reqPort
-            : (reqUri.scheme.toLowerCase() == 'https' ? 443 : 80);
+      // Also check against Host header if requestedUri differs due to reverse proxying.
+      // OPT-IN ONLY: the Host header is client-controlled, so this fallback must
+      // never be enabled unless the proxy overwrites it with the original Host.
+      if (allowProxyHostFallback) {
+        final hostHeader = request.headers.value('host');
+        if (hostHeader != null && hostHeader.isNotEmpty) {
+          final parts = hostHeader.split(':');
+          final headerHost = parts[0].toLowerCase();
+          final headerPort = parts.length > 1
+              ? int.tryParse(parts[1]) ?? reqPort
+              : (reqUri.scheme.toLowerCase() == 'https' ? 443 : 80);
 
-        if (originUri.host.toLowerCase() == headerHost &&
-            originPort == headerPort) {
-          return true;
+          if (originUri.host.toLowerCase() == headerHost &&
+              originPort == headerPort) {
+            return true;
+          }
         }
       }
 
@@ -135,6 +146,35 @@ class BloomWebSocketUpgrade {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Resolves the subprotocol to echo for a handshake, or `null` when none
+  /// should be echoed.
+  ///
+  /// Throws [StateError] when the client requested subprotocols but none match
+  /// [configured]. dart:io's `protocolSelector` cannot decline (a `null`
+  /// return throws internally), so the caller must reject the handshake
+  /// instead of upgrading.
+  static String? _negotiateSubprotocol(
+    HttpRequest request,
+    List<String>? configured,
+  ) {
+    if (configured == null || configured.isEmpty) return null;
+    final header = request.headers.value('Sec-WebSocket-Protocol');
+    final requested = header
+            ?.split(',')
+            .map((p) => p.trim())
+            .where((p) => p.isNotEmpty)
+            .toList() ??
+        const <String>[];
+    if (requested.isEmpty) return null;
+    for (final p in configured) {
+      if (requested.contains(p)) return p;
+    }
+    throw StateError(
+      'No supported subprotocol: client requested [$requested], '
+      'server supports $configured',
+    );
   }
 
   /// Upgrades an incoming [HttpRequest] to a [WebSocket] connection with security checks.
@@ -148,8 +188,13 @@ class BloomWebSocketUpgrade {
   /// - [protocols]: Optional subprotocols supported by the server.
   /// - [allowedOrigins]: Origin allowlist or `['*']` for wildcard.
   /// - [allowNullOrigin]: Whether to admit non-browser handshakes without an `Origin` header.
+  /// - [allowProxyHostFallback]: Opt-in comparison of `Origin` against the client-supplied `Host`
+  ///   header (for reverse proxies that rewrite `Host` to the original one). **Off by default**
+  ///   because the `Host` header is client-controlled.
   /// - [admissionHook]: Hook evaluated before upgrade to authorize the connection.
   /// - [maxMessageBytes]: Maximum allowed inbound message payload bytes before closing the peer.
+  /// - [pingInterval]: Optional idle keepalive interval set on upgraded sockets so half-open
+  ///   connections are detected and closed instead of pinning `maxConnections`.
   static Future<WebSocket> upgrade(
     HttpRequest request, {
     BloomWebSocketHandler? onConnection,
@@ -157,13 +202,16 @@ class BloomWebSocketUpgrade {
     List<String>? protocols,
     List<String> allowedOrigins = const [],
     bool allowNullOrigin = true,
+    bool allowProxyHostFallback = false,
     BloomWebSocketAdmissionHook? admissionHook,
     int? maxMessageBytes,
+    Duration? pingInterval,
   }) async {
     if (!isOriginAllowed(
       request: request,
       allowedOrigins: allowedOrigins,
       allowNullOrigin: allowNullOrigin,
+      allowProxyHostFallback: allowProxyHostFallback,
     )) {
       request.response.statusCode = HttpStatus.forbidden;
       await request.response.close();
@@ -179,16 +227,21 @@ class BloomWebSocketUpgrade {
       }
     }
 
+    // Resolve subprotocol negotiation up front: dart:io's protocolSelector
+    // cannot decline (null return throws internally), so an unmatched request
+    // is rejected here instead of upgrading with a bogus subprotocol.
+    final selectedProtocol = _negotiateSubprotocol(request, protocols);
+
     final socket = await WebSocketTransformer.upgrade(
       request,
       compression: compression ?? CompressionOptions.compressionDefault,
-      protocolSelector: (protocols != null && protocols.isNotEmpty)
-          ? (clientProtocols) => protocols.firstWhere(
-                (p) => clientProtocols.contains(p),
-                orElse: () => '',
-              )
-          : null,
+      protocolSelector:
+          selectedProtocol != null ? (_) => selectedProtocol : null,
     );
+
+    if (pingInterval != null) {
+      socket.pingInterval = pingInterval;
+    }
 
     final effectiveSocket = (maxMessageBytes != null && maxMessageBytes > 0)
         ? _BloomBoundedWebSocket(socket, maxMessageBytes)
@@ -243,6 +296,25 @@ class BloomWebSocketServer {
   /// Maximum permitted inbound message payload bytes per frame.
   final int? maxMessageBytes;
 
+  /// Whether to allow the same-origin check to fall back to the client-supplied
+  /// `Host` header when the requested URI differs (reverse-proxy setups).
+  ///
+  /// **Off by default**: the `Host` header is client-controlled. Only enable
+  /// this when a trusted proxy overwrites `Host` with the original value.
+  final bool allowProxyHostFallback;
+
+  /// Optional subprotocols supported by the server (Sec-WebSocket-Protocol).
+  ///
+  /// During the handshake the first client-requested protocol present in this
+  /// list is echoed; when nothing matches, the header is omitted (declined)
+  /// instead of echoing an empty subprotocol.
+  final List<String>? protocols;
+
+  /// Optional idle keepalive interval applied to every upgraded socket
+  /// (`WebSocket.pingInterval`) so half-open connections are detected and
+  /// closed instead of pinning [maxConnections] capacity.
+  final Duration? pingInterval;
+
   final List<_BloomWebSocketRouteEntry> _wsRoutes = [];
   int _activeConnections = 0;
 
@@ -257,12 +329,22 @@ class BloomWebSocketServer {
     this.admissionHook,
     this.maxConnections,
     this.maxMessageBytes,
+    this.allowProxyHostFallback = false,
+    this.pingInterval,
+    this.protocols,
   }) {
     if (maxConnections != null && maxConnections! <= 0) {
       throw ArgumentError.value(
         maxConnections,
         'maxConnections',
         'maxConnections must be greater than 0',
+      );
+    }
+    if (pingInterval != null && pingInterval! <= Duration.zero) {
+      throw ArgumentError.value(
+        pingInterval,
+        'pingInterval',
+        'pingInterval must be greater than zero when provided',
       );
     }
     if (maxMessageBytes != null && maxMessageBytes! <= 0) {
@@ -291,12 +373,29 @@ class BloomWebSocketServer {
       return;
     }
 
-    final paramRegex = RegExp(r':([a-zA-Z0-9_]+)');
+    final paramRegex = RegExp(r':([a-zA-Z0-9_]+)|\*');
+    final buffer = StringBuffer();
+    var lastEnd = 0;
     for (final match in paramRegex.allMatches(pathPattern)) {
-      paramNames.add(match.group(1)!);
+      // Escape literal segments so characters like '.' match literally.
+      if (match.start > lastEnd) {
+        buffer.write(RegExp.escape(
+            pathPattern.substring(lastEnd, match.start)));
+      }
+      if (match.group(1) != null) {
+        // Path parameter, e.g. ':roomId'.
+        paramNames.add(match.group(1)!);
+        buffer.write(r'([^/]+)');
+      } else {
+        // Wildcard '*'.
+        buffer.write('.*');
+      }
+      lastEnd = match.end;
     }
-    regexPattern = regexPattern.replaceAll(paramRegex, r'([^/]+)');
-    regexPattern = regexPattern.replaceAll('*', r'.*');
+    if (lastEnd < pathPattern.length) {
+      buffer.write(RegExp.escape(pathPattern.substring(lastEnd)));
+    }
+    regexPattern = buffer.toString();
 
     if (regexPattern != '/' && regexPattern.endsWith('/')) {
       regexPattern = regexPattern.substring(0, regexPattern.length - 1);
@@ -324,6 +423,7 @@ class BloomWebSocketServer {
             request: ioReq,
             allowedOrigins: allowedOrigins,
             allowNullOrigin: allowNullOrigin,
+            allowProxyHostFallback: allowProxyHostFallback,
           )) {
             try {
               ioReq.response.statusCode = HttpStatus.forbidden;
@@ -354,17 +454,26 @@ class BloomWebSocketServer {
             }
           }
 
-          // 4. Upgrade connection
+          // 4. Upgrade connection. Subprotocol negotiation is resolved first
+          // (an unmatched client request is rejected, not echoed as '').
           try {
+            final selectedProtocol =
+                BloomWebSocketUpgrade._negotiateSubprotocol(ioReq, protocols);
             final socket = await WebSocketTransformer.upgrade(
               ioReq,
               compression: CompressionOptions.compressionDefault,
+              protocolSelector:
+                  selectedProtocol != null ? (_) => selectedProtocol : null,
             );
 
             _activeConnections++;
             socket.done.whenComplete(() {
               _activeConnections = (_activeConnections - 1).clamp(0, 1 << 30);
             });
+
+            if (pingInterval != null) {
+              socket.pingInterval = pingInterval;
+            }
 
             final effectiveSocket =
                 (maxMessageBytes != null && maxMessageBytes! > 0)
@@ -404,6 +513,9 @@ class BloomWebSocketServer {
     BloomWebSocketAdmissionHook? admissionHook,
     int? maxConnections,
     int? maxMessageBytes,
+    bool allowProxyHostFallback = false,
+    Duration? pingInterval,
+    List<String>? protocols,
   }) async {
     final wsServer = BloomWebSocketServer(
       apiRouter: router,
@@ -412,6 +524,9 @@ class BloomWebSocketServer {
       admissionHook: admissionHook,
       maxConnections: maxConnections,
       maxMessageBytes: maxMessageBytes,
+      allowProxyHostFallback: allowProxyHostFallback,
+      pingInterval: pingInterval,
+      protocols: protocols,
     );
 
     if (webSocketRoutes != null) {
@@ -442,6 +557,9 @@ extension BloomWebSocketApiRouterExtension on BloomApiRouter {
     BloomWebSocketAdmissionHook? admissionHook,
     int? maxConnections,
     int? maxMessageBytes,
+    bool allowProxyHostFallback = false,
+    Duration? pingInterval,
+    List<String>? protocols,
   }) {
     return BloomWebSocketServer.bind(
       router: this,
@@ -453,6 +571,9 @@ extension BloomWebSocketApiRouterExtension on BloomApiRouter {
       admissionHook: admissionHook,
       maxConnections: maxConnections,
       maxMessageBytes: maxMessageBytes,
+      allowProxyHostFallback: allowProxyHostFallback,
+      pingInterval: pingInterval,
+      protocols: protocols,
     );
   }
 }

@@ -13,7 +13,9 @@
 ///   final router = BloomApiRouter();
 ///
 ///   // Enable CORS and standard security headers
-///   router.use(BloomAdvancedCorsMiddleware.permissive());
+///   router.use(BloomAdvancedCorsMiddleware.strict(
+///     origins: ['https://app.example.com'],
+///   ));
 ///   router.use(const BloomSecurityHeadersMiddleware());
 ///
 ///   // Apply rate limiting (e.g. 100 requests per minute by client IP).
