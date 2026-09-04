@@ -8,6 +8,7 @@ void runOrmTestSuite({
   required String suiteName,
   required Future<DbExecutor> Function() openExecutor,
   required Future<void> Function(DbExecutor executor) setupSchema,
+  required bool supportsNestedTransactions,
 }) {
   group('[$suiteName] Bloom ORM Contract Test Suite', () {
     late DbExecutor db;
@@ -21,7 +22,8 @@ void runOrmTestSuite({
       await db.close();
     });
 
-    test('1. save() - INSERT-only with auto-PK exclusion and RETURNING *', () async {
+    test('1. save() - INSERT-only with auto-PK exclusion and RETURNING *',
+        () async {
       final user = User(
         name: 'Alice',
         email: 'alice@example.com',
@@ -41,22 +43,29 @@ void runOrmTestSuite({
       expect(user.id, 0); // Original remains unchanged
     });
 
-    test('2. get() & first() - Single record lookup and error semantics', () async {
-      final u1 = await User(name: 'Bob', email: 'bob@example.com', age: 30).save(db);
-      final u2 = await User(name: 'Charlie', email: 'charlie@example.com', age: 35).save(db);
+    test('2. get() & first() - Single record lookup and error semantics',
+        () async {
+      final u1 =
+          await User(name: 'Bob', email: 'bob@example.com', age: 30).save(db);
+      final u2 =
+          await User(name: 'Charlie', email: 'charlie@example.com', age: 35)
+              .save(db);
 
       // get() success
-      final fetched = await UserOrmExtension.objects().filter({'id': u1.id}).get(db);
+      final fetched =
+          await UserOrmExtension.objects().filter({'id': u1.id}).get(db);
       expect(fetched.name, 'Bob');
       expect(fetched.email, 'bob@example.com');
 
       // first() success
-      final first = await UserOrmExtension.objects().filter({'id': u2.id}).first(db);
+      final first =
+          await UserOrmExtension.objects().filter({'id': u2.id}).first(db);
       expect(first, isNotNull);
       expect(first!.name, 'Charlie');
 
       // first() not found returns null
-      final notFoundFirst = await UserOrmExtension.objects().filter({'id': 99999}).first(db);
+      final notFoundFirst =
+          await UserOrmExtension.objects().filter({'id': 99999}).first(db);
       expect(notFoundFirst, isNull);
 
       // get() NotFound error
@@ -75,32 +84,44 @@ void runOrmTestSuite({
     test('3. filter() & exclude() expression tree & operators', () async {
       await User(name: 'Alice', email: 'alice@example.com', age: 20).save(db);
       await User(name: 'Bob', email: 'bob@example.com', age: 30).save(db);
-      await User(name: 'Charlie', email: 'charlie@example.com', age: 40).save(db);
+      await User(name: 'Charlie', email: 'charlie@example.com', age: 40)
+          .save(db);
 
       // Comparison lookups
-      final gte25 = await UserOrmExtension.objects().filter(Q('age__gte', 25)).all(db);
+      final gte25 =
+          await UserOrmExtension.objects().filter(Q('age__gte', 25)).all(db);
       expect(gte25.length, 2);
 
-      final lt35 = await UserOrmExtension.objects().filter(Q('age__lt', 35)).all(db);
+      final lt35 =
+          await UserOrmExtension.objects().filter(Q('age__lt', 35)).all(db);
       expect(lt35.length, 2);
 
-      final startsWithAli = await UserOrmExtension.objects().filter(Q('name__startswith', 'Ali')).all(db);
+      final startsWithAli = await UserOrmExtension.objects()
+          .filter(Q('name__startswith', 'Ali'))
+          .all(db);
       expect(startsWithAli.length, 1);
       expect(startsWithAli.first.name, 'Alice');
 
-      final endsWithLie = await UserOrmExtension.objects().filter(Q('name__endswith', 'lie')).all(db);
+      final endsWithLie = await UserOrmExtension.objects()
+          .filter(Q('name__endswith', 'lie'))
+          .all(db);
       expect(endsWithLie.length, 1);
       expect(endsWithLie.first.name, 'Charlie');
 
-      final icontains = await UserOrmExtension.objects().filter(Q('name__icontains', 'OB')).all(db);
+      final icontains = await UserOrmExtension.objects()
+          .filter(Q('name__icontains', 'OB'))
+          .all(db);
       expect(icontains.length, 1);
       expect(icontains.first.name, 'Bob');
 
-      final inList = await UserOrmExtension.objects().filter(Q('age__in', [20, 40])).all(db);
+      final inList = await UserOrmExtension.objects()
+          .filter(Q('age__in', [20, 40]))
+          .all(db);
       expect(inList.length, 2);
 
       // exclude
-      final notBob = await UserOrmExtension.objects().exclude(Q('name', 'Bob')).all(db);
+      final notBob =
+          await UserOrmExtension.objects().exclude(Q('name', 'Bob')).all(db);
       expect(notBob.length, 2);
       expect(notBob.any((u) => u.name == 'Bob'), isFalse);
 
@@ -112,7 +133,8 @@ void runOrmTestSuite({
       expect(composite.map((u) => u.name).toSet(), {'Alice', 'Charlie'});
     });
 
-    test('4. SQL Injection safety - filter values with quotes & semicolons', () async {
+    test('4. SQL Injection safety - filter values with quotes & semicolons',
+        () async {
       const maliciousName = "O'Brien'); DROP TABLE auth_users; --";
       const dangerousEmail = "hack' OR '1'='1";
 
@@ -124,7 +146,9 @@ void runOrmTestSuite({
       ).save(db);
 
       // Filter by the exact special character value
-      final fetched = await UserOrmExtension.objects().filter(Q('name', maliciousName)).get(db);
+      final fetched = await UserOrmExtension.objects()
+          .filter(Q('name', maliciousName))
+          .get(db);
       expect(fetched.id, saved.id);
       expect(fetched.name, maliciousName);
       expect(fetched.email, dangerousEmail);
@@ -165,6 +189,32 @@ void runOrmTestSuite({
       expect(page.map((u) => u.age).toList(), [20, 30]);
     });
 
+    test('5b. negative limit and offset are rejected (#15)', () {
+      expect(
+        () => UserOrmExtension.objects().limit(-1),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => UserOrmExtension.objects().offset(-1),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('5c. regex lookups fail clearly on SQLite (#15)', () {
+      expect(
+        () => UserOrmExtension.objects()
+            .filter(Q('name__regex', '^A'))
+            .debugSql(Dialect.sqlite),
+        throwsA(isA<BloomOrmInvalidQueryError>()),
+      );
+      expect(
+        () => UserOrmExtension.objects()
+            .filter(Q('name__iregex', '^a'))
+            .debugSql(Dialect.sqlite),
+        throwsA(isA<BloomOrmInvalidQueryError>()),
+      );
+    });
+
     test('6. exists() and count()', () async {
       expect(await UserOrmExtension.objects().exists(db), isFalse);
       expect(await UserOrmExtension.objects().count(db), 0);
@@ -178,9 +228,17 @@ void runOrmTestSuite({
         isTrue,
       );
       expect(
-        await UserOrmExtension.objects().filter(Q('name', 'NonExistent')).exists(db),
+        await UserOrmExtension.objects()
+            .filter(Q('name', 'NonExistent'))
+            .exists(db),
         isFalse,
       );
+
+      for (var i = 0; i <= kMaxQueryLogEntries; i++) {
+        db.recordQuery('SELECT $i');
+      }
+      expect(db.queryLog.length, kMaxQueryLogEntries);
+      expect(db.queryLog.first, 'SELECT 1');
     });
 
     test('6b. count() ignores limit/offset instead of throwing (#10)',
@@ -233,8 +291,11 @@ void runOrmTestSuite({
       expect(ends.map((u) => u.name).toList(), ['a%b']);
     });
 
-    test('7. Model instance update() and delete() with NotFound error semantics', () async {
-      final user = await User(name: 'Eva', email: 'eva@example.com', age: 22).save(db);
+    test(
+        '7. Model instance update() and delete() with NotFound error semantics',
+        () async {
+      final user =
+          await User(name: 'Eva', email: 'eva@example.com', age: 22).save(db);
 
       // Update instance
       final updatedUser = User(
@@ -246,14 +307,16 @@ void runOrmTestSuite({
       );
       await updatedUser.update(db);
 
-      final reloaded = await UserOrmExtension.objects().filter({'id': user.id}).get(db);
+      final reloaded =
+          await UserOrmExtension.objects().filter({'id': user.id}).get(db);
       expect(reloaded.name, 'Eva Green');
       expect(reloaded.email, 'evagreen@example.com');
       expect(reloaded.age, 23);
       expect(reloaded.isActive, isFalse);
 
       // Update NotFound on 0 rows affected
-      final nonExistent = User(id: 99999, name: 'Ghost', email: 'ghost@example.com');
+      final nonExistent =
+          User(id: 99999, name: 'Ghost', email: 'ghost@example.com');
       expect(
         () => nonExistent.update(db),
         throwsA(isA<BloomOrmNotFoundError>()),
@@ -261,7 +324,9 @@ void runOrmTestSuite({
 
       // Delete instance
       await updatedUser.delete(db);
-      expect(await UserOrmExtension.objects().filter({'id': user.id}).exists(db), isFalse);
+      expect(
+          await UserOrmExtension.objects().filter({'id': user.id}).exists(db),
+          isFalse);
 
       // Delete NotFound on 0 rows affected
       expect(
@@ -280,7 +345,8 @@ void runOrmTestSuite({
           .update(db, {'email': 'player1_updated@example.com'});
       expect(affected, 1);
 
-      final p1 = await UserOrmExtension.objects().filter(Q('name', 'Player1')).get(db);
+      final p1 =
+          await UserOrmExtension.objects().filter(Q('name', 'Player1')).get(db);
       expect(p1.email, 'player1_updated@example.com');
 
       // Atomic F() arithmetic update: age = age + 5
@@ -299,9 +365,8 @@ void runOrmTestSuite({
       await User(name: 'Del2', email: 'd2@example.com', age: 20).save(db);
       await User(name: 'Keep', email: 'k@example.com', age: 30).save(db);
 
-      final deleted = await UserOrmExtension.objects()
-          .filter(Q('age__lt', 25))
-          .delete(db);
+      final deleted =
+          await UserOrmExtension.objects().filter(Q('age__lt', 25)).delete(db);
       expect(deleted, 2);
 
       final remaining = await UserOrmExtension.objects().all(db);
@@ -338,14 +403,16 @@ void runOrmTestSuite({
       expect(await UserOrmExtension.objects().count(db), 0);
     });
 
-    test('10. bulk_create() - multi-row insert returning primary keys', () async {
+    test('10. bulk_create() - multi-row insert returning primary keys',
+        () async {
       final usersToCreate = [
         User(name: 'Bulk1', email: 'b1@example.com', age: 21),
         User(name: 'Bulk2', email: 'b2@example.com', age: 22),
         User(name: 'Bulk3', email: 'b3@example.com', age: 23),
       ];
 
-      final pks = await QuerySet.bulkCreate(db, UserOrmExtension.meta(), usersToCreate);
+      final pks =
+          await QuerySet.bulkCreate(db, UserOrmExtension.meta(), usersToCreate);
       expect(pks.length, 3);
       expect(pks.every((pk) => pk > 0), isTrue);
 
@@ -385,22 +452,23 @@ void runOrmTestSuite({
       final (u3, created3) = await UserOrmExtension.objects()
           .filter(Q('name', 'GOC_User'))
           .updateOrCreate(
-            db,
-            defaults: {
-              'name': 'GOC_User',
-              'email': 'should_not_use@example.com',
-              'age': 1,
-              'is_active': true,
-            },
-            updates: {
-              'email': 'updated_goc@example.com',
-              'age': 34,
-            },
-          );
+        db,
+        defaults: {
+          'name': 'GOC_User',
+          'email': 'should_not_use@example.com',
+          'age': 1,
+          'is_active': true,
+        },
+        updates: {
+          'email': 'updated_goc@example.com',
+          'age': 34,
+        },
+      );
       expect(created3, isFalse);
       expect(u3.id, u1.id);
 
-      final reloaded = await UserOrmExtension.objects().filter({'id': u1.id}).get(db);
+      final reloaded =
+          await UserOrmExtension.objects().filter({'id': u1.id}).get(db);
       expect(reloaded.email, 'updated_goc@example.com');
       expect(reloaded.age, 34);
 
@@ -408,15 +476,15 @@ void runOrmTestSuite({
       final (u4, created4) = await UserOrmExtension.objects()
           .filter(Q('name', 'BrandNew'))
           .updateOrCreate(
-            db,
-            defaults: {
-              'name': 'BrandNew',
-              'email': 'new@example.com',
-              'age': 18,
-              'is_active': true,
-            },
-            updates: {},
-          );
+        db,
+        defaults: {
+          'name': 'BrandNew',
+          'email': 'new@example.com',
+          'age': 18,
+          'is_active': true,
+        },
+        updates: {},
+      );
       expect(created4, isTrue);
       expect(u4.name, 'BrandNew');
       expect(u4.id, greaterThan(0));
@@ -481,16 +549,46 @@ void runOrmTestSuite({
 
     test('15. transaction() - returns the callback\'s value', () async {
       final result = await db.transaction((tx) async {
-        final u = await User(
-                name: 'Returned', email: 'returned@example.com', age: 33)
-            .save(tx);
+        final u =
+            await User(name: 'Returned', email: 'returned@example.com', age: 33)
+                .save(tx);
         return u.id;
       });
 
       expect(result, greaterThan(0));
-      final fetched =
-          await UserOrmExtension.objects().filter(Q('name', 'Returned')).get(db);
+      final fetched = await UserOrmExtension.objects()
+          .filter(Q('name', 'Returned'))
+          .get(db);
       expect(fetched.id, result);
     });
+
+    if (supportsNestedTransactions) {
+      test('16. nested transactions use SQLite savepoints (#15)', () async {
+        final result = await db.transaction((outer) async {
+          await User(name: 'Outer', email: 'outer@example.com', age: 1)
+              .save(outer);
+          await outer.transaction((inner) async {
+            await User(name: 'Inner', email: 'inner@example.com', age: 2)
+                .save(inner);
+          });
+          return await UserOrmExtension.objects().count(outer);
+        });
+        expect(result, 2);
+
+        await db.transaction((outer) async {
+          await User(name: 'Kept', email: 'kept@example.com', age: 3)
+              .save(outer);
+          try {
+            await outer.transaction((inner) async {
+              await User(
+                      name: 'RolledBack', email: 'rolled@example.com', age: 4)
+                  .save(inner);
+              throw StateError('inner failure');
+            });
+          } catch (_) {}
+        });
+        expect(await UserOrmExtension.objects().count(db), 3);
+      });
+    }
   });
 }

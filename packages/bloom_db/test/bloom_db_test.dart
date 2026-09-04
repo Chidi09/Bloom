@@ -11,6 +11,7 @@ void main() {
     openExecutor: () async {
       return SqliteDbExecutor.inMemory();
     },
+    supportsNestedTransactions: true,
     setupSchema: (executor) async {
       await executor.execute('DROP TABLE IF EXISTS "auth_users";');
       await executor.execute('''
@@ -39,6 +40,7 @@ void main() {
         port: 5432,
       );
     },
+    supportsNestedTransactions: false,
     setupSchema: (executor) async {
       await executor.execute('DROP TABLE IF EXISTS "auth_users" CASCADE;');
       await executor.execute('''

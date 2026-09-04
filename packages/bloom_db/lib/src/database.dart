@@ -6,6 +6,16 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'dialect.dart';
 import 'errors.dart';
 
+/// Maximum retained SQL statements per executor. Query logging is useful for
+/// diagnostics but must not become an unbounded memory sink in long-lived
+/// servers.
+const int kMaxQueryLogEntries = 1000;
+
+void _recordQueryLog(List<String> log, String sql) {
+  log.add(sql);
+  if (log.length > kMaxQueryLogEntries) log.removeAt(0);
+}
+
 /// Database row abstraction representing a single row returned by a query.
 ///
 /// Provides type-safe decoding helpers for accessing column values by zero-based
@@ -97,7 +107,6 @@ class MapDbRow implements DbRow {
           for (var i = 0; i < columnNames.length && i < values.length; i++)
             columnNames[i]: values[i]
         });
-
 
   @override
   dynamic operator [](dynamic columnOrIndex) {
@@ -220,7 +229,8 @@ abstract class DbExecutor {
   /// Executes a [sql] query with optional [parameters] and returns all matching [DbRow] instances.
   ///
   /// Throws [BloomOrmQueryException] if underlying query execution fails.
-  Future<List<DbRow>> fetchAll(String sql, [List<dynamic> parameters = const []]);
+  Future<List<DbRow>> fetchAll(String sql,
+      [List<dynamic> parameters = const []]);
 
   /// Executes a [sql] query with optional [parameters] and returns exactly one matching [DbRow].
   ///
@@ -230,7 +240,8 @@ abstract class DbExecutor {
   /// Executes a [sql] query with optional [parameters] and returns the first [DbRow] or `null` if empty.
   ///
   /// Throws [BloomOrmQueryException] if underlying query execution fails.
-  Future<DbRow?> fetchOptional(String sql, [List<dynamic> parameters = const []]);
+  Future<DbRow?> fetchOptional(String sql,
+      [List<dynamic> parameters = const []]);
 
   /// Executes a DML/DDL statement [sql] with [parameters] and returns the count of affected rows.
   ///
@@ -278,6 +289,7 @@ class SqliteDbExecutor implements DbExecutor {
   final sqlite.Database _db;
   final bool _shouldClose;
   final List<String> _queryLog = [];
+  int _transactionDepth = 0;
 
   /// Creates a [SqliteDbExecutor] wrapping an active sqlite [_db] instance.
   ///
@@ -300,7 +312,6 @@ class SqliteDbExecutor implements DbExecutor {
     return SqliteDbExecutor(db);
   }
 
-
   @override
   Dialect get dialect => Dialect.sqlite;
 
@@ -309,7 +320,7 @@ class SqliteDbExecutor implements DbExecutor {
 
   @override
   void recordQuery(String sql, [List<dynamic> parameters = const []]) {
-    _queryLog.add(sql);
+    _recordQueryLog(_queryLog, sql);
   }
 
   List<Object?> _sanitizeParams(List<dynamic> parameters) {
@@ -323,8 +334,8 @@ class SqliteDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<List<DbRow>> fetchAll(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<List<DbRow>> fetchAll(String sql,
+      [List<dynamic> parameters = const []]) async {
     recordQuery(sql, parameters);
     try {
       final sanitized = _sanitizeParams(parameters);
@@ -339,8 +350,8 @@ class SqliteDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow> fetchOne(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow> fetchOne(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) {
       throw BloomOrmNotFoundError(model: 'row');
@@ -349,8 +360,8 @@ class SqliteDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow?> fetchOptional(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow?> fetchOptional(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) return null;
     return rows.first;
@@ -370,18 +381,35 @@ class SqliteDbExecutor implements DbExecutor {
 
   @override
   Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback) async {
-    _db.execute('BEGIN');
+    final depth = _transactionDepth++;
+    final savepoint = 'bloom_tx_$depth';
+    if (depth == 0) {
+      _db.execute('BEGIN');
+    } else {
+      _db.execute('SAVEPOINT $savepoint');
+    }
     try {
       final result = await callback(this);
-      _db.execute('COMMIT');
+      if (depth == 0) {
+        _db.execute('COMMIT');
+      } else {
+        _db.execute('RELEASE SAVEPOINT $savepoint');
+      }
       return result;
     } catch (e) {
       try {
-        _db.execute('ROLLBACK');
+        if (depth == 0) {
+          _db.execute('ROLLBACK');
+        } else {
+          _db.execute('ROLLBACK TO SAVEPOINT $savepoint');
+          _db.execute('RELEASE SAVEPOINT $savepoint');
+        }
       } catch (_) {
         // Suppress rollback errors to preserve the original exception.
       }
       rethrow;
+    } finally {
+      _transactionDepth--;
     }
   }
 
@@ -394,6 +422,11 @@ class SqliteDbExecutor implements DbExecutor {
 }
 
 /// PostgreSQL database executor implementation wrapping `package:postgres`.
+///
+/// SECURITY: [connect] defaults to `SslMode.disable` for local-development
+/// compatibility. Production deployments must explicitly select the TLS
+/// mode required by their provider (for example `SslMode.require` or a
+/// certificate-verified mode) instead of copying the development default.
 ///
 /// Provides asynchronous connection management, parameterized query execution with
 /// positional placeholder binding (`$1`, `$2`), and error translation for PostgreSQL backends.
@@ -424,7 +457,8 @@ class PostgresDbExecutor implements DbExecutor {
   /// - [username]: Authentication username.
   /// - [password]: Optional authentication password.
   /// - [port]: TCP port (defaults to 5432).
-  /// - [sslMode]: SSL/TLS configuration (defaults to [pg.SslMode.disable]).
+  /// - [sslMode]: SSL/TLS configuration (defaults to [pg.SslMode.disable] for
+  ///   local development; explicitly configure TLS in production).
   static Future<PostgresDbExecutor> connect({
     required String host,
     required String database,
@@ -480,7 +514,7 @@ class PostgresDbExecutor implements DbExecutor {
 
   @override
   void recordQuery(String sql, [List<dynamic> parameters = const []]) {
-    _queryLog.add(sql);
+    _recordQueryLog(_queryLog, sql);
   }
 
   List<Object?> _sanitizeParams(List<dynamic> parameters) {
@@ -493,8 +527,8 @@ class PostgresDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<List<DbRow>> fetchAll(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<List<DbRow>> fetchAll(String sql,
+      [List<dynamic> parameters = const []]) async {
     recordQuery(sql, parameters);
     try {
       final sanitized = _sanitizeParams(parameters);
@@ -513,8 +547,8 @@ class PostgresDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow> fetchOne(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow> fetchOne(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) {
       throw BloomOrmNotFoundError(model: 'row');
@@ -523,8 +557,8 @@ class PostgresDbExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow?> fetchOptional(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow?> fetchOptional(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) return null;
     return rows.first;
@@ -571,7 +605,7 @@ class _PostgresTxExecutor implements DbExecutor {
 
   @override
   void recordQuery(String sql, [List<dynamic> parameters = const []]) {
-    _queryLog.add(sql);
+    _recordQueryLog(_queryLog, sql);
   }
 
   List<Object?> _sanitizeParams(List<dynamic> parameters) {
@@ -584,8 +618,8 @@ class _PostgresTxExecutor implements DbExecutor {
   }
 
   @override
-  Future<List<DbRow>> fetchAll(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<List<DbRow>> fetchAll(String sql,
+      [List<dynamic> parameters = const []]) async {
     recordQuery(sql, parameters);
     try {
       final sanitized = _sanitizeParams(parameters);
@@ -604,8 +638,8 @@ class _PostgresTxExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow> fetchOne(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow> fetchOne(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) {
       throw BloomOrmNotFoundError(model: 'row');
@@ -614,8 +648,8 @@ class _PostgresTxExecutor implements DbExecutor {
   }
 
   @override
-  Future<DbRow?> fetchOptional(
-      String sql, [List<dynamic> parameters = const []]) async {
+  Future<DbRow?> fetchOptional(String sql,
+      [List<dynamic> parameters = const []]) async {
     final rows = await fetchAll(sql, parameters);
     if (rows.isEmpty) return null;
     return rows.first;

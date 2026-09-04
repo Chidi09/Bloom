@@ -6,6 +6,7 @@
 * **`count()` ignores `limit`/`offset` (#10)**: the count aggregation no longer includes paging, so a queryset with `OFFSET` beyond the row count returns the filtered total instead of throwing `BloomOrmNotFoundError`.
 * **LIKE lookups escape wildcards (#12)**: `contains`/`icontains`/`startsWith`/`endsWith`/`iexact` escape `%`, `_`, and `\` in user input and emit `ESCAPE '\'`, so input matches literally instead of over-matching.
 * **Unfiltered bulk writes refused (#14)**: `QuerySet.update`/`delete` without filters throw `BloomOrmInvalidQueryError` unless `allowUnfiltered: true` is passed, so one call can no longer wipe a table by accident.
+* **Data-layer hardening (#15)**: `QuerySet.limit`/`offset` reject negative values; PostgreSQL-only `regex`/`iregex` lookups fail clearly on SQLite; each executor bounds `queryLog` to `kMaxQueryLogEntries` (1000); nested SQLite transactions use savepoints instead of issuing nested `BEGIN`; PostgreSQL TLS setup is documented for production.
 
 ## 0.1.3 - 2026-08-31
 
