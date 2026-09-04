@@ -439,6 +439,8 @@ dev_dependencies:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#6200EE">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>$name</title>
 </head>
 <body>
@@ -464,6 +466,7 @@ void main() {
   final app = Div(
     className: 'app',
     children: [
+      Img(src: '/favicon.svg', alt: 'Bloom logo', width: 72, height: 72),
       H1(text: 'Welcome to $projectName'),
       Live(() => P(text: 'Count: \${count.value}')),
       Button(
