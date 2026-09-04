@@ -493,6 +493,14 @@ class BloomApiRouter {
   /// route's scoped middleware chain followed by its handler. Handles `HEAD` requests by executing
   /// the matching `GET` handler and safely canceling any resulting body stream without sending body bytes.
   ///
+  /// Path parameters never overwrite the reserved `auth_*` namespace
+  /// (`auth_user_id`, `auth_roles`, …) populated by verified auth middleware:
+  /// global middlewares run before route matching, so a route like
+  /// `/users/:auth_user_id` must not clobber verified identity for
+  /// downstream `params` readers. Never name a route parameter `auth_*`;
+  /// prefer the verified `req.authUserId`/`req.authRoles` getters (Expando)
+  /// over raw `params` where available.
+  ///
   /// Returns a 404 Not Found [BloomResponse] if no registered route matches [request].
   ///
   /// ### Example
@@ -516,8 +524,13 @@ class BloomApiRouter {
         final match = route.regex.firstMatch(path);
         if (match != null) {
           for (var i = 0; i < route.paramNames.length; i++) {
-            request.params[route.paramNames[i]] =
-                Uri.decodeComponent(match.group(i + 1)!);
+            final name = route.paramNames[i];
+            // Reserve the auth_* namespace for verified auth middleware.
+            // Global middlewares run before matching and store verified
+            // identity in params; an attacker-controlled path segment must
+            // never replace it for downstream params readers.
+            if (name.startsWith('auth_')) continue;
+            request.params[name] = Uri.decodeComponent(match.group(i + 1)!);
           }
 
           return _executePipeline(route.middlewares, request, () async {
