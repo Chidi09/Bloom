@@ -509,6 +509,15 @@ void runOrmTestSuite({
           .orderBy('name')
           .valuesList(db, 'name');
       expect(names, ['Jane', 'John']);
+
+      // values_list(flat: false) projects one {field: value} map per row.
+      final rows = await UserOrmExtension.objects()
+          .orderBy('name')
+          .values_list(db, 'name', flat: false);
+      expect(rows, [
+        {'name': 'Jane'},
+        {'name': 'John'},
+      ]);
     });
 
     test('13. transaction() - commits all writes on success', () async {

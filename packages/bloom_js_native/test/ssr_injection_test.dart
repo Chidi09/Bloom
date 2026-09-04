@@ -10,6 +10,28 @@ void main() {
       );
     });
 
+    test('rejects the hostile attribute names from the hardening audit', () {
+      // An event-handler injection smuggled into the name itself.
+      expect(
+        () => renderToHtml(El('div', attrs: {'onload=alert(1)': 'x'})),
+        throwsArgumentError,
+      );
+      // Markup-breaking angle bracket in the name.
+      expect(
+        () => renderToHtml(El('div', attrs: {'a>b': 'x'})),
+        throwsArgumentError,
+      );
+      // The same rules must hold on the SVG rendering path.
+      expect(
+        () => renderToHtml(Svg.raw(attrs: {'onload=alert(1)': 'x'})),
+        throwsArgumentError,
+      );
+      expect(
+        () => renderToHtml(Svg.raw(attrs: {'a>b': 'x'})),
+        throwsArgumentError,
+      );
+    });
+
     test('rejects a tag name carrying injected markup', () {
       expect(
         () => renderToHtml(El('div onload=alert(1)')),

@@ -4,6 +4,7 @@ library;
 import 'dart:js_interop';
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
+import 'package:bloom_js_native/src/_signals_browser.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -140,6 +141,39 @@ void main() {
 
       final sig2 = signal(5, key: key);
       expect(sig2.value, equals(5), reason: 'Without hot-reload tracking, signal resets to initialValue');
+    });
+  });
+
+  group('Signal Registry Eviction', () {
+    test('registry is bounded: least-recently-used keys are evicted past the cap', () {
+      bloomHotReloadTrackingEnabled = true;
+
+      final cap = kMaxSignalRegistryEntries;
+
+      // Fill the registry to the cap with distinct keys; each write stores
+      // into the window-global registry.
+      for (var i = 0; i < cap; i++) {
+        signal(-1, key: 'evict-key-$i').value = i;
+      }
+
+      // Re-writing an existing key refreshes its recency instead of growing
+      // the map, making 'evict-key-0' the most recently used entry.
+      signal<int>(-1, key: 'evict-key-0').value = 1000;
+
+      // One more store beyond the cap evicts the least-recently-used entry:
+      // 'evict-key-1' ('evict-key-0' was just refreshed and must survive).
+      signal(-1, key: 'evict-key-overflow').value = 0;
+
+      expect(
+        signal<int>(-1, key: 'evict-key-1').value,
+        -1,
+        reason: 'the least-recently-used key must have been evicted from the registry',
+      );
+      expect(
+        signal<int>(-1, key: 'evict-key-0').value,
+        1000,
+        reason: 'recently written keys must survive eviction',
+      );
     });
   });
 }

@@ -5,6 +5,11 @@
 ### Fixed
 * **Per-render keyframe dedup scope (#16)**: animation `@keyframes` dedup state is now scoped to each top-level SSR render via zones instead of a shared global set, so concurrent `renderToStreamWithSuspense` streams can no longer drop or duplicate each other's `@keyframes` blocks. `renderToStream` renders eagerly (chunking stays lazy) with identical bytes.
 * **Guard redirect loop detection (#17)**: new `BloomRouter.resolveRedirects` follows guard redirect chains with visited-set + hop-budget (`maxRedirects`, default 10) protection, throwing `BloomRedirectLoopException` on cycles instead of recursing forever; the browser controller resolves redirects up-front into a single history entry. Also adds `GuardResult.deny()` for blocking without redirecting.
+* **Bounded hot-reload signal registry (#19)**: the `window`-global registry backing `signal(initialValue, key: ...)` is now capped at `kMaxSignalRegistryEntries` (512) entries with least-recently-used eviction — every write refreshes its key's recency, so live carryover state survives while stale keys left by renamed or removed call sites are pruned, and an evicted key falls back to the documented clean reset. Covered by a browser eviction test.
+
+### Added
+* **Hostile SSR attribute-name regression tests (#19)**: attribute names were already validated against the same identifier rules as tag names; added explicit tests for the hardening audit's hostile names (`onload=alert(1)`, `a>b`) on both the HTML and SVG render paths to lock the behavior in.
+* **ForEach keyless tradeoff documented (#19)**: the `ForEach` API docs and COOKBOOK Section 6 now state explicitly that unkeyed lists rebuild the whole list region on every update — dropping per-item reactive regions and effects (input focus, text selection, local DOM state, in-flight CSS animations) — and that `key:` is required for any list that can reorder, insert, or remove items.
 
 ## 0.3.6 - 2026-08-31
 
