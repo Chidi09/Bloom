@@ -70,6 +70,19 @@ class Article extends Model {
   }
 }
 
+/// Test permission allowing only even-id rows at the object level (#5).
+class _EvenIdOnly extends BloomRestPermission {
+  const _EvenIdOnly();
+
+  @override
+  bool hasPermission(BloomRequest req) => true;
+
+  @override
+  bool hasObjectPermission(BloomRequest req, Object item) {
+    return (item as Article).id.isEven;
+  }
+}
+
 void main() {
   late DbExecutor db;
 
@@ -203,6 +216,70 @@ void main() {
       final getDeletedRes =
           await viewSet.retrieve(getReq.copyWith(params: {'pk': '11'}));
       expect(getDeletedRes.statusCode, 404);
+    });
+
+    group('object-level authorization (#5)', () {
+      BloomViewSet<Article> evenOnlyViewSet() {
+        return BloomViewSet<Article>(
+          meta: Article.meta,
+          fromRow: Article.fromRow,
+          getDb: (_) => db,
+          options: BloomViewSetOptions<Article>(
+            permission: const _EvenIdOnly(),
+            serializer: BloomModelSerializer<Article>(
+              meta: Article.meta,
+              fields: BloomFieldSet.all().withReadOnly(['id']),
+            ),
+          ),
+        );
+      }
+
+      BloomRequest pkReq(String method, String pk,
+          {Map<String, dynamic>? body}) {
+        return BloomRequest(
+          method: method,
+          uri: Uri.parse('http://localhost/api/articles/$pk'),
+          params: {'pk': pk},
+          body: body,
+        );
+      }
+
+      test('denied objects return 404 on retrieve/update/destroy', () async {
+        await seedArticles();
+        final viewSet = evenOnlyViewSet();
+
+        // retrieve: odd id denied -> 404, even id allowed -> 200
+        expect((await viewSet.retrieve(pkReq('GET', '1'))).statusCode, 404);
+        expect((await viewSet.retrieve(pkReq('GET', '2'))).statusCode, 200);
+
+        // update: denied -> 404 and row unchanged
+        final deniedUpdate = await viewSet.update(
+            pkReq('PATCH', '1', body: {'title': 'Hacked'}));
+        expect(deniedUpdate.statusCode, 404);
+        final allowedViewSet = BloomViewSet<Article>(
+          meta: Article.meta,
+          fromRow: Article.fromRow,
+          getDb: (_) => db,
+          options: BloomViewSetOptions<Article>(
+            permission: const AllowAny(),
+            serializer: BloomModelSerializer<Article>(meta: Article.meta),
+          ),
+        );
+        final check = await allowedViewSet.retrieve(pkReq('GET', '1'));
+        expect(check.statusCode, 200);
+        expect(
+            (check.bodyJson as Map<String, dynamic>)['title'], 'Article 1');
+
+        // allowed update still works
+        final okUpdate = await viewSet.update(
+            pkReq('PATCH', '2', body: {'title': 'Edited'}));
+        expect(okUpdate.statusCode, 200);
+
+        // destroy: denied -> 404 and row still exists
+        expect((await viewSet.destroy(pkReq('DELETE', '3'))).statusCode, 404);
+        expect((await allowedViewSet.retrieve(pkReq('GET', '3'))).statusCode,
+            200);
+      });
     });
 
     test('returns 422 on invalid model creation input', () async {
