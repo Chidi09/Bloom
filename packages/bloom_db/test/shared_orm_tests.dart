@@ -205,6 +205,34 @@ void runOrmTestSuite({
       );
     });
 
+    test('6c. LIKE lookups escape wildcards in user input (#12)', () async {
+      await User(name: 'plain', email: 'p@example.com', age: 1).save(db);
+      await User(name: 'a%b', email: 'pct@example.com', age: 2).save(db);
+      await User(name: 'a_b', email: 'us@example.com', age: 3).save(db);
+
+      // `%` in input must match a literal percent, not act as a wildcard.
+      final pct = await UserOrmExtension.objects()
+          .filter(Q('name__contains', 'a%b'))
+          .all(db);
+      expect(pct.map((u) => u.name).toList(), ['a%b']);
+
+      // `_` in input must match a literal underscore, not any character.
+      final under = await UserOrmExtension.objects()
+          .filter(Q('name__contains', 'a_b'))
+          .all(db);
+      expect(under.map((u) => u.name).toList(), ['a_b']);
+
+      // startsWith / endsWith with wildcards behave literally too.
+      final starts = await UserOrmExtension.objects()
+          .filter(Q('name__startswith', 'a_'))
+          .all(db);
+      expect(starts.map((u) => u.name).toList(), ['a_b']);
+      final ends = await UserOrmExtension.objects()
+          .filter(Q('name__endswith', '%b'))
+          .all(db);
+      expect(ends.map((u) => u.name).toList(), ['a%b']);
+    });
+
     test('7. Model instance update() and delete() with NotFound error semantics', () async {
       final user = await User(name: 'Eva', email: 'eva@example.com', age: 22).save(db);
 
