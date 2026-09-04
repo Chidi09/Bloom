@@ -309,6 +309,35 @@ void runOrmTestSuite({
       expect(remaining.first.name, 'Keep');
     });
 
+    test('9b. unfiltered update()/delete() refuse without opt-in (#14)',
+        () async {
+      await User(name: 'W1', email: 'w1@example.com', age: 1).save(db);
+      await User(name: 'W2', email: 'w2@example.com', age: 2).save(db);
+
+      // One call without filters must not wipe the table.
+      expect(
+        () => UserOrmExtension.objects().delete(db),
+        throwsA(isA<BloomOrmInvalidQueryError>()),
+      );
+      expect(
+        () => UserOrmExtension.objects().update(db, {'age': 99}),
+        throwsA(isA<BloomOrmInvalidQueryError>()),
+      );
+      expect(await UserOrmExtension.objects().count(db), 2);
+
+      // Explicit opt-in still allows deliberate table-wide writes.
+      expect(
+        await UserOrmExtension.objects()
+            .update(db, {'age': 99}, allowUnfiltered: true),
+        2,
+      );
+      expect(
+        await UserOrmExtension.objects().delete(db, allowUnfiltered: true),
+        2,
+      );
+      expect(await UserOrmExtension.objects().count(db), 0);
+    });
+
     test('10. bulk_create() - multi-row insert returning primary keys', () async {
       final usersToCreate = [
         User(name: 'Bulk1', email: 'b1@example.com', age: 21),
