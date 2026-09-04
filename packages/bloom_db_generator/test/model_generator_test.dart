@@ -408,6 +408,30 @@ class TestModel {
     ),'''));
     });
 
+    test('preserves maxLength and defaultVal metadata', () async {
+      final output = await _generateFor(r'''
+library test_lib;
+import 'package:bloom_db/bloom_db.dart';
+
+@BloomModel(app: 'catalog')
+class TestModel {
+  @idField
+  final int id;
+
+  @BloomField(
+    maxLength: 50,
+    defaultVal: DefaultValue.text('pending'),
+  )
+  final String status;
+}
+''');
+
+      expect(output, contains("maxLength: 50"));
+      expect(
+          output, contains("defaultVal: const DefaultValue.text('pending')"));
+      expect(output, contains("name: 'status'"));
+    });
+
     test(
         'preserves primary key inference when @BloomField only specifies custom column',
         () async {
