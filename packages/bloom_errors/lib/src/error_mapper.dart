@@ -148,8 +148,11 @@ class BloomErrorMapper {
   /// Resolves [error] into a [BloomApiException], falling back to [BloomInternalException]
   /// if no mapping exists.
   ///
-  /// Attempts to map [error] using [map]. If [map] returns `null`, constructs and returns
-  /// a new [BloomInternalException] with the string representation of [error].
+  /// The fallback uses a fixed generic message (never `error.toString()`):
+  /// raw driver/SQL/filesystem text must not reach production responses
+  /// (see [_mapBuiltIn] rationale). Raw details remain available to
+  /// `onError` logging and non-prod unmapped-error output via the original
+  /// error object passed to [BloomErrorMiddleware].
   ///
   /// Example:
   /// ```dart
@@ -160,7 +163,7 @@ class BloomErrorMapper {
     final mapped = map(error);
     if (mapped != null) return mapped;
 
-    return BloomInternalException(error.toString());
+    return const BloomInternalException('Internal Server Error');
   }
 
   static BloomApiException? _mapBuiltIn(Object error, String typeName) {
@@ -184,6 +187,14 @@ class BloomErrorMapper {
     // BloomErrorMiddleware's unmapped-exception branch instead, which
     // correctly masks the message in production and only shows it in
     // local/dev.
+    //
+    // GENERAL RULE (applies to every branch below): no mapped 500 may carry
+    // raw `error.toString()` text. Mapped BloomApiExceptions render verbatim
+    // in ALL environments, so any raw driver/SQL/filesystem detail embedded
+    // at map time leaks to production. Unexpected-internal failures map to
+    // fixed generic messages (following the PasswordHashException precedent);
+    // raw details stay reachable via onError logging and non-prod output
+    // through the original error object, never the mapped message.
 
     // Bloom DB / ORM Mappings (bloom_db)
     switch (typeName) {
@@ -212,7 +223,8 @@ class BloomErrorMapper {
       case 'BloomOrmSelectForUpdateOutsideTransactionError':
       case 'BloomOrmQueryException':
       case 'BloomOrmException':
-        return BloomInternalException(error.toString());
+        // Generic: query toString() carries driver/SQL internals.
+        return const BloomInternalException('Database error');
 
       // Bloom Validation Mappings (bloom_validate)
       case 'BloomValidationException':
@@ -244,7 +256,8 @@ class BloomErrorMapper {
         return BloomInternalException(message, {if (statusCode != null) 'upstream_status': statusCode});
 
       case 'BloomStorageException':
-        return BloomInternalException(error.toString());
+        // Generic: storage toString() carries driver/filesystem internals.
+        return const BloomInternalException('Storage error');
 
       // Bloom Auth Server Mappings (bloom_auth_server)
       case 'SessionTokenException':
@@ -272,7 +285,8 @@ class BloomErrorMapper {
 
       // Bloom Migrate Mappings (bloom_migrate)
       case 'MigrationFileNotFoundException':
-        return BloomNotFoundException(error.toString());
+        // Generic: raw text may embed internal migration file paths.
+        return const BloomNotFoundException('Migration file not found');
 
       case 'MigrationNonInvertibleException':
       case 'MigrationCyclicDependencyException':
@@ -280,7 +294,8 @@ class BloomErrorMapper {
       case 'MissingMaxLengthException':
       case 'UnsupportedDialectOperationException':
       case 'MigrationException':
-        return BloomInternalException(error.toString());
+        // Generic: raw text may embed SQL/driver internals.
+        return const BloomInternalException('Migration error');
     }
 
     return null;

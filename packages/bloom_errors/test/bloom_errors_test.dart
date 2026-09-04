@@ -9,6 +9,60 @@ class _DomainNotFoundError implements Exception {
   String toString() => 'DomainNotFoundError: $thing not found';
 }
 
+// Fakes named to match the runtime-type-name switch in BloomErrorMapper.
+// Each carries raw internals that must never reach a production response.
+class BloomOrmQueryException implements Exception {
+  @override
+  String toString() =>
+      'BloomOrmQueryException: SELECT * FROM users -- db-password=SECRET driver=pg8000';
+}
+
+class BloomOrmException implements Exception {
+  @override
+  String toString() => 'BloomOrmException: connection string SECRET leaked';
+}
+
+class BloomStorageException implements Exception {
+  @override
+  String toString() => 'BloomStorageException: /srv/secret/file SECRET';
+}
+
+class MigrationFileNotFoundException implements Exception {
+  @override
+  String toString() =>
+      'MigrationFileNotFoundException: /srv/secret/migrations/001.sql SECRET';
+}
+
+class MigrationNonInvertibleException implements Exception {
+  @override
+  String toString() => 'MigrationNonInvertibleException: SQL SECRET';
+}
+
+class MigrationCyclicDependencyException implements Exception {
+  @override
+  String toString() => 'MigrationCyclicDependencyException: graph SECRET';
+}
+
+class MigrationExecutionException implements Exception {
+  @override
+  String toString() => 'MigrationExecutionException: ALTER TABLE SECRET';
+}
+
+class MissingMaxLengthException implements Exception {
+  @override
+  String toString() => 'MissingMaxLengthException: column SECRET';
+}
+
+class UnsupportedDialectOperationException implements Exception {
+  @override
+  String toString() => 'UnsupportedDialectOperationException: dialect SECRET';
+}
+
+class MigrationException implements Exception {
+  @override
+  String toString() => 'MigrationException: internal SECRET';
+}
+
 Future<BloomResponse> _runMiddleware(
   BloomErrorMiddleware middleware,
   Future<BloomResponse> Function() body,
@@ -124,6 +178,68 @@ void main() {
         () async => throw BloomBadRequestException('bad'),
       );
       expect(captured, isA<BloomBadRequestException>());
+    });
+
+    group('mapped 500s never leak raw text (#28)', () {
+      final cases = <Object>[
+        BloomOrmQueryException(),
+        BloomOrmException(),
+        BloomStorageException(),
+        MigrationNonInvertibleException(),
+        MigrationCyclicDependencyException(),
+        MigrationExecutionException(),
+        MissingMaxLengthException(),
+        UnsupportedDialectOperationException(),
+        MigrationException(),
+      ];
+
+      for (final err in cases) {
+        test('${err.runtimeType} maps to a generic production-safe message',
+            () async {
+          final raw = err.toString();
+          expect(raw, contains('SECRET'));
+
+          final mapped = BloomErrorMapper.map(err);
+          expect(mapped, isNotNull);
+          expect(mapped!.statusCode, 500);
+          expect(mapped.message, isNot(contains('SECRET')));
+
+          // Middleware renders mapped errors verbatim, so the mapped
+          // message itself must already be safe in production…
+          final prod = const BloomErrorMiddleware(environment: 'production');
+          final res =
+              await _runMiddleware(prod, () async => throw mapped);
+          expect(res.statusCode, 500);
+          expect(res.bodyText, isNot(contains('SECRET')));
+
+          // …while raw details stay reachable via onError.
+          Object? captured;
+          final withLog = BloomErrorMiddleware(
+              environment: 'production',
+              onError: (e, st) => captured = e);
+          await _runMiddleware(withLog, () async => throw err);
+          expect(captured.toString(), contains('SECRET'));
+        });
+      }
+
+      test('MigrationFileNotFound maps to generic 404 without raw path',
+          () async {
+        final err = MigrationFileNotFoundException();
+        final mapped = BloomErrorMapper.map(err)!;
+        expect(mapped.statusCode, 404);
+        expect(mapped.message, isNot(contains('SECRET')));
+        final prod = const BloomErrorMiddleware(environment: 'production');
+        final res = await _runMiddleware(prod, () async => throw mapped);
+        expect(res.statusCode, 404);
+        expect(res.bodyText, isNot(contains('SECRET')));
+      });
+
+      test('mapToHttpException fallback is generic', () {
+        final mapped = BloomErrorMapper.mapToHttpException(
+            Exception('db-password=SECRET'));
+        expect(mapped.statusCode, 500);
+        expect(mapped.message, isNot(contains('SECRET')));
+      });
     });
   });
 }
