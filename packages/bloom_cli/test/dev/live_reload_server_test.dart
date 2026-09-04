@@ -113,5 +113,41 @@ void main() {
       await sub.cancel();
       await socket.close();
     });
+
+    test('broadcasts structured error payload for the dev overlay', () async {
+      final socket = await Socket.connect('127.0.0.1', testPort);
+      socket.write('GET /_bloom_hr HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n');
+      await socket.flush();
+
+      final completer = Completer<String>();
+      socket.cast<List<int>>().transform(utf8.decoder).listen((data) {
+        if (!completer.isCompleted && data.contains('event: error')) {
+          completer.complete(data);
+        }
+      });
+
+      await Future.delayed(const Duration(milliseconds: 50));
+      devServer.broadcastError(
+        'Expected ;',
+        kind: 'build',
+        file: 'lib/main.dart',
+        line: 12,
+        column: 7,
+        codeFrame: '11 | return 1;\n12 | return 2',
+        stack: 'main.dart:12:7',
+      );
+
+      final received =
+          await completer.future.timeout(const Duration(seconds: 2));
+      expect(received, contains('event: error'));
+      expect(received, contains('"kind":"build"'));
+      expect(received, contains('"file":"lib/main.dart"'));
+      expect(received, contains('"line":12'));
+      expect(received, contains('"column":7'));
+      expect(
+          received, contains('"codeFrame":"11 | return 1;\\n12 | return 2"'));
+
+      await socket.close();
+    });
   });
 }
