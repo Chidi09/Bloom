@@ -8,6 +8,7 @@ import '../deployment/web_deploy_targets.dart';
 import '../dev/css_hot_swap.dart';
 import '../dev/ddc_dev_compiler.dart';
 import '../dev/dev_proxy.dart';
+import '../dev/js_dashboard.dart';
 import '../dev/live_reload_server.dart';
 import '../dev/source_watcher.dart';
 import '../npm/npm_vendor_assembler.dart';
@@ -248,19 +249,22 @@ class JsDevCommand extends Command<int> {
     );
     await devServer.start();
 
-    print(Ansi.step(
-        '\n⚡ Bloom JS Hot Live-Reload Server active on http://$host:$port'));
-    print(Ansi.info('› Serving static assets from ${webDir.path}'));
-    print(Ansi.info('› Live-Reload SSE channel listening on /_bloom_hr'));
-    if (proxyRules.isNotEmpty) {
-      for (final rule in proxyRules) {
-        final stripNote = rule.stripPrefix ? ' (strip prefix)' : '';
-        print(Ansi.info(
-            '› Proxy: ${rule.pathPrefix} ➔ ${rule.targetUri}$stripNote'));
-      }
-    }
-    print(Ansi.boldText(
-        '› Watching for file changes in ${project.rootDir.path}/lib and ${webDir.path}... (Ctrl+C to stop)\n'));
+    final displayHost = (host == '0.0.0.0' || host == '::' || host == '*')
+        ? 'localhost'
+        : host;
+    final dashboard = JsDevDashboard(
+      project: project,
+      displayHost: displayHost,
+      port: port,
+      isDdcMode: isDdcActive,
+      proxyRules: proxyRules,
+      webDirPath: webDir.path,
+      watchDirPath:
+          '${project.rootDir.path}/lib${watchDir.path != webDir.path ? ', ${webDir.path}' : ''}',
+    );
+    dashboard.renderStartup();
+    print(Ansi.dimText(
+        '  → Open ${Ansi.green}${dashboard.localUrl}${Ansi.reset} in your browser\n'));
 
     // 7. Watch for Dart file changes and auto-recompile + broadcast reload
     if (watchDir.existsSync()) {
@@ -312,8 +316,7 @@ class JsDevCommand extends Command<int> {
         }
 
         final changedName = p.basename(events.first.path);
-        print(Ansi.info(
-            '\n🔄 File change detected: $changedName — Recompiling...'));
+        dashboard.onBuildStart(changedName);
         // Tell the browser a rebuild started BEFORE compiling, not after: the
         // compile takes seconds, and until this event existed the page gave no
         // feedback at all in the meantime.
@@ -327,13 +330,13 @@ class JsDevCommand extends Command<int> {
         if (success) {
           if (isDdcActive) {
             devServer.broadcastHotRemount(reason: changedName);
-            print(Ansi.success(
-                '⚡ [Hot Remount] Broadcasted fast remount event to browser clients.'));
+            dashboard.onBuildFinished(true, note: 'Hot Remount');
           } else {
             devServer.broadcastReload(reason: changedName);
-            print(Ansi.success(
-                '⚡ [Hot Reload] Broadcasted live reload event to browser clients.'));
+            dashboard.onBuildFinished(true, note: 'Hot Reload');
           }
+        } else {
+          dashboard.onBuildFinished(false);
         }
 
         // Update cached source for every changed file in the event batch

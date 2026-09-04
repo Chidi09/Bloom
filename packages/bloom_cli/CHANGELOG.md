@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+* **JS dev terminal dashboard (#3)**: `bloom js dev` now renders a Next.js-style startup panel (project, local URL, DDC vs dart2js mode, assets, watch roots, proxies, routes, shortcuts) and prints live build-status lines as the watcher recompiles — tracking elapsed time, a running compile count and an error count at a glance. Replaces the flat ad-hoc startup prints.
+
 ### Fixed
 * **JS dev loop watches all project roots (#2)**: `bloom js dev` now watches both `lib/` and `web/`; static HTML/CSS/JS/assets reload directly, and newly-created source directories are subscribed without restarting the dev server.
 * **Builder signal state preservation (#2)**: the DDC signal-key injector now includes signals created inside anonymous `Live`/builder closures, allowing the existing browser signal registry to restore their values across hot remounts.
