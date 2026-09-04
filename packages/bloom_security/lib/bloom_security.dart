@@ -16,10 +16,13 @@
 ///   router.use(BloomAdvancedCorsMiddleware.permissive());
 ///   router.use(const BloomSecurityHeadersMiddleware());
 ///
-///   // Apply rate limiting (e.g. 100 requests per minute by client IP)
+///   // Apply rate limiting (e.g. 100 requests per minute by client IP).
+///   // Wire peerAddressExtractor from the server adapter: without it all
+///   // anonymous clients share one global bucket.
 ///   router.use(BloomRateLimitMiddleware(
 ///     maxRequests: 100,
 ///     window: const Duration(minutes: 1),
+///     peerAddressExtractor: (req) => req.params['tcp_peer'],
 ///   ));
 ///
 ///   router.get('/api/health', (req) => BloomResponse.json({'status': 'ok'}));

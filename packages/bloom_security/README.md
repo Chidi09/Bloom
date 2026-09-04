@@ -116,10 +116,14 @@ import 'package:bloom_security/bloom_security.dart';
 void main() async {
   final router = BloomApiRouter();
 
-  // Configure rate limiter with trusted proxy validation
+  // Configure rate limiter with trusted proxy validation.
+  // REQUIRED for anonymous traffic: wire the immediate TCP peer from your
+  // server adapter. Without peerAddressExtractor every anonymous client
+  // shares one global bucket and a single aggressive client 429s everyone.
   final rateLimiter = BloomRateLimitMiddleware(
     maxRequests: 100,
     window: const Duration(minutes: 1),
+    peerAddressExtractor: (req) => req.params['tcp_peer'],
     // Only trust X-Forwarded-For / CF-Connecting-IP from approved reverse proxy IPs
     isTrustedProxy: (peer) => peer == '127.0.0.1' || peer.startsWith('10.0.'),
     // Optional: whitelist internal health checks

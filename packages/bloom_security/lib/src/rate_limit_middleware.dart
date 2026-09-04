@@ -250,11 +250,17 @@ class BloomInMemoryRateLimitStore implements BloomRateLimitStore {
 /// - Pluggable [BloomRateLimitStore] extension point suitable for shared/distributed backends.
 /// - Standard rate-limiting headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`).
 ///
+/// **Setup required for anonymous traffic**: [BloomRequest] carries no TCP peer,
+/// so without [peerAddressExtractor] every anonymous client shares the single
+/// `'anonymous_peer'` bucket (one aggressive client 429s everyone). Wire it
+/// from your server adapter — the *immediate* TCP peer, never a client header:
+///
 /// Example:
 /// ```dart
 /// final rateLimiter = BloomRateLimitMiddleware(
 ///   maxRequests: 100,
 ///   window: const Duration(minutes: 1),
+///   peerAddressExtractor: (req) => req.params['tcp_peer'],
 ///   isTrustedProxy: (peer) => peer == '10.0.0.1',
 ///   whitelist: {'127.0.0.1'},
 /// );
@@ -291,6 +297,14 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
 
   /// Optional extractor for the immediate peer address from the incoming [BloomRequest].
   final BloomPeerAddressExtractor? peerAddressExtractor;
+
+  /// Whether the shared-bucket misconfiguration warning was already printed.
+  static bool _warnedAnonymousBucket = false;
+
+  /// Resets the one-time shared-bucket warning (primarily for tests).
+  static void resetAnonymousBucketWarning() {
+    _warnedAnonymousBucket = false;
+  }
 
   /// Creates a hardened sliding-window rate limiter middleware.
   ///
@@ -468,8 +482,22 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
       final peerAddress =
           peerAddressExtractor?.call(request) ?? _extractImmediatePeer(request);
 
-      // 2. If peer address is unavailable, use safe non-spoofable fallback
+      // 2. If peer address is unavailable, use safe non-spoofable fallback.
+      // Warn loudly (once) when no extractor is wired: every anonymous
+      // client then shares one global budget.
       if (peerAddress == null || peerAddress.trim().isEmpty) {
+        if (peerAddressExtractor == null &&
+            !_warnedAnonymousBucket) {
+          _warnedAnonymousBucket = true;
+          // ignore: avoid_print
+          print(
+            '[bloom_security] WARNING: rate-limiting all anonymous clients '
+            'under the single shared "anonymous_peer" bucket because no '
+            'peerAddressExtractor is configured. One aggressive client can '
+            '429 everyone (self-DoS). Wire peerAddressExtractor from your '
+            'server adapter — see BloomRateLimitMiddleware docs.',
+          );
+        }
         return 'anonymous_peer';
       }
 
