@@ -240,6 +240,37 @@ void main() {
         expect(mapped.statusCode, 500);
         expect(mapped.message, isNot(contains('SECRET')));
       });
+
+      group('deny-by-default env masking (#29)', () {
+        for (final env in [
+          'production',
+          'prod',
+          'staging',
+          'qa',
+          'preview',
+          'PRODUCTION',
+          'Staging',
+          'weird-env-123'
+        ]) {
+          test('$env produces masked 500s', () async {
+            final m = BloomErrorMiddleware(environment: env);
+            final res = await _runMiddleware(
+                m, () async => throw StateError('staging secret SECRET'));
+            expect(res.statusCode, 500);
+            expect(res.bodyText, contains('Internal Server Error'));
+            expect(res.bodyText, isNot(contains('SECRET')));
+          });
+        }
+        for (final env in ['local', 'dev', 'development', 'test']) {
+          test('$env keeps verbose output', () async {
+            final m = BloomErrorMiddleware(environment: env);
+            final res = await _runMiddleware(
+                m, () async => throw StateError('dev detail VISIBLE'));
+            expect(res.statusCode, 500);
+            expect(res.bodyText, contains('dev detail VISIBLE'));
+          });
+        }
+      });
     });
   });
 }

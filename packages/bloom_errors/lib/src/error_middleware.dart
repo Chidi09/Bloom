@@ -22,10 +22,14 @@ import 'http_exception.dart';
 /// ```
 ///
 /// ### Environment-Aware Information Masking
-/// In production (`APP_ENV=production`), unmapped or unexpected internal exceptions
-/// are masked with a generic `"Internal Server Error"` message and do NOT expose
-/// raw exception strings or stack traces. In non-production environments (`local`, `dev`),
-/// full exception details and stack traces are included in the response to assist debugging.
+/// Masking is **deny-by-default**: unmapped or unexpected internal exceptions
+/// are masked with a generic `"Internal Server Error"` message unless the
+/// environment is an explicit dev value. Recognized verbose (unmasked) values:
+/// `'local'`, `'dev'`, `'development'`, `'test'`.
+/// Every other value — including `'production'`, `'prod'`, `'staging'`,
+/// `'qa'`, `'preview'` — produces masked 500s with no raw exception strings
+/// or stack traces. In verbose environments full exception details and stack
+/// traces are included to assist debugging.
 /// Intentionally thrown [BloomApiException] instances always output their explicit
 /// message and code regardless of environment.
 ///
@@ -85,7 +89,10 @@ class BloomErrorMiddleware implements BloomMiddleware {
 
   BloomResponse _renderErrorResponse(Object error, StackTrace stackTrace) {
     final env = (environment ?? _resolveAppEnv()).toLowerCase();
-    final isProduction = env == 'production';
+    // Deny by default: only explicit dev values get verbose output.
+    // Staging mirrors (staging/prod/qa/preview/…) must never leak internals.
+    const verboseEnvs = {'local', 'dev', 'development', 'test'};
+    final isProduction = !verboseEnvs.contains(env);
 
     // 1. If it is already a BloomApiException (deliberately thrown by handler/middleware)
     if (error is BloomApiException) {
