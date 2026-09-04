@@ -1,23 +1,19 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:bloom_security/bloom_security.dart';
-import 'test_helpers.dart';
+import 'package:test/test.dart';
 
-Future<void> runWebSocketTests() async {
-  await group('BloomWebSocket Security Tests', () {
+void main() {
+  group('BloomWebSocket Security Tests', () {
     test('Constructor argument validation', () {
-      expectThrows<ArgumentError>(() {
-        BloomWebSocketServer(maxConnections: 0);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomWebSocketServer(maxConnections: -1);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomWebSocketServer(maxMessageBytes: 0);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomWebSocketServer(maxMessageBytes: -100);
-      });
+      expect(() => BloomWebSocketServer(maxConnections: 0),
+          throwsArgumentError);
+      expect(() => BloomWebSocketServer(maxConnections: -1),
+          throwsArgumentError);
+      expect(() => BloomWebSocketServer(maxMessageBytes: 0),
+          throwsArgumentError);
+      expect(() => BloomWebSocketServer(maxMessageBytes: -100),
+          throwsArgumentError);
     });
 
     test(
@@ -288,10 +284,4 @@ Future<void> runWebSocketTests() async {
       }
     });
   });
-}
-
-void main() async {
-  resetTestCounts();
-  await runWebSocketTests();
-  exitCode = await reportTestResults();
 }

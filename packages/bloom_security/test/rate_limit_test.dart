@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:bloom_security/bloom_security.dart';
 import 'package:bloom_server/bloom_server.dart';
-import 'test_helpers.dart';
+import 'package:test/test.dart';
 
 class _MockCustomRateLimitStore implements BloomRateLimitStore {
   int recordCount = 0;
@@ -40,26 +39,25 @@ class _MockCustomRateLimitStore implements BloomRateLimitStore {
   }
 }
 
-Future<void> runRateLimitTests() async {
-  await group('BloomRateLimitMiddleware Security Tests', () {
+void main() {
+  group('BloomRateLimitMiddleware Security Tests', () {
     test(
         'Validates maxRequests > 0, window > Duration.zero, and cleanupInterval > Duration.zero',
         () {
-      expectThrows<ArgumentError>(() {
-        BloomRateLimitMiddleware(maxRequests: 0);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomRateLimitMiddleware(maxRequests: -5);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomRateLimitMiddleware(window: Duration.zero);
-      });
-      expectThrows<ArgumentError>(() {
-        BloomRateLimitMiddleware(window: const Duration(seconds: -1));
-      });
-      expectThrows<ArgumentError>(() {
-        BloomRateLimitMiddleware(cleanupInterval: Duration.zero);
-      });
+      expect(() => BloomRateLimitMiddleware(maxRequests: 0),
+          throwsArgumentError);
+      expect(() => BloomRateLimitMiddleware(maxRequests: -5),
+          throwsArgumentError);
+      expect(() => BloomRateLimitMiddleware(window: Duration.zero),
+          throwsArgumentError);
+      expect(
+          () => BloomRateLimitMiddleware(
+              window: const Duration(seconds: -1)),
+          throwsArgumentError);
+      expect(
+          () => BloomRateLimitMiddleware(
+              cleanupInterval: Duration.zero),
+          throwsArgumentError);
     });
 
     test(
@@ -402,10 +400,4 @@ Future<void> runRateLimitTests() async {
       }
     });
   });
-}
-
-void main() async {
-  resetTestCounts();
-  await runRateLimitTests();
-  exitCode = await reportTestResults();
 }
