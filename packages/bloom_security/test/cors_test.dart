@@ -1,10 +1,9 @@
-import 'dart:io';
 import 'package:bloom_security/bloom_security.dart';
 import 'package:bloom_server/bloom_server.dart';
-import 'test_helpers.dart';
+import 'package:test/test.dart';
 
-Future<void> runCorsTests() async {
-  await group('BloomAdvancedCorsMiddleware Security Tests', () {
+void main() {
+  group('BloomAdvancedCorsMiddleware Security Tests', () {
     test(
         'Defaults to deny-by-default (empty allowedOrigins rejects cross-origin)',
         () async {
@@ -30,12 +29,12 @@ Future<void> runCorsTests() async {
     test(
         'Throws ArgumentError if wildcard origin is configured with allowCredentials = true',
         () {
-      expectThrows<ArgumentError>(() {
+      expect(() {
         BloomAdvancedCorsMiddleware(
           allowedOrigins: const ['*'],
           allowCredentials: true,
         );
-      });
+      }, throwsArgumentError);
     });
 
     test(
@@ -248,10 +247,4 @@ Future<void> runCorsTests() async {
           'X-Trace-Id, X-Total-Count');
     });
   });
-}
-
-void main() async {
-  resetTestCounts();
-  await runCorsTests();
-  exitCode = await reportTestResults();
 }

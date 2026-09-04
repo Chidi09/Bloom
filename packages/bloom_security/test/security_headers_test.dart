@@ -1,10 +1,9 @@
-import 'dart:io';
 import 'package:bloom_security/bloom_security.dart';
 import 'package:bloom_server/bloom_server.dart';
-import 'test_helpers.dart';
+import 'package:test/test.dart';
 
-Future<void> runSecurityHeadersTests() async {
-  await group('BloomSecurityHeadersMiddleware Tests', () {
+void main() {
+  group('BloomSecurityHeadersMiddleware Tests', () {
     test('Emits standard defense-in-depth security headers', () async {
       const middleware = BloomSecurityHeadersMiddleware();
 
@@ -104,10 +103,4 @@ Future<void> runSecurityHeadersTests() async {
       expect(res?.headers['x-custom-security'], 'active');
     });
   });
-}
-
-void main() async {
-  resetTestCounts();
-  await runSecurityHeadersTests();
-  exitCode = await reportTestResults();
 }
