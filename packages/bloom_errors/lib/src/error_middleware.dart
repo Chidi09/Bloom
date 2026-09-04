@@ -47,7 +47,18 @@ class BloomErrorMiddleware implements BloomMiddleware {
   /// Optional callback invoked whenever an error is intercepted (e.g. for logging or APM).
   ///
   /// Receives the intercepted error object and the accompanying stack trace.
+  ///
+  /// For request context (correlation), use [onErrorWithContext] instead, which
+  /// additionally receives the originating [BloomRequest].
   final void Function(Object error, StackTrace stackTrace)? onError;
+
+  /// Optional callback invoked whenever an error is intercepted, with request context.
+  ///
+  /// Receives the intercepted error object, the accompanying stack trace, and the
+  /// originating [BloomRequest] (usable for correlation — e.g. its method and URI).
+  /// Mutually independent from [onError]; set either or both.
+  final void Function(Object error, StackTrace stackTrace, BloomRequest request)?
+      onErrorWithContext;
 
   /// Optional override for the application environment string (e.g. `'production'`, `'local'`).
   ///
@@ -67,6 +78,7 @@ class BloomErrorMiddleware implements BloomMiddleware {
   /// ```
   const BloomErrorMiddleware({
     this.onError,
+    this.onErrorWithContext,
     this.environment,
   });
 
@@ -82,7 +94,18 @@ class BloomErrorMiddleware implements BloomMiddleware {
       final response = await next();
       return response;
     } catch (error, stackTrace) {
-      onError?.call(error, stackTrace);
+      // Observability must never break the response: a throwing onError
+      // callback is swallowed (after being logged to the console).
+      if (onError != null || onErrorWithContext != null) {
+        try {
+          onError?.call(error, stackTrace);
+          onErrorWithContext?.call(error, stackTrace, request);
+        } catch (callbackError, callbackStackTrace) {
+          // ignore: avoid_print
+          print('BloomErrorMiddleware.onError callback threw: '
+              '$callbackError\n$callbackStackTrace');
+        }
+      }
       return _renderErrorResponse(error, stackTrace);
     }
   }
