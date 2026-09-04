@@ -181,6 +181,14 @@ class BloomViewSetOptions<T extends Model> {
 /// Endpoints are **AUTHENTICATED BY DEFAULT** using [IsAuthenticated].
 /// Public access requires explicitly specifying [AllowAny].
 ///
+/// WARNING: request-level [BloomRestPermission.hasPermission] alone does NOT
+/// scope rows to owners/tenants. Detail actions additionally enforce
+/// [BloomRestPermission.hasObjectPermission] after fetching the row (deny ->
+/// 404), but the stock permission allows all objects. Override
+/// `hasObjectPermission` (or scope via `getDb`/filter backends for `list`)
+/// before exposing user-owned or multi-tenant data, or any authenticated
+/// user can read/write/delete any row by id.
+///
 /// Example:
 /// ```dart
 /// final viewSet = BloomViewSet<Article>(
@@ -248,6 +256,17 @@ class BloomViewSet<T extends Model> {
       }
     }
 
+    return null;
+  }
+
+  /// Enforces the object-level permission for a fetched detail row.
+  ///
+  /// Returns a 404 response when [options.permission.hasObjectPermission]
+  /// denies, so denied ids are indistinguishable from missing ids.
+  /// Returns `null` when allowed.
+  Future<BloomResponse?> _guardObject(BloomRequest req, Object item) async {
+    final allowed = await options.permission.hasObjectPermission(req, item);
+    if (!allowed) return BloomResponse.notFound('Record not found');
     return null;
   }
 
@@ -451,6 +470,8 @@ class BloomViewSet<T extends Model> {
 
     try {
       final item = await qs.get(db);
+      final denied = await _guardObject(req, item);
+      if (denied != null) return denied;
       return BloomResponse.json(options.serializer.toRepresentation(item));
     } on BloomOrmNotFoundError {
       return BloomResponse.notFound('Record not found');
@@ -541,6 +562,16 @@ class BloomViewSet<T extends Model> {
     final qs = QuerySet<T>(meta: meta, fromRow: fromRow).filter({pkField: pk});
 
     try {
+      // Fetch first so object-level authz runs before any mutation.
+      late T existing;
+      try {
+        existing = await qs.get(db);
+      } on BloomOrmNotFoundError {
+        return BloomResponse.notFound('Record not found');
+      }
+      final denied = await _guardObject(req, existing);
+      if (denied != null) return denied;
+
       final updatedCount = await qs.update(db, values ?? {});
       if (updatedCount == 0) {
         return BloomResponse.notFound('Record not found');
@@ -577,6 +608,14 @@ class BloomViewSet<T extends Model> {
     final qs = QuerySet<T>(meta: meta, fromRow: fromRow).filter({pkField: pk});
 
     try {
+      // Fetch first so object-level authz runs before any mutation.
+      try {
+        final existing = await qs.get(db);
+        final denied = await _guardObject(req, existing);
+        if (denied != null) return denied;
+      } on BloomOrmNotFoundError {
+        return BloomResponse.notFound('Record not found');
+      }
       final deletedCount = await qs.delete(db);
       if (deletedCount == 0) {
         return BloomResponse.notFound('Record not found');
@@ -620,6 +659,11 @@ class BloomViewSet<T extends Model> {
 ///
 /// Secure by default: endpoints require authentication unless [BloomViewSetOptions.permission]
 /// is explicitly configured with [AllowAny].
+///
+/// WARNING: authentication alone does not scope rows. Override
+/// [BloomRestPermission.hasObjectPermission] (and/or scope `getDb`/filters
+/// for `list`) for owner/tenant data — otherwise any authenticated user can
+/// address any row by id on detail routes.
 ///
 /// Example:
 /// ```dart

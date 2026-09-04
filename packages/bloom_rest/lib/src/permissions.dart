@@ -7,16 +7,25 @@ import 'package:bloom_server/bloom_server.dart';
 /// Implement this class to enforce authorization rules on ViewSet endpoints. Permissions
 /// can be combined using [and], [or], [negate] (or their operator equivalents `&`, `|`, `~`).
 ///
+/// Request-level [hasPermission] gates all actions. Detail actions
+/// (`retrieve`/`update`/`destroy`) additionally call [hasObjectPermission]
+/// after fetching the row, so per-row ownership/tenant checks have a
+/// documented hook. The default object check allows everything (backward
+/// compatible); override it to deny other users' rows.
+///
+/// Denied detail reads return **404** (not 403) so a denied id is
+/// indistinguishable from a missing id (no existence oracle).
+///
 /// Example:
 /// ```dart
-/// class HasOrgMembership extends BloomRestPermission {
-///   final String orgId;
-///   const HasOrgMembership(this.orgId);
-///
+/// class IsOwner extends BloomRestPermission {
+///   const IsOwner();
 ///   @override
-///   bool hasPermission(BloomRequest req) {
-///     final userOrgs = req.params['auth_orgs']?.split(',') ?? [];
-///     return userOrgs.contains(orgId);
+///   bool hasPermission(BloomRequest req) => resolveCurrentUserId(req) != null;
+///   @override
+///   bool hasObjectPermission(BloomRequest req, Object item) {
+///     final userId = resolveCurrentUserId(req);
+///     return (item as Article).ownerId == userId;
 ///   }
 /// }
 /// ```
@@ -30,6 +39,13 @@ abstract class BloomRestPermission {
   ///
   /// Returns `true` if access is granted, or `false` to deny access (yielding a 401 Unauthorized response).
   FutureOr<bool> hasPermission(BloomRequest req);
+
+  /// Object-level check run after a detail row is fetched.
+  ///
+  /// [item] is the deserialized model row (as [Object] so the non-generic
+  /// base class stays implementable; cast to your model type).
+  /// Return `false` to deny with a 404. Defaults to `true`.
+  FutureOr<bool> hasObjectPermission(BloomRequest req, Object item) => true;
 }
 
 /// Composable combinator extension methods for [BloomRestPermission].
@@ -76,6 +92,13 @@ class BloomAndPermission extends BloomRestPermission {
     if (!resA) return false;
     return await b.hasPermission(req);
   }
+
+  @override
+  Future<bool> hasObjectPermission(BloomRequest req, Object item) async {
+    final resA = await a.hasObjectPermission(req, item);
+    if (!resA) return false;
+    return await b.hasObjectPermission(req, item);
+  }
 }
 
 /// Combinator requiring either policy (A OR B).
@@ -97,6 +120,13 @@ class BloomOrPermission extends BloomRestPermission {
     if (resA) return true;
     return await b.hasPermission(req);
   }
+
+  @override
+  Future<bool> hasObjectPermission(BloomRequest req, Object item) async {
+    final resA = await a.hasObjectPermission(req, item);
+    if (resA) return true;
+    return await b.hasObjectPermission(req, item);
+  }
 }
 
 /// Combinator inverting a policy (NOT P).
@@ -112,6 +142,12 @@ class BloomNotPermission extends BloomRestPermission {
   @override
   Future<bool> hasPermission(BloomRequest req) async {
     final res = await inner.hasPermission(req);
+    return !res;
+  }
+
+  @override
+  Future<bool> hasObjectPermission(BloomRequest req, Object item) async {
+    final res = await inner.hasObjectPermission(req, item);
     return !res;
   }
 }
