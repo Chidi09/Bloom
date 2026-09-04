@@ -178,15 +178,12 @@ void main() {
         );
         // Two anonymous callers consume the single shared budget…
         expect(await throttle.allowRequest(anonReq()), isTrue);
-        expect(
-            await throttle.allowRequest(
-                anonReq(forwardedFor: '9.9.9.9')),
+        expect(await throttle.allowRequest(anonReq(forwardedFor: '9.9.9.9')),
             isTrue);
         // …so a third anonymous caller (even with a different spoofed IP)
         // is 429'd: spoofed headers never create a new bucket.
         expect(
-            await throttle.allowRequest(
-                anonReq(forwardedFor: '10.10.10.10')),
+            await throttle.allowRequest(anonReq(forwardedFor: '10.10.10.10')),
             isFalse);
       });
 
@@ -276,6 +273,21 @@ void main() {
       expect(await throttle.allowRequest(req), isTrue);
       expect(await throttle.allowRequest(req), isTrue);
       expect(await throttle.allowRequest(req), isFalse);
+    });
+
+    test('InMemoryAtomicThrottleStore evicts least-recently-used keys',
+        () async {
+      final store = InMemoryAtomicThrottleStore(maxKeys: 2);
+      const window = Duration(minutes: 1);
+
+      expect(await store.allowRequest('a', 1, window), isTrue);
+      expect(await store.allowRequest('b', 1, window), isTrue);
+      // Touch b so a is the least recently used key.
+      expect(await store.allowRequest('b', 1, window), isFalse);
+      expect(await store.allowRequest('c', 1, window), isTrue);
+      // a was evicted and receives a fresh budget.
+      expect(await store.allowRequest('a', 1, window), isTrue);
+      store.clear();
     });
 
     test(

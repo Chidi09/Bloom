@@ -227,9 +227,15 @@ abstract class BloomAtomicThrottleStore {
 /// event loop to guarantee atomic token accounting without async interleaving.
 class InMemoryAtomicThrottleStore extends BloomAtomicThrottleStore {
   final Map<String, List<int>> _storage = {};
+  final Map<String, int> _lastAccess = {};
+  final int maxKeys;
 
   /// Creates a new [InMemoryAtomicThrottleStore].
-  InMemoryAtomicThrottleStore();
+  ///
+  /// [maxKeys] bounds memory usage when callers supply unbounded identities.
+  /// The least-recently-used bucket is evicted when the cap is reached.
+  InMemoryAtomicThrottleStore({this.maxKeys = 10000})
+      : assert(maxKeys > 0, 'maxKeys must be greater than zero');
 
   @override
   Future<bool> allowRequest(
@@ -237,7 +243,15 @@ class InMemoryAtomicThrottleStore extends BloomAtomicThrottleStore {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cutoff = now - window.inMilliseconds;
 
+    if (!_storage.containsKey(key) && _storage.length >= maxKeys) {
+      final oldest = _lastAccess.entries.reduce(
+        (a, b) => a.value <= b.value ? a : b,
+      );
+      _storage.remove(oldest.key);
+      _lastAccess.remove(oldest.key);
+    }
     final timestamps = _storage.putIfAbsent(key, () => <int>[]);
+    _lastAccess[key] = now;
     timestamps.removeWhere((t) => t <= cutoff);
 
     if (timestamps.length >= maxRequests) {
@@ -249,7 +263,10 @@ class InMemoryAtomicThrottleStore extends BloomAtomicThrottleStore {
   }
 
   /// Clears all stored rate limit keys.
-  void clear() => _storage.clear();
+  void clear() {
+    _storage.clear();
+    _lastAccess.clear();
+  }
 }
 
 /// DRF-style request throttle supporting atomic storage engines and [BloomCache] backends.

@@ -309,6 +309,10 @@ String encodeCursor(dynamic pk, dynamic sortValue) {
 /// Stable under concurrent insertions and deletions by utilizing SQL keyset filtering
 /// instead of offset counting.
 ///
+/// This implementation is forward-only: `previous_cursor` is currently always
+/// `null`. Clients that need backward navigation should retain earlier cursors
+/// or restart from the beginning.
+///
 /// Example Response:
 /// ```json
 /// {

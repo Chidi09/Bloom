@@ -391,45 +391,42 @@ class BloomViewSet<T extends Model> {
       final rawCursor = req.queryParams['cursor'];
       if (rawCursor != null && rawCursor.isNotEmpty) {
         final decoded = decodeCursor(rawCursor);
-        if (decoded != null) {
-          final (cursorPk, rawVal) = decoded;
-          final pkBloomVal =
-              parseTypedValue(meta, pkField, cursorPk.toString()) ??
-                  (cursorPk is int
-                      ? BloomValue.i64(cursorPk)
-                      : BloomValue.text(cursorPk.toString()));
-          if (rawVal != null && cursorOrderField != pkField) {
-            final parsedVal = parseTypedValue(meta, cursorOrderField, rawVal);
-            if (parsedVal != null) {
-              final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
-              final pkOp = cursorDescending ? CompareOp.lt : CompareOp.gt;
-              qs = qs.filter(BloomExpr.or([
-                BloomExpr.compare(
-                    field: cursorOrderField, op: op, value: parsedVal),
-                BloomExpr.and([
-                  BloomExpr.compare(
-                      field: cursorOrderField,
-                      op: CompareOp.eq,
-                      value: parsedVal),
-                  BloomExpr.compare(
-                    field: pkField,
-                    op: pkOp,
-                    value: pkBloomVal,
-                  ),
-                ]),
-              ]));
-            } else {
-              final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
-              qs = qs.filter(
-                BloomExpr.compare(field: pkField, op: op, value: pkBloomVal),
-              );
-            }
-          } else {
-            final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
-            qs = qs.filter(
-              BloomExpr.compare(field: pkField, op: op, value: pkBloomVal),
-            );
+        if (decoded == null) {
+          return BloomResponse.error('Invalid cursor', statusCode: 400);
+        }
+
+        final (cursorPk, rawVal) = decoded;
+        final pkBloomVal = parseTypedValue(meta, pkField, cursorPk.toString());
+        if (pkBloomVal == null) {
+          return BloomResponse.error('Invalid cursor primary key',
+              statusCode: 400);
+        }
+        if (rawVal != null && cursorOrderField != pkField) {
+          final parsedVal = parseTypedValue(meta, cursorOrderField, rawVal);
+          if (parsedVal == null) {
+            return BloomResponse.error('Invalid cursor ordering value',
+                statusCode: 400);
           }
+          final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
+          final pkOp = cursorDescending ? CompareOp.lt : CompareOp.gt;
+          qs = qs.filter(BloomExpr.or([
+            BloomExpr.compare(
+                field: cursorOrderField, op: op, value: parsedVal),
+            BloomExpr.and([
+              BloomExpr.compare(
+                  field: cursorOrderField, op: CompareOp.eq, value: parsedVal),
+              BloomExpr.compare(
+                field: pkField,
+                op: pkOp,
+                value: pkBloomVal,
+              ),
+            ]),
+          ]));
+        } else {
+          final op = cursorDescending ? CompareOp.lt : CompareOp.gt;
+          qs = qs.filter(
+            BloomExpr.compare(field: pkField, op: op, value: pkBloomVal),
+          );
         }
       }
 
