@@ -140,5 +140,40 @@ void main() {
       expect(joined, contains('inner-loading'));
       expect(joined, contains('outer-inner'));
     });
+
+    test('concurrent streams isolate keyframe dedup state (#16)', () async {
+      const anim = BloomAnimation(
+        name: 'spin',
+        keyframes: [
+          BloomKeyframe(offset: 0.0, styles: {'opacity': '0'}),
+          BloomKeyframe(offset: 1.0, styles: {'opacity': '1'}),
+        ],
+      );
+      BloomNode page(String label, int delayMs) => Div(children: [
+            Animated(animation: anim, child: Div(text: '$label-shell')),
+            Suspense<String>(
+              resource: () => Future.delayed(
+                  Duration(milliseconds: delayMs), () => '$label-resolved'),
+              builder: (data) =>
+                  Animated(animation: anim, child: Div(text: data)),
+              fallback: Div(text: 'loading'),
+            ),
+          ]);
+
+      // Interleaved resolutions: B resolves before A.
+      final futureA = renderToStreamWithSuspense(page('A', 30)).join();
+      final futureB = renderToStreamWithSuspense(page('B', 10)).join();
+      final results = await Future.wait([futureA, futureB]);
+
+      expect(results[0], contains('A-shell'));
+      expect(results[0], contains('A-resolved'));
+      expect(results[1], contains('B-shell'));
+      expect(results[1], contains('B-resolved'));
+      // Each stream emits the shared @keyframes block exactly once: shell
+      // emits it, the late-resolved patch dedups it within its own stream.
+      for (final joined in results) {
+        expect('@keyframes spin'.allMatches(joined).length, 1);
+      }
+    });
   });
 }

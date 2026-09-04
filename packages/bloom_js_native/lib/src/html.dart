@@ -100,15 +100,30 @@ String escapeHtml(String input) {
 /// );
 /// ```
 String renderToHtml(BloomNode node) {
-  _emittedKeyframeNames.clear();
-  final buf = StringBuffer();
-  _render(node, buf);
-  return buf.toString();
+  return runZoned(() {
+    final buf = StringBuffer();
+    _render(node, buf);
+    return buf.toString();
+  }, zoneValues: {_keyframesZoneKey: <String>{}});
 }
 
-/// Tracks animation names whose `@keyframes` block has already been emitted
-/// in the current top-level render pass. Cleared at the start of every
-/// public render entrypoint.
+/// Zone key scoping animation-keyframe deduplication to a single top-level
+/// render pass. A previous global mutable set was shared across concurrent
+/// SSR streams: one stream's `clear()`/entries corrupted another's,
+/// dropping or duplicating `@keyframes` blocks. Each public entrypoint runs
+/// in its own zone with a fresh set; async Suspense continuations inherit
+/// the zone they were scheduled in, so concurrent streams stay isolated.
+const _keyframesZoneKey = #bloom.keyframes;
+
+/// The keyframe-name set for the current render pass, or the shared fallback
+/// when rendering outside a public entrypoint (private [_render] only).
+Set<String> get _activeKeyframeNames =>
+    Zone.current[_keyframesZoneKey] as Set<String>? ?? _emittedKeyframeNames;
+
+/// Tracks animation names whose `@keyframes` block has already been emitted.
+///
+/// Legacy shared fallback for [_activeKeyframeNames]; public entrypoints no
+/// longer use it directly (they run zoned with a fresh set).
 final Set<String> _emittedKeyframeNames = {};
 
 /// Hook invoked by [_render] whenever it encounters a [SuspenseNode], used
@@ -227,7 +242,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       buf.write(html);
 
     case AnimatedNode(:final child, :final animation):
-      if (_emittedKeyframeNames.add(animation.name)) {
+      if (_activeKeyframeNames.add(animation.name)) {
         buf.write('<style>${animation.toKeyframesCSS()}</style>');
       }
       buf.write('<div style="${animation.toInlineStyle()}">');
@@ -284,12 +299,13 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
 /// ]);
 /// ```
 String renderToHtmlAll(List<BloomNode> nodes) {
-  _emittedKeyframeNames.clear();
-  final buf = StringBuffer();
-  for (final n in nodes) {
-    _render(n, buf);
-  }
-  return buf.toString();
+  return runZoned(() {
+    final buf = StringBuffer();
+    for (final n in nodes) {
+      _render(n, buf);
+    }
+    return buf.toString();
+  }, zoneValues: {_keyframesZoneKey: <String>{}});
 }
 
 /// Renders a complete HTML5 document wrapping [body] with standard boilerplate.
@@ -324,32 +340,34 @@ String renderToDocument(
   List<String> stylesheets = const [],
   List<String> scripts = const [],
 }) {
-  _emittedKeyframeNames.clear();
-  final buf = StringBuffer();
-  buf.write('<!DOCTYPE html>\n<html lang="${escapeHtml(lang)}">\n<head>\n');
-  buf.write('<meta charset="${escapeHtml(charset)}">\n');
-  buf.write('<meta name="viewport" content="width=device-width, initial-scale=1">\n');
-  if (title != null) {
-    buf.write('<title>${escapeHtml(title)}</title>\n');
-  }
-  if (importMapJson != null) {
-    buf.write('<script type="importmap">$importMapJson</script>\n');
-  }
-  for (final url in stylesheets) {
-    buf.write('<link rel="stylesheet" href="${escapeHtml(url)}">\n');
-  }
-  for (final node in head) {
-    _render(node, buf);
+  return runZoned(() {
+    final buf = StringBuffer();
+    buf.write('<!DOCTYPE html>\n<html lang="${escapeHtml(lang)}">\n<head>\n');
+    buf.write('<meta charset="${escapeHtml(charset)}">\n');
+    buf.write(
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n');
+    if (title != null) {
+      buf.write('<title>${escapeHtml(title)}</title>\n');
+    }
+    if (importMapJson != null) {
+      buf.write('<script type="importmap">$importMapJson</script>\n');
+    }
+    for (final url in stylesheets) {
+      buf.write('<link rel="stylesheet" href="${escapeHtml(url)}">\n');
+    }
+    for (final node in head) {
+      _render(node, buf);
+      buf.write('\n');
+    }
+    buf.write('</head>\n<body>\n');
+    _render(body, buf);
     buf.write('\n');
-  }
-  buf.write('</head>\n<body>\n');
-  _render(body, buf);
-  buf.write('\n');
-  for (final url in scripts) {
-    buf.write('<script src="${escapeHtml(url)}"></script>\n');
-  }
-  buf.write('</body>\n</html>');
-  return buf.toString();
+    for (final url in scripts) {
+      buf.write('<script src="${escapeHtml(url)}"></script>\n');
+    }
+    buf.write('</body>\n</html>');
+    return buf.toString();
+  }, zoneValues: {_keyframesZoneKey: <String>{}});
 }
 
 /// Synchronously renders [node] to an HTML string and streams the output in fixed 4KB chunks.
@@ -364,16 +382,20 @@ String renderToDocument(
 ///   httpResponse.write(chunk);
 /// }
 /// ```
-Stream<String> renderToStream(BloomNode node) async* {
-  _emittedKeyframeNames.clear();
-  final buf = StringBuffer();
-  _render(node, buf);
+Stream<String> renderToStream(BloomNode node) {
+  // Rendered eagerly so keyframe deduplication is scoped to this call's own
+  // zone even when multiple streams are listened to concurrently; only the
+  // 4KB chunking below is lazy.
+  final html = renderToHtml(node);
   const chunkSize = 4096;
-  final str = buf.toString();
-  for (var i = 0; i < str.length; i += chunkSize) {
-    yield str.substring(
-        i, i + chunkSize > str.length ? str.length : i + chunkSize);
+  Iterable<String> chunks() sync* {
+    for (var i = 0; i < html.length; i += chunkSize) {
+      yield html.substring(
+          i, i + chunkSize > html.length ? html.length : i + chunkSize);
+    }
   }
+
+  return Stream.fromIterable(chunks());
 }
 
 /// Progressively streams HTML with out-of-order resolution for asynchronous [Suspense] boundaries.
@@ -406,9 +428,7 @@ Stream<String> renderToStream(BloomNode node) async* {
 ///   httpResponse.write(chunk);
 /// }
 /// ```
-Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
-  _emittedKeyframeNames.clear();
-
+Stream<String> renderToStreamWithSuspense(BloomNode node) {
   final shellBuf = StringBuffer();
   final controller = StreamController<String>();
   var outstanding = 0;
@@ -479,14 +499,28 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) async* {
     }();
   }
 
-  _render(node, shellBuf, onSuspense);
-  shellDone = true;
-  // Closes immediately if no boundary was encountered (outstanding stays 0).
-  // If boundaries resolved synchronously-fast enough to have already closed
-  // the controller by this point, buffered events are still delivered once
-  // `controller.stream` gets its listener below — never skip the `yield*`.
-  maybeClose();
+  // The shell renders eagerly inside a fresh keyframe zone so concurrent
+  // streams cannot corrupt each other's `@keyframes` deduplication state.
+  // Async Suspense continuations scheduled above inherit this zone, keeping
+  // late-resolved patches scoped to their own stream. Only the chunk
+  // delivery in [tail] below is lazy.
+  late final String shell;
+  runZoned(() {
+    _render(node, shellBuf, onSuspense);
+    shellDone = true;
+    // Closes immediately if no boundary was encountered (outstanding stays
+    // 0). If boundaries resolved synchronously-fast enough to have already
+    // closed the controller by this point, buffered events are still
+    // delivered once `controller.stream` gets its listener below — never
+    // skip the subscription.
+    maybeClose();
+    shell = shellBuf.toString();
+  }, zoneValues: {_keyframesZoneKey: <String>{}});
+  final shellSnapshot = shell;
+  Stream<String> tail() async* {
+    yield shellSnapshot;
+    yield* controller.stream;
+  }
 
-  yield shellBuf.toString();
-  yield* controller.stream;
+  return tail();
 }
