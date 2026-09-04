@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 - 2026-09-04
 
 ### Added
 * **New common HTTP exception types (#30)**: `BloomMethodNotAllowedException` (405 `method_not_allowed`, with optional `allowed` methods in `details`), `BloomServiceUnavailableException` (503 `service_unavailable`), plus `BloomRequestTimeoutException` (408) and `BloomUnsupportedMediaTypeException` (415) following the existing patterns.

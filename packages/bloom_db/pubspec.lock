@@ -39,7 +39,7 @@ packages:
       path: "../bloom_db_generator"
       relative: true
     source: path
-    version: "0.1.0"
+    version: "0.1.1"
   boolean_selector:
     dependency: transitive
     description:

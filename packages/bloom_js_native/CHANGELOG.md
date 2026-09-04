@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.7 - 2026-09-04
 
 ### Fixed
 * **Per-render keyframe dedup scope (#16)**: animation `@keyframes` dedup state is now scoped to each top-level SSR render via zones instead of a shared global set, so concurrent `renderToStreamWithSuspense` streams can no longer drop or duplicate each other's `@keyframes` blocks. `renderToStream` renders eagerly (chunking stays lazy) with identical bytes.

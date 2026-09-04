@@ -39,7 +39,7 @@ packages:
       path: "../bloom_js_native"
       relative: true
     source: path
-    version: "0.3.6"
+    version: "0.3.7"
   bloom_seo:
     dependency: "direct overridden"
     description:
