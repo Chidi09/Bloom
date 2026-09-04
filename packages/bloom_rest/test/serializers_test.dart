@@ -280,6 +280,48 @@ void main() {
       expect(errors?.toMap()['username']?.first,
           'The username "admin" is reserved.');
     });
+
+    test('rejects fractional numeric booleans', () {
+      final serializer = BloomModelSerializer<TestUser>(meta: TestUser.meta);
+      final (values, errors) = serializer.parse({
+        'username': 'fractional',
+        'email': 'fractional@example.com',
+        'is_active': 0.5,
+        'created_at': '2026-08-25T12:00:00Z',
+      });
+
+      expect(values, isNull);
+      expect(errors?.toMap().containsKey('is_active'), isTrue);
+    });
+
+    test('rejects garbage date values and relation-name typos', () {
+      final dateMeta = ModelMeta(
+        structName: 'DateInput',
+        appLabel: 'test',
+        tableName: 'date_inputs',
+        fields: [
+          FieldMeta(
+            name: 'birth_date',
+            columnName: 'birth_date',
+            kind: FieldKind.date,
+          ),
+        ],
+      );
+      final dateSerializer = BloomModelSerializer<TestUser>(meta: dateMeta);
+      final (_, dateErrors) = dateSerializer.parse(
+        {'birth_date': 'not-a-date'},
+        partial: true,
+      );
+      expect(dateErrors?.toMap().containsKey('birth_date'), isTrue);
+
+      final serializer = BloomModelSerializer<TestUser>(meta: TestUser.meta);
+      expect(
+        () => serializer.toRepresentationNested(sampleUser, {
+          'misspelled_relation': {'id': 1},
+        }),
+        throwsArgumentError,
+      );
+    });
   });
 
   group('BloomValidationErrors', () {

@@ -212,9 +212,14 @@ abstract class BloomSerializer<T extends Model> {
     final base = toRepresentation(instance);
     final map = Map<String, dynamic>.from(base);
     for (final entry in related.entries) {
-      if (map.containsKey(entry.key)) {
-        map[entry.key] = entry.value;
+      if (!map.containsKey(entry.key)) {
+        throw ArgumentError.value(
+          entry.key,
+          'related',
+          'Related field does not exist in the serialized representation',
+        );
       }
+      map[entry.key] = entry.value;
     }
     return map;
   }
@@ -457,8 +462,6 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
             errors.add(
                 field.name, "Field '${field.name}' must be a valid boolean.");
           }
-        } else if (rawVal is num) {
-          values[field.name] = rawVal != 0;
         } else {
           errors.add(
               field.name, "Field '${field.name}' must be a valid boolean.");
@@ -512,12 +515,20 @@ class BloomModelSerializer<T extends Model> extends BloomSerializer<T> {
         }
       } else if (kind == FieldKind.date) {
         if (rawVal is String) {
-          values[field.name] = rawVal;
+          final parsed = DateTime.tryParse(rawVal);
+          final isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(rawVal);
+          if (parsed != null && isoDate) {
+            values[field.name] = rawVal;
+          } else {
+            errors.add(field.name,
+                "Field '${field.name}' must be in YYYY-MM-DD format.");
+          }
         } else if (rawVal is DateTime) {
           values[field.name] =
               "${rawVal.year.toString().padLeft(4, '0')}-${rawVal.month.toString().padLeft(2, '0')}-${rawVal.day.toString().padLeft(2, '0')}";
         } else {
-          values[field.name] = rawVal.toString();
+          errors.add(field.name,
+              "Field '${field.name}' must be in YYYY-MM-DD format.");
         }
       } else {
         // String, text, json, email, url, etc.

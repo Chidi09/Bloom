@@ -12,6 +12,7 @@
 
 ### Fixed
 * **Default max page size (#7)**: `BloomViewSetConfig.maxPageSize`, `PageNumberPagination.maxPageSize`, and `CursorPagination.maxPageSize` now default to `kRestPerPage` (100), so `?page_size=1000000` is clamped instead of becoming a full-table scan plus uncached count.
+* **REST hardening bundle (#9)**: malformed/invalid cursor tokens now return 400 instead of silently returning page one; cursor pagination documents its forward-only `previous_cursor: null` behavior; `InMemoryAtomicThrottleStore` evicts least-recently-used keys at its configurable cap; boolean/date coercions reject fractional numbers and garbage dates; nested serializer relation-name mismatches throw `ArgumentError`.
 
 ## 0.2.2 - 2026-08-31
 

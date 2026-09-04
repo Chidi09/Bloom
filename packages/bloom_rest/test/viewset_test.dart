@@ -241,8 +241,7 @@ void main() {
         await seedArticles();
         await db.execute('DROP TABLE articles');
         Object? logged;
-        final viewSet = failingViewSet(
-            onInternalError: (e, st) => logged = e);
+        final viewSet = failingViewSet(onInternalError: (e, st) => logged = e);
         final res = await viewSet.retrieve(BloomRequest(
           method: 'GET',
           uri: Uri.parse('http://localhost/api/articles/1'),
@@ -270,8 +269,7 @@ void main() {
           },
         ));
         expect(createRes.statusCode, 500);
-        expect(
-            (createRes.bodyJson as Map<String, dynamic>)['error'],
+        expect((createRes.bodyJson as Map<String, dynamic>)['error'],
             'Internal Server Error');
 
         final updateRes = await viewSet.update(BloomRequest(
@@ -326,8 +324,8 @@ void main() {
         expect((await viewSet.retrieve(pkReq('GET', '2'))).statusCode, 200);
 
         // update: denied -> 404 and row unchanged
-        final deniedUpdate = await viewSet.update(
-            pkReq('PATCH', '1', body: {'title': 'Hacked'}));
+        final deniedUpdate = await viewSet
+            .update(pkReq('PATCH', '1', body: {'title': 'Hacked'}));
         expect(deniedUpdate.statusCode, 404);
         final allowedViewSet = BloomViewSet<Article>(
           meta: Article.meta,
@@ -340,18 +338,17 @@ void main() {
         );
         final check = await allowedViewSet.retrieve(pkReq('GET', '1'));
         expect(check.statusCode, 200);
-        expect(
-            (check.bodyJson as Map<String, dynamic>)['title'], 'Article 1');
+        expect((check.bodyJson as Map<String, dynamic>)['title'], 'Article 1');
 
         // allowed update still works
-        final okUpdate = await viewSet.update(
-            pkReq('PATCH', '2', body: {'title': 'Edited'}));
+        final okUpdate = await viewSet
+            .update(pkReq('PATCH', '2', body: {'title': 'Edited'}));
         expect(okUpdate.statusCode, 200);
 
         // destroy: denied -> 404 and row still exists
         expect((await viewSet.destroy(pkReq('DELETE', '3'))).statusCode, 404);
-        expect((await allowedViewSet.retrieve(pkReq('GET', '3'))).statusCode,
-            200);
+        expect(
+            (await allowedViewSet.retrieve(pkReq('GET', '3'))).statusCode, 200);
       });
     });
 
@@ -618,6 +615,29 @@ void main() {
       final p2Results =
           (p2Json['results'] as List).cast<Map<String, dynamic>>();
       expect(p2Results.map((r) => r['id']), [6, 5, 4, 3]);
+    });
+
+    test('malformed cursor returns 400 instead of silently returning page one',
+        () async {
+      await seedArticles();
+      final viewSet = BloomViewSet<Article>(
+        meta: Article.meta,
+        fromRow: Article.fromRow,
+        getDb: (_) => db,
+        options: BloomViewSetOptions<Article>(
+          permission: const AllowAny(),
+          serializer: BloomModelSerializer<Article>(meta: Article.meta),
+          pagination: const CursorPagination(defaultPageSize: 3),
+        ),
+      );
+
+      final response = await viewSet.list(BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('http://localhost/api/articles?cursor=not-a-cursor'),
+      ));
+      expect(response.statusCode, 400);
+      expect((response.bodyJson as Map<String, dynamic>)['error'],
+          'Invalid cursor');
     });
   });
 }
