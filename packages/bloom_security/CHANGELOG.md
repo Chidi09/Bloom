@@ -1,3 +1,12 @@
+# Unreleased
+
+### Security
+* **Shared anonymous bucket warning (#24)**: the default key extractor prints a loud one-time warning when all anonymous clients share the `anonymous_peer` bucket; middleware/library/README docs now show `peerAddressExtractor` wiring from the server adapter.
+
+### Fixed
+* **Window-aware stale-bucket prune (#25)**: `BloomInMemoryRateLimitStore` retains entries for the longest enforced window (min 60s) instead of a hardcoded 10-minute cutoff, so hour-long windows stay enforced. Added a `debugPrune` testing hook; failed middleware construction now disposes its owned store instead of leaking a timer.
+* **Suite migrated to `package:test` (#26)**: removed the hand-rolled runner (`test_helpers`/`all_tests`); `dart test` now discovers the full suite (30 tests) and exits 0.
+
 # 0.2.2 - 2026-08-31
 
 ### Security Hardening
