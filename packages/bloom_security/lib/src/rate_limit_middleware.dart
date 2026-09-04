@@ -142,6 +142,15 @@ class BloomInMemoryRateLimitStore implements BloomRateLimitStore {
   final Map<String, List<int>> _buckets = {};
   Timer? _cleanupTimer;
 
+  /// Longest window ever enforced by this store (ms). The periodic prune
+  /// must retain entries for at least this long, otherwise long windows
+  /// (e.g. 1 hour) would be silently unenforced by an early cutoff.
+  /// Starts at the legacy 10-minute horizon.
+  int _longestWindowMs = 600000;
+
+  /// Minimum retention applied by the periodic prune even for short windows.
+  static const int _minRetentionMs = 60000;
+
   /// Creates an in-memory sliding-window rate limit store.
   BloomInMemoryRateLimitStore({
     Duration cleanupInterval = const Duration(minutes: 5),
@@ -160,6 +169,7 @@ class BloomInMemoryRateLimitStore implements BloomRateLimitStore {
   }) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final windowMs = window.inMilliseconds;
+    if (windowMs > _longestWindowMs) _longestWindowMs = windowMs;
     final windowStart = now - windowMs;
 
     final timestamps = _buckets.putIfAbsent(key, () => []);
@@ -208,14 +218,25 @@ class BloomInMemoryRateLimitStore implements BloomRateLimitStore {
     _buckets.clear();
   }
 
-  void _pruneStaleBuckets() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+  void _pruneStaleBuckets({int? nowMs}) {
+    final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    // Retain entries for the longest window ever enforced (at least the
+    // minimum retention). A fixed cutoff ignores the configured window and
+    // silently unenforces long windows.
+    var horizon = _longestWindowMs;
+    if (horizon < _minRetentionMs) horizon = _minRetentionMs;
+    final cutoff = now - horizon;
     _buckets.removeWhere((_, timestamps) {
-      // Retain entries with activity within the last 10 minutes
-      final cutoff = now - 600000;
       timestamps.removeWhere((ts) => ts < cutoff);
       return timestamps.isEmpty;
     });
+  }
+
+  /// Testing hook: runs the stale-bucket prune as of [now] (defaults to the
+  /// clock). Exposed so long-window retention can be verified without
+  /// waiting out real windows.
+  void debugPrune({DateTime? now}) {
+    _pruneStaleBuckets(nowMs: now?.millisecondsSinceEpoch);
   }
 }
 
@@ -261,6 +282,10 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
   /// Underlying storage strategy for recording and evaluating rate limits.
   final BloomRateLimitStore store;
 
+  /// Whether [store] was created by this middleware (and must be disposed
+  /// if construction fails validation, so no background timer leaks).
+  final bool _ownsStore;
+
   /// Predicate determining whether an immediate peer address is trusted to forward client IP headers.
   final BloomTrustedProxyPredicate? isTrustedProxy;
 
@@ -292,8 +317,22 @@ class BloomRateLimitMiddleware implements BloomMiddleware {
     this.peerAddressExtractor,
   })  : store = store ??
             BloomInMemoryRateLimitStore(cleanupInterval: cleanupInterval),
+        _ownsStore = store == null,
         keyExtractor = keyExtractor ??
             _createDefaultKeyExtractor(isTrustedProxy, peerAddressExtractor) {
+    try {
+      _validateArgs(maxRequests, window, cleanupInterval);
+    } catch (_) {
+      // Construction failed after the initializer list already created the
+      // default store (and its periodic timer): dispose it so the timer
+      // cannot keep the isolate alive with no owner to dispose it.
+      if (_ownsStore) this.store.dispose();
+      rethrow;
+    }
+  }
+
+  static void _validateArgs(
+      int maxRequests, Duration window, Duration cleanupInterval) {
     if (maxRequests <= 0) {
       throw ArgumentError.value(
         maxRequests,
