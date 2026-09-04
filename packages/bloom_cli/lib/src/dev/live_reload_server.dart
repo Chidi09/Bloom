@@ -1572,8 +1572,30 @@ class BloomLiveReloadServer {
     _broadcast(data);
   }
 
-  void broadcastError(String errorMessage) {
-    final payload = jsonEncode({'message': errorMessage});
+  /// Broadcasts a structured development error to connected browser clients.
+  ///
+  /// [message] remains the required fallback for compilers that only provide
+  /// stderr. Callers can provide a source location and stack when available;
+  /// the browser overlay can then display those fields without parsing raw
+  /// compiler output.
+  void broadcastError(
+    String errorMessage, {
+    String kind = 'build',
+    String? file,
+    int? line,
+    int? column,
+    String? stack,
+    String? codeFrame,
+  }) {
+    final payload = jsonEncode({
+      'message': errorMessage,
+      'kind': kind,
+      if (file != null) 'file': file,
+      if (line != null) 'line': line,
+      if (column != null) 'column': column,
+      if (stack != null) 'stack': stack,
+      if (codeFrame != null) 'codeFrame': codeFrame,
+    });
     final data = 'event: error\ndata: $payload\n\n';
     _broadcast(data);
   }
