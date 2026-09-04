@@ -550,5 +550,73 @@ class TestModel {
       // saveCols must include 'code' since auto is false
       expect(output, contains("final saveCols = <String>['code', 'name'];"));
     });
+
+    test('throws for uninferrable Dart types instead of mapping to text (#15)',
+        () async {
+      await expectLater(
+        _generateFor(r'''
+library test_lib;
+import 'dart:typed_data';
+import 'package:bloom_db/bloom_db.dart';
+
+@BloomModel(table: 'blobs')
+class TestModel {
+  final int id;
+  final Uint8List payload;
+  TestModel({required this.id, required this.payload});
+}
+'''),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('generated fromRow throws on null for non-nullable fields (#15)',
+        () async {
+      final output = await _generateFor(r'''
+library test_lib;
+import 'package:bloom_db/bloom_db.dart';
+
+@BloomModel(table: 'strict_users')
+class TestModel {
+  final int id;
+  final String name;
+  final int age;
+  TestModel({required this.id, required this.name, required this.age});
+}
+''');
+
+      // No silent default fallbacks.
+      expect(output, isNot(contains("?? ''")));
+      expect(output, isNot(contains('?? 0')));
+      expect(output, isNot(contains('fromMillisecondsSinceEpoch(0')));
+      // Loud failure instead.
+      expect(
+        output,
+        contains(
+            "throw StateError('Null value for non-nullable field name (name) in table test_pkg_test_model')"),
+      );
+      expect(
+        output,
+        contains(
+            "throw StateError('Null value for non-nullable field age (age) in table test_pkg_test_model')"),
+      );
+    });
+
+    test('generated fromRow still allows nullable fields (#15)', () async {
+      final output = await _generateFor(r'''
+library test_lib;
+import 'package:bloom_db/bloom_db.dart';
+
+@BloomModel(table: 'lenient_users')
+class TestModel {
+  final int id;
+  final String? nickname;
+  TestModel({required this.id, this.nickname});
+}
+''');
+
+      expect(output, contains("row.tryStringByName('nickname')"));
+      expect(output, isNot(contains("Null value for non-nullable field nickname")));
+    });
   });
 }

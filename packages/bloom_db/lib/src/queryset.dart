@@ -829,6 +829,11 @@ class QuerySet<T extends Model> {
   /// Returns a record `(instance, created)` where `created` is `true` if a new row was inserted,
   /// or `false` if an existing row was retrieved.
   ///
+  /// The check-then-insert sequence runs inside a transaction; if the insert
+  /// loses a race against a concurrent writer (unique-constraint failure), the
+  /// transaction rolls back and the row is re-fetched and returned with
+  /// `created: false` instead of surfacing the violation.
+  ///
   /// Example:
   /// ```dart
   /// final (user, wasCreated) = await qs
@@ -839,14 +844,27 @@ class QuerySet<T extends Model> {
     DbExecutor db, {
     required Map<String, dynamic> defaults,
   }) async {
-    final existing = await first(db);
-    if (existing != null) {
-      return (existing, false);
+    try {
+      return await db.transaction((tx) async {
+        final existing = await first(tx);
+        if (existing != null) {
+          return (existing, false);
+        }
+        final pk = await insertRaw(tx, _meta, defaults);
+        final pkCol = _meta.primaryKeyField.name;
+        final created = await _copyWith(filters: []).filter({pkCol: pk}).get(tx);
+        return (created, true);
+      });
+    } on BloomOrmException {
+      // The insert lost a race against a concurrent writer (or failed); the
+      // transaction rolled back. Re-read: if a matching row now exists, the
+      // concurrent call won — return it instead of surfacing the violation.
+      final existing = await first(db);
+      if (existing != null) {
+        return (existing, false);
+      }
+      rethrow;
     }
-    final pk = await insertRaw(db, _meta, defaults);
-    final pkCol = _meta.primaryKeyField.name;
-    final created = await _copyWith(filters: []).filter({pkCol: pk}).get(db);
-    return (created, true);
   }
 
   /// Snake_case alias for [getOrCreate].
@@ -876,20 +894,39 @@ class QuerySet<T extends Model> {
     required Map<String, dynamic> defaults,
     required Map<String, dynamic> updates,
   }) async {
-    final existing = await first(db);
-    if (existing != null) {
-      await update(db, updates);
-      final pkCol = _meta.primaryKeyField.name;
-      final pkVal =
-          (existing.fieldValues().firstWhere((v) => v.$1 == pkCol)).$2.raw;
-      final updated =
-          await _copyWith(filters: []).filter({pkCol: pkVal}).get(db);
-      return (updated, false);
+    try {
+      return await db.transaction((tx) async {
+        final existing = await first(tx);
+        if (existing != null) {
+          await update(tx, updates);
+          final pkCol = _meta.primaryKeyField.name;
+          final pkVal =
+              (existing.fieldValues().firstWhere((v) => v.$1 == pkCol)).$2.raw;
+          final updated =
+              await _copyWith(filters: []).filter({pkCol: pkVal}).get(tx);
+          return (updated, false);
+        }
+        final pk = await insertRaw(tx, _meta, defaults);
+        final pkCol = _meta.primaryKeyField.name;
+        final created = await _copyWith(filters: []).filter({pkCol: pk}).get(tx);
+        return (created, true);
+      });
+    } on BloomOrmException {
+      // The insert lost a race against a concurrent writer (or failed); the
+      // transaction rolled back. Re-read: if a matching row now exists, apply
+      // the updates to it instead of surfacing the violation.
+      final existing = await first(db);
+      if (existing != null) {
+        await update(db, updates);
+        final pkCol = _meta.primaryKeyField.name;
+        final pkVal =
+            (existing.fieldValues().firstWhere((v) => v.$1 == pkCol)).$2.raw;
+        final updated =
+            await _copyWith(filters: []).filter({pkCol: pkVal}).get(db);
+        return (updated, false);
+      }
+      rethrow;
     }
-    final pk = await insertRaw(db, _meta, defaults);
-    final pkCol = _meta.primaryKeyField.name;
-    final created = await _copyWith(filters: []).filter({pkCol: pk}).get(db);
-    return (created, true);
   }
 
   /// Snake_case alias for [updateOrCreate].

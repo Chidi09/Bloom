@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloom_db/bloom_db.dart';
@@ -50,6 +51,54 @@ void main() {
     final recovered = await db
         .fetchAll("SELECT name FROM sqlite_master WHERE name = 'recovered'");
     expect(recovered, hasLength(1));
+  });
+
+  test('warns when a migration parses with an empty up section (#15)', () {
+    final printed = <String>[];
+    // Marker typo: '-- UP' (uppercase) is not recognized, so upSql is empty
+    // and the migration would apply nothing yet record as applied.
+    final content = '-- UP\nCREATE TABLE typo_table (id INTEGER);';
+    runZoned(
+      () {
+        BloomMigration.parse(
+          app: 'test',
+          name: '0001_typo',
+          filePath: 'migrations/test/0001_typo.sql',
+          content: content,
+        );
+      },
+      zoneSpecification: ZoneSpecification(
+        print: (Zone self, ZoneDelegate parent, Zone zone, String line) =>
+            printed.add(line),
+      ),
+    );
+
+    expect(
+      printed.join('\n'),
+      contains('0001_typo'),
+      reason: 'an empty `-- up` section must emit a loud warning',
+    );
+    expect(printed.join('\n'), contains('empty'));
+  });
+
+  test('does not warn when the up section is present (#15)', () {
+    final printed = <String>[];
+    runZoned(
+      () {
+        BloomMigration.parse(
+          app: 'test',
+          name: '0001_ok',
+          filePath: 'migrations/test/0001_ok.sql',
+          content: '-- up\nCREATE TABLE ok_table (id INTEGER);',
+        );
+      },
+      zoneSpecification: ZoneSpecification(
+        print: (Zone self, ZoneDelegate parent, Zone zone, String line) =>
+            printed.add(line),
+      ),
+    );
+
+    expect(printed.where((l) => l.contains('WARNING')), isEmpty);
   });
 
   test('stores checksums matching SHA-256 golden vectors', () async {

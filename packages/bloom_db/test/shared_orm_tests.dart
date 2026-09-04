@@ -571,6 +571,51 @@ void runOrmTestSuite({
       expect(fetched.id, result);
     });
 
+    test('17. getOrCreate/updateOrCreate run inside an outer transaction (#15)',
+        () async {
+      // The check-then-act sequence must be transactional itself so it can
+      // nest inside caller transactions (savepoints on SQLite).
+      await db.transaction((outer) async {
+        final (u1, created1) = await UserOrmExtension.objects()
+            .filter(Q('name', 'TxGOC'))
+            .getOrCreate(outer, defaults: {
+          'name': 'TxGOC',
+          'email': 'txgoc@example.com',
+          'age': 20,
+          'is_active': true,
+        });
+        expect(created1, isTrue);
+
+        final (u2, created2) = await UserOrmExtension.objects()
+            .filter(Q('name', 'TxGOC'))
+            .getOrCreate(outer, defaults: {
+          'name': 'TxGOC',
+          'email': 'txgoc2@example.com',
+          'age': 21,
+          'is_active': true,
+        });
+        expect(created2, isFalse);
+        expect(u2.id, u1.id);
+
+        await UserOrmExtension.objects()
+            .filter(Q('name', 'TxGOC'))
+            .updateOrCreate(outer,
+                defaults: {
+                  'name': 'TxGOC',
+                  'email': 'txgoc3@example.com',
+                  'age': 22,
+                  'is_active': true,
+                },
+                updates: {'age': 23});
+      });
+
+      final rows = await UserOrmExtension.objects()
+          .filter({'name': 'TxGOC'})
+          .all(db);
+      expect(rows.length, 1);
+      expect(rows.first.age, 23);
+    });
+
     if (supportsNestedTransactions) {
       test('16. nested transactions use SQLite savepoints (#15)', () async {
         final result = await db.transaction((outer) async {

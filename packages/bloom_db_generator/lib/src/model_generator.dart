@@ -47,7 +47,8 @@ import 'package:source_gen/source_gen.dart';
 ///   - `double` / `num` -> `FieldKind.float`
 ///   - `bool` -> `FieldKind.boolean`
 ///   - `DateTime` -> `FieldKind.dateTime`
-///   - `String` / other -> `FieldKind.text`
+///   - `String` -> `FieldKind.text`
+///   - anything else -> **error**: map it explicitly with `@Field(kind: ...)`
 ///   - `decimal` -> `FieldKind.decimal(precision: ..., scale: ...)`
 ///
 /// Example:
@@ -126,7 +127,8 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
       final isAuto = fieldAnn?.auto ?? (isPk && _isInt(fieldType));
       final isNullable = fieldAnn?.nullable ??
           (fieldType.nullabilitySuffix == NullabilitySuffix.question);
-      final kindStr = fieldAnn?.kindString ?? _inferFieldKind(fieldType);
+      final kindStr = fieldAnn?.kindString ??
+          _inferFieldKind(fieldType, fieldName: fieldName);
 
       fields.add(_ParsedField(
         name: fieldName,
@@ -308,7 +310,7 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
     return type.getDisplayString(withNullability: false) == 'int';
   }
 
-  static String _inferFieldKind(DartType type) {
+  static String _inferFieldKind(DartType type, {String? fieldName}) {
     final name = type.getDisplayString(withNullability: false);
     switch (name) {
       case 'int':
@@ -323,7 +325,15 @@ class ModelGenerator extends GeneratorForAnnotation<BloomModel> {
       case 'String':
         return 'FieldKind.text';
       default:
-        return 'FieldKind.text';
+        // Loud failure: silently mapping exotic types (List<String>, enums,
+        // Uint8List, ...) to TEXT hides wrong data. Ask for an explicit
+        // @Field(kind: ...) mapping instead.
+        throw UnsupportedError(
+          'Cannot infer a Bloom FieldKind for Dart type `$name`'
+          '${fieldName != null ? ' (field `$fieldName`)' : ''}. Map it '
+          'explicitly with @Field(kind: ...) — e.g. store enums or lists as '
+          'text — or change the field type to int/double/num/bool/DateTime/String.',
+        );
     }
   }
 
@@ -369,22 +379,22 @@ ${maxLengthLine}${defaultValLine}    ),''');
       final decodeExpr = switch (typeStr) {
         'int' => nullable
             ? "row.tryIntByName('${f.columnName}')"
-            : "row.tryIntByName('${f.columnName}') ?? 0",
+            : "row.tryIntByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
         'double' => nullable
             ? "row.tryDoubleByName('${f.columnName}')"
-            : "row.tryDoubleByName('${f.columnName}') ?? 0.0",
+            : "row.tryDoubleByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
         'num' => nullable
             ? "row.tryDoubleByName('${f.columnName}')"
-            : "row.tryDoubleByName('${f.columnName}') ?? 0",
+            : "row.tryDoubleByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
         'bool' => nullable
             ? "row.tryBoolByName('${f.columnName}')"
-            : "row.tryBoolByName('${f.columnName}') ?? false",
+            : "row.tryBoolByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
         'DateTime' => nullable
             ? "row.tryDateTimeByName('${f.columnName}')"
-            : "row.tryDateTimeByName('${f.columnName}') ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)",
+            : "row.tryDateTimeByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
         _ => nullable
             ? "row.tryStringByName('${f.columnName}')"
-            : "row.tryStringByName('${f.columnName}') ?? ''",
+            : "row.tryStringByName('${f.columnName}') ?? (throw StateError('Null value for non-nullable field ${f.name} (${f.columnName}) in table $tableName'))",
       };
 
       fromRowAssignments.writeln('      ${f.name}: $decodeExpr,');

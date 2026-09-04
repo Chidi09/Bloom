@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 - 2026-09-04
+
+### Changed
+* **Loud `fromRow` null handling (#15)**: generated `fromRow` for a non-nullable field now throws a `StateError` on a null value instead of silently substituting `0` / `''` / epoch, so wrong data surfaces instead of being masked.
+* **Uninferrable field kinds error instead of defaulting to text (#15)**: a Dart type with no standard `FieldKind` mapping (e.g. `List<String>`, enums, `Uint8List`) now throws an `UnsupportedError` asking for an explicit `@Field(kind: ...)` rather than silently emitting `FieldKind.text`.
 
 ### Fixed
 * **Preserve `@BloomField` schema metadata (#11)**: generated `FieldMeta` now carries `maxLength` and `defaultVal`, allowing migration DDL to emit the requested `VARCHAR(n)` and `DEFAULT` definitions instead of silently falling back.
