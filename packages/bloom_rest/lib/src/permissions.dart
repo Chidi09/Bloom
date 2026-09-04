@@ -166,6 +166,12 @@ class BloomNotPermission extends BloomRestPermission {
 /// the route in the middleware chain — permission checks here only consume an
 /// already-verified identity, they never verify one themselves.
 ///
+/// Defense in depth: the router never binds `auth_*` path parameters, so a
+/// route like `/users/:auth_user_id` cannot clobber this value with an
+/// attacker-controlled segment. Still, never name a route parameter `auth_*`,
+/// and prefer the verified `req.authUserId` Expando getter (immune to params
+/// mutation) over raw `params` reads in application code.
+///
 /// Returns the verified user ID string, or `null` if unauthenticated.
 String? resolveCurrentUserId(BloomRequest req) {
   final paramId = req.params['auth_user_id'];
