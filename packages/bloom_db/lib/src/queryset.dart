@@ -306,6 +306,15 @@ class QuerySet<T extends Model> {
     return (buffer.toString(), params);
   }
 
+  /// Escapes LIKE wildcard characters (`%`, `_`) and the escape character
+  /// itself so user input in substring lookups matches literally.
+  static String _escapeLike(String input) {
+    return input
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+  }
+
   static String _compileExprSql(
     BloomExpr expr,
     String tableName,
@@ -336,26 +345,30 @@ class QuerySet<T extends Model> {
           return wantNull ? '$col IS NULL' : '$col IS NOT NULL';
         }
 
-        final (opSql, bindVal) = switch (op) {
-          CompareOp.ne => ('<>', value.raw),
-          CompareOp.eq => ('=', value.raw),
-          CompareOp.lt => ('<', value.raw),
-          CompareOp.lte => ('<=', value.raw),
-          CompareOp.gt => ('>', value.raw),
-          CompareOp.gte => ('>=', value.raw),
-          CompareOp.regex => ('~', value.raw),
-          CompareOp.iregex => ('~*', value.raw),
-          CompareOp.iexact => (dialect.ilike, value.raw),
-          CompareOp.contains => ('LIKE', '%${value.raw}%'),
-          CompareOp.icontains => (dialect.ilike, '%${value.raw}%'),
-          CompareOp.startsWith => ('LIKE', '${value.raw}%'),
-          CompareOp.endsWith => ('LIKE', '%${value.raw}'),
+        final rawText = value.raw.toString();
+        final escaped = _escapeLike(rawText);
+        final (opSql, bindVal, needsEscape) = switch (op) {
+          CompareOp.ne => ('<>', value.raw, false),
+          CompareOp.eq => ('=', value.raw, false),
+          CompareOp.lt => ('<', value.raw, false),
+          CompareOp.lte => ('<=', value.raw, false),
+          CompareOp.gt => ('>', value.raw, false),
+          CompareOp.gte => ('>=', value.raw, false),
+          CompareOp.regex => ('~', value.raw, false),
+          CompareOp.iregex => ('~*', value.raw, false),
+          // LIKE-family: user input is escaped so `%`/`_` match literally.
+          CompareOp.iexact => (dialect.ilike, escaped, true),
+          CompareOp.contains => ('LIKE', '%$escaped%', true),
+          CompareOp.icontains => (dialect.ilike, '%$escaped%', true),
+          CompareOp.startsWith => ('LIKE', '$escaped%', true),
+          CompareOp.endsWith => ('LIKE', '%$escaped', true),
           CompareOp.isIn || CompareOp.isNull => throw StateError('Handled above'),
         };
 
         params.add(bindVal);
         final ph = dialect.placeholder(nextParamIdx());
-        return '$col $opSql $ph';
+        final escapeClause = needsEscape ? " ESCAPE '\\'" : '';
+        return '$col $opSql $ph$escapeClause';
 
       case BloomAndExpr(:final exprs):
         if (exprs.isEmpty) return 'TRUE';
