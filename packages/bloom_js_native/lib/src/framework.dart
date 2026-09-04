@@ -361,7 +361,12 @@ class ShowNode extends BloomNode {
 ///   keys are retained and repositioned, new keys are mounted, and removed keys
 ///   are disposed. This preserves input focus, text selection, and internal state.
 /// - **Unkeyed lists (`keyFn == null`)**: When [items] updates, all existing child
-///   regions between the sentinels are disposed and rebuilt from scratch.
+///   regions between the sentinels are disposed and rebuilt from scratch. The
+///   per-item reactive regions and their effects are dropped with them, so
+///   input focus, text selection, local DOM state, and in-flight CSS
+///   animations inside list items do not survive an update — even when items
+///   were merely appended or reordered. Pass [keyFn] for any list that can
+///   reorder, insert, or remove items.
 ///
 /// ### SSR Behavior
 /// During SSR (`renderToHtml`), [items] is called once synchronously and each
@@ -611,6 +616,13 @@ class Show extends ShowNode {
 /// Renders a dynamic list of items. When [key] is supplied, enables fine-grained
 /// DOM reconciliation, reusing elements for unchanged keys and only updating
 /// insertions, deletions, and moves.
+///
+/// ### Keyless Tradeoff
+/// Without [key], every list update disposes and rebuilds the entire list
+/// region: the per-item reactive regions and effects are dropped, so input
+/// focus, text selection, local DOM state, and CSS animations inside items are
+/// lost on every update. Always pass [key] for any list that can reorder,
+/// insert, or remove items.
 ///
 /// ### DOM Representation
 /// Mounts between sentinel comments `<!-- bloom:foreach -->` and `<!-- /bloom:foreach -->`.

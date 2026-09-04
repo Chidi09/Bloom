@@ -562,7 +562,7 @@ BloomNode taskListView() {
 }
 ```
 
-Watch out: Always provide `key` for lists whose items can be reordered, inserted, or removed. Unkeyed lists (`key == null`) tear down and recreate all child DOM nodes on every update.
+Watch out: Always provide `key` for lists whose items can be reordered, inserted, or removed. Unkeyed lists (`key == null`) tear down and recreate all child DOM nodes on every update — the per-item reactive regions and their effects are dropped with them, so input focus, text selection, local DOM state, and in-flight CSS animations inside list items are lost on every update, even when items were merely appended or reordered. Keyed lists retain per-item regions and only patch insertions, deletions, and moves.
 
 ---
 

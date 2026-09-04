@@ -937,15 +937,25 @@ class QuerySet<T extends Model> {
     return rows.map((r) => r.toMap()).toList();
   }
 
-  /// Selects a single model [field] as a flat list of values — Django's `.values_list(field, flat=True)`.
+  /// Selects a single model [field] — Django's `.values_list(field, flat=...)`.
   ///
-  /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
+  /// When [flat] is `true` (the default), returns a bare list of values:
   ///
-  /// Example:
   /// ```dart
   /// final emails = await qs.filter(Q('is_active', true)).valuesList(db, 'email');
   /// print(emails); // ['alice@example.com', 'bob@example.com']
   /// ```
+  ///
+  /// When [flat] is `false`, returns one single-entry map per row instead
+  /// (`{field: value}` — the same shape as `.values(db, [field])`), keeping the
+  /// result addressable by field name:
+  ///
+  /// ```dart
+  /// final rows = await qs.valuesList(db, 'email', flat: false);
+  /// print(rows); // [{'email': 'alice@example.com'}, {'email': 'bob@example.com'}]
+  /// ```
+  ///
+  /// Throws [BloomOrmFieldNotFoundError] if [field] does not exist on the model.
   Future<List<dynamic>> valuesList(
     DbExecutor db,
     String field, {
@@ -958,7 +968,10 @@ class QuerySet<T extends Model> {
     final selectList = '"${f.columnName}"';
     final (sql, params) = compileSelectWithOrder(selectList, true, db.dialect);
     final rows = await db.fetchAll(sql, params);
-    return rows.map((r) => r.toMap().values.first).toList();
+    if (flat) {
+      return rows.map((r) => r.toMap().values.first).toList();
+    }
+    return rows.map((r) => {field: r.toMap().values.first}).toList();
   }
 
   /// Snake_case alias for [valuesList].

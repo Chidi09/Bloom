@@ -28,6 +28,12 @@ export 'package:signals_core/signals_core.dart'
 /// the signal's value survives in-page module re-executions across hot remounts.
 ///
 /// If the stored value type does not match [T], the signal cleanly resets to [initialValue].
+///
+/// The browser-side registry backing keyed signals is bounded at
+/// [kMaxSignalRegistryEntries] entries with least-recently-used eviction, so a
+/// long dev session cannot grow it without limit; an evicted key simply resets
+/// to [initialValue] on its next remount. Zero overhead when no key is given or
+/// tracking is inactive.
 s.Signal<T> signal<T>(T initialValue, {String? key}) {
   if (key == null || !isBrowserHotReloadActive()) {
     return s.signal<T>(initialValue);
@@ -49,7 +55,7 @@ s.Signal<T> signal<T>(T initialValue, {String? key}) {
     }
 
     sig.subscribe((val) {
-      registry[key] = val;
+      storeBrowserSignalValue(registry, key, val);
     });
 
     return sig;
