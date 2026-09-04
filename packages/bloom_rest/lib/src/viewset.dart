@@ -247,6 +247,15 @@ class BloomViewSet<T extends Model> {
             );
 
   /// Helper to enforce throttling and permissions before action execution.
+  ///
+  /// Ordering decision: throttle runs **before** permission checks on purpose.
+  /// Throttling protects the auth-verification path itself (login/brute-force
+  /// endpoints must be rate-limited before identity is known), and per-client
+  /// budgets only work when evaluated pre-auth. Tradeoff: 429-before-401 can
+  /// confirm endpoint existence to unauthenticated probers, and anonymous
+  /// callers without a wired `peerExtractor` share one budget (see
+  /// [ByUserOrIp]). Mitigate with per-scope throttle budgets and by wiring
+  /// `peerExtractor` from the server adapter.
   Future<BloomResponse?> _guard(BloomRequest req) async {
     // 1. Check throttle rate first
     if (options.throttle != null) {

@@ -113,12 +113,17 @@ void main() {
     ),
     // SECURE-BY-DEFAULT: Compose permissions (401 for unauth, 403 for denied)
     permission: const IsAuthenticated().and(const IsStaff()),
-    // Atomic rate limiting
+    // Atomic rate limiting.
+    // IMPORTANT: wire peerExtractor from your server adapter (immediate TCP
+    // peer) — without it, all anonymous clients share one global budget and
+    // a single aggressive client 429s everyone.
     throttle: BloomThrottle.fromRate(
       scope: 'articles_api',
       rate: '100/hour',
       atomicStore: throttleStore,
-      keyStrategy: const ByUserOrIp(),
+      keyStrategy: ByUserOrIp(
+        peerExtractor: (req) => req.params['tcp_peer'],
+      ),
     ),
     filterBackends: [
       const BloomSearchFilter<Article>(['title', 'content']),

@@ -108,6 +108,23 @@ bool defaultNeverTrustProxy(String peerIp) => false;
 /// If [resolveCurrentUserId] finds a verified user ID, returns `'user:<id>'`.
 /// Otherwise, extracts the immediate transport peer using [peerExtractor].
 ///
+/// **Setup required**: [BloomRequest] carries no TCP peer by itself, so the
+/// default [peerExtractor] ([defaultPeerAddressExtractor]) returns `null` and
+/// every anonymous caller shares [fallbackKey] (`anon:shared_untrusted`) —
+/// one aggressive client can 429 everyone. Wire [peerExtractor] from your
+/// server adapter (the socket remote address of the *immediate* peer) and set
+/// [isTrustedProxy] for your load balancers:
+///
+/// ```dart
+/// final keyStrategy = ByUserOrIp(
+///   peerExtractor: (req) => req.params['tcp_peer'],
+///   isTrustedProxy: (ip) => ip == '10.0.0.1',
+/// );
+/// ```
+///
+/// When the shared fallback is used for an unauthenticated request, a loud
+/// one-time warning is printed so the misconfiguration cannot stay silent.
+///
 /// **Header Spoofing Protection**:
 /// Client forwarding headers (`X-Forwarded-For`, `X-Real-IP`) are **NEVER trusted**
 /// unless [isTrustedProxy] returns `true` for the verified immediate transport peer.
@@ -117,6 +134,7 @@ bool defaultNeverTrustProxy(String peerIp) => false;
 /// Example:
 /// ```dart
 /// final keyStrategy = ByUserOrIp(
+///   peerExtractor: (req) => req.params['tcp_peer'],
 ///   isTrustedProxy: (ip) => ip == '127.0.0.1' || ip == '10.0.0.1',
 /// );
 /// final key = keyStrategy.key(request);
@@ -132,6 +150,14 @@ class ByUserOrIp extends BloomRateLimitKey {
 
   /// Shared non-spoofable fallback key returned when immediate peer IP cannot be resolved.
   final String fallbackKey;
+
+  /// Whether the shared-bucket misconfiguration warning was already printed.
+  static bool _warnedSharedBucket = false;
+
+  /// Resets the one-time shared-bucket warning (primarily for tests).
+  static void resetSharedBucketWarning() {
+    _warnedSharedBucket = false;
+  }
 
   /// Creates a [ByUserOrIp] key strategy.
   const ByUserOrIp({
@@ -149,7 +175,21 @@ class ByUserOrIp extends BloomRateLimitKey {
 
     final peerIp = peerExtractor(req);
     if (peerIp == null || peerIp.isEmpty) {
-      // Transport peer is unavailable; do NOT trust client forwarding headers
+      // Transport peer is unavailable; do NOT trust client forwarding headers.
+      // Warn loudly (once) when using the default extractor: every anonymous
+      // caller shares one global budget until peerExtractor is wired.
+      if (identical(peerExtractor, defaultPeerAddressExtractor) &&
+          !_warnedSharedBucket) {
+        _warnedSharedBucket = true;
+        // ignore: avoid_print
+        print(
+          '[bloom_rest] WARNING: ByUserOrIp is rate-limiting all anonymous '
+          'clients under the single shared "$fallbackKey" bucket because no '
+          'peerAddressExtractor is configured. One aggressive client can 429 '
+          'everyone. Wire peerExtractor from your server adapter (immediate '
+          'TCP peer) — see ByUserOrIp docs.',
+        );
+      }
       return fallbackKey;
     }
 
