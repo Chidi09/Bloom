@@ -341,8 +341,37 @@ Future<void> runRateLimitTests() async {
       }
     });
 
-    test('Default 1-minute window behavior is unchanged (#25)', () {
-      final store = BloomInMemoryRateLimitStore(
+    test('Wired peerAddressExtractor gives independent client budgets (#24)',
+        () async {
+      final rateLimiter = BloomRateLimitMiddleware(
+        maxRequests: 1,
+        window: const Duration(minutes: 1),
+        // Recommended setup: immediate TCP peer from the server adapter.
+        peerAddressExtractor: (req) => req.params['tcp_peer'],
+      );
+
+      Future<BloomResponse?> hit(String peer) {
+        final req = BloomRequest(
+          method: 'GET',
+          uri: Uri.parse('http://localhost:8080/api/items'),
+          params: {'tcp_peer': peer},
+        );
+        return rateLimiter.handle(
+            req, () async => BloomResponse.json({'ok': true}));
+      }
+
+      try {
+        expect((await hit('10.0.0.1'))?.statusCode, 200);
+        // Same client exhausted…
+        expect((await hit('10.0.0.1'))?.statusCode, 429);
+        // …but a different client is unaffected.
+        expect((await hit('10.0.0.2'))?.statusCode, 200);
+      } finally {
+        rateLimiter.dispose();
+      }
+    });
+
+    test('Default 1-minute window behavior is unchanged (#25)', () {      final store = BloomInMemoryRateLimitStore(
         cleanupInterval: const Duration(hours: 1),
       );
       try {
