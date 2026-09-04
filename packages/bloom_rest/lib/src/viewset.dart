@@ -93,6 +93,13 @@ class BloomViewSetOptions<T extends Model> {
   /// Optional per-user / per-IP rate limiter.
   final BloomThrottle? throttle;
 
+  /// Server-side sink for unexpected internal errors (5xx).
+  ///
+  /// 5xx response bodies are always generic (`Internal Server Error`) so raw
+  /// DB/driver text never reaches clients; the caught error and stack trace
+  /// are routed here instead. Defaults to a `print` fallback when null.
+  final void Function(Object error, StackTrace stackTrace)? onInternalError;
+
   /// Creates a [BloomViewSetOptions] bundle.
   BloomViewSetOptions({
     BloomViewSetConfig? config,
@@ -101,6 +108,7 @@ class BloomViewSetOptions<T extends Model> {
     BloomRestPermission? permission,
     List<BloomFilterBackend<T>>? filterBackends,
     this.throttle,
+    this.onInternalError,
   })  : config = config ?? const BloomViewSetConfig(),
         pagination = pagination ?? const PageNumberPagination(),
         // SECURE BY DEFAULT: require authentication unless explicitly overridden
@@ -116,6 +124,7 @@ class BloomViewSetOptions<T extends Model> {
       permission: permission,
       filterBackends: filterBackends,
       throttle: throttle,
+      onInternalError: onInternalError,
     );
   }
 
@@ -128,6 +137,7 @@ class BloomViewSetOptions<T extends Model> {
       permission: permission,
       filterBackends: filterBackends,
       throttle: throttle,
+      onInternalError: onInternalError,
     );
   }
 
@@ -140,6 +150,7 @@ class BloomViewSetOptions<T extends Model> {
       permission: permission,
       filterBackends: filterBackends,
       throttle: throttle,
+      onInternalError: onInternalError,
     );
   }
 
@@ -152,6 +163,7 @@ class BloomViewSetOptions<T extends Model> {
       permission: permission,
       filterBackends: [...filterBackends, backend],
       throttle: throttle,
+      onInternalError: onInternalError,
     );
   }
 
@@ -164,6 +176,7 @@ class BloomViewSetOptions<T extends Model> {
       permission: permission,
       filterBackends: filterBackends,
       throttle: throttle,
+      onInternalError: onInternalError,
     );
   }
 }
@@ -268,6 +281,21 @@ class BloomViewSet<T extends Model> {
     final allowed = await options.permission.hasObjectPermission(req, item);
     if (!allowed) return BloomResponse.notFound('Record not found');
     return null;
+  }
+
+  /// Logs an unexpected internal error server-side and returns a generic
+  /// 500 that never embeds raw exception text.
+  BloomResponse _internalError(Object error, StackTrace stackTrace) {
+    final sink = options.onInternalError;
+    if (sink != null) {
+      sink(error, stackTrace);
+    } else {
+      // No logging backend configured; keep it on the server console so
+      // the failure is still diagnosable without leaking to clients.
+      // ignore: avoid_print
+      print('[bloom_rest] internal error: $error\n$stackTrace');
+    }
+    return BloomResponse.error('Internal Server Error', statusCode: 500);
   }
 
   /// `GET /` — Paginated and filtered list of records.
@@ -475,8 +503,8 @@ class BloomViewSet<T extends Model> {
       return BloomResponse.json(options.serializer.toRepresentation(item));
     } on BloomOrmNotFoundError {
       return BloomResponse.notFound('Record not found');
-    } catch (e) {
-      return BloomResponse.error('Database query failed: $e', statusCode: 500);
+    } catch (e, st) {
+      return _internalError(e, st);
     }
   }
 
@@ -515,9 +543,8 @@ class BloomViewSet<T extends Model> {
         options.serializer.toRepresentation(createdItem),
         statusCode: 201,
       );
-    } catch (e) {
-      return BloomResponse.error('Failed to create record: $e',
-          statusCode: 500);
+    } catch (e, st) {
+      return _internalError(e, st);
     }
   }
 
@@ -579,9 +606,8 @@ class BloomViewSet<T extends Model> {
       final updatedItem = await qs.get(db);
       return BloomResponse.json(
           options.serializer.toRepresentation(updatedItem));
-    } catch (e) {
-      return BloomResponse.error('Failed to update record: $e',
-          statusCode: 500);
+    } catch (e, st) {
+      return _internalError(e, st);
     }
   }
 
@@ -621,9 +647,8 @@ class BloomViewSet<T extends Model> {
         return BloomResponse.notFound('Record not found');
       }
       return BloomResponse.noContent();
-    } catch (e) {
-      return BloomResponse.error('Failed to delete record: $e',
-          statusCode: 500);
+    } catch (e, st) {
+      return _internalError(e, st);
     }
   }
 
