@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+* Replaced the hand-rolled SHA-256 checksum implementation with `package:crypto`
+  (`sha256.convert(utf8.encode(...))`). Digests are byte-identical to the previous
+  implementation, so checksums stored in existing `bloom_migrations` tables remain
+  valid. Fixes #13.
+
 ## 0.1.2 - 2026-08-31
 
 * Added checksum validation to reject modified applied migrations.
