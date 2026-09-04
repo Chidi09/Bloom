@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 - 2026-09-04
 
 ### Fixed
 * **`count()` ignores `limit`/`offset` (#10)**: the count aggregation no longer includes paging, so a queryset with `OFFSET` beyond the row count returns the filtered total instead of throwing `BloomOrmNotFoundError`.

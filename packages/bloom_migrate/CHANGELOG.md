@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 - 2026-09-04
 
 ### Changed
 * Replaced the hand-rolled SHA-256 checksum implementation with `package:crypto`

@@ -1,4 +1,4 @@
-# Unreleased
+## 0.2.3 - 2026-09-04
 
 ### Security
 * **WS Host-header fallback gated behind opt-in (#27)**: the same-origin check's reverse-proxy fallback (comparing `Origin` to the client-supplied `Host` header) is now off by default (`allowProxyHostFallback: false`); enable only when a trusted proxy restores the original Host.
