@@ -356,15 +356,15 @@ class BloomRouterController {
     // position we are about to restore.
     if (!isPopState) _saveScroll();
 
+    // Follow guard redirects up-front with loop detection instead of
+    // recursing per hop: a redirect cycle (A -> B -> A) throws
+    // [BloomRedirectLoopException] rather than looping forever. The final
+    // location settles into a single history entry under the caller's
+    // original push/replace intent.
+    final resolved = await _router.resolveRedirects(path);
+    path = resolved.location;
+
     final clean = path.split('?').first.split('#').first;
-    final match = _router.match(path);
-    if (match != null) {
-      final guardRes =
-          await _router.evaluateGuards(match.route, path, match.params);
-      if (!guardRes.isAllowed && guardRes.redirectPath != null) {
-        return _handleNavigation(guardRes.redirectPath!, replaceState: true);
-      }
-    }
 
     if (!isPopState) {
       if (replaceState) {

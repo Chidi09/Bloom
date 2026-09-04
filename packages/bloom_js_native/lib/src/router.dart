@@ -43,6 +43,51 @@ class GuardResult {
   /// Creates a guard result that cancels the current navigation and redirects to [path].
   factory GuardResult.redirect(String path) =>
       GuardResult._(isAllowed: false, redirectPath: path);
+
+  /// Creates a guard result that blocks navigation without redirecting.
+  factory GuardResult.deny() => const GuardResult._(isAllowed: false);
+}
+
+/// Outcome of [BloomRouter.resolveRedirects] after following guard redirects.
+class GuardResolution {
+  /// The final location guards settled on (redirect targets applied).
+  final String location;
+
+  /// The route match for [location], or `null` when nothing matched.
+  final BloomRouteMatch? match;
+
+  /// Whether a guard blocked navigation without offering a redirect target.
+  final bool blocked;
+
+  const GuardResolution({
+    required this.location,
+    required this.match,
+    this.blocked = false,
+  });
+
+  /// Resolution for a location with no matching route.
+  factory GuardResolution.noMatch(String location) =>
+      GuardResolution(location: location, match: null);
+}
+
+/// Thrown by [BloomRouter.resolveRedirects] when guard redirects loop.
+///
+/// Records the visited [chain] and the [offendingTarget] that revisited a
+/// location (or exceeded the hop budget), e.g. route A redirecting to B
+/// while B redirects back to A.
+class BloomRedirectLoopException implements Exception {
+  /// Locations visited before the loop was detected, in order.
+  final List<String> chain;
+
+  /// The redirect target that closed the loop or broke the hop budget.
+  final String offendingTarget;
+
+  const BloomRedirectLoopException(this.chain, this.offendingTarget);
+
+  @override
+  String toString() =>
+      'BloomRedirectLoopException: guard redirect loop detected: '
+      '${[...chain, offendingTarget].join(' -> ')}';
 }
 
 /// Speculative prefetching strategies for [Link] navigation targets.
@@ -624,6 +669,47 @@ class BloomRouter {
       if (!res.isAllowed) return res;
     }
     return GuardResult.allow();
+  }
+
+  /// Follows guard redirects for [location] until navigation is allowed.
+  ///
+  /// Returns the final location (with its [BloomRouteMatch]) after applying
+  /// every guard redirect in the chain. A guard denying without a redirect
+  /// target stops resolution and yields that location as blocked.
+  ///
+  /// Throws [BloomRedirectLoopException] when the chain revisits a location
+  /// or exceeds [maxRedirects] hops (default 10) — e.g. route A redirecting
+  /// to B while B redirects back to A. Callers (such as the browser
+  /// router controller) must surface this instead of recursing forever.
+  Future<GuardResolution> resolveRedirects(
+    String location, {
+    int maxRedirects = 10,
+  }) async {
+    final visited = <String>[];
+    var current = location;
+    while (true) {
+      final match = this.match(current);
+      if (match == null) {
+        return GuardResolution.noMatch(current);
+      }
+      final res = await evaluateGuards(match.route, current, match.params);
+      if (res.isAllowed || res.redirectPath == null) {
+        return GuardResolution(
+          location: current,
+          match: match,
+          blocked: !res.isAllowed,
+        );
+      }
+      final target = res.redirectPath!;
+      if (visited.contains(target) || visited.length >= maxRedirects) {
+        throw BloomRedirectLoopException(
+          [...visited, current],
+          target,
+        );
+      }
+      visited.add(current);
+      current = target;
+    }
   }
 
   static Map<String, String>? _matchPattern(String pattern, String path) {
