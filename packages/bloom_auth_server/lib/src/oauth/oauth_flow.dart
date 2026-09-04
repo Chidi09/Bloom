@@ -263,11 +263,21 @@ class BloomOAuthFlow {
   }
 
   /// Handles the complete OAuth callback lifecycle:
-  /// 1. Verifies and consumes [state] via [stateStore] (if [stateStore] is configured or [requireStateVerification] is true).
+  /// 1. Verifies and consumes [state] via [stateStore] (CSRF protection).
   /// 2. Exchanges [code] for access token via [provider.exchangeCode].
   /// 3. Fetches user profile via [provider.fetchUserProfile].
   /// 4. Resolves local user claims via [resolveUser].
   /// 5. Issues signed JWT bearer session token via [issueSessionToken].
+  ///
+  /// CSRF state verification is **required by default**
+  /// ([requireStateVerification] defaults to `true`): the callback throws
+  /// [BloomOAuthStateException] when [state] is missing/invalid/expired, or
+  /// when no [stateStore] is configured to verify against. Configure a
+  /// [BloomOAuthStateStore] (see [generateAndSaveState]) and round-trip its
+  /// `state` through the authorization URL. Pass
+  /// `requireStateVerification: false` explicitly ONLY for non-browser flows
+  /// where CSRF does not apply — doing so leaves the login flow without CSRF
+  /// protection.
   ///
   /// [sessionTtl] specifies session token validity duration (defaults to 7 days).
   /// [secret] is the optional HMAC signing secret override.
@@ -281,7 +291,7 @@ class BloomOAuthFlow {
     required FutureOr<BloomAuthClaims> Function(BloomOAuthUserProfile profile)
         resolveUser,
     String? state,
-    bool requireStateVerification = false,
+    bool requireStateVerification = true,
     Duration sessionTtl = const Duration(days: 7),
     String? issuer = 'bloom-auth-server',
     String? secret,

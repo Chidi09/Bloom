@@ -140,6 +140,9 @@ void main() {
       final result = await flow.handleCallback(
         code: 'valid-auth-code',
         redirectUri: 'https://example.com/callback',
+        // No stateStore in this unit test (non-browser flow): opt out
+        // of CSRF verification explicitly under the fail-closed default.
+        requireStateVerification: false,
         resolveUser: (profile) async {
           expect(profile.provider, 'google');
           expect(profile.providerUserId, 'google-uid-888');
@@ -212,6 +215,9 @@ void main() {
       final result = await flow.handleCallback(
         code: 'code',
         redirectUri: 'https://example.com/callback',
+        // No stateStore in this unit test (non-browser flow): opt out
+        // of CSRF verification explicitly under the fail-closed default.
+        requireStateVerification: false,
         secret: customSecret,
         issuer: customIssuer,
         resolveUser: (profile) => BloomAuthClaims(
@@ -316,6 +322,122 @@ void main() {
       expect(
         () => flow.handleCallback(
           code: 'code-1',
+          redirectUri: 'https://example.com/callback',
+          state: state,
+          resolveUser: (p) =>
+              BloomAuthClaims(userId: 'u', issuedAt: now, expiresAt: now),
+        ),
+        throwsA(isA<BloomOAuthStateException>()),
+      );
+    });
+
+    test(
+        'handleCallback without a state store fails closed by default (#22)',
+        () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/token') {
+          return http.Response(
+            jsonEncode({'access_token': 'token-123'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/oauth2/v3/userinfo') {
+          return http.Response(
+            jsonEncode({'sub': 'google-1', 'email': 'a@example.com'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+      final flow = BloomOAuthFlow(
+        GoogleOAuthProvider(
+          clientId: 'id',
+          clientSecret: 'secret',
+          client: mockClient,
+        ),
+      );
+      final now = DateTime.now().toUtc();
+      BloomAuthClaims user(BloomOAuthUserProfile p) => BloomAuthClaims(
+          userId: 'u', issuedAt: now, expiresAt: now);
+
+      // Default: missing state with no store configured throws (fail closed).
+      expect(
+        () => flow.handleCallback(
+          code: 'code',
+          redirectUri: 'https://example.com/callback',
+          resolveUser: (p) => user(p),
+        ),
+        throwsA(isA<BloomOAuthStateException>().having(
+          (e) => e.message,
+          'message',
+          contains('state'),
+        )),
+      );
+
+      // Default: even a supplied state with no store throws a clear
+      // configure-a-store error instead of silently skipping verification.
+      expect(
+        () => flow.handleCallback(
+          code: 'code',
+          redirectUri: 'https://example.com/callback',
+          state: 'some-state',
+          resolveUser: (p) => user(p),
+        ),
+        throwsA(isA<BloomOAuthStateException>().having(
+          (e) => e.message,
+          'message',
+          contains('BloomOAuthStateStore'),
+        )),
+      );
+
+      // Explicit opt-out still proceeds (non-browser flows only).
+      final result = await flow.handleCallback(
+        code: 'code',
+        redirectUri: 'https://example.com/callback',
+        requireStateVerification: false,
+        resolveUser: (p) => user(p),
+      );
+      expect(result.claims.userId, 'u');
+    });
+
+    test('handleCallback rejects expired state tokens', () async {
+      final stateStore = InMemoryOAuthStateStore();
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/token') {
+          return http.Response(
+            jsonEncode({'access_token': 'token-xyz'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/oauth2/v3/userinfo') {
+          return http.Response(
+            jsonEncode({'sub': 'google-9', 'email': 'e@example.com'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+      final flow = BloomOAuthFlow(
+        GoogleOAuthProvider(
+          clientId: 'id',
+          clientSecret: 'secret',
+          client: mockClient,
+        ),
+        stateStore: stateStore,
+      );
+
+      final state = generateOAuthState();
+      await stateStore.save(state, ttl: const Duration(milliseconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final now = DateTime.now().toUtc();
+      expect(
+        () => flow.handleCallback(
+          code: 'code',
           redirectUri: 'https://example.com/callback',
           state: state,
           resolveUser: (p) =>
