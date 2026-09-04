@@ -37,6 +37,9 @@ class BloomViewSetConfig {
   final int defaultPageSize;
 
   /// Maximum allowed page size if client requests `?page_size=`.
+  ///
+  /// Defaults to [kRestPerPage] so an uncapped `?page_size=1000000` cannot
+  /// turn `list()` into a full-table scan plus uncached `count()`.
   final int? maxPageSize;
 
   /// Creates a [BloomViewSetConfig] with optional filtering, ordering, and pagination controls.
@@ -45,7 +48,7 @@ class BloomViewSetConfig {
     this.orderableFields = const [],
     this.cursorPagination = false,
     this.defaultPageSize = kRestPerPage,
-    this.maxPageSize,
+    this.maxPageSize = kRestPerPage,
   });
 
   /// Resolves the page size for a [req] using [defaultPageSize] and [maxPageSize].

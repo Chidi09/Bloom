@@ -44,6 +44,27 @@ void main() {
 
       expect(paginator.pageSize(req), 25);
     });
+
+    test('default config clamps ?page_size=1000000 to kRestPerPage (#7)', () {
+      const paginator = PageNumberPagination();
+      final req = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('http://localhost/items?page=1&page_size=1000000'),
+      );
+      expect(paginator.pageSize(req), kRestPerPage);
+      expect(paginator.slice(req, 0).limit, kRestPerPage);
+
+      const config = BloomViewSetConfig();
+      expect(config.resolveRequestPageSize(req), kRestPerPage);
+
+      const cursor = CursorPagination();
+      final cursorReq = BloomRequest(
+        method: 'GET',
+        uri: Uri.parse('http://localhost/items?page_size=1000000'),
+      );
+      expect(cursor.pageSize(cursorReq), kRestPerPage);
+      expect(cursor.slice(cursorReq, 0).limit, kRestPerPage);
+    });
   });
 
   group('LimitOffsetPagination', () {
