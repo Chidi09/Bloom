@@ -524,6 +524,10 @@ class QuerySet<T extends Model> {
   /// database-side field arithmetic expressions using [F] (e.g. `{'score': F('score') + 10}`).
   ///
   /// Throws [BloomOrmFieldNotFoundError] if any key in [sets] is not defined on the model.
+  /// Throws [BloomOrmInvalidQueryError] if the queryset has no filters and
+  /// [allowUnfiltered] is false (default) — bulk-updating a whole table with
+  /// one call is almost always a bug. Pass `allowUnfiltered: true` to
+  /// acknowledge a deliberate table-wide update.
   /// Throws [BloomOrmQueryException] if underlying query execution fails.
   ///
   /// Returns the number of affected database rows.
@@ -535,8 +539,18 @@ class QuerySet<T extends Model> {
   ///   'attempts': F('attempts') + 1,
   /// });
   /// ```
-  Future<int> update(DbExecutor db, Map<String, dynamic> sets) async {
+  Future<int> update(
+    DbExecutor db,
+    Map<String, dynamic> sets, {
+    bool allowUnfiltered = false,
+  }) async {
     if (sets.isEmpty) return 0;
+    if (_filters.isEmpty && !allowUnfiltered) {
+      throw BloomOrmInvalidQueryError(
+        'Refusing to UPDATE "${_meta.tableName}" without filters. '
+        'Add .filter(...) or pass allowUnfiltered: true.',
+      );
+    }
     final dialect = db.dialect;
     final setClauses = <String>[];
     final params = <dynamic>[];
@@ -601,6 +615,11 @@ class QuerySet<T extends Model> {
 
   /// Deletes all database records matching the current queryset filters.
   ///
+  /// Throws [BloomOrmInvalidQueryError] if the queryset has no filters and
+  /// [allowUnfiltered] is false (default) — wiping a whole table with one
+  /// call is almost always a bug. Pass `allowUnfiltered: true` to acknowledge
+  /// a deliberate table-wide delete.
+  ///
   /// Returns the total count of deleted database rows.
   /// Throws [BloomOrmQueryException] if statement execution fails.
   ///
@@ -608,7 +627,13 @@ class QuerySet<T extends Model> {
   /// ```dart
   /// final deletedCount = await qs.filter(Q('is_expired', true)).delete(db);
   /// ```
-  Future<int> delete(DbExecutor db) async {
+  Future<int> delete(DbExecutor db, {bool allowUnfiltered = false}) async {
+    if (_filters.isEmpty && !allowUnfiltered) {
+      throw BloomOrmInvalidQueryError(
+        'Refusing to DELETE FROM "${_meta.tableName}" without filters. '
+        'Add .filter(...) or pass allowUnfiltered: true.',
+      );
+    }
     final dialect = db.dialect;
     final params = <dynamic>[];
     var paramIdx = 1;
