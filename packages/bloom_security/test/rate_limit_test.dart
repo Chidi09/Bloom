@@ -294,6 +294,84 @@ Future<void> runRateLimitTests() async {
       rateLimiter.dispose();
       expect(mockStore.isDisposed, isTrue);
     });
+
+    test('Hour-long windows survive the periodic prune (#25)', () {
+      final store = BloomInMemoryRateLimitStore(
+        cleanupInterval: const Duration(hours: 1),
+      );
+      try {
+        const window = Duration(hours: 1);
+        final t0 = DateTime.now();
+
+        // Exhaust a 3/hour budget.
+        expect(
+            store
+                .recordAndCheck(key: 'client', maxRequests: 3, window: window)
+                .isAllowed,
+            isTrue);
+        expect(
+            store
+                .recordAndCheck(key: 'client', maxRequests: 3, window: window)
+                .isAllowed,
+            isTrue);
+        expect(
+            store
+                .recordAndCheck(key: 'client', maxRequests: 3, window: window)
+                .isAllowed,
+            isTrue);
+
+        // 30 simulated minutes later the prune must NOT discard live entries:
+        // sustained traffic still trips the limit.
+        store.debugPrune(now: t0.add(const Duration(minutes: 30)));
+        expect(
+            store
+                .recordAndCheck(key: 'client', maxRequests: 3, window: window)
+                .isAllowed,
+            isFalse);
+
+        // Past the window the budget resets.
+        store.debugPrune(now: t0.add(const Duration(minutes: 61)));
+        expect(
+            store
+                .recordAndCheck(key: 'client', maxRequests: 3, window: window)
+                .isAllowed,
+            isTrue);
+      } finally {
+        store.dispose();
+      }
+    });
+
+    test('Default 1-minute window behavior is unchanged (#25)', () {
+      final store = BloomInMemoryRateLimitStore(
+        cleanupInterval: const Duration(hours: 1),
+      );
+      try {
+        const window = Duration(minutes: 1);
+        final t0 = DateTime.now();
+
+        expect(
+            store
+                .recordAndCheck(key: 'k', maxRequests: 1, window: window)
+                .isAllowed,
+            isTrue);
+        // Within the window the prune retains the entry (as before).
+        store.debugPrune(now: t0.add(const Duration(seconds: 30)));
+        expect(
+            store
+                .recordAndCheck(key: 'k', maxRequests: 1, window: window)
+                .isAllowed,
+            isFalse);
+        // Well past the legacy 10-minute horizon it is cleaned up.
+        store.debugPrune(now: t0.add(const Duration(minutes: 11)));
+        expect(
+            store
+                .recordAndCheck(key: 'k', maxRequests: 1, window: window)
+                .isAllowed,
+            isTrue);
+      } finally {
+        store.dispose();
+      }
+    });
   });
 }
 
