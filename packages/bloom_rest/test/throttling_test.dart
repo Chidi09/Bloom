@@ -158,6 +158,76 @@ void main() {
       );
       expect(strategy.key(noPeerReq), 'anon:custom_fallback');
     });
+
+    group('shared anonymous bucket (#8)', () {
+      BloomRequest anonReq({String? forwardedFor}) => BloomRequest(
+            method: 'GET',
+            uri: Uri.parse('http://localhost/api'),
+            headers: {
+              if (forwardedFor != null) 'x-forwarded-for': forwardedFor
+            },
+          );
+
+      test('default setup shares one budget across spoofed IPs', () async {
+        ByUserOrIp.resetSharedBucketWarning();
+        final throttle = BloomThrottle.fromRate(
+          scope: 'shared_bucket_demo',
+          rate: '2/minute',
+          atomicStore: InMemoryAtomicThrottleStore(),
+          keyStrategy: const ByUserOrIp(),
+        );
+        // Two anonymous callers consume the single shared budget…
+        expect(await throttle.allowRequest(anonReq()), isTrue);
+        expect(
+            await throttle.allowRequest(
+                anonReq(forwardedFor: '9.9.9.9')),
+            isTrue);
+        // …so a third anonymous caller (even with a different spoofed IP)
+        // is 429'd: spoofed headers never create a new bucket.
+        expect(
+            await throttle.allowRequest(
+                anonReq(forwardedFor: '10.10.10.10')),
+            isFalse);
+      });
+
+      test('wired peerExtractor isolates per-client budgets', () async {
+        final throttle = BloomThrottle.fromRate(
+          scope: 'isolated_demo',
+          rate: '1/minute',
+          atomicStore: InMemoryAtomicThrottleStore(),
+          keyStrategy: ByUserOrIp(
+            peerExtractor: (req) => req.params['tcp_peer'],
+          ),
+        );
+        BloomRequest peerReq(String ip) => BloomRequest(
+              method: 'GET',
+              uri: Uri.parse('http://localhost/api'),
+              params: {'tcp_peer': ip},
+            );
+        expect(await throttle.allowRequest(peerReq('1.1.1.1')), isTrue);
+        // Same peer exhausted…
+        expect(await throttle.allowRequest(peerReq('1.1.1.1')), isFalse);
+        // …but a different peer is unaffected.
+        expect(await throttle.allowRequest(peerReq('2.2.2.2')), isTrue);
+      });
+
+      test('authenticated users get independent budgets', () async {
+        final throttle = BloomThrottle.fromRate(
+          scope: 'user_demo',
+          rate: '1/minute',
+          atomicStore: InMemoryAtomicThrottleStore(),
+          keyStrategy: const ByUserOrIp(),
+        );
+        BloomRequest userReq(String id) => BloomRequest(
+              method: 'GET',
+              uri: Uri.parse('http://localhost/api'),
+              params: {'auth_user_id': id},
+            );
+        expect(await throttle.allowRequest(userReq('alice')), isTrue);
+        expect(await throttle.allowRequest(userReq('alice')), isFalse);
+        expect(await throttle.allowRequest(userReq('bob')), isTrue);
+      });
+    });
   });
 
   group('InMemoryAtomicThrottleStore', () {
