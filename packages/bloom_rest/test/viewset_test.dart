@@ -218,6 +218,79 @@ void main() {
       expect(getDeletedRes.statusCode, 404);
     });
 
+    group('generic 500s without raw internals (#6)', () {
+      BloomViewSet<Article> failingViewSet(
+          {void Function(Object, StackTrace)? onInternalError}) {
+        return BloomViewSet<Article>(
+          meta: Article.meta,
+          fromRow: Article.fromRow,
+          getDb: (_) => db,
+          options: BloomViewSetOptions<Article>(
+            permission: const AllowAny(),
+            serializer: BloomModelSerializer<Article>(
+              meta: Article.meta,
+              fields: BloomFieldSet.all().withReadOnly(['id']),
+            ),
+            onInternalError: onInternalError,
+          ),
+        );
+      }
+
+      test('retrieve maps DB failure to generic 500 and logs raw server-side',
+          () async {
+        await seedArticles();
+        await db.execute('DROP TABLE articles');
+        Object? logged;
+        final viewSet = failingViewSet(
+            onInternalError: (e, st) => logged = e);
+        final res = await viewSet.retrieve(BloomRequest(
+          method: 'GET',
+          uri: Uri.parse('http://localhost/api/articles/1'),
+          params: {'pk': '1'},
+        ));
+        expect(res.statusCode, 500);
+        final body = res.bodyJson as Map<String, dynamic>;
+        expect(body['error'], 'Internal Server Error');
+        expect(res.bodyText, isNot(contains('no such table')));
+        expect(logged.toString(), contains('no such table'));
+      });
+
+      test('create/update/destroy map DB failure to generic 500', () async {
+        await seedArticles();
+        await db.execute('DROP TABLE articles');
+        final viewSet = failingViewSet();
+        final createRes = await viewSet.create(BloomRequest(
+          method: 'POST',
+          uri: Uri.parse('http://localhost/api/articles'),
+          body: {
+            'title': 'x',
+            'content': 'y',
+            'status': 'draft',
+            'created_at': '2026-08-31T20:00:00Z',
+          },
+        ));
+        expect(createRes.statusCode, 500);
+        expect(
+            (createRes.bodyJson as Map<String, dynamic>)['error'],
+            'Internal Server Error');
+
+        final updateRes = await viewSet.update(BloomRequest(
+          method: 'PATCH',
+          uri: Uri.parse('http://localhost/api/articles/1'),
+          params: {'pk': '1'},
+          body: {'title': 'z'},
+        ));
+        expect(updateRes.statusCode, 500);
+
+        final destroyRes = await viewSet.destroy(BloomRequest(
+          method: 'DELETE',
+          uri: Uri.parse('http://localhost/api/articles/1'),
+          params: {'pk': '1'},
+        ));
+        expect(destroyRes.statusCode, 500);
+      });
+    });
+
     group('object-level authorization (#5)', () {
       BloomViewSet<Article> evenOnlyViewSet() {
         return BloomViewSet<Article>(
