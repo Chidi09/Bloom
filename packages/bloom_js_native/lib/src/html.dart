@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'data.dart';
 import 'framework.dart';
 
 /// HTML void elements — must not have a closing tag.
@@ -504,6 +505,12 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) {
   // Async Suspense continuations scheduled above inherit this zone, keeping
   // late-resolved patches scoped to their own stream. Only the chunk
   // delivery in [tail] below is lazy.
+  //
+  // NOTE (issue #31): the zone also inherits any ambient [BloomQueryScope]
+  // (`BloomData.scopeZoneKey`). When the caller wraps the request in
+  // `BloomData.runWithScope` / `BloomData.withRequestScope`, all query cache
+  // reads, deduplication, invalidations, and Suspense continuations stay
+  // request-local automatically.
   late final String shell;
   runZoned(() {
     _render(node, shellBuf, onSuspense);
@@ -523,4 +530,129 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) {
   }
 
   return tail();
+}
+
+// ── Request-scoped SSR helpers (issue #31) ──────────────────────────────
+//
+// Concurrent SSR requests sharing one Dart isolate must not share query
+// caches, in-flight deduplication, invalidation streams, or dehydration
+// snapshots. Wrap the whole request pipeline — prime cache → render →
+// dehydrate — in [runSsrRequest] (or [BloomData.withRequestScope] directly).
+// The synchronous `renderToHtml` family below reuses the ambient request
+// scope when present and falls back to the shared browser scope otherwise,
+// preserving ergonomic single-threaded/browser use.
+
+/// Runs [body] in an isolated SSR request scope, disposing it afterwards.
+///
+/// This is the recommended per-request wrapper for native SSR servers. It
+/// covers synchronous and `Future` results, including errors: the owned
+/// scope is disposed exactly once on success or throw. For `Stream` results
+/// (streaming SSR), use [runSsrRequestStream] so the scope survives until
+/// the stream closes, errors, or is cancelled.
+///
+/// ```dart
+/// final html = await runSsrRequest((scope) async {
+///   BloomData.setQueryData(['user', 'current'], (_) => alice);
+///   final html = renderToHtml(page());
+///   final state = BloomData.dehydrate();
+///   return '$html${BloomData.dehydrateToScriptTag(state: state)}';
+/// });
+/// ```
+Future<T> runSsrRequest<T>(
+  FutureOr<T> Function(BloomQueryScope scope) body, {
+  BloomQueryScope? scope,
+  String? debugLabel,
+}) =>
+    BloomData.withRequestScope<T>(body,
+        scope: scope, debugLabel: debugLabel ?? 'ssr-request');
+
+/// Variant of [runSsrRequest] for streaming responses.
+///
+/// Keeps the request scope alive until the returned stream closes, errors,
+/// or the subscriber cancels (covers streaming, errors, and cancellation).
+Stream<S> runSsrRequestStream<S>(
+  Stream<S> Function(BloomQueryScope scope) body, {
+  BloomQueryScope? scope,
+  String? debugLabel,
+}) =>
+    BloomData.withRequestScopeStream<S>(body,
+        scope: scope, debugLabel: debugLabel ?? 'ssr-stream');
+
+/// Renders [node] reusing [scope] as the ambient query cache.
+String renderToHtmlInScope(BloomNode node, BloomQueryScope scope) =>
+    BloomData.runWithScope(scope, () => renderToHtml(node));
+
+/// Renders [nodes] reusing [scope] as the ambient query cache.
+String renderToHtmlAllInScope(List<BloomNode> nodes, BloomQueryScope scope) =>
+    BloomData.runWithScope(scope, () => renderToHtmlAll(nodes));
+
+/// Renders a full document reusing [scope] as the ambient query cache.
+String renderToDocumentInScope(
+  BloomNode body, {
+  required BloomQueryScope scope,
+  String lang = 'en',
+  String charset = 'UTF-8',
+  String? title,
+  List<BloomNode> head = const [],
+  String? importMapJson,
+  List<String> stylesheets = const [],
+  List<String> scripts = const [],
+}) =>
+    BloomData.runWithScope(
+      scope,
+      () => renderToDocument(
+        body,
+        lang: lang,
+        charset: charset,
+        title: title,
+        head: head,
+        importMapJson: importMapJson,
+        stylesheets: stylesheets,
+        scripts: scripts,
+      ),
+    );
+
+/// Chunked streaming render reusing [scope] (caller owns lifetime).
+Stream<String> renderToStreamInScope(BloomNode node, BloomQueryScope scope) =>
+    BloomData.runWithScope(scope, () => renderToStream(node));
+
+/// Suspense streaming render reusing [scope] (caller owns lifetime).
+///
+/// Async Suspense continuations inherit the scope zone, so late-resolved
+/// patches stay request-local.
+Stream<String> renderToStreamWithSuspenseInScope(
+        BloomNode node, BloomQueryScope scope) =>
+    BloomData.runWithScope(scope, () => renderToStreamWithSuspense(node));
+
+/// Owned-scope suspense streaming: creates a request scope if the caller is
+/// not already scoped, and disposes it when the stream closes/errors/cancels.
+Stream<String> renderToStreamWithSuspenseScoped(
+  BloomNode node, {
+  BloomQueryScope? scope,
+  String? debugLabel,
+}) {
+  final ambient = scope ?? BloomData.currentScopeOrNull;
+  if (ambient != null) {
+    return renderToStreamWithSuspenseInScope(node, ambient);
+  }
+  return runSsrRequestStream(
+    (owned) => renderToStreamWithSuspenseInScope(node, owned),
+    debugLabel: debugLabel ?? 'ssr-stream',
+  );
+}
+
+/// Owned-scope chunked streaming with disposal bound to stream lifecycle.
+Stream<String> renderToStreamScoped(
+  BloomNode node, {
+  BloomQueryScope? scope,
+  String? debugLabel,
+}) {
+  final ambient = scope ?? BloomData.currentScopeOrNull;
+  if (ambient != null) {
+    return renderToStreamInScope(node, ambient);
+  }
+  return runSsrRequestStream(
+    (owned) => renderToStreamInScope(node, owned),
+    debugLabel: debugLabel ?? 'ssr-stream',
+  );
 }
