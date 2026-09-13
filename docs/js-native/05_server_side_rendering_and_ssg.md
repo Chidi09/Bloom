@@ -173,9 +173,98 @@ void main() {
 }
 ```
 
+> **Request isolation:** every `router.ssr()` handler runs inside its own
+> `BloomQueryScope` (via `BloomData.withRequestScope`), disposed automatically
+> on success or error. Concurrent requests sharing one isolate never share
+> private query caches, in-flight deduplication, invalidation streams, or
+> dehydration snapshots.
+
 ---
 
-## 5. SEO & Structured Data (`package:bloom_seo`)
+## 5. Request-Isolated SSR Query Caches
+
+Each SSR request gets its own isolated query cache scope. Cache entries,
+invalidation controllers, and in-flight requests are kept per request, so keys
+like `['user', 'current']` stay private to that request and `dehydrate()`
+only includes the current request's state by default.
+
+### Recommended per-request pipeline
+
+Wrap **prime → render → dehydrate** in one scope. `dehydrate()` then includes
+only the current request's intended state by default:
+
+```dart
+final html = await runSsrRequest((scope) async {
+  // Private per-request data — isolated from concurrent requests.
+  BloomData.setQueryData(['user', 'current'], (_) => currentUser);
+
+  final html = renderToHtml(page());
+  final state = BloomData.dehydrate();
+  return '$html${BloomData.dehydrateToScriptTag(state: state)}';
+});
+```
+
+Streaming keeps the scope alive until close/error/cancel:
+
+```dart
+final stream = runSsrRequestStream((scope) =>
+  renderToStreamWithSuspenseInScope(page(), scope));
+await for (final chunk in stream) {
+  response.write(chunk);
+}
+```
+
+`BloomApiRouter.ssr()` already does this for you. Custom servers should use
+`runSsrRequest` / `runSsrRequestStream` or `BloomData.withRequestScope` /
+`BloomData.withRequestScopeStream` directly. `renderToHtmlInScope`,
+`renderToDocumentInScope`, `renderToStreamInScope`, and
+`renderToStreamWithSuspenseInScope` reuse an explicit scope without taking
+ownership.
+
+### Migrating from shared server-side cache use
+
+Before (shared cache — not safe under concurrency):
+
+```dart
+BloomData.setQueryData(['user', 'current'], (_) => alice);
+final html = renderToHtml(page());
+final state = BloomData.dehydrate();
+BloomData.clear();
+```
+
+After (isolated per-request scope):
+
+```dart
+await BloomData.withRequestScope((scope) async {
+  BloomData.setQueryData(['user', 'current'], (_) => alice);
+  final html = renderToHtml(page()); // reuses ambient scope
+  final state = BloomData.dehydrate(); // only this request's entries
+});
+```
+
+Browser code is unchanged — outside any scope, static `BloomData` methods use
+the shared `browserScope` ergonomically.
+
+### Private vs explicitly shared public data
+
+- **Private request data (default):** per-request scope. Never shared.
+- **Shared public data (explicit opt-in):** `BloomData.sharedPublicScope`.
+
+```dart
+// Prime once (e.g. at boot):
+BloomData.runWithScope(BloomData.sharedPublicScope, () {
+  BloomData.setQueryData(['public', 'config'], (_) => config);
+});
+
+// Adopt into a request without leaking private state back:
+await BloomData.withRequestScope((scope) async {
+  scope.adoptEntryFrom(BloomData.sharedPublicScope, ['public', 'config']);
+});
+```
+
+---
+
+## 6. SEO & Structured Data (`package:bloom_seo`)
 
 Bloom provides complete, reactive SEO primitives in `package:bloom_seo`:
 

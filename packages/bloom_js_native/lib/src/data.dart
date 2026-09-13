@@ -88,61 +88,65 @@ class QueryCacheEntry<T> {
 /// - [BloomQuery], the reactive query coordinator that reads from and populates [BloomData].
 /// - [BloomInfiniteQuery], for paginated and cursor-based infinite queries.
 /// - [BloomMutation], for executing mutations that invalidate or optimistically update [BloomData].
-class BloomData {
-  BloomData._();
+/// Request-isolated query cache scope holding private SSR state.
+///
+/// A [BloomQueryScope] owns its own cache entries, invalidation controllers,
+/// and in-flight deduplication trackers. Concurrent SSR requests each run in
+/// their own scope (via [BloomData.runWithScope] / [BloomData.withRequestScope])
+/// so identical keys such as `['user', 'current']` never collide across
+/// requests sharing one Dart isolate.
+///
+/// The browser uses [BloomData.browserScope] implicitly. Explicitly shared
+/// public server data should use [BloomData.sharedPublicScope] via
+/// [BloomData.runWithScope] — never the per-request scope.
+///
+/// Scopes must be disposed after the request finishes ([dispose]) to close
+/// broadcast controllers and drop references. [BloomData.withRequestScope]
+/// does this automatically, including on errors. For streaming responses,
+/// keep the scope alive until the stream closes or is cancelled.
+class BloomQueryScope {
+  /// Optional label for debugging (e.g. `'ssr-request'`, `'browser'`).
+  final String? debugLabel;
 
-  static final Map<String, QueryCacheEntry<dynamic>> _cache =
+  final Map<String, QueryCacheEntry<dynamic>> _cache =
       HashMap<String, QueryCacheEntry<dynamic>>();
-  static final Map<String, StreamController<void>> _invalidationControllers =
+  final Map<String, StreamController<void>> _invalidationControllers =
       HashMap<String, StreamController<void>>();
-  static final Map<String, Completer<dynamic>> _inFlightRequests =
+  final Map<String, Completer<dynamic>> _inFlightRequests =
       HashMap<String, Completer<dynamic>>();
 
-  /// Converts a structured key list into a normalized, canonical string key.
-  ///
-  /// Maps and Iterables within the key are recursively normalized and sorted to guarantee
-  /// identical canonical string representations regardless of map key insertion order.
-  ///
-  /// ```dart
-  /// final keyStr = BloomData.normalizeKey(['tasks', {'status': 'done', 'page': 1}]);
-  /// // Produces: "tasks:{page: 1, status: done}"
-  /// ```
-  static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
+  bool _disposed = false;
 
-  static String _canonical(dynamic e) {
-    if (e is Map) {
-      final entries = e.entries.map((kv) => '${kv.key}: ${_canonical(kv.value)}').toList()..sort();
-      return '{${entries.join(', ')}}';
+  /// Creates an isolated query cache scope.
+  BloomQueryScope({this.debugLabel});
+
+  /// Whether [dispose] has been called. Using a disposed scope throws.
+  bool get isDisposed => _disposed;
+
+  void _assertAlive() {
+    if (_disposed) {
+      throw StateError(
+        'BloomQueryScope(${debugLabel ?? 'unnamed'}) is disposed. '
+        'Create a new scope per SSR request via BloomData.withRequestScope().',
+      );
     }
-    if (e is Iterable) return '[${e.map(_canonical).join(', ')}]';
-    return e.toString();
   }
 
-  /// Invalidates all cached queries matching [keyPrefix] and notifies active [BloomQuery] subscribers.
-  ///
-  /// Sets `isStale = true` on matching cache entries and triggers invalidation streams, causing
-  /// active enabled [BloomQuery] instances to automatically refetch in the background.
-  ///
-  /// An empty prefix `[]` matches and invalidates all queries in the cache.
-  ///
-  /// ```dart
-  /// // Invalidate all tasks
-  /// BloomData.invalidateQueries(['tasks']);
-  ///
-  /// // Invalidate a specific task
-  /// BloomData.invalidateQueries(['tasks', 42]);
-  /// ```
-  static void invalidateQueries(List<dynamic> keyPrefix) {
-    final prefixStr = normalizeKey(keyPrefix);
+  /// Invalidates all cached queries matching [keyPrefix] within this scope.
+  void invalidateQueries(List<dynamic> keyPrefix) {
+    _assertAlive();
+    final prefixStr = BloomData.normalizeKey(keyPrefix);
     final matchingKeys = <String>{};
     for (final entry in _cache.values) {
-      if (_matchesKey(entry.key, keyPrefix)) {
+      if (BloomData.matchesKey(entry.key, keyPrefix)) {
         entry.isStale = true;
-        matchingKeys.add(normalizeKey(entry.key));
+        matchingKeys.add(BloomData.normalizeKey(entry.key));
       }
     }
     for (final keyStr in _invalidationControllers.keys) {
-      if (prefixStr.isEmpty || keyStr == prefixStr || keyStr.startsWith('$prefixStr:')) {
+      if (prefixStr.isEmpty ||
+          keyStr == prefixStr ||
+          keyStr.startsWith('$prefixStr:')) {
         matchingKeys.add(keyStr);
       }
     }
@@ -151,25 +155,10 @@ class BloomData {
     }
   }
 
-  static bool _matchesKey(List<dynamic> candidateKey, List<dynamic> prefix) {
-    if (prefix.isEmpty) return true;
-    if (candidateKey.length < prefix.length) return false;
-    for (int i = 0; i < prefix.length; i++) {
-      if (_canonical(candidateKey[i]) != _canonical(prefix[i])) return false;
-    }
-    return true;
-  }
-
-  /// Directly updates cached query data for [key] using a transformation [updater] callback.
-  ///
-  /// Creates a new [QueryCacheEntry] or updates an existing one, marks it fresh (`isStale = false`),
-  /// and notifies invalidation listeners.
-  ///
-  /// ```dart
-  /// BloomData.setQueryData<List<Task>>(['tasks'], (oldTasks) => [...?oldTasks, newTask]);
-  /// ```
-  static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) {
-    final keyStr = normalizeKey(key);
+  /// Directly updates cached query data for [key] within this scope.
+  void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) {
+    _assertAlive();
+    final keyStr = BloomData.normalizeKey(key);
     final existing = _cache[keyStr] as QueryCacheEntry<T>?;
     final newData = updater(existing?.data);
 
@@ -185,13 +174,10 @@ class BloomData {
     _invalidationControllers[keyStr]?.add(null);
   }
 
-  /// Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
-  ///
-  /// ```dart
-  /// final cachedUser = BloomData.getQueryData<User>(['user', 'current']);
-  /// ```
-  static T? getQueryData<T>(List<dynamic> key) {
-    final keyStr = normalizeKey(key);
+  /// Retrieves non-expired cached query data for [key] from this scope.
+  T? getQueryData<T>(List<dynamic> key) {
+    _assertAlive();
+    final keyStr = BloomData.normalizeKey(key);
     final entry = _cache[keyStr];
     if (entry != null && !entry.isExpired) {
       return entry.data as T?;
@@ -199,16 +185,10 @@ class BloomData {
     return null;
   }
 
-  /// Deduplicates concurrent asynchronous requests sharing the same cache [key].
-  ///
-  /// If a request for [key] is already in-flight, returns the existing active `Future`.
-  /// Otherwise, executes [fetcher], broadcasts the result to all callers, and cleans up upon completion.
-  ///
-  /// ```dart
-  /// final result = await BloomData.deduplicate(['items'], () => client.get('/items'));
-  /// ```
-  static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) {
-    final keyStr = normalizeKey(key);
+  /// Deduplicates concurrent requests sharing [key] within this scope only.
+  Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) {
+    _assertAlive();
+    final keyStr = BloomData.normalizeKey(key);
     if (_inFlightRequests.containsKey(keyStr)) {
       return _inFlightRequests[keyStr]!.future as Future<T>;
     }
@@ -218,89 +198,44 @@ class BloomData {
 
     fetcher().then((val) {
       _inFlightRequests.remove(keyStr);
-      completer.complete(val);
+      if (!completer.isCompleted) completer.complete(val);
     }).catchError((Object err, StackTrace st) {
       _inFlightRequests.remove(keyStr);
-      completer.completeError(err, st);
+      if (!completer.isCompleted) completer.completeError(err, st);
     });
 
     return completer.future;
   }
 
-  /// Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
-  ///
-  /// Subscribed to by [BloomQuery] to trigger background re-fetching.
-  static Stream<void> onInvalidated(List<dynamic> key) {
-    final keyStr = normalizeKey(key);
+  /// Broadcast stream emitting on invalidation of [key] within this scope.
+  Stream<void> onInvalidated(List<dynamic> key) {
+    _assertAlive();
+    final keyStr = BloomData.normalizeKey(key);
     return _invalidationControllers
         .putIfAbsent(keyStr, () => StreamController<void>.broadcast())
         .stream;
   }
 
-  /// Directly inserts or overwrites a [QueryCacheEntry] in the cache.
-  static void putEntry<T>(QueryCacheEntry<T> entry) {
-    _cache[normalizeKey(entry.key)] = entry;
+  /// Directly inserts or overwrites a [QueryCacheEntry] in this scope.
+  void putEntry<T>(QueryCacheEntry<T> entry) {
+    _assertAlive();
+    _cache[BloomData.normalizeKey(entry.key)] = entry;
   }
 
-  /// Retrieves the raw [QueryCacheEntry] for [key], returning `null` if missing or expired.
-  static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
-    final entry = _cache[normalizeKey(key)];
+  /// Retrieves the raw [QueryCacheEntry] for [key] from this scope.
+  QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) {
+    _assertAlive();
+    final entry = _cache[BloomData.normalizeKey(key)];
     if (entry != null && !entry.isExpired) return entry as QueryCacheEntry<T>?;
     return null;
   }
 
-  /// Serializes the current [BloomData] cache into a plain, JSON-encodable Map.
-  ///
-  /// Extracts cache records, preserving structured query keys, data payloads,
-  /// timestamps ([QueryCacheEntry.updatedAt]), [QueryCacheEntry.staleTime],
-  /// [QueryCacheEntry.cacheTime], and [QueryCacheEntry.isStale] flags so freshness
-  /// is preserved across process boundaries during SSR dehydration and client hydration.
-  ///
-  /// Pass [shouldDehydrate] to filter which entries are included (e.g. to exclude
-  /// private session queries or other user data). By default, all non-expired entries
-  /// are included.
-  ///
-  /// Supply [serialize] to convert custom domain objects into JSON-compatible values
-  /// (such as `Map<String, dynamic>`). If [serialize] is omitted and an entry's data is
-  /// not directly JSON-encodable (or does not provide a `.toJson()` method), an [ArgumentError]
-  /// is thrown with details identifying the offending query key.
-  ///
-  /// ### End-to-End SSR Example
-  /// ```dart
-  /// // ── 1. Server-Side Rendering (SSR) ──────────────────────────────────
-  /// // Populate cache during server render
-  /// BloomData.setQueryData<User>(['user', 42], (_) => currentUser);
-  ///
-  /// // Dehydrate cache state to embed in the HTML response
-  /// final dehydrated = BloomData.dehydrate(
-  ///   serialize: (data, key) => data is User ? data.toJson() : data,
-  /// );
-  /// final scriptTag = BloomData.dehydrateToScriptTag(state: dehydrated);
-  ///
-  /// // ── 2. Client-Side Hydration ────────────────────────────────────────
-  /// // On the browser, parse embedded JSON and hydrate BloomData before mounting
-  /// BloomData.hydrate(
-  ///   dehydrated,
-  ///   deserialize: (json, key) => key.first == 'user' ? User.fromJson(json as Map<String, dynamic>) : json,
-  /// );
-  ///
-  /// // A query constructed here finds the fresh cache entry and does NOT refetch:
-  /// final userQuery = query<User>(
-  ///   key: ['user', 42],
-  ///   fetch: () => httpClient.get('/api/user/42'),
-  /// );
-  /// assert(userQuery.status.value == QueryStatus.success);
-  /// assert(userQuery.isFetching.value == false);
-  /// ```
-  ///
-  /// See also:
-  /// - [hydrate], to restore dehydrated state on the client.
-  /// - [dehydrateToScriptTag], to serialize and format as a safe HTML script tag.
-  /// - [hydrateFromJson], to restore cache from a JSON string.
-  static Map<String, dynamic> dehydrate({
+  /// Serializes only this scope's cache — never another request's state.
+  Map<String, dynamic> dehydrate({
     bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate,
     dynamic Function(dynamic data, List<dynamic> key)? serialize,
   }) {
+    _assertAlive();
     final queries = <Map<String, dynamic>>[];
 
     for (final entry in _cache.values) {
@@ -314,13 +249,12 @@ class BloomData {
         serializedData = entry.data;
       }
 
-      // Verify that serializedData is JSON-encodable when no custom serialize function handles it.
       try {
         jsonEncode(serializedData);
       } catch (e) {
         throw ArgumentError(
-          'Data for query key "${normalizeKey(entry.key)}" is not JSON-encodable: $e. '
-          'Provide a custom `serialize` function to BloomData.dehydrate() to convert domain objects.',
+          'Data for query key "${BloomData.normalizeKey(entry.key)}" is not JSON-encodable: $e. '
+          'Provide a custom `serialize` function to dehydrate() to convert domain objects.',
         );
       }
 
@@ -337,34 +271,12 @@ class BloomData {
     return {'queries': queries};
   }
 
-  /// Restores cache records from a [dehydratedState] Map into the [BloomData] cache.
-  ///
-  /// Reconstitutes [QueryCacheEntry] instances with their original timestamps,
-  /// stale times, cache times, and stale flags. Freshly hydrated entries are
-  /// immediately recognized as fresh by [BloomQuery] and [BloomInfiniteQuery],
-  /// starting in [QueryStatus.success] with data present and avoiding redundant SSR double-fetches.
-  ///
-  /// Supply [deserialize] to convert raw JSON values back into domain models.
-  ///
-  /// ```dart
-  /// BloomData.hydrate(
-  ///   dehydratedMap,
-  ///   deserialize: (rawJson, key) {
-  ///     if (key.first == 'todos') {
-  ///       return (rawJson as List).map((e) => Todo.fromJson(e as Map<String, dynamic>)).toList();
-  ///     }
-  ///     return rawJson;
-  ///   },
-  /// );
-  /// ```
-  ///
-  /// See also:
-  /// - [dehydrate], to capture the cache into a serializable structure.
-  /// - [hydrateFromJson], for direct hydration from a raw JSON string.
-  static void hydrate(
+  /// Restores entries into this scope only.
+  void hydrate(
     Map<String, dynamic> dehydratedState, {
     dynamic Function(dynamic json, List<dynamic> key)? deserialize,
   }) {
+    _assertAlive();
     final queriesRaw = dehydratedState['queries'];
     if (queriesRaw is! List) return;
 
@@ -403,12 +315,377 @@ class BloomData {
     }
   }
 
-  /// Serializes cache state into an HTML `<script type="application/json">` tag string.
+  /// Serializes this scope into a safe `<script type="application/json">` tag.
+  String dehydrateToScriptTag({
+    Map<String, dynamic>? state,
+    String id = '__BLOOM_DATA__',
+    bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate,
+    dynamic Function(dynamic data, List<dynamic> key)? serialize,
+  }) {
+    final payload = state ??
+        dehydrate(
+          shouldDehydrate: shouldDehydrate,
+          serialize: serialize,
+        );
+    final jsonStr = jsonEncode(payload);
+    final safeJson = jsonStr.replaceAll('<', r'\u003c');
+    return '<script id="$id" type="application/json">$safeJson</script>';
+  }
+
+  /// Parses JSON and restores entries into this scope.
+  void hydrateFromJson(
+    String jsonString, {
+    dynamic Function(dynamic json, List<dynamic> key)? deserialize,
+  }) {
+    final decoded = jsonDecode(jsonString);
+    if (decoded is Map<String, dynamic>) {
+      hydrate(decoded, deserialize: deserialize);
+    } else if (decoded is Map) {
+      hydrate(Map<String, dynamic>.from(decoded), deserialize: deserialize);
+    }
+  }
+
+  /// Copies a single entry from [source] into this scope (explicit public sharing).
+  ///
+  /// Use to adopt explicitly shared public data (e.g. from
+  /// [BloomData.sharedPublicScope]) into a private request scope without
+  /// exposing private request state in the other direction.
+  void adoptEntryFrom(BloomQueryScope source, List<dynamic> key) {
+    _assertAlive();
+    final entry = source._cache[BloomData.normalizeKey(key)];
+    if (entry != null && !entry.isExpired) {
+      _cache[BloomData.normalizeKey(key)] = entry;
+    }
+  }
+
+  /// Clears entries, in-flight trackers, and controllers within this scope.
+  ///
+  /// The scope remains usable after [clear] (unlike [dispose]).
+  void clear() {
+    if (_disposed) return;
+    _cache.clear();
+    for (final ctrl in _invalidationControllers.values) {
+      try {
+        ctrl.close();
+      } catch (_) {}
+    }
+    _invalidationControllers.clear();
+    _inFlightRequests.clear();
+  }
+
+  /// Closes controllers and drops all state. The scope must not be reused.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _cache.clear();
+    for (final ctrl in _invalidationControllers.values) {
+      try {
+        ctrl.close();
+      } catch (_) {}
+    }
+    _invalidationControllers.clear();
+    _inFlightRequests.clear();
+  }
+}
+
+class BloomData {
+  BloomData._();
+
+  /// Zone key carrying the current request's [BloomQueryScope].
+  static const Object scopeZoneKey = #bloom.queryScope;
+
+  static final BloomQueryScope _browserScope =
+      BloomQueryScope(debugLabel: 'browser');
+  static final BloomQueryScope _sharedPublicScope =
+      BloomQueryScope(debugLabel: 'shared-public');
+
+  /// Request scope for the current Zone, or the shared browser scope.
+  ///
+  /// Inside `runWithScope` / `withRequestScope`, returns that request's
+  /// private [BloomQueryScope]. Outside any scope (browser, tests, SSG),
+  /// returns [browserScope] for ergonomic static use.
+  static BloomQueryScope get currentScope =>
+      Zone.current[scopeZoneKey] as BloomQueryScope? ?? _browserScope;
+
+  /// The request scope if one is active, else `null`.
+  static BloomQueryScope? get currentScopeOrNull =>
+      Zone.current[scopeZoneKey] as BloomQueryScope?;
+
+  /// Default shared scope used for ergonomic browser/test use.
+  static BloomQueryScope get browserScope => _browserScope;
+
+  /// Explicit opt-in shared cache for public server data.
+  ///
+  /// Never store private per-user data here. Use per-request scopes for
+  /// private data and explicitly copy public entries via
+  /// `scope.adoptEntryFrom(sharedPublicScope, key)` when needed.
+  static BloomQueryScope get sharedPublicScope => _sharedPublicScope;
+
+  /// Creates a fresh isolated scope (one per SSR request).
+  static BloomQueryScope createScope({String? debugLabel}) =>
+      BloomQueryScope(debugLabel: debugLabel);
+
+  /// Runs [body] with [scope] as the current request scope.
+  static R runWithScope<R>(BloomQueryScope scope, R Function() body) =>
+      runZoned(body, zoneValues: {scopeZoneKey: scope});
+
+  /// Runs [body] in a fresh request scope, disposing it afterwards.
+  ///
+  /// If [scope] is supplied, it is used and NOT disposed (caller owns it).
+  /// Otherwise a new scope is created and disposed after [body] completes,
+  /// including async completion and sync/async errors.
+  ///
+  /// For streaming (`Stream` results), prefer [withRequestScopeStream] so the
+  /// scope stays alive until the stream closes, errors, or is cancelled.
+  ///
+  /// ```dart
+  /// final html = await BloomData.withRequestScope((scope) async {
+  ///   BloomData.setQueryData(['user', 'current'], (_) => alice);
+  ///   final html = renderToHtml(page());
+  ///   return html;
+  /// });
+  /// ```
+  static Future<T> withRequestScope<T>(
+    FutureOr<T> Function(BloomQueryScope scope) body, {
+    BloomQueryScope? scope,
+    String? debugLabel,
+  }) async {
+    final effective = scope ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-request');
+    final owned = scope == null;
+    try {
+      final result =
+          runZoned(() => body(effective), zoneValues: {scopeZoneKey: effective});
+      if (result is Future<T>) {
+        try {
+          return await result;
+        } finally {
+          if (owned) effective.dispose();
+        }
+      } else {
+        // Sync result (T is not a Future). Dispose owned scope now.
+        if (owned) effective.dispose();
+        return result;
+      }
+    } catch (_) {
+      if (owned) effective.dispose();
+      rethrow;
+    }
+  }
+
+  /// Variant of [withRequestScope] for `Stream` results (streaming SSR).
+  ///
+  /// Keeps the request scope alive until the stream closes, errors, or the
+  /// subscriber cancels. Disposes owned scopes exactly once on done/error/cancel.
+  static Stream<S> withRequestScopeStream<S>(
+    Stream<S> Function(BloomQueryScope scope) body, {
+    BloomQueryScope? scope,
+    String? debugLabel,
+  }) {
+    BloomQueryScope? current;
+    if (scope != null) {
+      current = scope;
+    } else {
+      final zoned = Zone.current[scopeZoneKey] as BloomQueryScope?;
+      if (zoned != null) {
+        current = zoned;
+      }
+    }
+    final effective = current ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-stream');
+    final owned = current == null;
+    late final Stream<S> raw;
+    try {
+      raw = runZoned(() => body(effective), zoneValues: {scopeZoneKey: effective});
+    } catch (_) {
+      if (owned) effective.dispose();
+      rethrow;
+    }
+    if (!owned) return raw;
+    final controller = StreamController<S>();
+    StreamSubscription<S>? sub;
+    var cleaned = false;
+    void cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      effective.dispose();
+    }
+
+    sub = raw.listen(
+      controller.add,
+      onError: (Object e, StackTrace s) {
+        controller.addError(e, s);
+      },
+      onDone: () async {
+        await controller.close();
+        cleanup();
+      },
+      cancelOnError: false,
+    );
+    controller.onCancel = () async {
+      await sub?.cancel();
+      cleanup();
+    };
+    controller.onPause = () => sub?.pause();
+    controller.onResume = () => sub?.resume();
+    return controller.stream;
+  }
+
+  /// Converts a structured key list into a normalized, canonical string key.
+  ///
+  /// Maps and Iterables within the key are recursively normalized and sorted to guarantee
+  /// identical canonical string representations regardless of map key insertion order.
+  ///
+  /// ```dart
+  /// final keyStr = BloomData.normalizeKey(['tasks', {'status': 'done', 'page': 1}]);
+  /// // Produces: "tasks:{page: 1, status: done}"
+  /// ```
+  static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
+
+  static String _canonical(dynamic e) {
+    if (e is Map) {
+      final entries = e.entries.map((kv) => '${kv.key}: ${_canonical(kv.value)}').toList()..sort();
+      return '{${entries.join(', ')}}';
+    }
+    if (e is Iterable) return '[${e.map(_canonical).join(', ')}]';
+    return e.toString();
+  }
+
+  /// Prefix-match helper shared by scopes.
+  static bool matchesKey(List<dynamic> candidateKey, List<dynamic> prefix) {
+    if (prefix.isEmpty) return true;
+    if (candidateKey.length < prefix.length) return false;
+    for (int i = 0; i < prefix.length; i++) {
+      if (_canonical(candidateKey[i]) != _canonical(prefix[i])) return false;
+    }
+    return true;
+  }
+
+  /// Invalidates all cached queries matching [keyPrefix] and notifies subscribers.
+  ///
+  /// Delegates to the current request scope ([currentScope]), so concurrent
+  /// SSR requests never invalidate each other.
+  ///
+  /// ```dart
+  /// BloomData.invalidateQueries(['tasks']);
+  /// ```
+  static void invalidateQueries(List<dynamic> keyPrefix) =>
+      currentScope.invalidateQueries(keyPrefix);
+
+  /// Directly updates cached query data for [key] using a transformation [updater] callback.
+  ///
+  /// Delegates to [currentScope]. In SSR, wrap the request in
+  /// [withRequestScope] so private per-user data never leaks across requests.
+  ///
+  /// ```dart
+  /// BloomData.setQueryData<List<Task>>(['tasks'], (oldTasks) => [...?oldTasks, newTask]);
+  /// ```
+  static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) =>
+      currentScope.setQueryData<T>(key, updater);
+
+  /// Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
+  ///
+  /// Reads from [currentScope] only.
+  ///
+  /// ```dart
+  /// final cachedUser = BloomData.getQueryData<User>(['user', 'current']);
+  /// ```
+  static T? getQueryData<T>(List<dynamic> key) => currentScope.getQueryData<T>(key);
+
+  /// Deduplicates concurrent asynchronous requests sharing the same cache [key].
+  ///
+  /// Scoped to [currentScope]: identical keys in concurrent SSR requests
+  /// execute independently and never share in-flight work.
+  ///
+  /// ```dart
+  /// final result = await BloomData.deduplicate(['items'], () => client.get('/items'));
+  /// ```
+  static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) =>
+      currentScope.deduplicate<T>(key, fetcher);
+
+  /// Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
+  ///
+  /// Scoped to [currentScope]. Subscribed to by [BloomQuery] to trigger background re-fetching.
+  static Stream<void> onInvalidated(List<dynamic> key) =>
+      currentScope.onInvalidated(key);
+
+  /// Directly inserts or overwrites a [QueryCacheEntry] in the current scope.
+  static void putEntry<T>(QueryCacheEntry<T> entry) =>
+      currentScope.putEntry<T>(entry);
+
+  /// Retrieves the raw [QueryCacheEntry] for [key] from the current scope.
+  static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) =>
+      currentScope.getEntry<T>(key);
+
+  /// Serializes the current request scope's cache into a plain, JSON-encodable Map.
+  ///
+  /// By default includes only the current request's intended state
+  /// ([currentScope]) — never another concurrent request's entries. This is
+  /// the fix for cross-request dehydration leakage: call [dehydrate] inside
+  /// [withRequestScope] / [runWithScope] after rendering.
+  ///
+  /// Pass [shouldDehydrate] to filter which entries are included (e.g. to exclude
+  /// private session queries or other user data). By default, all non-expired entries
+  /// in the current scope are included.
+  ///
+  /// ### Request-scoped SSR Example (recommended migration from static use)
+  /// ```dart
+  /// final response = await BloomData.withRequestScope((scope) async {
+  ///   // Private per-request data — isolated from concurrent requests.
+  ///   BloomData.setQueryData(['user', 'current'], (_) => alice);
+  ///   final html = renderToHtml(page());
+  ///   final dehydrated = BloomData.dehydrate();
+  ///   return '$html${BloomData.dehydrateToScriptTag(state: dehydrated)}';
+  /// });
+  /// ```
+  ///
+  /// See also:
+  /// - [hydrate], to restore dehydrated state on the client.
+  /// - [dehydrateToScriptTag], to serialize and format as a safe HTML script tag.
+  /// - [hydrateFromJson], to restore cache from a JSON string.
+  static Map<String, dynamic> dehydrate({
+    bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate,
+    dynamic Function(dynamic data, List<dynamic> key)? serialize,
+  }) =>
+      currentScope.dehydrate(
+        shouldDehydrate: shouldDehydrate,
+        serialize: serialize,
+      );
+
+  /// Restores cache records from a [dehydratedState] Map into the current scope.
+  ///
+  /// Reconstitutes [QueryCacheEntry] instances with their original timestamps,
+  /// stale times, cache times, and stale flags. Freshly hydrated entries are
+  /// immediately recognized as fresh by [BloomQuery] and [BloomInfiniteQuery],
+  /// starting in [QueryStatus.success] with data present and avoiding redundant SSR double-fetches.
+  ///
+  /// Supply [deserialize] to convert raw JSON values back into domain models.
+  ///
+  /// ```dart
+  /// BloomData.hydrate(
+  ///   dehydratedMap,
+  ///   deserialize: (rawJson, key) {
+  ///     if (key.first == 'todos') {
+  ///       return (rawJson as List).map((e) => Todo.fromJson(e as Map<String, dynamic>)).toList();
+  ///     }
+  ///     return rawJson;
+  ///   },
+  /// );
+  /// ```
+  ///
+  /// See also:
+  /// - [dehydrate], to capture the cache into a serializable structure.
+  /// - [hydrateFromJson], for direct hydration from a raw JSON string.
+  static void hydrate(
+    Map<String, dynamic> dehydratedState, {
+    dynamic Function(dynamic json, List<dynamic> key)? deserialize,
+  }) =>
+      currentScope.hydrate(dehydratedState, deserialize: deserialize);
+
+  /// Serializes the current scope's state into an HTML `<script type="application/json">` tag string.
   ///
   /// Safely escapes the serialized JSON payload by encoding `<` as `\u003c`, preventing
   /// malicious script injection or HTML syntax collisions (e.g. embedded `</script>` tags).
   ///
-  /// If [state] is omitted, automatically calls [dehydrate] with [shouldDehydrate] and [serialize].
+  /// If [state] is omitted, automatically calls [dehydrate] on the current scope.
   ///
   /// ```dart
   /// final scriptHtml = BloomData.dehydrateToScriptTag(
@@ -426,24 +703,17 @@ class BloomData {
     String id = '__BLOOM_DATA__',
     bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate,
     dynamic Function(dynamic data, List<dynamic> key)? serialize,
-  }) {
-    final payload = state ??
-        dehydrate(
-          shouldDehydrate: shouldDehydrate,
-          serialize: serialize,
-        );
-    final jsonStr = jsonEncode(payload);
-    final safeJson = jsonStr.replaceAll('<', r'\u003c');
-    return '<script id="$id" type="application/json">$safeJson</script>';
-  }
+  }) =>
+      currentScope.dehydrateToScriptTag(
+        state: state,
+        id: id,
+        shouldDehydrate: shouldDehydrate,
+        serialize: serialize,
+      );
 
-  /// Parses a serialized JSON string and restores the cache entries into [BloomData].
+  /// Parses a serialized JSON string and restores entries into the current scope.
   ///
-  /// Pure Dart and safe for SSR, VM, and browser environments. Extracts the dehydrated
-  /// state and populates the cache using [hydrate].
-  ///
-  /// In the browser, obtain the string content from the DOM element (e.g. via `package:web`)
-  /// and pass it to this method before mounting components.
+  /// Pure Dart and safe for SSR, VM, and browser environments.
   ///
   /// ```dart
   /// // In client application bootstrap:
@@ -460,30 +730,27 @@ class BloomData {
   static void hydrateFromJson(
     String jsonString, {
     dynamic Function(dynamic json, List<dynamic> key)? deserialize,
-  }) {
-    final decoded = jsonDecode(jsonString);
-    if (decoded is Map<String, dynamic>) {
-      hydrate(decoded, deserialize: deserialize);
-    } else if (decoded is Map) {
-      hydrate(Map<String, dynamic>.from(decoded), deserialize: deserialize);
-    }
-  }
+  }) =>
+      currentScope.hydrateFromJson(jsonString, deserialize: deserialize);
 
-  /// Clears all cached query entries, active in-flight request deduplication trackers,
-  /// and invalidation controllers.
+  /// Clears the current scope's entries, in-flight trackers, and controllers.
   ///
-  /// Recommended in test `tearDown()` or between SSR requests.
+  /// In tests, call in `setUp`/`tearDown` (clears [browserScope] when no
+  /// request scope is active). In SSR, prefer [withRequestScope] which
+  /// disposes the private scope automatically — do not rely on [clear]
+  /// between concurrent requests (it cannot isolate them).
   ///
   /// ```dart
   /// BloomData.clear();
   /// ```
-  static void clear() {
-    _cache.clear();
-    for (final ctrl in _invalidationControllers.values) {
-      ctrl.close();
-    }
-    _invalidationControllers.clear();
-    _inFlightRequests.clear();
+  static void clear() => currentScope.clear();
+
+  /// Disposes the current request scope if one is active (no-op otherwise).
+  ///
+  /// Prefer [withRequestScope]/[withRequestScopeStream] which manage lifetime
+  /// automatically, including streaming, errors, and cancellation.
+  static void disposeCurrentScope() {
+    currentScopeOrNull?.dispose();
   }
 }
 

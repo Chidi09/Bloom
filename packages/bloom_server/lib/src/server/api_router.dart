@@ -181,6 +181,11 @@ class BloomRouteGroup {
   }
 
   /// Mounts a Server-Side Rendered (SSR) endpoint within this group.
+  ///
+  /// Each request runs in its own isolated [BloomQueryScope] (issue #31), so
+  /// concurrent renders sharing one isolate never share private query caches,
+  /// in-flight deduplication, invalidations, or dehydration snapshots. The
+  /// scope is disposed automatically on success or error.
   void ssr(
     String path,
     BloomNode Function(BloomRequest request) builder, {
@@ -189,21 +194,24 @@ class BloomRouteGroup {
     List<BloomMiddleware> middlewares = const [],
   }) {
     get(path, (request) async {
-      final node = builder(request);
-      final bodyHtml = renderToHtml(node);
-      final headManager = head?.call(request);
+      return BloomData.withRequestScope((scope) {
+        final node = BloomData.runWithScope(scope, () => builder(request));
+        final bodyHtml = renderToHtmlInScope(node, scope);
+        final headManager =
+            head == null ? null : BloomData.runWithScope(scope, () => head(request));
 
-      final String fullHtml;
-      if (layout != null) {
-        fullHtml = layout(bodyHtml, headManager);
-      } else if (headManager != null) {
-        fullHtml = headManager.wrapDocument(bodyHtml);
-      } else {
-        fullHtml =
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
-      }
+        final String fullHtml;
+        if (layout != null) {
+          fullHtml = layout(bodyHtml, headManager);
+        } else if (headManager != null) {
+          fullHtml = headManager.wrapDocument(bodyHtml);
+        } else {
+          fullHtml =
+              '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
+        }
 
-      return BloomResponse.html(fullHtml);
+        return BloomResponse.html(fullHtml);
+      }, debugLabel: 'ssr-request');
     }, middlewares: middlewares);
   }
 
@@ -396,6 +404,9 @@ class BloomApiRouter {
   /// Executes pure-Dart [builder] in <1ms without JavaScript engine overhead.
   /// Automatically wraps the resulting HTML using [layout], [head], or a default HTML5 template.
   ///
+  /// Each request runs in its own isolated [BloomQueryScope] (issue #31),
+  /// disposed automatically on success or error.
+  ///
   /// ### Example
   /// ```dart
   /// router.ssr('/dashboard', (req) => Div(
@@ -411,21 +422,24 @@ class BloomApiRouter {
     List<BloomMiddleware> middlewares = const [],
   }) {
     get(path, (request) async {
-      final node = builder(request);
-      final bodyHtml = renderToHtml(node);
-      final headManager = head?.call(request);
+      return BloomData.withRequestScope((scope) {
+        final node = BloomData.runWithScope(scope, () => builder(request));
+        final bodyHtml = renderToHtmlInScope(node, scope);
+        final headManager =
+            head == null ? null : BloomData.runWithScope(scope, () => head(request));
 
-      final String fullHtml;
-      if (layout != null) {
-        fullHtml = layout(bodyHtml, headManager);
-      } else if (headManager != null) {
-        fullHtml = headManager.wrapDocument(bodyHtml);
-      } else {
-        fullHtml =
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
-      }
+        final String fullHtml;
+        if (layout != null) {
+          fullHtml = layout(bodyHtml, headManager);
+        } else if (headManager != null) {
+          fullHtml = headManager.wrapDocument(bodyHtml);
+        } else {
+          fullHtml =
+              '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>$bodyHtml</body></html>';
+        }
 
-      return BloomResponse.html(fullHtml);
+        return BloomResponse.html(fullHtml);
+      }, debugLabel: 'ssr-request');
     }, middlewares: middlewares);
   }
 
