@@ -86,7 +86,7 @@ void main() {
     });
 
     test('unsafe keys round-trip through b64 encoding', () {
-      for (final key in ['a b', 'x--y', '<b>', 'ünï', 'a/b?c=d&e']) {
+      for (final key in ['a b', 'x--y', '<b>', 'ünï', 'a/b?c=d&e', '日本', '😀']) {
         final escaped = escapeHydrationKey(key);
         expect(escaped, isNot(contains('--')));
         expect(escaped, isNot(contains('<')));

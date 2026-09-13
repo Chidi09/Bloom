@@ -30,6 +30,8 @@
 /// streaming Suspense keeps its `<div id="bloom-suspense-N">` shell.
 library;
 
+import 'dart:convert';
+
 /// Boundary label for [LiveNode].
 const String hydrationMarkerLive = 'bloom:live';
 
@@ -114,60 +116,17 @@ String escapeHydrationKey(String key) {
       !key.contains('--')) {
     return key;
   }
-  return 'b64:${_base64UrlEncode(key)}';
+  // UTF-8 first: base64 over raw UTF-16 code units truncates anything
+  // outside Latin-1 (CJK, emoji), so those keys never matched on hydrate.
+  return 'b64:${base64Url.encode(utf8.encode(key))}';
 }
 
 /// Reverses [escapeHydrationKey].
 String unescapeHydrationKey(String escaped) {
   if (escaped.startsWith('b64:')) {
-    return _base64UrlDecode(escaped.substring(4));
+    return utf8.decode(base64Url.decode(escaped.substring(4)));
   }
   return escaped;
-}
-
-String _base64UrlEncode(String input) {
-  const alphabet =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  final bytes = input.codeUnits;
-  final out = StringBuffer();
-  var i = 0;
-  while (i < bytes.length) {
-    final b0 = bytes[i++];
-    final b1 = i < bytes.length ? bytes[i++] : -1;
-    final b2 = i < bytes.length ? bytes[i++] : -1;
-    out.write(alphabet[(b0 >> 2) & 63]);
-    out.write(alphabet[((b0 << 4) | ((b1 >= 0 ? b1 : 0) >> 4)) & 63]);
-    out.write(b1 >= 0 ? alphabet[((b1 << 2) | ((b2 >= 0 ? b2 : 0) >> 6)) & 63] : '=');
-    out.write(b2 >= 0 ? alphabet[b2 & 63] : '=');
-  }
-  return out.toString();
-}
-
-String _base64UrlDecode(String input) {
-  int value(String c) {
-    if (c == '=') return 0;
-    const alphabet =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    return alphabet.indexOf(c);
-  }
-
-  final codes = <int>[];
-  var i = 0;
-  while (i < input.length) {
-    final c0 = value(input[i]);
-    final c1 = i + 1 < input.length ? value(input[i + 1]) : 0;
-    final c2 = i + 2 < input.length ? value(input[i + 2]) : 0;
-    final c3 = i + 3 < input.length ? value(input[i + 3]) : 0;
-    codes.add(((c0 << 2) | (c1 >> 4)) & 255);
-    if (i + 2 < input.length && input[i + 2] != '=') {
-      codes.add(((c1 << 4) | (c2 >> 2)) & 255);
-    }
-    if (i + 3 < input.length && input[i + 3] != '=') {
-      codes.add(((c2 << 6) | c3) & 255);
-    }
-    i += 4;
-  }
-  return String.fromCharCodes(codes);
 }
 
 /// Streaming Suspense placeholder element id for boundary [index].
