@@ -19,7 +19,8 @@ void main() {
         ]),
       );
       final html = renderToHtml(app);
-      expect(html, '<div><p>Theme: dark</p></div>');
+      expect(html,
+          '<div><!--bloom:live--><p>Theme: dark</p><!--/bloom:live--></div>');
     });
 
     test('nested context overrides parent value', () {
@@ -34,7 +35,10 @@ void main() {
         ]),
       );
       final html = renderToHtml(app);
-      expect(html, '<div><p>Outer: dark</p><p>Inner: midnight</p></div>');
+      expect(
+          html,
+          '<div><!--bloom:live--><p>Outer: dark</p><!--/bloom:live-->'
+          '<!--bloom:live--><p>Inner: midnight</p><!--/bloom:live--></div>');
     });
   });
 }

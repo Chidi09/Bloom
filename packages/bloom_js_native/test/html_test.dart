@@ -39,33 +39,37 @@ void main() {
     test('Live evaluates builder', () {
       final count = signal(3);
       final node = Live(() => P(text: 'Count: ${count.value}'));
-      expect(renderToHtml(node), '<p>Count: 3</p>');
+      expect(renderToHtml(node),
+          '<!--bloom:live--><p>Count: 3</p><!--/bloom:live-->');
       count.value = 7;
-      expect(renderToHtml(node), '<p>Count: 7</p>');
+      expect(renderToHtml(node),
+          '<!--bloom:live--><p>Count: 7</p><!--/bloom:live-->');
     });
 
     test('Show renders child or fallback', () {
       final flag = signal(true);
       final node = Show(() => flag.value, child: P(text: 'yes'), fallback: P(text: 'no'));
-      expect(renderToHtml(node), '<p>yes</p>');
+      expect(renderToHtml(node),
+          '<!--bloom:show--><p>yes</p><!--/bloom:show-->');
       flag.value = false;
-      expect(renderToHtml(node), '<p>no</p>');
+      expect(renderToHtml(node),
+          '<!--bloom:show--><p>no</p><!--/bloom:show-->');
     });
 
     test('Show without fallback renders empty when false', () {
       final node = Show(() => false, child: P(text: 'x'));
-      expect(renderToHtml(node), '');
+      expect(renderToHtml(node), '<!--bloom:show--><!--/bloom:show-->');
     });
 
     test('ForEach renders each item', () {
       final todos = signal(['a', 'b']);
       final node = ForEach(() => todos.value, (String t) => Li(text: t));
-      expect(renderToHtml(node), '<li>a</li><li>b</li>');
+      expect(renderToHtml(node), '<!--bloom:foreach--><li>a</li><li>b</li><!--/bloom:foreach-->');
     });
 
     test('ForEach empty list renders empty', () {
       final node = ForEach(() => <String>[], (String t) => Li(text: t));
-      expect(renderToHtml(node), '');
+      expect(renderToHtml(node), '<!--bloom:foreach--><!--/bloom:foreach-->');
     });
 
     test('Style node escapes css', () {

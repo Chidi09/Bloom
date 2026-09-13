@@ -9,7 +9,8 @@ void main() {
         fallback: (err, stack) => P(text: 'Error caught: $err'),
       );
       final html = renderToHtml(app);
-      expect(html, '<p>Healthy Content</p>');
+      expect(html,
+          '<!--bloom:error-boundary--><p>Healthy Content</p><!--/bloom:error-boundary-->');
     });
 
     test('renders fallback when builder throws during SSR', () {
@@ -18,7 +19,8 @@ void main() {
         fallback: (err, stack) => Div(className: 'error', text: 'Caught: $err'),
       );
       final html = renderToHtml(app);
-      expect(html, '<div class="error">Caught: Exception: Render failure</div>');
+      expect(html,
+          '<!--bloom:error-boundary--><div class="error">Caught: Exception: Render failure</div><!--/bloom:error-boundary-->');
     });
   });
 }

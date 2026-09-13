@@ -5,6 +5,7 @@ library;
 
 export 'src/framework.dart';
 export 'src/html.dart';
+export 'src/hydration_contract.dart';
 export 'src/events.dart';
 export 'src/npm.dart';
 export 'src/router.dart';
