@@ -102,37 +102,103 @@ void main() {
 }
 ```
 
-**True DOM-reuse for static trees.** When the tree passed to `hydrate()`
-contains only static node types — `Text`, elements (`Div`, `Span`, …),
-`Fragment`, `Raw`, `Style` — hydration walks the existing server-rendered DOM
-in lockstep with the descriptor tree and reuses each node in place: it
-attaches event listeners and patches any text/attribute that doesn't already
-match, but never tears down or recreates a node that's already correct. This
-matters for large static shells (marketing content, SSG pages, the static
-frame around a few dynamic islands) where a full remount would otherwise
-throw away and rebuild DOM the browser already parsed.
+### Boundary markers
 
-**Reactive trees fall back to a full remount — correctly, not silently.**
-Once any `Live`, `Show`, `ForEach`, `Suspense`, `ErrorBoundary`, `Portal`,
-`Mount`, `Ref`, `Animated`, or `Context.provide` node appears anywhere in the
-tree, `hydrate()` clears the target element and mounts fresh via the normal
-`mount()` path instead of attempting partial reuse. This isn't a missing
-feature so much as a structural fact about the two renderers: `renderToHtml`
-emits a reactive node's *current* content inline with no marker correlating
-it back to the pair of comment nodes `mount()` brackets that region with, so
-there is no safe way to splice a live region into an arbitrary DOM position
-without risking corrupted or duplicated sibling content. The same fallback
-also triggers if the static walk ever finds a structural mismatch against
-the actual DOM (hand-edited markup, a stale build) — the walk never mutates
-destructively until a full match is confirmed, so falling back is always
-safe.
+SSR wraps reactive subtrees in HTML comment markers so hydration can find
+them again without disturbing layout:
+
+```html
+<!--bloom:live--><p>Count: 0</p><!--/bloom:live-->
+<!--bloom:foreach-->
+<!--bloom:key=user-1--><li>Alice</li><!--/bloom:key-->
+<!--bloom:key=user-2--><li>Bob</li><!--/bloom:key-->
+<!--/bloom:foreach-->
+```
+
+`Live`, `Memo`, `Show`, `ForEach` (keyed items carry their keys),
+`ErrorBoundary`, and synchronous `Suspense` fallbacks all emit markers;
+streaming Suspense keeps its `<div id="bloom-suspense-N">` shell.
+`Context.provide`, `Mount`, and `Ref` are transparent wrappers with no
+markers, `Animated` keeps its wrapper `<div>`, and `Portal` keeps its
+`<template>`. Marker matching ignores comment whitespace, so mount
+sentinels (`<!-- bloom:live -->`) and SSR markers adopt identically.
+
+### What hydrates in place
+
+Static nodes (`Text`, elements, `Fragment`, `Raw`, `Style`) reuse their DOM
+nodes, attach listeners, and patch differing text/attributes. Reactive
+boundaries adopt the nodes between their markers and bind the same sentinel
+regions and effects a fresh mount would create, so later signal updates
+patch the adopted nodes. Keyed lists reconcile by key after hydration —
+reordering reuses nodes, preserving input state and focus.
+
+Pre-hydration user state is preserved: hydration never overwrites
+`value`/`checked` on form controls, keeps the focused element and text
+selection, and reports conflicts as diagnostics instead of clobbering them.
 
 ```dart
-// Fully static — real node reuse, listeners attached in place:
-hydrate(Div(children: [H1(text: 'Welcome'), P(text: 'Static content.')]), '#app');
+// Static shell with a reactive island — nodes reused, listeners attached:
+hydrate(Div(children: [
+  H1(text: 'Welcome'),
+  Live(() => P(text: 'Count: ${count.value}')),
+]), '#app');
+```
 
-// Contains a Live(...) region — falls back to a correct full remount:
-hydrate(Div(children: [Live(() => P(text: 'Count: ${count.value}'))]), '#app');
+### Mismatch recovery and diagnostics
+
+Each mismatch recovers at the smallest marker-delimited boundary — that
+region alone remounts while siblings keep their nodes — and is reported as
+a `HydrationMismatch` (path, boundary, expected, actual, recovery) through
+an optional `onMismatch` callback, the `bloomHydrationMismatchHandler`
+global, and DevTools:
+
+```dart
+hydrateElement(app, container, onMismatch: (m) => print(m));
+// Bloom hydration mismatch at Div[1]/Live[0] [boundary bloom:live]:
+// expected element <p>, found element <div> — remounted boundary.
+```
+
+Only a root-level structural mismatch clears the target and does a clean
+full mount. Portal `<template>` content remounts into its target by design
+(surrounding DOM is kept); Suspense content that resolved before hydration
+remounts as a live Suspense region, resolving instantly from the dehydrated
+query cache.
+
+### Suspense streaming vs hydration timing
+
+- **Resolves before hydration:** the patch is already in the DOM; hydration
+  recovers through the nearest delimited parent into a live Suspense region.
+- **Resolves during hydration:** hydration claims the shell synchronously,
+  so ordering stays strict — there is no interleaving to race.
+- **Resolves after hydration:** hydration moves the shell's `id` to a
+  `data-bloom-ssr-suspense` attribute, so the late server patch script finds
+  no element and safely no-ops; the client region re-runs its own `resource`
+  and patches itself on resolve.
+
+### Delayed islands and interaction activation
+
+Islands with `visible`, `idle`, `media`, or `never` strategies hydrate only
+when their trigger fires; the triggering interaction hydrates the island
+without replaying into the fresh content — the first click wakes the island,
+the second click interacts with it:
+
+```dart
+registerIsland('cart', (props) => Cart(count: props['count']),
+    defaultStrategy: HydrationStrategy.interaction);
+orchestrateIslands(); // pointerdown hydrates; later events interact
+```
+
+### Browser verification
+
+Reactive hydration is covered by `test/reactive_hydration_test.dart` (DOM
+identity, inputs, focus/selection, keyed reordering, events, cleanup,
+Suspense timing, island activation). Run it with the release verification
+workflow across engines:
+
+```bash
+dart test -p chrome test/reactive_hydration_test.dart
+dart test -p firefox test/reactive_hydration_test.dart
+dart test -p safari test/reactive_hydration_test.dart
 ```
 
 ---

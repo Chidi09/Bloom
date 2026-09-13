@@ -10,7 +10,8 @@ void main() {
         fallback: P(text: 'Loading...'),
       );
       final html = renderToHtml(app);
-      expect(html, '<p>Loading...</p>');
+      expect(html,
+          '<!--bloom:suspense--><p>Loading...</p><!--/bloom:suspense-->');
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'data.dart';
 import 'framework.dart';
+import 'hydration_contract.dart';
 
 /// HTML void elements — must not have a closing tag.
 const _voidElements = {
@@ -66,22 +67,26 @@ String escapeHtml(String input) {
 /// This is the primary server-side rendering (SSR) and static site generation (SSG) entry point.
 /// It executes entirely in pure Dart and requires no browser DOM, Flutter runtime, or JS interop.
 ///
-/// ### Reactive Node Degradation during SSR
-/// - **[LiveNode] / [Live]**: Evaluates its builder closure exactly once during the render pass.
-///   No signal subscriptions or reactive effect listeners are retained on the server.
-/// - **[ShowNode] / [Show]**: Evaluates its `when()` predicate closure once. Renders `child` if
-///   true or `fallback` if false.
-/// - **[ForEachNode] / [ForEach]**: Evaluates its `items()` collection closure once and renders
-///   each item via `builder` to static HTML.
+/// ### Reactive Node Hydration Markers during SSR
+/// - **[LiveNode] / [Live]**: Evaluates its builder closure exactly once and
+///   wraps the output in `<!--bloom:live-->` markers. No signal subscriptions
+///   are retained on the server; the browser hydrates the existing nodes.
+/// - **[MemoNode] / [Memo]**: Evaluates once, wrapped in `<!--bloom:memo-->`.
+/// - **[ShowNode] / [Show]**: Evaluates its `when()` predicate once, renders
+///   the active branch wrapped in `<!--bloom:show-->` markers.
+/// - **[ForEachNode] / [ForEach]**: Evaluates its `items()` collection once.
+///   Keyed lists wrap each item in `<!--bloom:key=<key>-->` markers inside a
+///   `<!--bloom:foreach-->` boundary so hydration can reconcile by key.
+/// - **[ErrorBoundaryNode]**: Renders `builder()` wrapped in
+///   `<!--bloom:error-boundary-->`; on exception renders `fallback` instead.
+/// - **[SuspenseNode]**: In synchronous [renderToHtml], renders the `fallback`
+///   wrapped in `<!--bloom:suspense-->` markers.
+///   For asynchronous out-of-order streaming of Suspense boundaries, use [renderToStreamWithSuspense].
 /// - **[MountNode] / [Mount]**: Renders its `child` directly; lifecycle callbacks (`onMount`,
-///   `onUnmount`) are ignored during SSR.
+///   `onUnmount`) are ignored during SSR (hydration runs `onMount`).
 /// - **[RefNode]**: Renders its `child`; DOM references are not attached during SSR.
 /// - **[ContextProviderNode]**: Provides ambient context values down the subtree using Dart Zones.
-/// - **[ErrorBoundaryNode]**: Renders `builder()`; if an exception is thrown, synchronously renders
-///   `fallback(error, stack)`.
 /// - **[PortalNode]**: Emits `<template data-bloom-portal="...">` enclosing the portal subtree.
-/// - **[SuspenseNode]**: In synchronous [renderToHtml], renders the `fallback` node only.
-///   For asynchronous out-of-order streaming of Suspense boundaries, use [renderToStreamWithSuspense].
 ///
 /// ### Tag and Attribute Validation & Security
 /// - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
@@ -214,24 +219,41 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       }
 
     case LiveNode(:final builder):
+      buf.write(ssrOpenMarker(hydrationMarkerLive));
       final inner = builder();
       _render(inner, buf, onSuspense);
+      buf.write(ssrCloseMarker(hydrationMarkerLive));
 
-    case MemoNode(:final dependency, :final builder):
-      final value = dependency();
-      _render(builder(value), buf, onSuspense);
+    case MemoNode():
+      buf.write(ssrOpenMarker(hydrationMarkerMemo));
+      final value = node.dependencyErased();
+      _render(node.builderErased(value), buf, onSuspense);
+      buf.write(ssrCloseMarker(hydrationMarkerMemo));
 
     case ShowNode(:final child, :final fallback):
+      buf.write(ssrOpenMarker(hydrationMarkerShow));
       if (node.when()) {
         _render(child, buf, onSuspense);
       } else if (fallback != null) {
         _render(fallback, buf, onSuspense);
       }
+      buf.write(ssrCloseMarker(hydrationMarkerShow));
 
     case ForEachNode():
-      for (final child in node.buildChildren()) {
-        _render(child, buf, onSuspense);
+      buf.write(ssrOpenMarker(hydrationMarkerForEach));
+      final keyFn = node.keyFnErased;
+      if (keyFn != null) {
+        for (final item in node.itemsErased()) {
+          buf.write(ssrKeyOpenMarker(keyFn(item)));
+          _render(node.builderErased(item), buf, onSuspense);
+          buf.write(ssrKeyCloseMarker());
+        }
+      } else {
+        for (final child in node.buildChildren()) {
+          _render(child, buf, onSuspense);
+        }
       }
+      buf.write(ssrCloseMarker(hydrationMarkerForEach));
 
     case StyleNode(:final css):
       // CSS must not be HTML-escaped (quotes are valid inside it); only the
@@ -265,6 +287,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       );
 
     case ErrorBoundaryNode(:final builder, :final fallback):
+      buf.write(ssrOpenMarker(hydrationMarkerErrorBoundary));
       try {
         final inner = builder();
         _render(inner, buf, onSuspense);
@@ -272,6 +295,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         final fallbackNode = fallback(err, stack);
         _render(fallbackNode, buf, onSuspense);
       }
+      buf.write(ssrCloseMarker(hydrationMarkerErrorBoundary));
 
     case PortalNode(:final child, :final targetSelector):
       buf.write('<template data-bloom-portal="${escapeHtml(targetSelector)}">');
@@ -282,7 +306,9 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       if (onSuspense != null) {
         onSuspense(node, buf);
       } else {
+        buf.write(ssrOpenMarker(hydrationMarkerSuspense));
         _render(fallback, buf, onSuspense);
+        buf.write(ssrCloseMarker(hydrationMarkerSuspense));
       }
   }
 }
