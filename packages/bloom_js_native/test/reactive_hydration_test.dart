@@ -190,7 +190,7 @@ void main() {
           reason: 'dispose clears the container');
     });
 
-    test('context, mount, ref wrappers hydrate through', () {
+    test('context, mount, ref wrappers hydrate through', () async {
       final theme = createContext('light');
       var mounted = false;
       final ref = Ref<Object>();
@@ -210,6 +210,8 @@ void main() {
       expect(mismatches, isEmpty);
       expect(container.querySelector('p')!.textContent, 't=dark');
       expect(ref.isMounted, isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(mounted, isTrue, reason: 'hydration fires onMount');
     });
 
     test('boundary mismatch recovers locally with diagnostics', () {
