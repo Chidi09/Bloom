@@ -1,3 +1,6 @@
+@Tags(['browser_e2e'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -6,11 +9,14 @@ import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('Full ecommerce app boots under DDC with NPM bindings and renders #app DOM', () async {
+  test(
+      'Full ecommerce app boots under DDC with NPM bindings and renders #app DOM',
+      () async {
     final sdkBinDir = p.dirname(Platform.resolvedExecutable);
     final sdkRootDir = p.dirname(sdkBinDir);
     final snapshotsDir = p.join(sdkBinDir, 'snapshots');
-    final aotSnapshot = File(p.join(snapshotsDir, 'dartdevc_aot.dart.snapshot'));
+    final aotSnapshot =
+        File(p.join(snapshotsDir, 'dartdevc_aot.dart.snapshot'));
     final jitSnapshot = File(p.join(snapshotsDir, 'dartdevc.dart.snapshot'));
 
     final execSuffix = Platform.isWindows ? '.exe' : '';
@@ -27,7 +33,8 @@ void main() {
     // 1. Ensure dart_sdk.js exists
     final tempDir = Directory.systemTemp.createTempSync('bloom_ddc_test_');
     final dartSdkJs = File(p.join(tempDir.path, 'dart_sdk.js'));
-    final ddcPlatformDill = File(p.join(sdkRootDir, 'lib', '_internal', 'ddc_platform.dill'));
+    final ddcPlatformDill =
+        File(p.join(sdkRootDir, 'lib', '_internal', 'ddc_platform.dill'));
 
     final sdkCompile = await Process.run(runnerExecutable, [
       snapshotPath,
@@ -38,12 +45,22 @@ void main() {
       dartSdkJs.path,
       ddcPlatformDill.path,
     ]);
-    expect(sdkCompile.exitCode, equals(0), reason: 'Failed to compile dart_sdk.js: ${sdkCompile.stderr}');
+    expect(sdkCompile.exitCode, equals(0),
+        reason: 'Failed to compile dart_sdk.js: ${sdkCompile.stderr}');
 
     // 2. Compile bloom_js_ecommerce app
-    final projectDir = Directory('/root/dev/Bloom/examples/bloom_js_ecommerce/web');
+    final projectDir = Directory(p.normalize(p.join(Directory.current.path,
+        '..', '..', 'examples', 'bloom_js_ecommerce', 'web')));
+    expect(File(p.join(projectDir.path, 'pubspec.yaml')).existsSync(), isTrue,
+        reason: 'Run this test from packages/bloom_cli.');
+    final pubGet = await Process.run(
+        Platform.resolvedExecutable, ['pub', 'get'],
+        workingDirectory: projectDir.path);
+    expect(pubGet.exitCode, 0,
+        reason: 'Example pub get failed: ${pubGet.stderr}');
     final entryFile = File(p.join(projectDir.path, 'lib', 'main.dart'));
-    final packageConfig = File(p.join(projectDir.path, '.dart_tool', 'package_config.json'));
+    final packageConfig =
+        File(p.join(projectDir.path, '.dart_tool', 'package_config.json'));
     final appJs = File(p.join(tempDir.path, 'main.js'));
 
     final appCompile = await Process.run(runnerExecutable, [
@@ -55,7 +72,8 @@ void main() {
       appJs.path,
       entryFile.path,
     ]);
-    expect(appCompile.exitCode, equals(0), reason: 'Failed to compile app: ${appCompile.stderr}');
+    expect(appCompile.exitCode, equals(0),
+        reason: 'Failed to compile app: ${appCompile.stderr}');
 
     // 3. Prepare index.html with DDC bootstrap
     final webDir = Directory(p.join(projectDir.path, 'web'));
@@ -110,32 +128,38 @@ void main() {
       }
 
       if (pth == '/require.js') {
-        final f = File(p.join(sdkRootDir, 'lib', 'dev_compiler', 'amd', 'require.js'));
-        req.response.headers.contentType = ContentType.parse('application/javascript');
+        final f = File(
+            p.join(sdkRootDir, 'lib', 'dev_compiler', 'amd', 'require.js'));
+        req.response.headers.contentType =
+            ContentType.parse('application/javascript');
         req.response.add(f.readAsBytesSync());
         await req.response.close();
         return;
       }
 
       if (pth == '/dart_sdk.js') {
-        req.response.headers.contentType = ContentType.parse('application/javascript');
+        req.response.headers.contentType =
+            ContentType.parse('application/javascript');
         req.response.add(dartSdkJs.readAsBytesSync());
         await req.response.close();
         return;
       }
 
       if (pth == '/main.js') {
-        req.response.headers.contentType = ContentType.parse('application/javascript');
+        req.response.headers.contentType =
+            ContentType.parse('application/javascript');
         req.response.add(appJs.readAsBytesSync());
         await req.response.close();
         return;
       }
 
-      final file = File(p.join(webDir.path, pth.startsWith('/') ? pth.substring(1) : pth));
+      final file = File(
+          p.join(webDir.path, pth.startsWith('/') ? pth.substring(1) : pth));
       if (file.existsSync()) {
         final ext = p.extension(file.path).replaceAll('.', '').toLowerCase();
         if (ext == 'js') {
-          req.response.headers.contentType = ContentType.parse('application/javascript');
+          req.response.headers.contentType =
+              ContentType.parse('application/javascript');
         } else if (ext == 'css') {
           req.response.headers.contentType = ContentType.parse('text/css');
         }
@@ -152,19 +176,40 @@ void main() {
     try {
       browser = await puppeteer.launch(
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage'
+        ],
       );
       final page = await browser.newPage();
-      await page.goto('http://127.0.0.1:$port', wait: Until.networkIdle);
-      await Future.delayed(const Duration(seconds: 2));
+      final browserErrors = <String>[];
+      page.onConsole.listen((message) {
+        if (message.type.name == 'error') {
+          browserErrors.add(message.text ?? '');
+        }
+      });
+      page.onError.listen((error) => browserErrors.add(error.toString()));
+      await page.goto('http://127.0.0.1:$port', wait: Until.domContentLoaded);
 
-      final appHtml = await page.evaluate(r'''
-        document.getElementById('app') ? document.getElementById('app').innerHTML : ''
-      ''') as String;
+      // The DDC entry module and its vendored UMD packages load after the
+      // document; wait for the app itself instead of sleeping for a fixed
+      // interval that can be too short on a busy CI worker.
+      String appHtml = '';
+      for (var attempt = 0; attempt < 200; attempt++) {
+        appHtml = await page.evaluate(r'''
+          document.getElementById('app') ? document.getElementById('app').innerHTML : ''
+        ''') as String;
+        if (appHtml.contains('Bloom Store')) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
 
-      expect(appHtml, contains('Bloom Store'));
-      expect(appHtml, contains('Cart'));
-      expect(appHtml, contains('Log in'));
+      expect(appHtml, contains('Bloom Store'),
+          reason: 'Browser errors: $browserErrors');
+      expect(appHtml, contains('Cart'),
+          reason: 'Browser errors: $browserErrors');
+      expect(appHtml, contains('Log in'),
+          reason: 'Browser errors: $browserErrors');
 
       final globalsJson = await page.evaluate(r'''
         JSON.stringify({
@@ -176,10 +221,13 @@ void main() {
       ''') as String;
 
       final globals = jsonDecode(globalsJson) as Map<String, dynamic>;
-      expect(globals['confetti'], isTrue);
-      expect(globals['gsap'], isTrue);
-      expect(globals['lucide'], isTrue);
-      expect(globals['tanstack'], isTrue);
+      expect(globals['confetti'], isTrue,
+          reason: 'Browser errors: $browserErrors');
+      expect(globals['gsap'], isTrue, reason: 'Browser errors: $browserErrors');
+      expect(globals['lucide'], isTrue,
+          reason: 'Browser errors: $browserErrors');
+      expect(globals['tanstack'], isTrue,
+          reason: 'Browser errors: $browserErrors');
     } finally {
       await browser?.close();
       await server.close();
@@ -187,5 +235,5 @@ void main() {
         tempDir.deleteSync(recursive: true);
       } catch (_) {}
     }
-  }, timeout: const Timeout(Duration(seconds: 60)));
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

@@ -25,6 +25,42 @@ class BloomLiveReloadServer {
   (() => {
     window.__BLOOM_DDC_HOT_REMOUNT__ = true;
 
+    function reportDdcError(err, label) {
+      console.error(label, err);
+      const message = err && err.message ? String(err.message) : String(err);
+      const stack = err && err.stack ? String(err.stack) : '';
+      if (typeof window.__bloomReportUnhandledError === 'function') {
+        try {
+          window.__bloomReportUnhandledError(message, stack);
+          return;
+        } catch (reportError) {
+          console.warn('[Bloom DDC Error] Framework error overlay failed:', reportError);
+        }
+      }
+
+      // Use textContent for compiler and module-loader messages. Error details
+      // can contain source text, so inserting them as HTML would execute markup.
+      const host = document.createElement('div');
+      host.setAttribute('data-bloom-dev-error-overlay', 'true');
+      host.setAttribute('role', 'alert');
+      host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:rgba(24,8,8,0.96);color:#f5e6e6;font-family:ui-monospace,monospace;padding:32px;overflow:auto;');
+
+      const content = document.createElement('div');
+      content.setAttribute('style', 'max-width:900px;margin:0 auto;');
+      const heading = document.createElement('div');
+      heading.setAttribute('style', 'font-size:12px;color:#ff8a8a;margin-bottom:8px;');
+      heading.textContent = 'Unhandled Error';
+      const detail = document.createElement('div');
+      detail.setAttribute('style', 'font-size:20px;font-weight:600;margin-bottom:4px;white-space:pre-wrap;');
+      detail.textContent = message;
+      const trace = document.createElement('pre');
+      trace.setAttribute('style', 'background:rgba(0,0,0,0.35);padding:16px;border-radius:8px;font-size:12px;white-space:pre-wrap;');
+      trace.textContent = stack;
+      content.append(heading, detail, trace);
+      host.appendChild(content);
+      (document.body || document.documentElement).appendChild(host);
+    }
+
     function executeMain() {
       // Clear any active error overlays before mounting
       document.querySelectorAll('[data-bloom-dev-error-overlay]').forEach((el) => el.remove());
@@ -45,15 +81,13 @@ class BloomLiveReloadServer {
               try {
                 app[k].main();
               } catch (err) {
-                console.error('[Bloom DDC Main Error]', err);
-                if (typeof window.__bloomReportUnhandledError === 'function') {
-                  window.__bloomReportUnhandledError(err && (err.message || String(err)), err && err.stack);
-                } else {
-                  const host = document.createElement('div');
-                  host.setAttribute('data-bloom-dev-error-overlay', 'true');
-                  host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:rgba(24,8,8,0.96);color:#f5e6e6;font-family:ui-monospace,monospace;padding:32px;overflow:auto;');
-                  host.innerHTML = '<div style="max-width:900px;margin:0 auto;"><div style="font-size:12px;color:#ff8a8a;margin-bottom:8px;">Unhandled Error</div><div style="font-size:20px;font-weight:600;margin-bottom:4px;white-space:pre-wrap;">' + String(err) + '</div><pre style="background:rgba(0,0,0,0.35);padding:16px;border-radius:8px;font-size:12px;white-space:pre-wrap;">' + (err && err.stack ? String(err.stack) : '') + '</pre></div>';
-                  (document.body || document.documentElement).appendChild(host);
+                reportDdcError(err, '[Bloom DDC Main Error]');
+              }
+              if (typeof window.__bloomDisposePreviousHotEffects === 'function') {
+                try {
+                  window.__bloomDisposePreviousHotEffects();
+                } catch (effectError) {
+                  console.warn('[Bloom Hot Remount] Error disposing previous effects:', effectError);
                 }
               }
               break;
@@ -61,24 +95,28 @@ class BloomLiveReloadServer {
           }
         }
       }, (err) => {
-        console.error('[Bloom DDC Error] Failed to load application modules:', err);
+        reportDdcError(err, '[Bloom DDC Error] Failed to load application modules:');
       });
     }
 
     window.__bloomDdcRemount = () => {
-      // 1. Dispose previous active mount
-      if (typeof window.__bloomDisposeActiveMount === 'function') {
+      // Preserve the mounted tree until the updated main() calls mount(). The
+      // framework can then patch stable component boundaries and fall back to
+      // a full remount when the updated tree is structurally incompatible.
+      // Move old module effects aside. The new main() can patch or remount
+      // before these are disposed, and its new effects remain registered.
+      if (typeof window.__bloomPrepareHotEffects === 'function') {
         try {
-          window.__bloomDisposeActiveMount();
+          window.__bloomPrepareHotEffects();
         } catch (e) {
-          console.warn('[Bloom Hot Remount] Error during mount disposal:', e);
+          console.warn('[Bloom Hot Remount] Error preparing effect cleanup:', e);
         }
       }
-      // 2. Evict cached main module from RequireJS
+      // Evict cached main module from RequireJS
       if (typeof require !== 'undefined' && typeof require.undef === 'function') {
         require.undef('main');
       }
-      // 3. Re-require and re-execute main
+      // Re-require and re-execute main
       executeMain();
     };
 
@@ -1487,7 +1525,7 @@ class BloomLiveReloadServer {
 
   BloomLiveReloadServer({
     required this.webDir,
-    this.host = '0.0.0.0',
+    this.host = '127.0.0.1',
     this.port = 8080,
     this.autoInjectScript = true,
     this.proxyRules = const [],

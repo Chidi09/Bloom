@@ -5,7 +5,8 @@ import 'package:test/test.dart';
 void main() {
   group('BloomLinter Rules', () {
     group('Rule 1: nullable_event_force_unwrap', () {
-      test('TRUE POSITIVE: flags untyped event parameter force unwrap e.value!', () {
+      test('TRUE POSITIVE: flags untyped event parameter force unwrap e.value!',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -21,7 +22,9 @@ BloomNode buildInput() {
         expect(findings.first.snippet, contains('e.value!'));
       });
 
-      test('TRUE POSITIVE: flags typed BloomEvent parameter force unwrap ev.checked!', () {
+      test(
+          'TRUE POSITIVE: flags typed BloomEvent parameter force unwrap ev.checked!',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -50,7 +53,9 @@ BloomNode buildInput() {
         expect(findings, isEmpty);
       });
 
-      test('TRUE NEGATIVE: ignores force-unwrap on unrelated object with value property', () {
+      test(
+          'TRUE NEGATIVE: ignores force-unwrap on unrelated object with value property',
+          () {
         const source = '''
 class NonEventWrapper {
   String? value;
@@ -118,11 +123,14 @@ void main() {
   test('example', () {});
 }
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'test/component_test.dart');
-        expect(findings.map((f) => f.ruleName), contains('browser_import_in_test'));
+        final findings = BloomLinter.lintDartSource(source,
+            filePath: 'test/component_test.dart');
+        expect(findings.map((f) => f.ruleName),
+            contains('browser_import_in_test'));
       });
 
-      test('TRUE NEGATIVE: passes bloom_js_native.dart import in test/ file', () {
+      test('TRUE NEGATIVE: passes bloom_js_native.dart import in test/ file',
+          () {
         const source = '''
 import 'package:test/test.dart';
 import 'package:bloom_js_native/bloom_js_native.dart';
@@ -131,11 +139,13 @@ void main() {
   test('example', () {});
 }
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'test/component_test.dart');
+        final findings = BloomLinter.lintDartSource(source,
+            filePath: 'test/component_test.dart');
         expect(findings, isEmpty);
       });
 
-      test('TRUE NEGATIVE: allows browser.dart import in lib/ entrypoint file', () {
+      test('TRUE NEGATIVE: allows browser.dart import in lib/ entrypoint file',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
@@ -144,7 +154,8 @@ void main() {
   mount(Div(), '#app');
 }
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/main.dart');
+        final findings =
+            BloomLinter.lintDartSource(source, filePath: 'lib/main.dart');
         expect(findings, isEmpty);
       });
     });
@@ -189,7 +200,8 @@ void addTodo(Signal<List<String>> todos, String item) {
 ''';
         final findings = BloomLinter.lintDartSource(source);
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('inplace_signal_collection_mutation'));
+        expect(findings.first.ruleName,
+            equals('inplace_signal_collection_mutation'));
         expect(findings.first.snippet, contains('todos.value.add(item)'));
       });
 
@@ -203,11 +215,14 @@ void clearState(Signal<Map<String, dynamic>> state) {
 ''';
         final findings = BloomLinter.lintDartSource(source);
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('inplace_signal_collection_mutation'));
+        expect(findings.first.ruleName,
+            equals('inplace_signal_collection_mutation'));
         expect(findings.first.snippet, contains('state.value.clear()'));
       });
 
-      test('TRUE NEGATIVE: passes reassignment todos.value = [...todos.value, item]', () {
+      test(
+          'TRUE NEGATIVE: passes reassignment todos.value = [...todos.value, item]',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -219,7 +234,8 @@ void addTodo(Signal<List<String>> todos, String item) {
         expect(findings, isEmpty);
       });
 
-      test('TRUE NEGATIVE: passes regular list mutation without .value target', () {
+      test('TRUE NEGATIVE: passes regular list mutation without .value target',
+          () {
         const source = '''
 void helper() {
   final list = <String>[];
@@ -248,7 +264,8 @@ void helper() {
 ''';
         final findings = BloomLinter.lintHtmlSource(html);
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('hand_authored_style_in_index_html'));
+        expect(findings.first.ruleName,
+            equals('hand_authored_style_in_index_html'));
       });
 
       test('TRUE POSITIVE: flags stylesheet <link> tag in web/index.html', () {
@@ -265,10 +282,13 @@ void helper() {
 ''';
         final findings = BloomLinter.lintHtmlSource(html);
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('hand_authored_style_in_index_html'));
+        expect(findings.first.ruleName,
+            equals('hand_authored_style_in_index_html'));
       });
 
-      test('TRUE NEGATIVE: passes clean index.html with meta tags and main.js script', () {
+      test(
+          'TRUE NEGATIVE: passes clean index.html with meta tags and main.js script',
+          () {
         const html = '''
 <!DOCTYPE html>
 <html>
@@ -304,7 +324,9 @@ void helper() {
     });
 
     group('Rule 7: forbidden_browser_import_in_shared_code', () {
-      test('TRUE NEGATIVE: allows browser.dart import in lib/main.dart entrypoint', () {
+      test(
+          'TRUE NEGATIVE: allows browser.dart import in lib/main.dart entrypoint',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
@@ -313,8 +335,12 @@ void main() {
   mount(Div(), '#app');
 }
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/main.dart');
-        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
+        final findings =
+            BloomLinter.lintDartSource(source, filePath: 'lib/main.dart');
+        expect(
+            findings.where(
+                (f) => f.ruleName == 'forbidden_browser_import_in_shared_code'),
+            isEmpty);
       });
 
       test('TRUE NEGATIVE: allows browser.dart import in web/ directory', () {
@@ -323,19 +349,27 @@ import 'package:bloom_js_native/browser.dart';
 
 void bootstrap() {}
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'web/foo.dart');
-        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
+        final findings =
+            BloomLinter.lintDartSource(source, filePath: 'web/foo.dart');
+        expect(
+            findings.where(
+                (f) => f.ruleName == 'forbidden_browser_import_in_shared_code'),
+            isEmpty);
       });
 
-      test('TRUE POSITIVE: flags browser.dart import in lib/src/shared_widget.dart', () {
+      test(
+          'TRUE POSITIVE: flags browser.dart import in lib/src/shared_widget.dart',
+          () {
         const source = '''
 import 'package:bloom_js_native/browser.dart';
 
 BloomNode buildWidget() => Div();
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/src/shared_widget.dart');
+        final findings = BloomLinter.lintDartSource(source,
+            filePath: 'lib/src/shared_widget.dart');
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('forbidden_browser_import_in_shared_code'));
+        expect(findings.first.ruleName,
+            equals('forbidden_browser_import_in_shared_code'));
       });
 
       test('TRUE POSITIVE: flags browser.dart import in bin/cli.dart', () {
@@ -344,12 +378,16 @@ import 'package:bloom_js_native/browser.dart';
 
 void main() {}
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'bin/cli.dart');
+        final findings =
+            BloomLinter.lintDartSource(source, filePath: 'bin/cli.dart');
         expect(findings.length, equals(1));
-        expect(findings.first.ruleName, equals('forbidden_browser_import_in_shared_code'));
+        expect(findings.first.ruleName,
+            equals('forbidden_browser_import_in_shared_code'));
       });
 
-      test('TRUE POSITIVE: flags browser.dart import in test/foo_test.dart with both rules', () {
+      test(
+          'TRUE POSITIVE: flags browser.dart import in test/foo_test.dart with both rules',
+          () {
         const source = '''
 import 'package:test/test.dart';
 import 'package:bloom_js_native/browser.dart';
@@ -358,26 +396,34 @@ void main() {
   test('foo', () {});
 }
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'test/foo_test.dart');
+        final findings =
+            BloomLinter.lintDartSource(source, filePath: 'test/foo_test.dart');
         expect(findings.length, equals(2));
         final ruleNames = findings.map((f) => f.ruleName).toList();
         expect(ruleNames, contains('browser_import_in_test'));
         expect(ruleNames, contains('forbidden_browser_import_in_shared_code'));
       });
 
-      test('TRUE NEGATIVE: passes bloom_js_native.dart import in shared code', () {
+      test('TRUE NEGATIVE: passes bloom_js_native.dart import in shared code',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
 BloomNode buildWidget() => Div();
 ''';
-        final findings = BloomLinter.lintDartSource(source, filePath: 'lib/src/shared_widget.dart');
-        expect(findings.where((f) => f.ruleName == 'forbidden_browser_import_in_shared_code'), isEmpty);
+        final findings = BloomLinter.lintDartSource(source,
+            filePath: 'lib/src/shared_widget.dart');
+        expect(
+            findings.where(
+                (f) => f.ruleName == 'forbidden_browser_import_in_shared_code'),
+            isEmpty);
       });
     });
 
     group('Rule 8: untracked_signal_read', () {
-      test('TRUE POSITIVE: flags count.value read directly in BloomNode function body', () {
+      test(
+          'TRUE POSITIVE: flags count.value read directly in BloomNode function body',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -396,7 +442,8 @@ BloomNode counterCard(Signal<int> count) {
         expect(findings.first.snippet, contains('count.value'));
       });
 
-      test('TRUE POSITIVE: flags untracked signal read in Show child argument', () {
+      test('TRUE POSITIVE: flags untracked signal read in Show child argument',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -427,7 +474,9 @@ BloomNode get header => Div(text: title.value);
         expect(findings.first.snippet, contains('title.value'));
       });
 
-      test('TRUE POSITIVE: flags untracked signal read in inferred-return UI function', () {
+      test(
+          'TRUE POSITIVE: flags untracked signal read in inferred-return UI function',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -454,7 +503,8 @@ BloomNode counterCard(Signal<int> count) {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
 
       test('TRUE NEGATIVE: passes signal read in Show when predicate', () {
@@ -470,7 +520,8 @@ BloomNode authSection(Signal<bool> isAuth) {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
 
       test('TRUE NEGATIVE: passes signal read in ForEach items callback', () {
@@ -490,7 +541,8 @@ BloomNode todoList(Signal<List<String>> todos) {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
 
       test('TRUE NEGATIVE: passes signal read in effect() and computed()', () {
@@ -507,7 +559,71 @@ void setup() {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
+      });
+
+      test('TRUE POSITIVE: flags an untracked signal read in a lazy loader',
+          () {
+        const source = r'''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode settings(Signal<int> count) => lazy(
+  () async => Button(text: 'Count: ${count.value}'),
+  fallback: P(text: 'Loading'),
+);
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(
+          findings.where((f) => f.ruleName == 'untracked_signal_read'),
+          hasLength(1),
+        );
+        expect(findings.single.snippet, contains('count.value'));
+      });
+
+      test('TRUE POSITIVE: flags UI reads inside batch and untracked', () {
+        const source = r'''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode batched(Signal<int> count) =>
+    batch(() => P(text: 'Count: ${count.value}'));
+
+BloomNode untrackedRead(Signal<int> count) =>
+    untracked(() => P(text: 'Count: ${count.value}'));
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        final signalReads =
+            findings.where((f) => f.ruleName == 'untracked_signal_read');
+        expect(signalReads, hasLength(2));
+      });
+
+      test('TRUE NEGATIVE: passes a lazy loader read wrapped in Live', () {
+        const source = r'''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode settings(Signal<int> count) => lazy(
+  () async => Live(() => Button(text: 'Count: ${count.value}')),
+  fallback: P(text: 'Loading'),
+);
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
+      });
+
+      test('TRUE POSITIVE: still flags an untracked lazy fallback read', () {
+        const source = r'''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+BloomNode settings(Signal<int> count) => lazy(
+  () async => P(text: 'Ready'),
+  fallback: P(text: 'Loading ${count.value}'),
+);
+''';
+        final findings = BloomLinter.lintDartSource(source);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            hasLength(1));
+        expect(findings.single.snippet, contains('count.value'));
       });
 
       test('TRUE NEGATIVE: passes signal read in event handler callback', () {
@@ -524,10 +640,13 @@ BloomNode button() {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
 
-      test('TRUE NEGATIVE: passes signal read in non-UI business logic function', () {
+      test(
+          'TRUE NEGATIVE: passes signal read in non-UI business logic function',
+          () {
         const source = '''
 import 'package:bloom_js_native/bloom_js_native.dart';
 
@@ -542,7 +661,8 @@ int getDoubleCount() {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
 
       test('TRUE NEGATIVE: ignores .value access on non-signal objects', () {
@@ -559,7 +679,8 @@ BloomNode buildView(ConfigWrapper config) {
 }
 ''';
         final findings = BloomLinter.lintDartSource(source);
-        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'), isEmpty);
+        expect(findings.where((f) => f.ruleName == 'untracked_signal_read'),
+            isEmpty);
       });
     });
   });

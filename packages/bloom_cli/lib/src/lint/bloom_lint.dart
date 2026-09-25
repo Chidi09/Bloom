@@ -57,7 +57,8 @@ class BloomLinter {
         if (file is! File || !file.path.endsWith('.dart')) continue;
         // Generated bindings from `bloom add npm:<pkg>` are not hand-authored;
         // skip them so lint never flags code developers didn't write.
-        if (p.isWithin(p.join(root, 'lib', 'src', 'plugins'), file.path)) continue;
+        if (p.isWithin(p.join(root, 'lib', 'src', 'plugins'), file.path))
+          continue;
 
         scanned++;
         final relPath = p.relative(file.path, from: root).replaceAll('\\', '/');
@@ -69,9 +70,11 @@ class BloomLinter {
     final indexHtml = File(p.join(root, 'web', 'index.html'));
     if (indexHtml.existsSync() && _isWebDomTarget()) {
       scanned++;
-      final relPath = p.relative(indexHtml.path, from: root).replaceAll('\\', '/');
+      final relPath =
+          p.relative(indexHtml.path, from: root).replaceAll('\\', '/');
       final content = indexHtml.readAsStringSync();
-      findings.addAll(lintHtmlSource(content, filePath: relPath, isWebDom: true));
+      findings
+          .addAll(lintHtmlSource(content, filePath: relPath, isWebDom: true));
     }
 
     return LintResult(findings: findings, scannedFilesCount: scanned);
@@ -80,11 +83,13 @@ class BloomLinter {
   bool _isWebDomTarget() {
     if (!project.bloomYamlFile.existsSync()) return false;
     final content = project.bloomYamlFile.readAsStringSync();
-    return content.contains('target: web_dom') || content.contains('target: "web_dom"');
+    return content.contains('target: web_dom') ||
+        content.contains('target: "web_dom"');
   }
 
   /// Lints a Dart source string using analyzer parse-only AST traversal.
-  static List<LintFinding> lintDartSource(String source, {String filePath = 'lib/main.dart'}) {
+  static List<LintFinding> lintDartSource(String source,
+      {String filePath = 'lib/main.dart'}) {
     final parseResult = parseString(content: source, throwIfDiagnostics: false);
     final visitor = _BloomLintVisitor(
       filePath: filePath,
@@ -136,7 +141,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
   final List<bool> _functionUiStack = [];
   int _exemptedDepth = 0;
 
-  bool get _isInsideUiFunction => _functionUiStack.isNotEmpty && _functionUiStack.last;
+  bool get _isInsideUiFunction =>
+      _functionUiStack.isNotEmpty && _functionUiStack.last;
 
   static const Set<String> _inPlaceMutationMethods = {
     'add',
@@ -169,8 +175,6 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     'effect',
     'addEffect',
     'computed',
-    'untracked',
-    'batch',
     'addEventListener',
     'subscribe',
   };
@@ -250,7 +254,9 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     final lineNumber = lineInfo.getLocation(node.offset).lineNumber;
     final lineStarts = lineInfo.lineStarts;
     final lineStart = lineStarts[lineNumber - 1];
-    final lineEnd = lineNumber < lineStarts.length ? lineStarts[lineNumber] - 1 : source.length;
+    final lineEnd = lineNumber < lineStarts.length
+        ? lineStarts[lineNumber] - 1
+        : source.length;
     return source.substring(lineStart, lineEnd).trim();
   }
 
@@ -325,7 +331,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
             TypeAnnotation? type;
             if (p is SimpleFormalParameter) {
               type = p.type;
-            } else if (p is DefaultFormalParameter && p.parameter is SimpleFormalParameter) {
+            } else if (p is DefaultFormalParameter &&
+                p.parameter is SimpleFormalParameter) {
               type = (p.parameter as SimpleFormalParameter).type;
             }
             if (type != null) {
@@ -414,7 +421,9 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitNamedExpression(NamedExpression node) {
     final name = node.name.label.name;
-    final isEventHandler = (name.startsWith('on') && name.length > 2 && name[2].toUpperCase() == name[2]) ||
+    final isEventHandler = (name.startsWith('on') &&
+            name.length > 2 &&
+            name[2].toUpperCase() == name[2]) ||
         name == 'on' ||
         name == 'onMount' ||
         name == 'onUnmount' ||
@@ -568,8 +577,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
           lineNumber: lineInfo.getLocation(anchor.offset).lineNumber,
           ruleName: 'foreach_missing_key',
           message:
-              'ForEach<T>(...) without a `key:` extractor will use index-based reconciliation, '
-              'which misattributes state (e.g. focus, form input) when the list reorders. '
+              'ForEach<T>(...) without a `key:` extractor rebuilds every item on updates, '
+              'losing focus, form input state, and local effects. '
               'Pass `key: (item) => item.id` or similar.',
           snippet: _getSnippet(anchor),
         ));
@@ -582,7 +591,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
         if (arg is FunctionExpression) {
           builder = arg;
           break;
-        } else if (arg is NamedExpression && arg.expression is FunctionExpression) {
+        } else if (arg is NamedExpression &&
+            arg.expression is FunctionExpression) {
           builder = arg.expression as FunctionExpression;
           break;
         }
@@ -634,7 +644,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
     }
 
     final normalizedPath = filePath.replaceAll('\\', '/');
-    final isAllowed = normalizedPath == 'lib/main.dart' || normalizedPath.startsWith('web/');
+    final isAllowed =
+        normalizedPath == 'lib/main.dart' || normalizedPath.startsWith('web/');
     if (!isAllowed) {
       findings.add(LintFinding(
         filePath: filePath,
@@ -665,7 +676,8 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
       _exemptedDepth++;
       super.visitMethodInvocation(node);
       _exemptedDepth--;
-    } else if (node.target == null && (methodName == 'Show' || methodName == 'ShowNode')) {
+    } else if (node.target == null &&
+        (methodName == 'Show' || methodName == 'ShowNode')) {
       node.methodName.accept(this);
       node.typeArguments?.accept(this);
       _visitShowArguments(node.argumentList);
@@ -747,7 +759,7 @@ class _BloomLintVisitor extends RecursiveAstVisitor<void> {
       ruleName: 'untracked_signal_read',
       message:
           "Reading a signal's `.value` directly inside a UI-building function outside "
-          'Live(...), Show(...), ForEach(...), effect(...), or computed(...) captures a '
+          'Live(...), Show(...), ForEach(...), lazy(...), effect(...), or computed(...) captures a '
           'one-time snapshot rather than creating a reactive subscription — the UI will '
           'not update when the signal changes. Wrap dynamic UI reads in Live(() => ...) '
           '(see COOKBOOK.md Section 20).',

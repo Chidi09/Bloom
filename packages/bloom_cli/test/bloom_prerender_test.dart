@@ -22,17 +22,28 @@ void main() {
   });
 
   group('Headless Prerendering Architecture & Build Command Verification', () {
-    test('BuildCommand executes "flutter build web --release" before SSG/SSR generation', () async {
-      final appDir = Directory(p.join(tempDir.path, 'flutter_build_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: flutter_build_app\n');
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
-      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync('class Index {}\n');
+    test(
+        'BuildCommand executes "flutter build web --release" before SSG/SSR generation',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'flutter_build_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: flutter_build_app\n');
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
+      File(p.join(routesDir.path, 'index.dart'))
+          .writeAsStringSync('class Index {}\n');
 
       final executedCommands = <List<String>>[];
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(BuildCommand(
-          processRunner: (executable, args, {workingDirectory, environment, includeParentEnvironment = true, runInShell = false, mode = ProcessStartMode.normal}) async {
+          processRunner: (executable, args,
+              {workingDirectory,
+              environment,
+              includeParentEnvironment = true,
+              runInShell = false,
+              mode = ProcessStartMode.normal}) async {
             executedCommands.add([executable, ...args]);
             return ProcessResult(1234, 0, 'Flutter web build completed', '');
           },
@@ -48,15 +59,24 @@ void main() {
       expect(exitCode, 0);
       expect(executedCommands.length, 1);
       expect(executedCommands.first, ['flutter', 'build', 'web', '--release']);
-    });
+    }, tags: ['browser_e2e']);
 
-    test('BuildCommand halts and returns 1 if "flutter build web --release" fails', () async {
-      final appDir = Directory(p.join(tempDir.path, 'flutter_fail_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: flutter_fail_app\n');
+    test(
+        'BuildCommand halts and returns 1 if "flutter build web --release" fails',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'flutter_fail_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: flutter_fail_app\n');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(BuildCommand(
-          processRunner: (executable, args, {workingDirectory, environment, includeParentEnvironment = true, runInShell = false, mode = ProcessStartMode.normal}) async {
+          processRunner: (executable, args,
+              {workingDirectory,
+              environment,
+              includeParentEnvironment = true,
+              runInShell = false,
+              mode = ProcessStartMode.normal}) async {
             return ProcessResult(1234, 1, '', 'Compilation error in main.dart');
           },
         ));
@@ -74,7 +94,9 @@ void main() {
       expect(indexHtml.existsSync(), isFalse);
     });
 
-    test('BloomPrerenderEngine returns null safely when browser is uninitialized', () async {
+    test(
+        'BloomPrerenderEngine returns null safely when browser is uninitialized',
+        () async {
       final engine = BloomPrerenderEngine();
       // Without calling start, browser is null
       final result = await engine.renderRoute('/test');
@@ -82,9 +104,11 @@ void main() {
       await engine.close();
     });
 
-    test('BloomPrerenderEngine writes native SSG route HTML maps to disk', () async {
+    test('BloomPrerenderEngine writes native SSG route HTML maps to disk',
+        () async {
       final engine = BloomPrerenderEngine();
-      final outDir = Directory(p.join(tempDir.path, 'native_ssg_out'))..createSync();
+      final outDir = Directory(p.join(tempDir.path, 'native_ssg_out'))
+        ..createSync();
 
       engine.prerenderNativeRoutes(
         outputDir: outDir,
@@ -103,11 +127,17 @@ void main() {
       expect(aboutFile.readAsStringSync(), contains('About'));
     });
 
-    test('BloomSsgEngine falls back gracefully to template when Chromium is unavailable', () async {
-      final appDir = Directory(p.join(tempDir.path, 'ssg_fallback_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: ssg_fallback_app\n');
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
-      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync("const title = 'About Fallback';\nclass About {}\n");
+    test(
+        'BloomSsgEngine falls back gracefully to template when Chromium is unavailable',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'ssg_fallback_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: ssg_fallback_app\n');
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
+      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync(
+          "const title = 'About Fallback';\nclass About {}\n");
 
       final project = BloomProject(
         rootDir: appDir,
@@ -118,17 +148,23 @@ void main() {
       final ssg = BloomSsgEngine(project: project);
       await ssg.generate();
 
-      final aboutHtml = File(p.join(appDir.path, 'build', 'web', 'about', 'index.html'));
+      final aboutHtml =
+          File(p.join(appDir.path, 'build', 'web', 'about', 'index.html'));
       expect(aboutHtml.existsSync(), isTrue);
       final content = aboutHtml.readAsStringSync();
       expect(content, contains('<title>About Fallback</title>'));
       expect(content, contains('id="bloom-app-root"'));
-    });
+    }, tags: ['browser_e2e']);
 
-    test('BloomSsrEngine emits /__bloom_shell route and prerender-enabled SSR server code', () async {
-      final appDir = Directory(p.join(tempDir.path, 'ssr_prerender_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: ssr_prerender_app\n');
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
+    test(
+        'BloomSsrEngine emits /__bloom_shell route and prerender-enabled SSR server code',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'ssr_prerender_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: ssr_prerender_app\n');
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
       File(p.join(routesDir.path, 'dashboard.dart')).writeAsStringSync('''
 import 'package:bloom_framework/bloom.dart';
 
@@ -149,18 +185,29 @@ Future<Map<String, dynamic>> loadDashboard(BloomRouteContext ctx) async => {'sta
       final serverCode = serverFile.readAsStringSync();
 
       // Check imports
-      expect(serverCode, contains("import 'package:bloom_cli/src/web/prerender_engine.dart';"));
+      expect(
+          serverCode,
+          contains(
+              "import 'package:bloom_cli/src/web/prerender_engine.dart';"));
 
       // Check single browser instance creation at startup
-      expect(serverCode, contains("final _prerenderEngine = BloomPrerenderEngine();"));
-      expect(serverCode, contains("await _prerenderEngine.startWithExistingServer('http://localhost:\$port');"));
+      expect(serverCode,
+          contains("final _prerenderEngine = BloomPrerenderEngine();"));
+      expect(
+          serverCode,
+          contains(
+              "await _prerenderEngine.startWithExistingServer('http://localhost:\$port');"));
 
       // Check neutral /__bloom_shell route registration
-      expect(serverCode, contains("router.get('/__bloom_shell', (req) async {"));
+      expect(
+          serverCode, contains("router.get('/__bloom_shell', (req) async {"));
       expect(serverCode, contains("window.__BLOOM_INITIAL_ROUTE__ ="));
 
       // Check prerenderRoute call on page routes & ISR
-      expect(serverCode, contains("await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path))"));
+      expect(
+          serverCode,
+          contains(
+              "await _prerenderEngine.renderRoute('/__bloom_shell?__bloom_route=' + Uri.encodeComponent(req.path))"));
       expect(serverCode, contains("prerenderedBodyHtml: prerendered"));
 
       // Check _renderDynamicSsrHtml accepts prerenderedBodyHtml and handles fallback

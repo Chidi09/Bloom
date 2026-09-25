@@ -1,3 +1,6 @@
+@Tags(['browser_e2e'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -6,6 +9,7 @@ import 'package:bloom_cli/src/dev/live_reload_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
+import 'fixture_package_config.dart';
 
 void main() {
   group('In-Page Fast Remount (DDC Dev Loop)', () {
@@ -21,12 +25,9 @@ void main() {
       webDir = Directory(p.join(tempDir.path, 'web'))..createSync();
       libDir = Directory(p.join(tempDir.path, 'lib'))..createSync();
 
-      // Use the root monorepo toolchain and package_config
       toolchain = DdcToolchain.discover(projectRoot: tempDir);
       await toolchain.ensureSdkArtifacts();
-
-      packageConfig = File(
-          '/root/dev/Bloom/examples/bloom_js_ecommerce/web/.dart_tool/package_config.json');
+      packageConfig = await createJsNativePackageConfig(tempDir);
 
       browser = await puppeteer.launch(
         headless: true,
@@ -69,15 +70,17 @@ void main() {
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 
-void main() {
-  mount(
-    Div(children: [
+class HomePage {
+  BloomNode build() {
+    return Div(children: [
       H1(text: 'Version 1 - Alpha Initial'),
       P(text: 'Static paragraph'),
-    ]),
-    '#app',
-  );
+    ]);
+  }
 }
+
+void main() => mount(HomePage().build(), '#app');
+
 ''');
 
       final compiler = DdcDevCompiler(
@@ -105,6 +108,13 @@ void main() {
 
       try {
         final page = await browser!.newPage();
+        final browserErrors = <String>[];
+        page.onConsole.listen((message) {
+          if (message.type.name == 'error') {
+            browserErrors.add(message.text ?? '');
+          }
+        });
+        page.onError.listen((error) => browserErrors.add(error.toString()));
         await page.goto('http://127.0.0.1:$port', wait: Until.domContentLoaded);
 
         // Wait for initial render
@@ -120,12 +130,14 @@ void main() {
           await Future.delayed(const Duration(milliseconds: 100));
         }
         expect(initialH1, equals('Version 1 - Alpha Initial'));
+        await _waitForSseClient(devServer);
 
         // Install sentinels to verify no browser navigation or document replacement occurs
         await page.evaluate(r'''
           (() => {
             window.__bloomTestSentinel = 424242;
             window.__navigationOccurred = false;
+            window.__bloomOriginalParagraph = document.querySelector('#app p');
             window.addEventListener('beforeunload', () => {
               window.__navigationOccurred = true;
             });
@@ -137,20 +149,25 @@ void main() {
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 
-void main() {
-  mount(
-    Div(children: [
+class HomePage {
+  BloomNode build() {
+    return Div(children: [
       H1(text: 'Version 2 - Beta Remounted'),
       P(text: 'Updated paragraph content'),
-    ]),
-    '#app',
-  );
+    ]);
+  }
 }
+
+void main() => mount(HomePage().build(), '#app');
 ''');
 
         final compile2 = await compiler.compile();
         expect(compile2.success, isTrue,
             reason: 'Second compile failed: ${compile2.error}');
+        expect(
+          outputFile.readAsStringSync(),
+          contains('Version 2 - Beta Remounted'),
+        );
 
         // Trigger hot-remount SSE broadcast
         devServer.broadcastHotRemount(reason: 'main.dart');
@@ -168,13 +185,18 @@ void main() {
           if (remountedH1 == 'Version 2 - Beta Remounted') break;
         }
 
-        expect(remountedH1, equals('Version 2 - Beta Remounted'));
+        expect(
+          remountedH1,
+          equals('Version 2 - Beta Remounted'),
+          reason: 'Browser errors: $browserErrors',
+        );
 
         // Verify page identity / state: window sentinel intact, no beforeunload fired
         final stateJson = await page.evaluate(r'''
           (() => JSON.stringify({
             sentinel: window.__bloomTestSentinel,
             navigationOccurred: window.__navigationOccurred,
+            paragraphPreserved: document.querySelector('#app p') === window.__bloomOriginalParagraph,
             pText: document.querySelector('#app p') ? document.querySelector('#app p').textContent : null
           }))()
         ''');
@@ -186,11 +208,14 @@ void main() {
         expect(state['navigationOccurred'], isFalse,
             reason:
                 'No beforeunload / page navigation occurred during hot-remount');
+        expect(state['paragraphPreserved'], isTrue,
+            reason:
+                'A compatible component update should preserve existing DOM nodes');
         expect(state['pText'], equals('Updated paragraph content'));
       } finally {
         await devServer.stop();
       }
-    }, timeout: const Timeout(Duration(seconds: 45)));
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test(
         'deliberate error in second main() invocation renders dev error overlay in DOM',
@@ -334,7 +359,7 @@ void main() {
       } finally {
         await devServer.stop();
       }
-    }, timeout: const Timeout(Duration(seconds: 45)));
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test(
         'non-DDC dev path broadcasts reload and performs full browser page navigation',
@@ -405,4 +430,17 @@ void main() {
       }
     }, timeout: const Timeout(Duration(seconds: 30)));
   });
+}
+
+Future<void> _waitForSseClient(BloomLiveReloadServer server) async {
+  for (var attempt = 0;
+      attempt < 50 && server.activeClientCount == 0;
+      attempt++) {
+    await Future.delayed(const Duration(milliseconds: 20));
+  }
+  expect(
+    server.activeClientCount,
+    greaterThan(0),
+    reason: 'The browser must establish its live-reload SSE connection first',
+  );
 }

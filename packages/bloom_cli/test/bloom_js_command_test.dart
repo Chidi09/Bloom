@@ -19,6 +19,8 @@ void main() {
       final cmd = JsDevCommand();
       expect(cmd.argParser.options.containsKey('port'), isTrue);
       expect(cmd.argParser.options.containsKey('entry'), isTrue);
+      expect(cmd.argParser.parse([])['host'], '127.0.0.1');
+      expect(cmd.argParser.parse(['--host', '0.0.0.0'])['host'], '0.0.0.0');
     });
   });
 }

@@ -4,10 +4,25 @@
 
 ### Added
 * **JS dev terminal dashboard (#3)**: `bloom js dev` now renders a Next.js-style startup panel (project, local URL, DDC vs dart2js mode, assets, watch roots, proxies, routes, shortcuts) and prints live build-status lines as the watcher recompiles — tracking elapsed time, a running compile count and an error count at a glance. Replaces the flat ad-hoc startup prints.
+* **Incremental DDC worker**: `bloom js dev` now reuses a persistent DDC worker and compiler state, passing digests for staged Dart sources and the SDK outline so changed source dependencies compile incrementally. Unsupported worker configurations fall back to one-shot DDC.
+* **Top-level effect cleanup on DDC remount**: the injected dev bootstrap calls Bloom's hot-effect cleanup hook before evicting and re-executing the app entry module.
+* **Stateful object signal scopes**: DDC now gives constructor expressions assigned to variables isolated hot-reload scopes at stable call sites in `main`, top-level initializers, and supported UI callbacks, including imported stores, so separate instances retain their own field-signal values.
+* **`bloom.yaml` editor schema**: Flutter and JS Native scaffolds now link to the repository JSON Schema through the YAML language server modeline, enabling completion and diagnostics for known manifest fields.
+* **Executable `bloom js create` tests**: component and page scaffolds now include tests that import and render the generated source; route guards also receive a test for the safe default.
 
 ### Fixed
+* **DDC error reporting**: failed app startup and RequireJS module loads now show the dev overlay; fallback error details use `textContent` so source text cannot be interpreted as HTML.
+* **`bloom doctor` manifest diagnostics**: interactive and CI doctor runs now parse `bloom.yaml` and validate its required name, schema version, mode, and build/deployment targets instead of treating any existing file as valid.
+* **Windows Tailwind builds**: `NODE_PATH` now uses the platform's path-list separator so the static CSS toolchain can resolve its packages on Windows.
+* **DDC source staging**: unchanged Dart files reuse their signal-key-transformed staging copies, deleted Dart files are removed before recompilation, staging failures reach the dev error overlay, and reported compile duration includes staging time.
+* **DDC package imports**: the dev compiler now redirects the current package's `package:` imports through the staged source tree, so transformed files are used consistently for both relative and package imports.
+* **DDC process recovery**: compiler launch failures and successful runs that produce no JavaScript now surface as structured dev errors; failed compiles preserve the last good output file.
+* **DDC runtime setup fallback**: failed `dart_sdk.js` generation now preserves the existing SDK cache and switches `bloom js dev` to the working `dart2js -O0` path instead of serving an incomplete DDC page.
 * **JS dev loop watches all project roots (#2)**: `bloom js dev` now watches both `lib/` and `web/`; static HTML/CSS/JS/assets reload directly, and newly-created source directories are subscribed without restarting the dev server.
-* **Builder signal state preservation (#2)**: the DDC signal-key injector now includes signals created inside anonymous `Live`/builder closures, allowing the existing browser signal registry to restore their values across hot remounts.
+* **Builder signal key safety (#2)**: the DDC signal-key injector skips anonymous builders, where one source key could be reused by multiple list items and restore state to the wrong item. An explicit instance-specific `key:` remains available.
+* **Signal key injection import safety**: stable hot-reload keys are injected only for `signal()` calls resolved through a direct Bloom JS Native import (including prefixed imports); unrelated functions and names hidden or shadowed in the source are left untouched.
+* **Route guard scaffolding fails closed**: `bloom js create --guard` now denies access until authorization is implemented, rather than generating a guard that grants access by default.
+* **JS dev server binds to loopback by default**: `bloom js dev` and `BloomLiveReloadServer` now listen on `127.0.0.1` unless a developer explicitly selects another host such as `0.0.0.0` for LAN testing.
 * **Structured dev errors (#4)**: live-reload error SSE events now carry `kind`, optional `file`/`line`/`column`, `stack`, and `codeFrame` fields while retaining the raw-message fallback.
 * **JS Native scaffold branding (#1)**: `bloom create --js-native` now emits the canonical Bloom logo as `web/favicon.svg`, links it from the generated HTML, and displays it on the starter page.
 

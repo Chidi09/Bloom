@@ -5,6 +5,13 @@ import '../npm/npm_manifest.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 
+/// Joins entries for a PATH-like environment variable on the target platform.
+///
+/// [isWindows] is exposed so callers can verify both path conventions without
+/// requiring a Windows runner.
+String joinNodePaths(Iterable<String> paths, {bool? isWindows}) =>
+    paths.join((isWindows ?? Platform.isWindows) ? ';' : ':');
+
 /// Default process runner function.
 Future<ProcessResult> _defaultProcessRunner(
   String executable,
@@ -124,11 +131,13 @@ class TailwindStaticBuild {
     if (customInputFile != null) {
       inputFile = customInputFile;
     } else {
-      final userEntry = File(p.join(project.rootDir.path, 'web', 'tailwind.css'));
+      final userEntry =
+          File(p.join(project.rootDir.path, 'web', 'tailwind.css'));
       if (userEntry.existsSync()) {
         inputFile = userEntry;
       } else {
-        final generatedDir = Directory(p.join(project.rootDir.path, '.dart_tool', 'bloom'));
+        final generatedDir =
+            Directory(p.join(project.rootDir.path, '.dart_tool', 'bloom'));
         if (!generatedDir.existsSync()) {
           generatedDir.createSync(recursive: true);
         }
@@ -146,9 +155,11 @@ class TailwindStaticBuild {
     }
 
     // 3. Ensure Tailwind CLI & package are available in toolchain directory
-    final toolDir = Directory(p.join(project.rootDir.path, '.dart_tool', 'bloom'));
+    final toolDir =
+        Directory(p.join(project.rootDir.path, '.dart_tool', 'bloom'));
     final toolNodeModules = Directory(p.join(toolDir.path, 'node_modules'));
-    final tailwindPackage = Directory(p.join(toolNodeModules.path, 'tailwindcss'));
+    final tailwindPackage =
+        Directory(p.join(toolNodeModules.path, 'tailwindcss'));
 
     if (!tailwindPackage.existsSync()) {
       if (!toolDir.existsSync()) {
@@ -160,22 +171,26 @@ class TailwindStaticBuild {
         workingDirectory: toolDir.path,
       );
       if (installResult.exitCode != 0) {
-        print(Ansi.error('Failed to install @tailwindcss/cli toolchain:\n${installResult.stdout}\n${installResult.stderr}'));
+        print(Ansi.error(
+            'Failed to install @tailwindcss/cli toolchain:\n${installResult.stdout}\n${installResult.stderr}'));
         return installResult.exitCode == 0 ? 1 : installResult.exitCode;
       }
     }
 
     // 4. Execute bunx @tailwindcss/cli with NODE_PATH pointing to toolchain node_modules
     final env = Map<String, String>.from(Platform.environment);
-    final nodePaths = [
+    final nodePathEntries = [
       if (toolNodeModules.existsSync()) toolNodeModules.path,
-      if (env['NODE_PATH'] != null && env['NODE_PATH']!.isNotEmpty) env['NODE_PATH']!,
-    ].join(':');
+      if (env['NODE_PATH'] != null && env['NODE_PATH']!.isNotEmpty)
+        env['NODE_PATH']!,
+    ];
+    final nodePaths = joinNodePaths(nodePathEntries);
     if (nodePaths.isNotEmpty) {
       env['NODE_PATH'] = nodePaths;
     }
 
-    print(Ansi.step('Building static Tailwind CSS bundle (bunx @tailwindcss/cli)...'));
+    print(Ansi.step(
+        'Building static Tailwind CSS bundle (bunx @tailwindcss/cli)...'));
     final result = await processRunner(
       'bunx',
       [
@@ -191,14 +206,16 @@ class TailwindStaticBuild {
     );
 
     if (result.exitCode != 0) {
-      print(Ansi.error('Tailwind CLI build failed:\n${result.stdout}\n${result.stderr}'));
+      print(Ansi.error(
+          'Tailwind CLI build failed:\n${result.stdout}\n${result.stderr}'));
       return result.exitCode == 0 ? 1 : result.exitCode;
     }
 
     if (outputFile.existsSync()) {
       final sizeKb = (outputFile.lengthSync() / 1024).toStringAsFixed(1);
       final relPath = p.relative(outputFile.path, from: project.rootDir.path);
-      print(Ansi.success('✓ Generated static Tailwind CSS: $relPath (${sizeKb}kB)'));
+      print(Ansi.success(
+          '✓ Generated static Tailwind CSS: $relPath (${sizeKb}kB)'));
     }
 
     return 0;

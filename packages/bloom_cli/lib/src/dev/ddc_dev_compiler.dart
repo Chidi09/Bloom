@@ -1,9 +1,47 @@
 // lib/src/dev/ddc_dev_compiler.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'package:bazel_worker/bazel_worker.dart'
+    show EXIT_CODE_ERROR, Input, WorkRequest;
+import 'package:bazel_worker/driver.dart' show BazelWorkerDriver;
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'live_reload_server.dart';
 import 'signal_key_injector.dart';
+
+typedef DdcSourceTransformer = String Function(
+  String source, {
+  required String relativePath,
+});
+
+typedef DdcProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+typedef DdcWorkerSpawner = Future<Process> Function(
+  String executable,
+  List<String> arguments,
+);
+
+Future<ProcessResult> _runDdcProcess(
+  String executable,
+  List<String> arguments,
+) =>
+    Process.run(executable, arguments);
+
+Future<Process> _spawnDdcWorker(
+  String executable,
+  List<String> arguments,
+) =>
+    Process.start(executable, arguments);
+
+String _injectStableSignalKeys(
+  String source, {
+  required String relativePath,
+}) =>
+    SignalKeyInjector.injectKeys(source, relativePath: relativePath);
 
 /// Representation of the Dart Dev Compiler (DDC) SDK toolchain and runtime paths.
 class DdcToolchain {
@@ -12,6 +50,7 @@ class DdcToolchain {
   final String? snapshotPath;
   final String? runnerExecutable;
   final String? ddcPlatformDillPath;
+  final String? ddcOutlineDillPath;
   final String? requireJsPath;
   final Directory cacheDir;
   final String sdkVersion;
@@ -22,6 +61,7 @@ class DdcToolchain {
     required this.snapshotPath,
     required this.runnerExecutable,
     required this.ddcPlatformDillPath,
+    required this.ddcOutlineDillPath,
     required this.requireJsPath,
     required this.cacheDir,
     required this.sdkVersion,
@@ -45,7 +85,8 @@ class DdcToolchain {
     final sdkRoot = p.dirname(sdkBin);
     final snapshotsDir = p.join(sdkBin, 'snapshots');
 
-    final aotSnapshot = File(p.join(snapshotsDir, 'dartdevc_aot.dart.snapshot'));
+    final aotSnapshot =
+        File(p.join(snapshotsDir, 'dartdevc_aot.dart.snapshot'));
     final jitSnapshot = File(p.join(snapshotsDir, 'dartdevc.dart.snapshot'));
 
     final execSuffix = Platform.isWindows ? '.exe' : '';
@@ -62,6 +103,8 @@ class DdcToolchain {
 
     final ddcPlatformDill =
         File(p.join(sdkRoot, 'lib', '_internal', 'ddc_platform.dill'));
+    final ddcOutlineDill =
+        File(p.join(sdkRoot, 'lib', '_internal', 'ddc_outline.dill'));
     final requireJs =
         File(p.join(sdkRoot, 'lib', 'dev_compiler', 'amd', 'require.js'));
 
@@ -70,8 +113,8 @@ class DdcToolchain {
 
     final Directory cache;
     if (projectRoot != null) {
-      cache = Directory(
-          p.join(projectRoot.path, '.dart_tool', 'bloom', 'ddc', sanitizedVersion));
+      cache = Directory(p.join(
+          projectRoot.path, '.dart_tool', 'bloom', 'ddc', sanitizedVersion));
     } else {
       cache = Directory(p.join(
           Directory.systemTemp.path, 'bloom_ddc_cache', sanitizedVersion));
@@ -84,6 +127,8 @@ class DdcToolchain {
       runnerExecutable: runnerExecutable,
       ddcPlatformDillPath:
           ddcPlatformDill.existsSync() ? ddcPlatformDill.path : null,
+      ddcOutlineDillPath:
+          ddcOutlineDill.existsSync() ? ddcOutlineDill.path : null,
       requireJsPath: requireJs.existsSync() ? requireJs.path : null,
       cacheDir: cache,
       sdkVersion: rawVersion,
@@ -99,6 +144,7 @@ class DdcToolchain {
   /// Ensures that cached `dart_sdk.js` and `require.js` exist for the current SDK version.
   Future<bool> ensureSdkArtifacts({
     void Function(String message)? onProgress,
+    DdcProcessRunner runProcess = _runDdcProcess,
   }) async {
     if (!isAvailable) return false;
 
@@ -121,35 +167,49 @@ class DdcToolchain {
     }
 
     onProgress?.call('Generating shared DDC SDK runtime (dart_sdk.js)...');
+    final srcRequire = File(requireJsPath!);
+    if (!srcRequire.existsSync()) return false;
     final sw = Stopwatch()..start();
 
-    // 1. Copy require.js
-    final srcRequire = File(requireJsPath!);
-    if (srcRequire.existsSync()) {
-      srcRequire.copySync(cachedRequireJs.path);
-    }
+    final cacheToken = '$pid-${DateTime.now().microsecondsSinceEpoch}';
+    final temporarySdkJs = File('${cachedSdkJs.path}.$cacheToken.tmp');
+    final temporaryRequireJs = File('${cachedRequireJs.path}.$cacheToken.tmp');
+    try {
+      // Compile and stage both runtime files before replacing the active cache.
+      final result = await runProcess(runnerExecutable!, [
+        snapshotPath!,
+        '--multi-root-scheme=org-dartlang-sdk',
+        '--modules=amd',
+        '--module-name=dart_sdk',
+        '-o',
+        temporarySdkJs.path,
+        ddcPlatformDillPath!,
+      ]);
+      sw.stop();
 
-    // 2. Compile dart_sdk.js
-    final result = await Process.run(runnerExecutable!, [
-      snapshotPath!,
-      '--multi-root-scheme=org-dartlang-sdk',
-      '--modules=amd',
-      '--module-name=dart_sdk',
-      '-o',
-      cachedSdkJs.path,
-      ddcPlatformDillPath!,
-    ]);
-    sw.stop();
+      if (result.exitCode != 0 ||
+          !temporarySdkJs.existsSync() ||
+          temporarySdkJs.lengthSync() == 0) {
+        return false;
+      }
 
-    if (result.exitCode != 0) {
+      srcRequire.copySync(temporaryRequireJs.path);
+      temporarySdkJs.copySync(cachedSdkJs.path);
+      temporaryRequireJs.copySync(cachedRequireJs.path);
+      versionFile.writeAsStringSync(sdkVersion);
+      final sizeKb = (cachedSdkJs.lengthSync() / 1024).toStringAsFixed(1);
+      onProgress?.call(
+          '✓ Compiled DDC SDK module ($sizeKb kB) in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s');
+      return true;
+    } catch (_) {
       return false;
+    } finally {
+      if (sw.isRunning) sw.stop();
+      try {
+        if (temporarySdkJs.existsSync()) temporarySdkJs.deleteSync();
+        if (temporaryRequireJs.existsSync()) temporaryRequireJs.deleteSync();
+      } catch (_) {}
     }
-
-    versionFile.writeAsStringSync(sdkVersion);
-    final sizeKb = (cachedSdkJs.lengthSync() / 1024).toStringAsFixed(1);
-    onProgress?.call(
-        '✓ Compiled DDC SDK module ($sizeKb kB) in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s');
-    return true;
   }
 }
 
@@ -177,6 +237,14 @@ class DdcDevCompiler {
   final File outputFile;
   final File? packageConfigFile;
   final String moduleName;
+  final DdcSourceTransformer transformSource;
+  final DdcProcessRunner runProcess;
+  final DdcWorkerSpawner spawnWorker;
+  final bool useIncrementalWorker;
+  final Map<String, String> _stagedSourceHashes = {};
+  BazelWorkerDriver? _workerDriver;
+  bool _workerDisabled = false;
+  Future<void> _compileQueue = Future.value();
 
   DdcDevCompiler({
     required this.toolchain,
@@ -184,10 +252,39 @@ class DdcDevCompiler {
     required this.outputFile,
     this.packageConfigFile,
     this.moduleName = 'main',
+    this.transformSource = _injectStableSignalKeys,
+    this.runProcess = _runDdcProcess,
+    this.spawnWorker = _spawnDdcWorker,
+    this.useIncrementalWorker = false,
   });
 
   /// Compiles [entryFile] to an AMD module at [outputFile].
-  Future<DdcCompileResult> compile({BloomLiveReloadServer? devServer}) async {
+  Future<DdcCompileResult> compile({BloomLiveReloadServer? devServer}) {
+    final result = Completer<DdcCompileResult>();
+    _compileQueue = _compileQueue.then((_) async {
+      try {
+        result.complete(await _compile(devServer: devServer));
+      } catch (error) {
+        final message = 'DDC compilation failed unexpectedly: $error';
+        devServer?.broadcastError(message);
+        result.complete(DdcCompileResult(
+          success: false,
+          error: message,
+          duration: Duration.zero,
+        ));
+      }
+    });
+    return result.future;
+  }
+
+  Future<void> dispose() async {
+    await _compileQueue;
+    final driver = _workerDriver;
+    _workerDriver = null;
+    if (driver != null) await driver.terminateWorkers();
+  }
+
+  Future<DdcCompileResult> _compile({BloomLiveReloadServer? devServer}) async {
     if (!toolchain.isAvailable) {
       const err = 'DDC toolchain is not available on this system.';
       devServer?.broadcastError(err);
@@ -198,27 +295,63 @@ class DdcDevCompiler {
       );
     }
 
-    // Prepare staged compilation directory with injected signal keys
-    final stagedEntryFile = _stageSourcesWithSignalKeys();
-
     final sw = Stopwatch()..start();
-    final args = <String>[
-      toolchain.snapshotPath!,
-      if (packageConfigFile != null && packageConfigFile!.existsSync())
-        '--packages=${packageConfigFile!.path}',
+    // Include source staging and signal-key transformation in the reported
+    // duration; both are part of the work triggered by a developer edit.
+    final (
+      File stagedEntryFile,
+      File? stagedPackageConfig,
+      List<File> stagedDartFiles
+    ) staged;
+    try {
+      staged = _stageSourcesWithSignalKeys();
+    } catch (error) {
+      sw.stop();
+      final message = 'Failed to stage Dart sources: $error';
+      devServer?.broadcastError(message);
+      return DdcCompileResult(
+        success: false,
+        error: message,
+        duration: sw.elapsed,
+      );
+    }
+    outputFile.parent.createSync(recursive: true);
+    final compileOutputFile = File(
+      '${outputFile.path}.bloom-ddc-${pid}-${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    final compilerArgs = <String>[
+      if (staged.$2 != null) '--packages=${staged.$2!.path}',
       '--modules=amd',
       '--module-name=$moduleName',
       '-o',
-      outputFile.path,
-      stagedEntryFile.path,
+      compileOutputFile.path,
+      staged.$1.path,
     ];
 
-    final result = await Process.run(toolchain.runnerExecutable!, args);
+    final ProcessResult result;
+    try {
+      result = await _runCompiler(
+        compilerArgs,
+        compileOutputFile,
+        staged.$3,
+      );
+    } catch (error) {
+      sw.stop();
+      if (compileOutputFile.existsSync()) compileOutputFile.deleteSync();
+      final message = 'Failed to start DDC compiler: $error';
+      devServer?.broadcastError(message);
+      return DdcCompileResult(
+        success: false,
+        error: message,
+        duration: sw.elapsed,
+      );
+    }
     sw.stop();
 
     if (result.exitCode != 0) {
       final err = '${result.stderr}'.trim();
       final fullErr = err.isNotEmpty ? err : '${result.stdout}'.trim();
+      if (compileOutputFile.existsSync()) compileOutputFile.deleteSync();
       devServer?.broadcastError(fullErr);
       return DdcCompileResult(
         success: false,
@@ -227,7 +360,21 @@ class DdcDevCompiler {
       );
     }
 
-    final sizeBytes = outputFile.existsSync() ? outputFile.lengthSync() : 0;
+    if (!compileOutputFile.existsSync() ||
+        compileOutputFile.lengthSync() == 0) {
+      if (compileOutputFile.existsSync()) compileOutputFile.deleteSync();
+      final message = 'DDC exited successfully without producing JavaScript.';
+      devServer?.broadcastError(message);
+      return DdcCompileResult(
+        success: false,
+        error: message,
+        duration: sw.elapsed,
+      );
+    }
+
+    compileOutputFile.copySync(outputFile.path);
+    compileOutputFile.deleteSync();
+    final sizeBytes = outputFile.lengthSync();
     return DdcCompileResult(
       success: true,
       duration: sw.elapsed,
@@ -235,9 +382,75 @@ class DdcDevCompiler {
     );
   }
 
-  /// Stages [entryFile] and reachable local `lib/` sources into a temporary
-  /// build cache directory with injected stable signal keys.
-  File _stageSourcesWithSignalKeys() {
+  Future<ProcessResult> _runCompiler(
+    List<String> compilerArgs,
+    File compileOutputFile,
+    List<File> stagedDartFiles,
+  ) async {
+    final executable = toolchain.runnerExecutable!;
+    final oneShotArgs = [toolchain.snapshotPath!, ...compilerArgs];
+    if (!useIncrementalWorker || _workerDisabled) {
+      return runProcess(executable, oneShotArgs);
+    }
+
+    try {
+      final worker = _workerDriver ??= BazelWorkerDriver(
+        () => spawnWorker(executable, [
+          toolchain.snapshotPath!,
+          '--persistent_worker',
+          '--reuse-compiler-result',
+          '--use-incremental-compiler',
+        ]),
+        maxWorkers: 1,
+        maxIdleWorkers: 1,
+        maxRetries: 0,
+      );
+      final inputs = stagedDartFiles
+          .map((file) => Input(
+                path: file.absolute.path,
+                digest: sha256.convert(file.readAsBytesSync()).bytes,
+              ))
+          .toList();
+      final sdkOutlinePath = toolchain.ddcOutlineDillPath;
+      if (sdkOutlinePath == null) {
+        throw StateError('DDC SDK outline summary is unavailable.');
+      }
+      final sdkOutline = File(sdkOutlinePath);
+      inputs.add(Input(
+        path: sdkOutline.absolute.path,
+        digest: sha256.convert(sdkOutline.readAsBytesSync()).bytes,
+      ));
+      final response = await worker.doWork(WorkRequest(
+        arguments: compilerArgs,
+        inputs: inputs,
+      ));
+      if (response.exitCode == EXIT_CODE_ERROR) {
+        _workerDisabled = true;
+        _workerDriver = null;
+        await worker.terminateWorkers();
+        return await runProcess(executable, oneShotArgs);
+      }
+      return ProcessResult(0, response.exitCode, response.output, '');
+    } catch (_) {
+      if (_workerDisabled) rethrow;
+      // A worker can fail for unsupported SDKs or a protocol mismatch. Retire
+      // it and fall back to DDC's regular one-shot invocation for this session.
+      _workerDisabled = true;
+      final worker = _workerDriver;
+      _workerDriver = null;
+      if (worker != null) {
+        try {
+          await worker.terminateWorkers();
+        } catch (_) {}
+      }
+      return runProcess(executable, oneShotArgs);
+    }
+  }
+
+  /// Stages [entryFile] and local `lib/` sources into a temporary build cache.
+  /// Unchanged sources reuse their transformed staged copy; removed Dart files
+  /// are removed from staging so a deleted import cannot compile from stale code.
+  (File, File?, List<File>) _stageSourcesWithSignalKeys() {
     final stagingDir =
         Directory(p.join(toolchain.cacheDir.path, 'staged', moduleName));
     if (!stagingDir.existsSync()) {
@@ -255,42 +468,113 @@ class DdcDevCompiler {
       current = current.parent;
     }
 
-    final String entryRelPath;
-    if (projectRoot != null) {
-      entryRelPath = p.relative(entryFile.path, from: projectRoot.path);
-    } else {
-      entryRelPath = p.basename(entryFile.path);
-    }
-
-    final stagedEntry = File(p.join(stagingDir.path, entryRelPath));
-    stagedEntry.parent.createSync(recursive: true);
-
-    final entrySource = entryFile.readAsStringSync();
-    final transformedEntry = SignalKeyInjector.injectKeys(
-      entrySource,
-      relativePath: entryRelPath,
-    );
-    stagedEntry.writeAsStringSync(transformedEntry);
-
+    final sourceFiles = <File>[entryFile];
     if (projectRoot != null) {
       final libDir = Directory(p.join(projectRoot.path, 'lib'));
       if (libDir.existsSync()) {
         for (final entity in libDir.listSync(recursive: true)) {
           if (entity is File &&
               entity.path.endsWith('.dart') &&
-              entity.path != entryFile.path) {
-            final rel = p.relative(entity.path, from: projectRoot.path);
-            final dest = File(p.join(stagingDir.path, rel));
-            dest.parent.createSync(recursive: true);
-            final content = entity.readAsStringSync();
-            final transformed =
-                SignalKeyInjector.injectKeys(content, relativePath: rel);
-            dest.writeAsStringSync(transformed);
+              p.normalize(entity.path) != p.normalize(entryFile.path)) {
+            sourceFiles.add(entity);
           }
         }
       }
     }
 
-    return stagedEntry;
+    final activeRelativePaths = <String>{};
+    final stagedDartFiles = <File>[];
+    for (final sourceFile in sourceFiles) {
+      final relativePath = projectRoot == null
+          ? p.basename(sourceFile.path)
+          : p.relative(sourceFile.path, from: projectRoot.path);
+      final normalizedRelativePath = p.normalize(relativePath);
+      activeRelativePaths.add(normalizedRelativePath);
+
+      final bytes = sourceFile.readAsBytesSync();
+      final sourceHash = sha256.convert(bytes).toString();
+      final stagedFile = File(p.join(stagingDir.path, relativePath));
+      stagedDartFiles.add(stagedFile);
+      if (stagedFile.existsSync() &&
+          _stagedSourceHashes[normalizedRelativePath] == sourceHash) {
+        continue;
+      }
+
+      stagedFile.parent.createSync(recursive: true);
+      final source = utf8.decode(bytes);
+      stagedFile.writeAsStringSync(transformSource(
+        source,
+        relativePath: relativePath,
+      ));
+      _stagedSourceHashes[normalizedRelativePath] = sourceHash;
+    }
+
+    for (final entity in stagingDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final relativePath = p.normalize(
+        p.relative(entity.path, from: stagingDir.path),
+      );
+      if (!activeRelativePaths.contains(relativePath)) {
+        entity.deleteSync();
+        _stagedSourceHashes.remove(relativePath);
+      }
+    }
+    _stagedSourceHashes.removeWhere(
+        (relativePath, _) => !activeRelativePaths.contains(relativePath));
+
+    final stagedPackageConfig = _stagePackageConfig(projectRoot, stagingDir);
+    final entryRelPath = projectRoot == null
+        ? p.basename(entryFile.path)
+        : p.relative(entryFile.path, from: projectRoot.path);
+    final stagedEntry = File(p.join(stagingDir.path, entryRelPath));
+    return (stagedEntry, stagedPackageConfig, stagedDartFiles);
+  }
+
+  /// Redirects imports of this package through the transformed staging tree.
+  /// Package imports otherwise resolve against the original `lib/` files and
+  /// silently skip signal-key injection, even though relative imports work.
+  File? _stagePackageConfig(Directory? projectRoot, Directory stagingDir) {
+    final sourceConfig = packageConfigFile;
+    if (projectRoot == null ||
+        sourceConfig == null ||
+        !sourceConfig.existsSync()) {
+      return null;
+    }
+
+    final config = jsonDecode(sourceConfig.readAsStringSync());
+    if (config is! Map<String, dynamic> || config['packages'] is! List) {
+      throw const FormatException('Invalid Dart package configuration.');
+    }
+
+    final configUri = Uri.file(sourceConfig.absolute.path);
+    final projectPath = _canonicalPath(projectRoot.path);
+    var foundProjectPackage = false;
+    for (final package in config['packages'] as List) {
+      if (package is! Map<String, dynamic> || package['rootUri'] is! String) {
+        continue;
+      }
+      final rootUri = configUri.resolve(package['rootUri'] as String);
+      if (rootUri.scheme != 'file' ||
+          _canonicalPath(p.fromUri(rootUri)) != projectPath) {
+        continue;
+      }
+      package['rootUri'] = Uri.directory(stagingDir.absolute.path).toString();
+      foundProjectPackage = true;
+    }
+    if (!foundProjectPackage) return sourceConfig;
+
+    final stagedConfig = File(p.join(stagingDir.path, 'package_config.json'));
+    stagedConfig
+        .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(config));
+    return stagedConfig;
+  }
+
+  String _canonicalPath(String path) {
+    final normalized = p.normalize(p.absolute(path));
+    try {
+      return p.normalize(Directory(normalized).resolveSymbolicLinksSync());
+    } on FileSystemException {
+      return normalized;
+    }
   }
 }

@@ -20,7 +20,9 @@ void main() {
   });
 
   group('PWA Brand Icon SVG Generation', () {
-    test('buildBloomLogoSvg generates canonical 5-petal flower with linear gradients and sparkle', () {
+    test(
+        'buildBloomLogoSvg generates canonical 5-petal flower with linear gradients and sparkle',
+        () {
       final svg = buildBloomLogoSvg();
 
       expect(svg, contains('viewBox="0 0 200 200"'));
@@ -53,44 +55,75 @@ void main() {
 
       // Verify petal paths and 0.95 fill opacity
       expect(svg, contains('fill-opacity="0.95"'));
-      expect(svg, contains('M100 20 C130 20 145 60 125 90 C110 100 90 100 75 90 C55 60 70 20 100 20 Z'));
-      expect(svg, contains('M180 80 C190 110 155 135 125 115 C115 100 105 85 115 70 C145 50 170 50 180 80 Z'));
-      expect(svg, contains('M140 175 C115 185 85 155 100 125 C110 110 125 105 135 115 C165 135 165 165 140 175 Z'));
-      expect(svg, contains('M60 175 C35 165 35 135 65 115 C75 105 90 110 100 125 C115 155 85 185 60 175 Z'));
-      expect(svg, contains('M20 80 C30 50 55 50 85 70 C95 85 85 100 75 115 C45 135 10 110 20 80 Z'));
+      expect(
+          svg,
+          contains(
+              'M100 20 C130 20 145 60 125 90 C110 100 90 100 75 90 C55 60 70 20 100 20 Z'));
+      expect(
+          svg,
+          contains(
+              'M180 80 C190 110 155 135 125 115 C115 100 105 85 115 70 C145 50 170 50 180 80 Z'));
+      expect(
+          svg,
+          contains(
+              'M140 175 C115 185 85 155 100 125 C110 110 125 105 135 115 C165 135 165 165 140 175 Z'));
+      expect(
+          svg,
+          contains(
+              'M60 175 C35 165 35 135 65 115 C75 105 90 110 100 125 C115 155 85 185 60 175 Z'));
+      expect(
+          svg,
+          contains(
+              'M20 80 C30 50 55 50 85 70 C95 85 85 100 75 115 C45 135 10 110 20 80 Z'));
 
       // Verify sparkle accent
-      expect(svg, contains('M100 82 L104 96 L118 100 L104 104 L100 118 L96 104 L82 100 L96 96 Z'));
+      expect(
+          svg,
+          contains(
+              'M100 82 L104 96 L118 100 L104 104 L100 118 L96 104 L82 100 L96 96 Z'));
       expect(svg, contains('fill="#FFFFFF"'));
     });
 
-    test('buildBloomLogoSvg supports maskable and opaque background variants', () {
-      final maskableSvg = buildBloomLogoSvg(isMaskable: true, themeColor: '#10B981');
-      expect(maskableSvg, contains('<rect width="200" height="200" fill="#10B981" />'));
-      expect(maskableSvg, contains('<g transform="translate(20, 20) scale(0.8)">'));
+    test('buildBloomLogoSvg supports maskable and opaque background variants',
+        () {
+      final maskableSvg =
+          buildBloomLogoSvg(isMaskable: true, themeColor: '#10B981');
+      expect(maskableSvg,
+          contains('<rect width="200" height="200" fill="#10B981" />'));
+      expect(maskableSvg,
+          contains('<g transform="translate(20, 20) scale(0.8)">'));
 
-      final appleTouchSvg = buildBloomLogoSvg(hasOpaqueBackground: true, themeColor: '#6366F1');
-      expect(appleTouchSvg, contains('<rect width="200" height="200" fill="#6366F1" />'));
-      expect(appleTouchSvg, isNot(contains('<g transform="translate(20, 20) scale(0.8)">')));
+      final appleTouchSvg =
+          buildBloomLogoSvg(hasOpaqueBackground: true, themeColor: '#6366F1');
+      expect(appleTouchSvg,
+          contains('<rect width="200" height="200" fill="#6366F1" />'));
+      expect(appleTouchSvg,
+          isNot(contains('<g transform="translate(20, 20) scale(0.8)">')));
     });
   });
 
   group('Headless Chromium SVG to PNG Rendering', () {
-    test('BloomPrerenderEngine returns null safely when browser is uninitialized', () async {
+    test(
+        'BloomPrerenderEngine returns null safely when browser is uninitialized',
+        () async {
       final engine = BloomPrerenderEngine();
       expect(engine.isBrowserRunning, isFalse);
 
-      final bytes = await engine.renderSvgToPng(buildBloomLogoSvg(), width: 192, height: 192);
+      final bytes = await engine.renderSvgToPng(buildBloomLogoSvg(),
+          width: 192, height: 192);
       expect(bytes, isNull);
       await engine.close();
     });
 
-    test('BloomPrerenderEngine rasterizes SVG to valid PNG bytes when started with startBrowserOnly()', () async {
+    test(
+        'BloomPrerenderEngine rasterizes SVG to valid PNG bytes when started with startBrowserOnly()',
+        () async {
       final engine = BloomPrerenderEngine();
       await engine.startBrowserOnly();
 
       if (engine.isBrowserRunning) {
-        final bytes = await engine.renderSvgToPng(buildBloomLogoSvg(), width: 192, height: 192);
+        final bytes = await engine.renderSvgToPng(buildBloomLogoSvg(),
+            width: 192, height: 192);
         expect(bytes, isNotNull);
         expect(bytes!.isNotEmpty, isTrue);
 
@@ -100,12 +133,15 @@ void main() {
       }
 
       await engine.close();
-    });
+    }, tags: ['browser_e2e']);
   });
 
   group('PwaGenerator Brand Icon Generation and Fallback', () {
-    test('PwaGenerator creates all required branded icons, manifest, and service worker', () async {
-      final appDir = Directory(p.join(tempDir.path, 'pwa_app'))..createSync(recursive: true);
+    test(
+        'PwaGenerator creates all required branded icons, manifest, and service worker',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'pwa_app'))
+        ..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('''
 name: pwa_app
 web:
@@ -141,10 +177,13 @@ web:
       // If Chromium ran in this environment, verify all icon files and their PNG headers
       final icon192 = File(p.join(outputDir.path, 'icons', 'Icon-192.png'));
       final icon512 = File(p.join(outputDir.path, 'icons', 'Icon-512.png'));
-      final iconMaskable192 = File(p.join(outputDir.path, 'icons', 'Icon-maskable-192.png'));
-      final iconMaskable512 = File(p.join(outputDir.path, 'icons', 'Icon-maskable-512.png'));
+      final iconMaskable192 =
+          File(p.join(outputDir.path, 'icons', 'Icon-maskable-192.png'));
+      final iconMaskable512 =
+          File(p.join(outputDir.path, 'icons', 'Icon-maskable-512.png'));
       final favicon = File(p.join(outputDir.path, 'favicon.png'));
-      final appleTouch = File(p.join(outputDir.path, 'icons', 'apple-touch-icon.png'));
+      final appleTouch =
+          File(p.join(outputDir.path, 'icons', 'apple-touch-icon.png'));
 
       if (icon192.existsSync()) {
         final pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -162,11 +201,15 @@ web:
         expect(favicon.readAsBytesSync().sublist(0, 8), pngMagic);
         expect(appleTouch.readAsBytesSync().sublist(0, 8), pngMagic);
       }
-    });
+    }, tags: ['browser_e2e']);
 
-    test('PwaGenerator degrades gracefully without throwing when browser is unavailable and preserves existing icons', () async {
-      final appDir = Directory(p.join(tempDir.path, 'fallback_pwa_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: fallback_pwa_app\n');
+    test(
+        'PwaGenerator degrades gracefully without throwing when browser is unavailable and preserves existing icons',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'fallback_pwa_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: fallback_pwa_app\n');
 
       final project = BloomProject(
         rootDir: appDir,
@@ -175,7 +218,8 @@ web:
       );
 
       final outputDir = Directory(p.join(appDir.path, 'build', 'web'));
-      final iconsDir = Directory(p.join(outputDir.path, 'icons'))..createSync(recursive: true);
+      final iconsDir = Directory(p.join(outputDir.path, 'icons'))
+        ..createSync(recursive: true);
 
       // Pre-existing icon from flutter build web
       final existingIcon = File(p.join(iconsDir.path, 'Icon-192.png'));
@@ -189,11 +233,16 @@ web:
       await pwaGen.generate(engine: uninitializedEngine);
 
       // Manifest & Service worker still generated
-      expect(File(p.join(outputDir.path, 'manifest.json')).existsSync(), isTrue);
-      expect(File(p.join(outputDir.path, 'flutter_service_worker.js')).existsSync(), isTrue);
+      expect(
+          File(p.join(outputDir.path, 'manifest.json')).existsSync(), isTrue);
+      expect(
+          File(p.join(outputDir.path, 'flutter_service_worker.js'))
+              .existsSync(),
+          isTrue);
 
       // Pre-existing icon preserved and not overwritten with empty or corrupted file
-      expect(existingIcon.readAsStringSync(), 'flutter-default-icon-placeholder');
+      expect(
+          existingIcon.readAsStringSync(), 'flutter-default-icon-placeholder');
 
       await uninitializedEngine.close();
     });

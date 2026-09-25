@@ -44,13 +44,15 @@ const List<String> supportedTargets = [
 /// bloom deploy docker --production-only
 /// ```
 class DeployCommand extends Command<int> {
+  final Future<bool> Function()? shorebirdInstalledCheck;
+
   @override
   final String name = 'deploy';
   @override
   final String description =
       'Deploys web hosting configurations, OTA mobile patches/releases, or Docker lifecycle bundles.';
 
-  DeployCommand() {
+  DeployCommand({this.shorebirdInstalledCheck}) {
     _setupRootArgParser(argParser);
     _setupInitSubparser(argParser.addCommand('init'));
     _setupDockerSubparser(argParser.addCommand('docker'));
@@ -548,6 +550,8 @@ class DeployCommand extends Command<int> {
   }
 
   Future<bool> _checkShorebirdInstalled() async {
+    final injectedCheck = shorebirdInstalledCheck;
+    if (injectedCheck != null) return injectedCheck();
     try {
       final result = await Process.run('shorebird', ['--version']);
       return result.exitCode == 0;

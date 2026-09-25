@@ -79,8 +79,9 @@ class JsDevCommand extends Command<int> {
       )
       ..addOption(
         'host',
-        defaultsTo: '0.0.0.0',
-        help: 'Host interface to bind.',
+        defaultsTo: '127.0.0.1',
+        help:
+            'Host interface to bind (default: loopback; use 0.0.0.0 for LAN access).',
       )
       ..addFlag(
         'ddc',
@@ -111,7 +112,7 @@ class JsDevCommand extends Command<int> {
     }
 
     final port = int.tryParse(argResults?['port'] ?? '8080') ?? 8080;
-    final host = argResults?['host'] ?? '0.0.0.0';
+    final host = argResults?['host'] ?? '127.0.0.1';
 
     // 1. Sync NPM vendors
     final assembler = NpmVendorAssembler(project);
@@ -145,20 +146,27 @@ class JsDevCommand extends Command<int> {
         print(Ansi.warn(
             '⚠ DDC toolchain snapshots not found in Dart SDK (${ddcToolchain.snapshotPath ?? "unknown"}). Falling back to dart2js -O0.'));
       } else {
-        isDdcActive = true;
-        print(Ansi.step('⚡ Using DDC (Dart Dev Compiler) fast dev-loop.'));
-        await ddcToolchain.ensureSdkArtifacts(
+        final sdkRuntimeReady = await ddcToolchain.ensureSdkArtifacts(
           onProgress: (msg) => print(Ansi.info('› $msg')),
         );
-        final packageConfig = File(
-            p.join(project.rootDir.path, '.dart_tool', 'package_config.json'));
-        ddcCompiler = DdcDevCompiler(
-          toolchain: ddcToolchain,
-          entryFile: entryFile,
-          outputFile: outputFile,
-          packageConfigFile: packageConfig.existsSync() ? packageConfig : null,
-          moduleName: 'main',
-        );
+        if (!sdkRuntimeReady) {
+          print(Ansi.warn(
+              '⚠ DDC SDK runtime could not be prepared. Falling back to dart2js -O0.'));
+        } else {
+          isDdcActive = true;
+          print(Ansi.step('⚡ Using DDC (Dart Dev Compiler) fast dev-loop.'));
+          final packageConfig = File(p.join(
+              project.rootDir.path, '.dart_tool', 'package_config.json'));
+          ddcCompiler = DdcDevCompiler(
+            toolchain: ddcToolchain,
+            entryFile: entryFile,
+            outputFile: outputFile,
+            packageConfigFile:
+                packageConfig.existsSync() ? packageConfig : null,
+            moduleName: 'main',
+            useIncrementalWorker: true,
+          );
+        }
       }
     }
 
@@ -245,13 +253,12 @@ class JsDevCommand extends Command<int> {
       autoInjectScript: true,
       proxyRules: proxyRules,
       isDdcMode: isDdcActive,
-      ddcCacheDir: ddcToolchain?.cacheDir,
+      ddcCacheDir: isDdcActive ? ddcToolchain?.cacheDir : null,
     );
     await devServer.start();
 
-    final displayHost = (host == '0.0.0.0' || host == '::' || host == '*')
-        ? 'localhost'
-        : host;
+    final displayHost =
+        (host == '0.0.0.0' || host == '::' || host == '*') ? 'localhost' : host;
     final dashboard = JsDevDashboard(
       project: project,
       displayHost: displayHost,
@@ -359,9 +366,13 @@ class JsDevCommand extends Command<int> {
     final completer = Completer<void>();
     ProcessSignal.sigint.watch().listen((_) async {
       print(Ansi.dimText('\nStopping Bloom JS dev server...'));
-      await devServer.stop();
-      await supervisor?.stop();
-      completer.complete();
+      try {
+        await ddcCompiler?.dispose();
+        await devServer.stop();
+        await supervisor?.stop();
+      } finally {
+        completer.complete();
+      }
     });
 
     await completer.future;
@@ -655,17 +666,19 @@ class JsCreateCommand extends Command<int> {
     });
     print(Ansi.success('Created $kind: ${targetFile.path}'));
 
-    if (!isGuard) {
-      final testDir = Directory(p.join(project.rootDir.path, 'test'));
-      if (!testDir.existsSync()) {
-        testDir.createSync(recursive: true);
-      }
-      final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
-      if (!testFile.existsSync()) {
-        testFile
-            .writeAsStringSync(_componentTestTemplate(className, fileBaseName));
-        print(Ansi.success('Created test: ${testFile.path}'));
-      }
+    final testDir = Directory(p.join(project.rootDir.path, 'test'));
+    if (!testDir.existsSync()) {
+      testDir.createSync(recursive: true);
+    }
+    final testFile = File(p.join(testDir.path, '${fileBaseName}_test.dart'));
+    if (!testFile.existsSync()) {
+      final testSource = switch (kind) {
+        'guard' => _guardTestTemplate(className, fileBaseName),
+        'page' => _pageTestTemplate(className, fileBaseName),
+        _ => _componentTestTemplate(className, fileBaseName),
+      };
+      testFile.writeAsStringSync(testSource);
+      print(Ansi.success('Created test: ${testFile.path}'));
     }
 
     return 0;
@@ -746,10 +759,9 @@ class $className extends BloomRouteGuard {
   @override
   Future<GuardResult> canActivate(
       String location, Map<String, String> params) async {
-    // TODO: implement your authorization check.
-    return GuardResult.allow();
-    // To deny and redirect instead:
+    // Fail closed until you implement your authorization check.
     // return GuardResult.redirect('/login');
+    return GuardResult.deny();
   }
 }
 ''';
@@ -757,14 +769,39 @@ class $className extends BloomRouteGuard {
   String _componentTestTemplate(String className, String fileBaseName) => '''
 import 'package:test/test.dart';
 import 'package:bloom_js_native/bloom_js_native.dart';
-
-// TODO: adjust this relative import to match your project's package name.
-// import 'package:your_app/components/$fileBaseName.dart';
+import '../lib/components/$fileBaseName.dart';
 
 void main() {
-  test('$className renders', () {
-    // final renderer = renderForTest($className());
-    // expect(renderer.getByText('$className'), isNotNull);
+  test('$className renders its expected content', () {
+    final renderer = renderForTest($className());
+    expect(renderer.queryByTag('div'), isNotNull);
+    expect(renderer.toHtml(), contains('$className'));
+  });
+}
+''';
+
+  String _pageTestTemplate(String className, String fileBaseName) => '''
+import 'package:test/test.dart';
+import 'package:bloom_js_native/bloom_js_native.dart';
+import '../lib/pages/$fileBaseName.dart';
+
+void main() {
+  test('$className renders its expected content', () {
+    final renderer = renderForTest($className(const {}));
+    expect(renderer.queryByTag('div'), isNotNull);
+    expect(renderer.toHtml(), contains('$className'));
+  });
+}
+''';
+
+  String _guardTestTemplate(String className, String fileBaseName) => '''
+import 'package:test/test.dart';
+import '../lib/guards/$fileBaseName.dart';
+
+void main() {
+  test('$className denies access until authorization is implemented', () async {
+    final result = await const $className().canActivate('/protected', const {});
+    expect(result.isAllowed, isFalse);
   });
 }
 ''';

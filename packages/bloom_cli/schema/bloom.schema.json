@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Chidi09/Bloom/main/packages/bloom_cli/schema/bloom.schema.json",
+  "title": "Bloom application manifest",
+  "description": "Configuration for bloom.yaml. Unknown fields are allowed for plugins and newer Bloom releases.",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "description": "Bloom manifest format version."},
+    "name": {"type": "string", "minLength": 1, "description": "Dart package and Bloom project name."},
+    "version": {"type": "string"},
+    "description": {"type": "string"},
+    "type": {"type": "string", "description": "Application type. Use js_native for a Flutter-free Dart web app."},
+    "target": {
+      "type": "string",
+      "enum": ["web_dom", "web", "flutter", "js", "js_native", "js-native", "jsnative", "bloom_js_native", "bloom-js-native", "server", "backend", "bloom_server", "hybrid", "fullstack", "full_stack", "full-stack"],
+      "description": "Build target. Use web_dom for a JS Native web build; deployment targets may use flutter, js_native, server, or hybrid."
+    },
+    "mode": {"type": "string", "enum": ["managed", "bare"], "description": "Native project mode: managed (default) or bare."},
+    "platforms": {
+      "description": "A list of enabled platforms or per-platform settings.",
+      "oneOf": [
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        {
+          "type": "object",
+          "properties": {
+            "android": {"type": "object", "properties": {"min_sdk": {"type": "integer"}, "target_sdk": {"type": "integer"}, "package": {"type": "string"}}, "additionalProperties": true},
+            "ios": {"type": "object", "properties": {"minimum_version": {"type": "string"}, "bundle_identifier": {"type": "string"}}, "additionalProperties": true},
+            "web": {"type": "object", "properties": {"title": {"type": "string"}}, "additionalProperties": true}
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "web": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string"},
+        "entry": {"type": "string", "description": "Dart entrypoint for JS Native builds."},
+        "out": {"type": "string", "description": "Output JavaScript file."},
+        "ssr": {"type": "boolean"},
+        "pwa": {"type": "object", "properties": {"name": {"type": "string"}, "short_name": {"type": "string"}, "theme_color": {"type": "string"}}, "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "routing": {"type": "boolean"},
+        "state": {"type": "boolean"},
+        "data": {"type": "boolean"},
+        "native": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "environment": {
+      "type": "object",
+      "properties": {"files": {"type": "array", "items": {"type": "string"}}},
+      "additionalProperties": true
+    },
+    "plugins": {
+      "description": "Plugin names or plugin-specific configuration.",
+      "oneOf": [
+        {"type": "array", "items": {"type": "string"}},
+        {"type": "object", "additionalProperties": true}
+      ]
+    },
+    "npm_packages": {
+      "type": "object",
+      "description": "Browser-safe NPM packages vendored by bloom js vendor.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": {"type": "string"},
+          "esm_url": {"type": "string", "format": "uri"},
+          "vendor_file": {"type": "string"},
+          "dart_binding": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "description": "Path prefixes forwarded to an upstream server.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["target"],
+        "properties": {
+          "target": {"type": "string", "format": "uri"},
+          "strip_prefix": {"type": "boolean"},
+          "stripPrefix": {"type": "boolean"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "deep_links": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "schemes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": ["flutter", "js", "js_native", "js-native", "jsnative", "bloom_js_native", "bloom-js-native", "server", "backend", "bloom_server", "hybrid", "fullstack", "full_stack", "full-stack"],
+          "description": "Deployment target."
+        }
+      },
+      "additionalProperties": true
+    },
+    "flavors": {"type": "object", "additionalProperties": true}
+  },
+  "additionalProperties": true
+}

@@ -21,9 +21,13 @@ void main() {
     }
   });
 
-  group('Phase 12: Static Site Generation (SSG) & Parameterized Enumeration', () {
-    test('BloomSsgEngine generates pre-rendered HTML, enumerated parameterized routes, sitemap, and PWA assets', () async {
-      final appDir = Directory(p.join(tempDir.path, 'web_app'))..createSync(recursive: true);
+  group('Phase 12: Static Site Generation (SSG) & Parameterized Enumeration',
+      () {
+    test(
+        'BloomSsgEngine generates pre-rendered HTML, enumerated parameterized routes, sitemap, and PWA assets',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'web_app'))
+        ..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('''
 name: web_app
 version: 1.0.0
@@ -40,11 +44,15 @@ web:
 ''');
 
       // Create client routes
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
-      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync("const title = 'Home Dashboard';\nclass IndexRoute {}\n");
-      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync("const title = 'About Us';\nconst description = 'Bloom Web Platform';\nclass AboutRoute {}\n");
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
+      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync(
+          "const title = 'Home Dashboard';\nclass IndexRoute {}\n");
+      File(p.join(routesDir.path, 'about.dart')).writeAsStringSync(
+          "const title = 'About Us';\nconst description = 'Bloom Web Platform';\nclass AboutRoute {}\n");
 
-      final productsDir = Directory(p.join(routesDir.path, 'products'))..createSync(recursive: true);
+      final productsDir = Directory(p.join(routesDir.path, 'products'))
+        ..createSync(recursive: true);
       File(p.join(productsDir.path, '[id].dart')).writeAsStringSync('''
 class ProductDetailsRoute {}
 ''');
@@ -64,9 +72,12 @@ class ProductDetailsRoute {}
 
       // Verify generated static HTML pages
       final indexHtml = File(p.join(appDir.path, 'build', 'web', 'index.html'));
-      final aboutHtml = File(p.join(appDir.path, 'build', 'web', 'about', 'index.html'));
-      final prod1Html = File(p.join(appDir.path, 'build', 'web', 'products', '1', 'index.html'));
-      final prod2Html = File(p.join(appDir.path, 'build', 'web', 'products', '2', 'index.html'));
+      final aboutHtml =
+          File(p.join(appDir.path, 'build', 'web', 'about', 'index.html'));
+      final prod1Html = File(
+          p.join(appDir.path, 'build', 'web', 'products', '1', 'index.html'));
+      final prod2Html = File(
+          p.join(appDir.path, 'build', 'web', 'products', '2', 'index.html'));
 
       expect(indexHtml.existsSync(), isTrue);
       expect(aboutHtml.existsSync(), isTrue);
@@ -74,37 +85,51 @@ class ProductDetailsRoute {}
       expect(prod2Html.existsSync(), isTrue);
 
       expect(aboutHtml.readAsStringSync(), contains('<title>About Us</title>'));
-      expect(aboutHtml.readAsStringSync(), contains('<meta name="description" content="Bloom Web Platform" />'));
-      expect(aboutHtml.readAsStringSync(), contains('<meta name="theme-color" content="#10B981" />'));
-      expect(aboutHtml.readAsStringSync(), contains('<h1 class="bloom-page-title">About</h1>'));
+      expect(aboutHtml.readAsStringSync(),
+          contains('<meta name="description" content="Bloom Web Platform" />'));
+      expect(aboutHtml.readAsStringSync(),
+          contains('<meta name="theme-color" content="#10B981" />'));
+      expect(aboutHtml.readAsStringSync(),
+          contains('<h1 class="bloom-page-title">About</h1>'));
 
       // Verify Sitemap includes parameterized routes
-      final sitemapFile = File(p.join(appDir.path, 'build', 'web', 'sitemap.xml'));
+      final sitemapFile =
+          File(p.join(appDir.path, 'build', 'web', 'sitemap.xml'));
       expect(sitemapFile.existsSync(), isTrue);
       final sitemapContent = sitemapFile.readAsStringSync();
       expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/</loc>'));
-      expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/about</loc>'));
-      expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/products/1</loc>'));
-      expect(sitemapContent, contains('<loc>https://myapp.bloom.dev/products/2</loc>'));
+      expect(
+          sitemapContent, contains('<loc>https://myapp.bloom.dev/about</loc>'));
+      expect(sitemapContent,
+          contains('<loc>https://myapp.bloom.dev/products/1</loc>'));
+      expect(sitemapContent,
+          contains('<loc>https://myapp.bloom.dev/products/2</loc>'));
 
       // Verify Robots
-      final robotsFile = File(p.join(appDir.path, 'build', 'web', 'robots.txt'));
+      final robotsFile =
+          File(p.join(appDir.path, 'build', 'web', 'robots.txt'));
       expect(robotsFile.existsSync(), isTrue);
-      expect(robotsFile.readAsStringSync(), contains('Sitemap: https://myapp.bloom.dev/sitemap.xml'));
+      expect(robotsFile.readAsStringSync(),
+          contains('Sitemap: https://myapp.bloom.dev/sitemap.xml'));
 
       // Verify PWA Manifest & Service Worker
-      final manifestFile = File(p.join(appDir.path, 'build', 'web', 'manifest.json'));
-      final swFile = File(p.join(appDir.path, 'build', 'web', 'flutter_service_worker.js'));
+      final manifestFile =
+          File(p.join(appDir.path, 'build', 'web', 'manifest.json'));
+      final swFile = File(
+          p.join(appDir.path, 'build', 'web', 'flutter_service_worker.js'));
       expect(manifestFile.existsSync(), isTrue);
       expect(swFile.existsSync(), isTrue);
       expect(manifestFile.readAsStringSync(), contains('My PWA Store'));
       expect(manifestFile.readAsStringSync(), contains('#10B981'));
-    });
+    }, tags: ['browser_e2e']);
   });
 
   group('Phase 12: Server-Side Rendering (SSR), Loaders & XSS Hardening', () {
-    test('BloomSsrEngine discovers API routes, loader functions, and escapes XSS payloads', () async {
-      final appDir = Directory(p.join(tempDir.path, 'ssr_app'))..createSync(recursive: true);
+    test(
+        'BloomSsrEngine discovers API routes, loader functions, and escapes XSS payloads',
+        () async {
+      final appDir = Directory(p.join(tempDir.path, 'ssr_app'))
+        ..createSync(recursive: true);
       File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('''
 name: ssr_app
 web:
@@ -112,7 +137,9 @@ web:
     theme_color: "#6366F1"
 ''');
 
-      final apiDir = Directory(p.join(appDir.path, 'lib', 'routes', 'api', 'users'))..createSync(recursive: true);
+      final apiDir =
+          Directory(p.join(appDir.path, 'lib', 'routes', 'api', 'users'))
+            ..createSync(recursive: true);
       File(p.join(apiDir.path, 'index.dart')).writeAsStringSync('''
 import 'package:bloom_framework/bloom_server.dart';
 Future<BloomResponse> get(BloomRequest req) async => BloomResponse.json([]);
@@ -125,7 +152,8 @@ Future<BloomResponse> delete(BloomRequest req) async => BloomResponse.noContent(
 ''');
 
       // Page with route loader
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
       File(p.join(routesDir.path, 'products.dart')).writeAsStringSync('''
 import 'package:bloom_framework/bloom.dart';
 
@@ -151,8 +179,14 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
       final pageRoutes = ssr.discoverPageRoutes();
 
       expect(apiRoutes.length, 2);
-      expect(pageRoutes.any((p) => p.hasLoader && p.loaderFunctionName == 'loadProducts'), isTrue);
-      expect(pageRoutes.any((p) => p.hasAction && p.actionFunctionName == 'handleCheckout'), isTrue);
+      expect(
+          pageRoutes.any(
+              (p) => p.hasLoader && p.loaderFunctionName == 'loadProducts'),
+          isTrue);
+      expect(
+          pageRoutes.any(
+              (p) => p.hasAction && p.actionFunctionName == 'handleCheckout'),
+          isTrue);
 
       final serverFile = await ssr.generate();
       expect(serverFile.existsSync(), isTrue);
@@ -174,8 +208,10 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
 
   group('Phase 12: CLI Build & Generate Integration', () {
     test('bloom generate api generates functional API route handler', () async {
-      final appDir = Directory(p.join(tempDir.path, 'gen_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: gen_app\n');
+      final appDir = Directory(p.join(tempDir.path, 'gen_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: gen_app\n');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(GenerateCommand());
@@ -189,25 +225,39 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
 
       expect(exitCode, 0);
 
-      final generatedFile = File(p.join(appDir.path, 'lib', 'routes', 'api', 'orders', '[id].dart'));
+      final generatedFile = File(
+          p.join(appDir.path, 'lib', 'routes', 'api', 'orders', '[id].dart'));
       expect(generatedFile.existsSync(), isTrue);
 
       final content = generatedFile.readAsStringSync();
-      expect(content, contains("import 'package:bloom_framework/bloom_server.dart';"));
-      expect(content, contains("Future<BloomResponse> get(BloomRequest request)"));
-      expect(content, contains("Future<BloomResponse> post(BloomRequest request)"));
-      expect(content, contains("Future<BloomResponse> delete(BloomRequest request)"));
+      expect(content,
+          contains("import 'package:bloom_framework/bloom_server.dart';"));
+      expect(
+          content, contains("Future<BloomResponse> get(BloomRequest request)"));
+      expect(content,
+          contains("Future<BloomResponse> post(BloomRequest request)"));
+      expect(content,
+          contains("Future<BloomResponse> delete(BloomRequest request)"));
     });
 
     test('bloom build web --static and --server execute end-to-end', () async {
-      final appDir = Directory(p.join(tempDir.path, 'build_app'))..createSync(recursive: true);
-      File(p.join(appDir.path, 'bloom.yaml')).writeAsStringSync('name: build_app\n');
-      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))..createSync(recursive: true);
-      File(p.join(routesDir.path, 'index.dart')).writeAsStringSync('class Index {}\n');
+      final appDir = Directory(p.join(tempDir.path, 'build_app'))
+        ..createSync(recursive: true);
+      File(p.join(appDir.path, 'bloom.yaml'))
+          .writeAsStringSync('name: build_app\n');
+      final routesDir = Directory(p.join(appDir.path, 'lib', 'routes'))
+        ..createSync(recursive: true);
+      File(p.join(routesDir.path, 'index.dart'))
+          .writeAsStringSync('class Index {}\n');
 
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(BuildCommand(
-          processRunner: (cmd, args, {workingDirectory, environment, includeParentEnvironment = true, runInShell = false, mode = ProcessStartMode.normal}) async =>
+          processRunner: (cmd, args,
+                  {workingDirectory,
+                  environment,
+                  includeParentEnvironment = true,
+                  runInShell = false,
+                  mode = ProcessStartMode.normal}) async =>
               ProcessResult(0, 0, 'mock build web success', ''),
         ));
 
@@ -219,7 +269,9 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
         '--project-dir=${appDir.path}',
       ]);
       expect(ssgExit, 0);
-      expect(File(p.join(appDir.path, 'build', 'web', 'index.html')).existsSync(), isTrue);
+      expect(
+          File(p.join(appDir.path, 'build', 'web', 'index.html')).existsSync(),
+          isTrue);
 
       // 2. Server SSR Build
       final ssrExit = await runner.run([
@@ -229,7 +281,8 @@ Future<ActionResult> handleCheckout(BloomRouteContext context, Map<String, dynam
         '--project-dir=${appDir.path}',
       ]);
       expect(ssrExit, 0);
-      expect(File(p.join(appDir.path, 'build', 'server.dart')).existsSync(), isTrue);
-    });
+      expect(File(p.join(appDir.path, 'build', 'server.dart')).existsSync(),
+          isTrue);
+    }, timeout: const Timeout(Duration(minutes: 2)), tags: ['browser_e2e']);
   });
 }

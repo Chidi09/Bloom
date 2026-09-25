@@ -152,6 +152,15 @@ void main() {
     });
 
     test('Scaffolded module passes dart analyze and flutter test cleanly', () async {
+      final flutterVersion = await Process.run('flutter', ['--version']);
+      if (flutterVersion.exitCode != 0 ||
+          !flutterVersion.stdout.toString().contains('Flutter ')) {
+        markTestSkipped(
+          'A full Flutter SDK is required for the generated native module test.',
+        );
+        return;
+      }
+
       final runner = CommandRunner<int>('bloom', 'Bloom CLI')
         ..addCommand(CreateModuleCommand());
 

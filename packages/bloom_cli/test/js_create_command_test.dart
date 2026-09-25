@@ -78,6 +78,11 @@ void main() {
       expect(content,
           contains("import 'package:bloom_js_native/bloom_js_native.dart'"));
       expect(content, contains("className: 'Widget'"));
+      final generatedTest =
+          File(p.join(tempDir.path, 'test', 'widget_test.dart'));
+      expect(generatedTest.readAsStringSync(),
+          contains('renderForTest(Widget())'));
+      expect(generatedTest.readAsStringSync(), isNot(contains('TODO')));
     });
 
     test('also creates test/widget_test.dart', () async {
@@ -92,6 +97,8 @@ void main() {
           reason: 'Test file should exist at ${testFile.path}');
       final content = testFile.readAsStringSync();
       expect(content, contains('Widget renders'));
+      expect(content, contains("import '../lib/components/widget.dart'"));
+      expect(content, contains('expect(renderer.toHtml(), contains'));
     });
 
     test('second run with same name returns non-zero and does not overwrite',
@@ -147,6 +154,11 @@ void main() {
           content, contains('BloomNode Dashboard(Map<String, String> params)'));
       expect(content, contains('BloomRoute'));
       expect(prints.join('\n'), contains('Created page:'));
+      final pageTest =
+          File(p.join(tempDir.path, 'test', 'dashboard_test.dart'));
+      expect(pageTest.readAsStringSync(), contains('Dashboard(const {})'));
+      expect(pageTest.readAsStringSync(),
+          contains("import '../lib/pages/dashboard.dart'"));
     });
 
     test('with --guard flag creates lib/guards/auth_guard.dart', () async {
@@ -161,12 +173,16 @@ void main() {
       final content = guardFile.readAsStringSync();
       expect(content, contains('class AuthGuard extends BloomRouteGuard'));
       expect(content, contains('GuardResult'));
+      expect(content, contains('return GuardResult.deny();'));
+      expect(content, isNot(contains('return GuardResult.allow();')));
       expect(prints.join('\n'), contains('Created guard:'));
 
-      // No matching test file is scaffolded for guards.
       final testFile =
           File(p.join(tempDir.path, 'test', 'auth_guard_test.dart'));
-      expect(testFile.existsSync(), isFalse);
+      expect(testFile.existsSync(), isTrue);
+      expect(testFile.readAsStringSync(), contains('AuthGuard().canActivate'));
+      expect(testFile.readAsStringSync(),
+          contains('expect(result.isAllowed, isFalse)'));
     });
 
     test('--guard on a name already ending in "Guard" does not double-suffix',

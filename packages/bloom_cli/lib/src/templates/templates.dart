@@ -11,7 +11,8 @@ class BloomTemplates {
     int androidTargetSdk = 34,
     String iosMinVersion = '15.0',
   }) {
-    return '''# Bloom Application Manifest
+    return '''# yaml-language-server: \$schema=https://raw.githubusercontent.com/Chidi09/Bloom/main/packages/bloom_cli/schema/bloom.schema.json
+# Bloom Application Manifest
 # Schema versioning ensures backwards compatibility
 schema: 1
 
@@ -381,7 +382,8 @@ void main() {
     String version = '0.1.0',
     String description = 'A modern application built with Bloom JS Native',
   }) {
-    return '''# Bloom Application Manifest
+    return '''# yaml-language-server: \$schema=https://raw.githubusercontent.com/Chidi09/Bloom/main/packages/bloom_cli/schema/bloom.schema.json
+# Bloom Application Manifest
 schema: 1
 
 name: $name

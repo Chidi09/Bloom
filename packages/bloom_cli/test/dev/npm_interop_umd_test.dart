@@ -1,3 +1,6 @@
+@Tags(['browser_e2e'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';

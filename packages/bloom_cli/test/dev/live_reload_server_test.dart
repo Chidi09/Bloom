@@ -25,6 +25,20 @@ void main() {
       await devServer.start();
     });
 
+    test('defaults to loopback and requires an explicit LAN host', () async {
+      final localServer = BloomLiveReloadServer(webDir: tempWebDir);
+      expect(localServer.host, '127.0.0.1');
+      expect(
+        BloomLiveReloadServer(webDir: tempWebDir, host: '0.0.0.0').host,
+        '0.0.0.0',
+      );
+
+      final boundServer = BloomLiveReloadServer(webDir: tempWebDir, port: 0);
+      addTearDown(boundServer.stop);
+      await boundServer.start();
+      expect(boundServer.server!.address.address, '127.0.0.1');
+    });
+
     tearDown(() async {
       await devServer.stop();
       if (tempWebDir.existsSync()) {
@@ -83,7 +97,39 @@ void main() {
       expect(body, isNot(contains('src="/main.js?v=dev"')));
       expect(body, contains('Bloom DDC Dev Bootstrap'));
       expect(body, contains('__BLOOM_HR_ACTIVE__'));
+      expect(body, contains('__bloomPrepareHotEffects'));
+      expect(body, contains('__bloomDisposePreviousHotEffects'));
       client.close(force: true);
+    });
+
+    test('DDC bootstrap safely renders app and module-load errors', () {
+      final bootstrap = BloomLiveReloadServer.ddcBootstrapScript;
+
+      expect(bootstrap, contains('function reportDdcError(err, label)'));
+      expect(bootstrap,
+          contains('reportDdcError(err, \'[Bloom DDC Main Error]\')'));
+      expect(
+          bootstrap,
+          contains(
+              'reportDdcError(err, \'[Bloom DDC Error] Failed to load application modules:\')'));
+      expect(bootstrap, contains('detail.textContent = message'));
+      expect(bootstrap, contains('trace.textContent = stack'));
+      expect(bootstrap, contains('window.__bloomPrepareHotEffects()'));
+      expect(bootstrap, contains('window.__bloomDisposePreviousHotEffects()'));
+      expect(
+        bootstrap.indexOf('__bloomPrepareHotEffects()'),
+        lessThan(bootstrap.indexOf("require.undef('main')")),
+      );
+      expect(
+        bootstrap.indexOf('app[k].main();'),
+        lessThan(bootstrap.indexOf('__bloomDisposePreviousHotEffects()')),
+      );
+      expect(
+          bootstrap,
+          contains(
+              'Preserve the mounted tree until the updated main() calls mount()'));
+      expect(bootstrap, isNot(contains('__bloomDisposeActiveMount();')));
+      expect(bootstrap, isNot(contains('host.innerHTML =')));
     });
 
     test('establishes SSE stream on /_bloom_hr and receives broadcast',

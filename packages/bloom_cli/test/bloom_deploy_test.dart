@@ -75,7 +75,8 @@ flavors:
       final androidDir = Directory(p.join(tempDir.path, 'android', 'app', 'src', 'main'))..createSync(recursive: true);
       File(p.join(androidDir.path, 'AndroidManifest.xml')).writeAsStringSync('<manifest package="dev.bloom.test"><application /></manifest>');
 
-      runner = CommandRunner<int>('bloom', 'test')..addCommand(DeployCommand());
+      runner = CommandRunner<int>('bloom', 'test')
+        ..addCommand(DeployCommand(shorebirdInstalledCheck: () async => false));
     });
 
     final rootDir = Directory.current;

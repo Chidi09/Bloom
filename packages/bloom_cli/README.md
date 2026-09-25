@@ -68,6 +68,22 @@ bloom doctor --upgrade
 
 ---
 
+## `bloom.yaml` editor support
+
+New Flutter and JS Native projects include a YAML language server schema
+comment. Editors that support this modeline provide completion and type
+diagnostics for known manifest fields. The [schema](schema/bloom.schema.json)
+also documents web, NPM, and proxy settings. Custom plugin fields remain open
+for extension.
+
+For an existing project, add this as the first line of `bloom.yaml`:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Chidi09/Bloom/main/packages/bloom_cli/schema/bloom.schema.json
+```
+
+---
+
 ## 📚 Documentation
 
 For complete command references and architectural guides, see the [Bloom Documentation](https://github.com/bloom-framework/bloom).
