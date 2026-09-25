@@ -20,6 +20,53 @@ void main() {
       expect(html, contains('&amp;'));
     });
 
+    test('rejects inline event-handler attributes', () {
+      expect(
+        () => renderToHtml(Div(attrs: {'onerror': 'alert(1)'})),
+        throwsArgumentError,
+      );
+      expect(
+        () => renderToHtml(Div(attrs: {'ONLOAD': 'alert(1)'})),
+        throwsArgumentError,
+      );
+    });
+
+    test('rejects executable URL schemes, including entity obfuscation', () {
+      for (final value in [
+        'javascript:alert(1)',
+        ' java\nscript:alert(1)',
+        'jav&#x61;script:alert(1)',
+        'java&Tab;script&colon;alert(1)',
+      ]) {
+        expect(
+          () => renderToHtml(A(attrs: {'href': value})),
+          throwsArgumentError,
+          reason: 'must reject $value',
+        );
+      }
+      expect(
+        () => renderToHtml(
+            IFrame.raw(attrs: {'srcdoc': '<script>alert(1)</script>'})),
+        throwsArgumentError,
+      );
+      expect(
+        () =>
+            renderToHtml(ElNode('object', attrs: {'data': 'javascript:run()'})),
+        throwsArgumentError,
+      );
+    });
+
+    test('allows normal URLs and base64 raster data images', () {
+      expect(
+        renderToHtml(A(attrs: {'href': 'https://example.com'})),
+        '<a href="https://example.com"></a>',
+      );
+      expect(
+        renderToHtml(Img(src: 'data:image/png;base64,AAAA')),
+        '<img src="data:image/png;base64,AAAA">',
+      );
+    });
+
     test('void element without closing tag', () {
       final html = renderToHtml(Input(placeholder: 'hi'));
       expect(html, contains('<input'));
@@ -32,7 +79,8 @@ void main() {
     });
 
     test('Fragment renders children without wrapper', () {
-      final html = renderToHtml(Fragment(children: [P(text: 'a'), P(text: 'b')]));
+      final html =
+          renderToHtml(Fragment(children: [P(text: 'a'), P(text: 'b')]));
       expect(html, '<p>a</p><p>b</p>');
     });
 
@@ -48,12 +96,13 @@ void main() {
 
     test('Show renders child or fallback', () {
       final flag = signal(true);
-      final node = Show(() => flag.value, child: P(text: 'yes'), fallback: P(text: 'no'));
-      expect(renderToHtml(node),
-          '<!--bloom:show--><p>yes</p><!--/bloom:show-->');
+      final node = Show(() => flag.value,
+          child: P(text: 'yes'), fallback: P(text: 'no'));
+      expect(
+          renderToHtml(node), '<!--bloom:show--><p>yes</p><!--/bloom:show-->');
       flag.value = false;
-      expect(renderToHtml(node),
-          '<!--bloom:show--><p>no</p><!--/bloom:show-->');
+      expect(
+          renderToHtml(node), '<!--bloom:show--><p>no</p><!--/bloom:show-->');
     });
 
     test('Show without fallback renders empty when false', () {
@@ -64,7 +113,8 @@ void main() {
     test('ForEach renders each item', () {
       final todos = signal(['a', 'b']);
       final node = ForEach(() => todos.value, (String t) => Li(text: t));
-      expect(renderToHtml(node), '<!--bloom:foreach--><li>a</li><li>b</li><!--/bloom:foreach-->');
+      expect(renderToHtml(node),
+          '<!--bloom:foreach--><li>a</li><li>b</li><!--/bloom:foreach-->');
     });
 
     test('ForEach empty list renders empty', () {
@@ -77,8 +127,28 @@ void main() {
       expect(html, '<style>a{color:red}</style>');
     });
 
+    test('Style node neutralizes mixed-case HTML closing tags', () {
+      final html = renderToHtml(Style('a{color:red}</STYLE><script>alert(1)'));
+      expect(html, contains(r'<\/STYLE>'));
+      expect(html, isNot(contains('</STYLE>')));
+    });
+
+    test('renderToDocument protects raw import-map JSON and script URLs', () {
+      final html = renderToDocument(
+        Div(text: 'app'),
+        importMapJson: '{"evil":"</SCRIPT><script>alert(1)</script>"}',
+      );
+      expect(html, contains(r'\u003c/SCRIPT>'));
+      expect(html, isNot(contains('</SCRIPT><script>alert(1)')));
+      expect(
+        () => renderToDocument(Div(), scripts: ['javascript:run()']),
+        throwsArgumentError,
+      );
+    });
+
     test('style attribute and className emitted', () {
-      final html = renderToHtml(Div(className: 'foo', style: 'color:red', text: 'x'));
+      final html =
+          renderToHtml(Div(className: 'foo', style: 'color:red', text: 'x'));
       expect(html, '<div class="foo" style="color:red">x</div>');
     });
 
@@ -88,7 +158,8 @@ void main() {
       final tree = Fragment(children: [
         H1(text: 'Counter'),
         Live(() => P(text: 'Count: ${count.value}')),
-        Show(() => count.value > 1, child: P(text: 'big'), fallback: P(text: 'small')),
+        Show(() => count.value > 1,
+            child: P(text: 'big'), fallback: P(text: 'small')),
         Ul(children: [
           ForEach(() => items.value, (int x) => Li(text: 'Item $x')),
         ]),
@@ -113,7 +184,8 @@ void main() {
       final html = renderToHtml(Svg(viewBox: '0 0 24 24', children: [
         SvgPath(d: 'M12 2L2 7l10 5 10-5-10-5z'),
       ]));
-      expect(html, '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"></path></svg>');
+      expect(html,
+          '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"></path></svg>');
     });
 
     test('SvgCircle renders cx cy r', () {
@@ -154,7 +226,9 @@ void main() {
     test('includes head nodes', () {
       final html = renderToDocument(
         Div(),
-        head: [ElNode('meta', attrs: {'name': 'description', 'content': 'test'})],
+        head: [
+          ElNode('meta', attrs: {'name': 'description', 'content': 'test'})
+        ],
       );
       expect(html, contains('<meta name="description" content="test">'));
     });

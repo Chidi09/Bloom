@@ -4,14 +4,17 @@
 // Requires package:web and dart:js_interop (exported via browser.dart).
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 
 import 'package:signals_core/signals_core.dart';
+import 'package:meta/meta.dart' show internal;
 import 'package:web/web.dart' as web;
 
 import 'events.dart';
 import 'framework.dart';
 import 'mount.dart';
+import '_signal_scope.dart';
 
 // ─── JS Interop Declarations ──────────────────────────────────────────────────
 
@@ -21,14 +24,21 @@ external JSAny? _reflectGet(JSAny target, String key);
 @JS('Reflect.set')
 external bool _reflectSet(JSAny target, String key, JSAny? value);
 
+@JS('Reflect.apply')
+external JSAny? _reflectApply(
+    JSFunction target, JSAny? thisArg, JSArray<JSAny?> args);
+
 @JS('Object.keys')
 external JSArray<JSString> _jsObjectKeysRaw(JSObject obj);
 
 @JS('Object')
 external JSObject _newJsObject();
 
-@JS('eval')
-external JSAny? _jsEval(String code);
+/// CSP nonce for the short registration script inserted by [defineCustomElement].
+/// Set this to the nonce in the response's `script-src` policy before registering
+/// custom elements. Unlike `eval`, a nonce-bearing script works without
+/// `unsafe-eval` or `unsafe-inline`.
+String? bloomScriptNonce;
 
 // ─── Value Conversion Helpers ─────────────────────────────────────────────────
 
@@ -350,6 +360,7 @@ BloomNode customElement(
 }) {
   final elementRef = ref ?? Ref<web.Element>();
   final disposers = <void Function()>[];
+  final signalScope = currentBloomSignalScope;
 
   final elNode = El(
     tag,
@@ -388,7 +399,10 @@ BloomNode customElement(
                 detail: detail,
                 target: e.target as web.Element?,
               );
-              handler(customEvent);
+              runWithBloomSignalScopeBoundary(
+                signalScope,
+                () => handler(customEvent),
+              );
             }).toJS;
 
             el.addEventListener(type, jsListener);
@@ -554,8 +568,10 @@ class CustomElementContext {
 /// and DOM encapsulation. Set `useShadowDom: false` to mount directly into the light DOM of the host element.
 ///
 /// ### Browser-Only Execution
-/// [defineCustomElement] requires the browser's `customElements` registry, `window`, and JavaScript
-/// evaluation. It does not execute during Server-Side Rendering (`renderToHtml`).
+/// [defineCustomElement] requires the browser's `customElements` registry and
+/// `window`. It does not execute during Server-Side Rendering (`renderToHtml`).
+/// For a strict Content Security Policy, set [bloomScriptNonce] to the nonce
+/// permitted by `script-src` before calling this function.
 ///
 /// ```dart
 /// void main() {
@@ -584,37 +600,79 @@ void defineCustomElement(
   List<String> observedAttributes = const [],
   bool useShadowDom = true,
   String shadowMode = 'open',
+  @internal String? hotReloadScopeId,
 }) {
-  final bridgeKey = '__bloom_ce_${tagName.replaceAll('-', '_')}';
+  if (!RegExp(r'^[a-z][a-z0-9._-]*-[a-z0-9._-]+$').hasMatch(tagName)) {
+    throw ArgumentError.value(tagName, 'tagName',
+        'Custom element names must be lowercase and contain a hyphen.');
+  }
+  if (observedAttributes.any((name) => name.isEmpty)) {
+    throw ArgumentError.value(
+        observedAttributes, 'observedAttributes', 'Names must not be empty.');
+  }
+  final bridgeKey = '__bloom_ce_$tagName';
+  final jsWindow = web.window as JSAny;
+  final alreadyRegistered = web.window.customElements.get(tagName) != null;
+  final previousBridge = _reflectGet(jsWindow, bridgeKey);
+  if (alreadyRegistered &&
+      (!isHotReloadTrackingActive() ||
+          previousBridge == null ||
+          !previousBridge.isA<JSObject>())) {
+    return;
+  }
+  final bridge = previousBridge != null && previousBridge.isA<JSObject>()
+      ? previousBridge as JSObject
+      : _newJsObject();
+  final signalScope = hotReloadScopeId == null
+      ? currentBloomSignalScope
+      : composeBloomSignalScope(hotReloadScopeId);
   final handlesMap = <web.HTMLElement, BloomMountHandle>{};
   final contextsMap = <web.HTMLElement, CustomElementContext>{};
+  final connectedHosts = <web.HTMLElement>[];
 
   void onConnect(web.HTMLElement host) {
+    if (handlesMap.containsKey(host)) return;
     web.ShadowRoot? shadow;
     web.Element mountTarget = host;
     if (useShadowDom) {
-      final shadowInit = _newJsObject();
-      _reflectSet(shadowInit, 'mode', shadowMode.toJS);
-      shadow = host.attachShadow(shadowInit as web.ShadowRootInit);
-      // A ShadowRoot is a DocumentFragment, not an Element, so it cannot be
-      // passed to mountToElement directly. Mount into a wrapper element inside
-      // the shadow root instead; encapsulation is preserved either way.
-      final wrapper = web.document.createElement('div') as web.HTMLDivElement;
+      shadow = host.shadowRoot;
+      if (shadow == null) {
+        final shadowInit = _newJsObject();
+        _reflectSet(shadowInit, 'mode', shadowMode.toJS);
+        shadow = host.attachShadow(shadowInit as web.ShadowRootInit);
+      }
+      // Reuse the wrapper across disconnect/reconnect cycles. Browsers keep a
+      // custom element's shadow root after it leaves the document, and
+      // attachShadow() may only be called once for a host.
+      final existingWrapper = shadow
+          .querySelector('div[data-bloom-shadow-root]') as web.HTMLDivElement?;
+      final wrapper = existingWrapper ??
+          web.document.createElement('div') as web.HTMLDivElement;
+      wrapper.setAttribute('data-bloom-shadow-root', '');
       wrapper.setAttribute('style', 'display: contents;');
-      shadow.appendChild(wrapper);
+      if (wrapper.parentNode == null) shadow.appendChild(wrapper);
       mountTarget = wrapper;
     }
     final ctx = CustomElementContext(host: host, shadowRoot: shadow);
     contextsMap[host] = ctx;
-    final node = builder(ctx);
-    final handle = mountToElement(node, mountTarget);
+    final node = runWithBloomSignalScopeBoundary(
+      signalScope,
+      () => builder(ctx),
+    );
+    final handle = mountToElement(
+      node,
+      mountTarget,
+      trackHotReloadMount: false,
+    );
     handlesMap[host] = handle;
+    connectedHosts.add(host);
   }
 
   void onDisconnect(web.HTMLElement host) {
     final handle = handlesMap.remove(host);
     handle?.unmount();
     contextsMap.remove(host);
+    connectedHosts.remove(host);
   }
 
   void onAttrChange(
@@ -623,7 +681,6 @@ void defineCustomElement(
     ctx?._notifyAttrChange(name, newValue);
   }
 
-  final bridge = _newJsObject();
   _reflectSet(
       bridge, 'onConnect', ((web.HTMLElement host) => onConnect(host)).toJS);
   _reflectSet(bridge, 'onDisconnect',
@@ -644,19 +701,47 @@ void defineCustomElement(
       );
     }).toJS,
   );
-
-  final jsWindow = web.window as JSAny;
+  if (_reflectGet(bridge, 'onHotReload') == null) {
+    _reflectSet(
+      bridge,
+      'onHotReload',
+      (() {
+        final hosts = List<web.HTMLElement>.of(connectedHosts);
+        final currentBridge = _reflectGet(jsWindow, bridgeKey) as JSObject?;
+        for (final host in hosts) {
+          onDisconnect(host);
+          final connect = currentBridge == null
+              ? null
+              : _reflectGet(currentBridge, 'onConnect');
+          if (connect != null && connect.isA<JSFunction>()) {
+            _reflectApply(
+                connect as JSFunction, currentBridge, [host as JSAny].toJS);
+          }
+        }
+      }).toJS,
+    );
+  }
   _reflectSet(jsWindow, bridgeKey, bridge);
 
-  final attrsJson = observedAttributes.map((a) => '"$a"').join(',');
+  if (alreadyRegistered) {
+    final onHotReload = _reflectGet(bridge, 'onHotReload');
+    if (onHotReload != null && onHotReload.isA<JSFunction>()) {
+      _reflectApply(onHotReload as JSFunction, bridge, <JSAny?>[].toJS);
+    }
+    return;
+  }
+
+  final attrsJson = jsonEncode(observedAttributes);
+  final tagJson = jsonEncode(tagName);
+  final bridgeJson = jsonEncode(bridgeKey);
 
   final registerJs = '''
 (function() {
-  if (customElements.get('$tagName')) return;
-  const bridge = window['$bridgeKey'];
+  if (customElements.get($tagJson)) return;
+  const bridge = window[$bridgeJson];
   class BloomElement extends HTMLElement {
     static get observedAttributes() {
-      return [$attrsJson];
+      return $attrsJson;
     }
     connectedCallback() {
       if (bridge && bridge.onConnect) bridge.onConnect(this);
@@ -668,9 +753,24 @@ void defineCustomElement(
       if (bridge && bridge.onAttrChange) bridge.onAttrChange(this, name, oldValue, newValue);
     }
   }
-  customElements.define('$tagName', BloomElement);
+  customElements.define($tagJson, BloomElement);
 })();
 ''';
 
-  _jsEval(registerJs);
+  final target = web.document.head ?? web.document.documentElement;
+  if (target == null) {
+    throw StateError('Bloom custom elements require a document element.');
+  }
+  final script = web.document.createElement('script') as web.HTMLScriptElement;
+  if (bloomScriptNonce != null) {
+    script.setAttribute('nonce', bloomScriptNonce!);
+  }
+  script.textContent = registerJs;
+  target.appendChild(script);
+  script.remove();
+  if (web.window.customElements.get(tagName) == null) {
+    throw StateError(
+        'Bloom could not register <$tagName>. Check the script-src '
+        'Content Security Policy and set bloomScriptNonce to an allowed nonce.');
+  }
 }

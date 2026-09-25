@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'attribute_safety.dart';
 import 'data.dart';
 import 'framework.dart';
 import 'hydration_contract.dart';
@@ -54,12 +55,7 @@ void _validateAttributeName(String name) {
 /// // Returns: '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
 /// ```
 String escapeHtml(String input) {
-  return input
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#x27;');
+  return escapeBloomHtml(input);
 }
 
 /// Renders a [BloomNode] descriptor tree synchronously to an HTML string.
@@ -92,6 +88,8 @@ String escapeHtml(String input) {
 /// - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
 ///   and will throw an [ArgumentError] if an invalid name is encountered.
 /// - Text content, class names, styles, and attribute values are automatically escaped via [escapeHtml].
+/// - Inline event attributes, `srcdoc`, and executable URL schemes are rejected; use the typed
+///   `on:` event map for handlers.
 /// - Void elements (e.g. `<img>`, `<input>`, `<br>`, `<meta>`, `<link>`) are emitted without closing tags.
 ///
 /// ```dart
@@ -137,10 +135,14 @@ final Set<String> _emittedKeyframeNames = {};
 /// are nested inside [ElNode]/[FragmentNode] children rather than only at
 /// the root. When null, [_render] falls back to its default synchronous
 /// behavior (render the fallback only).
-typedef _SuspenseHook = void Function(SuspenseNode<dynamic> node, StringBuffer buf);
+typedef _SuspenseHook = void Function(
+    SuspenseNode<dynamic> node, StringBuffer buf);
 
 void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
   switch (node) {
+    case HmrComponentNode(:final child):
+      _render(child, buf, onSuspense);
+
     case TextNode(:final text):
       buf.write(escapeHtml(text));
 
@@ -163,6 +165,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       if (attrs != null) {
         for (final entry in attrs.entries) {
           _validateAttributeName(entry.key);
+          validateBloomAttribute(entry.key, entry.value);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
         }
       }
@@ -193,6 +196,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       if (attrs != null) {
         for (final entry in attrs.entries) {
           _validateAttributeName(entry.key);
+          validateBloomAttribute(entry.key, entry.value);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
         }
       }
@@ -243,9 +247,20 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
       buf.write(ssrOpenMarker(hydrationMarkerForEach));
       final keyFn = node.keyFnErased;
       if (keyFn != null) {
+        final keyedItems = <(Object?, String)>[];
+        final seenKeys = <String>{};
         for (final item in node.itemsErased()) {
-          buf.write(ssrKeyOpenMarker(keyFn(item)));
-          _render(node.builderErased(item), buf, onSuspense);
+          final key = keyFn(item);
+          if (!seenKeys.add(key)) {
+            throw StateError(
+              'Duplicate ForEach key "$key". Every keyed list item must have a unique key.',
+            );
+          }
+          keyedItems.add((item, key));
+        }
+        for (final pair in keyedItems) {
+          buf.write(ssrKeyOpenMarker(pair.$2));
+          _render(node.builderErased(pair.$1), buf, onSuspense);
           buf.write(ssrKeyCloseMarker());
         }
       } else {
@@ -257,8 +272,10 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
 
     case StyleNode(:final css):
       // CSS must not be HTML-escaped (quotes are valid inside it); only the
-      // `</style>` close sequence is dangerous. Neutralize any `</`.
-      buf.write('<style>${css.replaceAll('</', '<\\/')}</style>');
+      // `</style>` close sequence is dangerous. HTML tag names are
+      // case-insensitive, so neutralize every case variant of `</`.
+      buf.write(
+          '<style>${css.replaceAll(RegExp(r'</', caseSensitive: false), r'<\/')}</style>');
 
     case RawHtmlNode(:final html):
       // Trusted HTML passthrough — never feed this user input.
@@ -377,9 +394,11 @@ String renderToDocument(
       buf.write('<title>${escapeHtml(title)}</title>\n');
     }
     if (importMapJson != null) {
-      buf.write('<script type="importmap">$importMapJson</script>\n');
+      buf.write(
+          '<script type="importmap">${escapeBloomJsonForScript(importMapJson)}</script>\n');
     }
     for (final url in stylesheets) {
+      validateBloomAttribute('href', url);
       buf.write('<link rel="stylesheet" href="${escapeHtml(url)}">\n');
     }
     for (final node in head) {
@@ -390,6 +409,7 @@ String renderToDocument(
     _render(body, buf);
     buf.write('\n');
     for (final url in scripts) {
+      validateBloomAttribute('src', url);
       buf.write('<script src="${escapeHtml(url)}"></script>\n');
     }
     buf.write('</body>\n</html>');
@@ -493,8 +513,8 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) {
         // [outstanding] before this task's own decrement below — so the
         // stream never closes early while a nested boundary is pending.
         _render(resolved, innerBuf, onSuspense);
-        final safeJson = jsonEncode(innerBuf.toString())
-            .replaceAll('</script', '<\\/script');
+        final safeJson =
+            escapeBloomJsonForScript(jsonEncode(innerBuf.toString()));
         if (!controller.isClosed) {
           controller.add(
             '<script>(function(){var e=document.getElementById("$id");'
@@ -507,8 +527,8 @@ Stream<String> renderToStreamWithSuspense(BloomNode node) {
             final errorNode = boundary.errorBuilder!(err, stack);
             final innerBuf = StringBuffer();
             _render(errorNode, innerBuf, onSuspense);
-            final safeJson = jsonEncode(innerBuf.toString())
-                .replaceAll('</script', '<\\/script');
+            final safeJson =
+                escapeBloomJsonForScript(jsonEncode(innerBuf.toString()));
             if (!controller.isClosed) {
               controller.add(
                 '<script>(function(){var e=document.getElementById("$id");'
