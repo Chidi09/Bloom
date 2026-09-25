@@ -1,0 +1,86 @@
+version: 2.1
+
+orbs:
+  browser-tools: circleci/browser-tools@1.5.3
+
+jobs:
+  js-native:
+    docker:
+      - image: cimg/node:lts-browsers
+      - image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bloom_db_test
+    steps:
+      - checkout
+      - run:
+          name: Install Dart SDK
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y apt-transport-https gpg
+            wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/dart.gpg
+            echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | sudo tee /etc/apt/sources.list.d/dart_stable.list
+            sudo apt-get update
+            sudo apt-get install -y dart postgresql-client
+            dart --version
+      - run:
+          name: Wait for PostgreSQL service
+          command: |
+            for attempt in $(seq 1 60); do
+              if pg_isready -h localhost -p 5432 -U postgres -d bloom_db_test; then
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "PostgreSQL did not become ready within 60 seconds" >&2
+            exit 1
+      - run:
+          name: Install Bun for npm and Tailwind CLI integration tests
+          command: |
+            npm install --global bun
+            bun --version
+            command -v bunx
+      - browser-tools/install-chrome
+      - run:
+          name: JS Native analysis, tests, and size budgets
+          command: bash packages/bloom_js_native/tool/check.sh
+      - run:
+          name: CLI analysis and full test suite
+          command: |
+            cd packages/bloom_cli
+            dart pub get
+            dart analyze
+            dart test -j 1
+      - run:
+          name: Database analysis and SQLite/PostgreSQL integration suite
+          command: |
+            cd packages/bloom_db
+            dart pub get
+            dart analyze
+            BLOOM_TEST_POSTGRES=1 dart test -p vm -j 1
+      - run:
+          name: Server analysis and test suite
+          command: |
+            cd packages/bloom_server
+            dart pub get
+            dart analyze
+            dart test -p vm -j 1
+      - run:
+          name: SEO analysis and test suite
+          command: |
+            cd packages/bloom_seo
+            dart pub get
+            dart analyze
+            dart test -p vm -j 1
+      - run:
+          name: Validate public Dart package archives
+          command: |
+            for package in bloom_js_native bloom_cli bloom_db bloom_server bloom_seo; do
+              (cd "packages/$package" && dart pub publish --dry-run)
+            done
+
+workflows:
+  js-native:
+    jobs:
+      - js-native

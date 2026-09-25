@@ -18,3 +18,11 @@ dependencies:
 
 dev_dependencies:
   lints: ^4.0.0
+
+dependency_overrides:
+  bloom_js_native:
+    path: ../../../packages/bloom_js_native
+  bloom_seo:
+    path: ../../../packages/bloom_seo
+  bloom_server:
+    path: ../../../packages/bloom_server

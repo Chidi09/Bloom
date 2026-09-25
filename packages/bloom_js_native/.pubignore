@@ -1,2 +1,8 @@
 # Exclude old docs directory path (renamed to doc/)
 docs/
+
+# Do not publish the obsolete test-platform configuration.
+dart_test.yaml
+
+# Generated example output is reproducible from example/build.sh.
+example/main.js*

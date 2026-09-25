@@ -1,0 +1,4 @@
+tags:
+  browser_e2e:
+    # Browser startup and real DDC compiles take longer on shared CI runners.
+    timeout: 3x
