@@ -395,18 +395,25 @@ class DdcDevCompiler {
 
     try {
       final worker = _workerDriver ??= BazelWorkerDriver(
-        () async {
-          final process = await spawnWorker(executable, [
-            toolchain.snapshotPath!,
-            '--persistent_worker',
-            '--reuse-compiler-result',
-            '--use-incremental-compiler',
-          ]);
+        () {
           // A worker that exits early makes the driver's stdin write fail with
           // a broken pipe. The driver already reports that as a failed
-          // response; observe the sink so the error is not also uncaught.
-          process.stdin.done.catchError((Object _) {});
-          return process;
+          // response, but the socket error is also delivered to the zone the
+          // process was started in, so start it in a zone that absorbs it.
+          final spawned = Completer<Process>();
+          runZonedGuarded(() async {
+            final process = await spawnWorker(executable, [
+              toolchain.snapshotPath!,
+              '--persistent_worker',
+              '--reuse-compiler-result',
+              '--use-incremental-compiler',
+            ]);
+            process.stdin.done.catchError((Object _) {});
+            spawned.complete(process);
+          }, (error, stackTrace) {
+            if (!spawned.isCompleted) spawned.completeError(error, stackTrace);
+          });
+          return spawned.future;
         },
         maxWorkers: 1,
         maxIdleWorkers: 1,
