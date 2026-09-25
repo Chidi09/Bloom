@@ -73,6 +73,55 @@ final db = await PostgresDbExecutor.connect(
 final posts = await Post.objects().filter(Q('title__icontains', 'bloom')).orderBy('-id').limit(20).all(db);
 ```
 
+For a server that handles concurrent requests, use the bounded PostgreSQL pool:
+
+```dart
+import 'dart:io';
+import 'package:postgres/postgres.dart' as pg;
+
+final db = PostgresDbExecutor.pooled(
+  host: '127.0.0.1',
+  port: 5432,
+  username: 'postgres',
+  password: Platform.environment['DATABASE_PASSWORD'],
+  database: 'my_app',
+  sslMode: pg.SslMode.verifyFull,
+  maxConnections: 12,
+);
+```
+
+Pool connections open on demand and are reused after each query or transaction. Close the executor
+during application shutdown to drain and close its connections. `PostgresDbExecutor.connect()`
+remains available when the application needs a single dedicated connection.
+
+## Tests
+
+The default test run covers SQLite and skips PostgreSQL integration tests:
+
+```bash
+dart test -p vm
+```
+
+To run the PostgreSQL contract and pooling tests, start PostgreSQL 16 with a `bloom_db_test`
+database, `postgres` user, and `postgres` password, then opt in:
+
+```bash
+docker run --rm --detach --name bloom-db-test \\
+-e POSTGRES_USER=postgres \\
+-e POSTGRES_PASSWORD=postgres \\
+-e POSTGRES_DB=bloom_db_test \\
+-p 55432:5432 postgres:16-alpine
+
+until docker exec bloom-db-test pg_isready -U postgres -d bloom_db_test; do sleep 1; done
+BLOOM_TEST_POSTGRES=1 BLOOM_TEST_POSTGRES_PORT=55432 dart test -p vm -j 1
+docker stop bloom-db-test
+```
+
+CircleCI provisions this service and sets `BLOOM_TEST_POSTGRES=1`, so its run always includes
+the real PostgreSQL tests. Set the variable only when the configured test database is available;
+these integration tests recreate their `auth_users` table. The test port defaults to `5432`; set
+`BLOOM_TEST_POSTGRES_PORT` when your local PostgreSQL service already uses that port.
+
 ## Part of Bloom Server
 
 `bloom_db` is one of the packages that make up **Bloom Server**, the backend stack for the Bloom

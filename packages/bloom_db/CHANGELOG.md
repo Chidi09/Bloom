@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+* **Bounded PostgreSQL connection pooling**: `PostgresDbExecutor.pooled()` now reuses up to `maxConnections` sessions for concurrent queries and transactions. The existing `connect()` API remains a single dedicated connection.
+* **Opt-in PostgreSQL integration tests**: plain `dart test` runs SQLite and local PostgreSQL-free checks; `BLOOM_TEST_POSTGRES=1` runs the real PostgreSQL contract and pool tests. CI provisions the test database and opts in explicitly.
+
 ## 0.1.5 - 2026-09-04
 
 ### Fixed

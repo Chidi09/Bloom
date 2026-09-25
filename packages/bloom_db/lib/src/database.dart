@@ -444,11 +444,16 @@ class SqliteDbExecutor implements DbExecutor {
 /// await db.close();
 /// ```
 class PostgresDbExecutor implements DbExecutor {
-  final pg.Connection _conn;
+  final pg.Session _session;
+  final pg.SessionExecutor _sessionExecutor;
   final List<String> _queryLog = [];
 
-  /// Creates a [PostgresDbExecutor] wrapping an established postgres [_conn] connection.
-  PostgresDbExecutor(this._conn);
+  /// Creates a [PostgresDbExecutor] wrapping an established PostgreSQL connection.
+  PostgresDbExecutor(pg.Connection connection)
+      : _session = connection,
+        _sessionExecutor = connection;
+
+  PostgresDbExecutor._(this._session, this._sessionExecutor);
 
   /// Connects to a PostgreSQL database using explicit connection parameters.
   ///
@@ -479,6 +484,56 @@ class PostgresDbExecutor implements DbExecutor {
       settings: pg.ConnectionSettings(sslMode: sslMode),
     );
     return PostgresDbExecutor(conn);
+  }
+
+  /// Creates a PostgreSQL executor backed by a bounded connection pool.
+  ///
+  /// Connections open lazily as queries arrive. Use this for server workloads
+  /// that execute requests concurrently; [connect] remains available when a
+  /// single dedicated connection is desired. [maxConnections] limits the
+  /// number of active PostgreSQL sessions owned by this executor.
+  ///
+  /// ```dart
+  /// final db = PostgresDbExecutor.pooled(
+  ///   host: 'localhost',
+  ///   database: 'my_app',
+  ///   username: 'postgres',
+  ///   password: Platform.environment['DATABASE_PASSWORD'],
+  ///   maxConnections: 12,
+  /// );
+  /// ```
+  static PostgresDbExecutor pooled({
+    required String host,
+    required String database,
+    required String username,
+    String? password,
+    int port = 5432,
+    pg.SslMode sslMode = pg.SslMode.disable,
+    int maxConnections = 10,
+  }) {
+    if (maxConnections < 1) {
+      throw ArgumentError.value(
+        maxConnections,
+        'maxConnections',
+        'must be at least 1',
+      );
+    }
+
+    final endpoint = pg.Endpoint(
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
+    );
+    final pool = pg.Pool<void>.withEndpoints(
+      [endpoint],
+      settings: pg.PoolSettings(
+        sslMode: sslMode,
+        maxConnectionCount: maxConnections,
+      ),
+    );
+    return PostgresDbExecutor._(pool, pool);
   }
 
   /// Connects to a PostgreSQL database via a connection [url] string.
@@ -532,7 +587,7 @@ class PostgresDbExecutor implements DbExecutor {
     recordQuery(sql, parameters);
     try {
       final sanitized = _sanitizeParams(parameters);
-      final result = await _conn.execute(sql, parameters: sanitized);
+      final result = await _session.execute(sql, parameters: sanitized);
       final columnNames =
           result.schema.columns.map((c) => c.columnName ?? '').toList();
 
@@ -569,7 +624,7 @@ class PostgresDbExecutor implements DbExecutor {
     recordQuery(sql, parameters);
     try {
       final sanitized = _sanitizeParams(parameters);
-      final result = await _conn.execute(sql, parameters: sanitized);
+      final result = await _session.execute(sql, parameters: sanitized);
       return result.affectedRows;
     } catch (e, st) {
       throw BloomOrmQueryException(e, st);
@@ -578,7 +633,7 @@ class PostgresDbExecutor implements DbExecutor {
 
   @override
   Future<R> transaction<R>(Future<R> Function(DbExecutor tx) callback) async {
-    return await _conn.runTx<R>((txSession) async {
+    return await _sessionExecutor.runTx<R>((txSession) async {
       final txExecutor = _PostgresTxExecutor(txSession);
       return await callback(txExecutor);
     });
@@ -586,7 +641,7 @@ class PostgresDbExecutor implements DbExecutor {
 
   @override
   Future<void> close() async {
-    await _conn.close();
+    await _sessionExecutor.close();
   }
 }
 
