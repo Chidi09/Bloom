@@ -63,6 +63,18 @@ void main() {
       final renderer = renderForTest(tree);
       expect(renderer.getByTestId('nested-btn').tag, 'button');
     });
+
+    test('queries traverse Memo with its current dependency value', () {
+      final count = signal(3);
+      final tree = Div(children: [
+        Memo<int>(
+          () => count.value,
+          (n) => El('output', attrs: {'data-testid': 'memo-out'}, text: '$n'),
+        ),
+      ]);
+      final renderer = renderForTest(tree);
+      expect(renderer.getByTestId('memo-out').text, '3');
+    });
   });
 
   group('fireEvent', () {

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* `renderForTest` queries (`getByTestId`, `getByText`, `getByTag`) now traverse `Memo` boundaries, evaluating the builder with the current dependency value, so elements rendered inside a `Memo` can be found and driven with `fireEvent` in VM tests.
+
 ## 0.3.8 - 2026-09-25
 
 ### Added

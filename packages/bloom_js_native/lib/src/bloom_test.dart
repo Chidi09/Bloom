@@ -207,6 +207,7 @@ List<BloomNode> _childrenOf(BloomNode node) {
       node.when() ? [child] : (fallback != null ? [fallback] : const []),
     ForEachNode() => node.buildChildren(),
     LiveNode(:final builder) => [builder()],
+    MemoNode() => [node.builderErased(node.dependencyErased())],
     MountNode(:final child) => [child],
     RefNode(:final child) => [child],
     ContextProviderNode(:final child) => [child],
