@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'events.dart';
 import 'framework.dart';
@@ -155,13 +157,16 @@ abstract class BloomRouteGuard {
   ///
   /// [location] contains the full target URL string including any query parameters
   /// and hash fragments (e.g. `'/search?q=shoes&page=2#top'`).
-  FutureOr<GuardResult> canActivate(String location, Map<String, String> params);
+  FutureOr<GuardResult> canActivate(
+      String location, Map<String, String> params);
 }
 
 /// Parses a URL or query string into a single-value map of query parameters.
 ///
 /// Keys and values are percent-decoded, `+` is converted to spaces, and duplicate
 /// keys follow "last-wins" semantics. Keys without values are assigned an empty string.
+/// Malformed percent escapes remain literal; invalid UTF-8 bytes decode as U+FFFD
+/// so untrusted URL input cannot crash route resolution.
 /// If no query string is present, returns an empty map.
 ///
 /// Safe for both server-side rendering (SSR) and browser environments.
@@ -172,9 +177,9 @@ abstract class BloomRouteGuard {
 /// print(query['category']); // 'footwear'
 /// ```
 Map<String, String> parseQueryString(String location) {
-  final query = _extractQueryString(location);
-  if (query.isEmpty) return const {};
-  return Uri.splitQueryString(query);
+  final all = parseQueryStringAll(location);
+  if (all.isEmpty) return const {};
+  return {for (final entry in all.entries) entry.key: entry.value.last};
 }
 
 /// Parses a URL or query string into a multi-value map preserving repeated keys.
@@ -182,6 +187,7 @@ Map<String, String> parseQueryString(String location) {
 /// Keys and values are percent-decoded, `+` is converted to spaces, and repeated
 /// keys (e.g. `?tag=news&tag=tech`) are collected into a [List<String>] in order of appearance.
 /// Keys without values are assigned a list containing an empty string (`['']`).
+/// Malformed percent escapes remain literal and invalid UTF-8 bytes decode as U+FFFD.
 /// If no query string is present, returns an empty map.
 ///
 /// Safe for both server-side rendering (SSR) and browser environments.
@@ -207,11 +213,63 @@ Map<String, List<String>> parseQueryStringAll(String location) {
       rawKey = part.substring(0, eqIdx);
       rawValue = part.substring(eqIdx + 1);
     }
-    final key = Uri.decodeQueryComponent(rawKey);
-    final value = Uri.decodeQueryComponent(rawValue);
+    final key = _decodePercentEncodedComponent(rawKey, plusAsSpace: true);
+    final value = _decodePercentEncodedComponent(rawValue, plusAsSpace: true);
     (result[key] ??= []).add(value);
   }
   return result;
+}
+
+/// Decodes percent escapes without letting malformed external URLs throw.
+/// Invalid escape markers stay literal and malformed UTF-8 uses U+FFFD, in
+/// line with browser URL decoding behavior.
+String _decodePercentEncodedComponent(
+  String input, {
+  bool plusAsSpace = false,
+}) {
+  final bytes = BytesBuilder(copy: false);
+  var index = 0;
+  var runStart = 0;
+  while (index < input.length) {
+    final unit = input.codeUnitAt(index);
+    if (unit == 0x25 && index + 2 < input.length) {
+      final high = _hexValue(input.codeUnitAt(index + 1));
+      final low = _hexValue(input.codeUnitAt(index + 2));
+      if (high != null && low != null) {
+        if (runStart < index) {
+          bytes.add(const Utf8Codec(allowMalformed: true)
+              .encode(input.substring(runStart, index)));
+        }
+        bytes.addByte((high << 4) | low);
+        index += 3;
+        runStart = index;
+        continue;
+      }
+    }
+    if (unit == 0x2b && plusAsSpace) {
+      if (runStart < index) {
+        bytes.add(const Utf8Codec(allowMalformed: true)
+            .encode(input.substring(runStart, index)));
+      }
+      bytes.addByte(0x20);
+      index++;
+      runStart = index;
+      continue;
+    }
+    index++;
+  }
+  if (runStart < input.length) {
+    bytes.add(const Utf8Codec(allowMalformed: true)
+        .encode(input.substring(runStart)));
+  }
+  return utf8.decode(bytes.takeBytes(), allowMalformed: true);
+}
+
+int? _hexValue(int unit) {
+  if (unit >= 0x30 && unit <= 0x39) return unit - 0x30;
+  if (unit >= 0x41 && unit <= 0x46) return unit - 0x41 + 10;
+  if (unit >= 0x61 && unit <= 0x66) return unit - 0x61 + 10;
+  return null;
 }
 
 /// Extracts the hash fragment from a URL or location string without the leading `#`.
@@ -379,7 +437,8 @@ class BloomRoute {
   /// );
   /// ```
   factory BloomRoute.shell({
-    required BloomNode Function(BloomNode child, Map<String, String> params) layout,
+    required BloomNode Function(BloomNode child, Map<String, String> params)
+        layout,
     required List<BloomRoute> routes,
     List<BloomRouteGuard> guards = const [],
   }) {
@@ -402,6 +461,10 @@ class BloomRouteMatch {
   /// The [BloomRoute] that matched the requested path.
   final BloomRoute route;
 
+  /// Guards collected from the matched route and every enclosing shell route,
+  /// ordered from the outermost shell toward the leaf.
+  final List<BloomRouteGuard> guards;
+
   /// Extracted route parameters, keyed by parameter name with URI-decoded string values.
   final Map<String, String> params;
 
@@ -420,6 +483,7 @@ class BloomRouteMatch {
   const BloomRouteMatch({
     required this.route,
     required this.params,
+    this.guards = const [],
     this.query = const {},
     this.queryAll = const {},
     this.fragment = '',
@@ -438,7 +502,9 @@ class BloomRouteMatch {
       return Suspense<dynamic>(
         resource: () => loader(params),
         builder: (data) {
-          if (route.dataBuilder != null) return route.dataBuilder!(params, data);
+          if (route.dataBuilder != null) {
+            return route.dataBuilder!(params, data);
+          }
           if (route.builder != null) return route.builder!(params);
           return const FragmentNode([]);
         },
@@ -621,10 +687,12 @@ class BloomRouter {
           return BloomRouteMatch(
             route: childMatch.route,
             params: childMatch.params,
+            guards: [...route.guards, ...childMatch.guards],
             query: childMatch.query,
             queryAll: childMatch.queryAll,
             fragment: childMatch.fragment,
-            buildNode: () => route.layout!(childMatch.build(), childMatch.params),
+            buildNode: () =>
+                route.layout!(childMatch.build(), childMatch.params),
           );
         }
       } else {
@@ -633,6 +701,7 @@ class BloomRouter {
           return BloomRouteMatch(
             route: route,
             params: params,
+            guards: route.guards,
             query: query,
             queryAll: queryAll,
             fragment: fragment,
@@ -644,6 +713,7 @@ class BloomRouter {
       return BloomRouteMatch(
         route: notFound!,
         params: const {},
+        guards: notFound!.guards,
         query: query,
         queryAll: queryAll,
         fragment: fragment,
@@ -664,7 +734,15 @@ class BloomRouter {
     String location,
     Map<String, String> params,
   ) async {
-    for (final guard in route.guards) {
+    return _evaluateGuardList(route.guards, location, params);
+  }
+
+  Future<GuardResult> _evaluateGuardList(
+    List<BloomRouteGuard> guards,
+    String location,
+    Map<String, String> params,
+  ) async {
+    for (final guard in guards) {
       final res = await guard.canActivate(location, params);
       if (!res.isAllowed) return res;
     }
@@ -692,7 +770,7 @@ class BloomRouter {
       if (match == null) {
         return GuardResolution.noMatch(current);
       }
-      final res = await evaluateGuards(match.route, current, match.params);
+      final res = await _evaluateGuardList(match.guards, current, match.params);
       if (res.isAllowed || res.redirectPath == null) {
         return GuardResolution(
           location: current,
@@ -728,7 +806,7 @@ class BloomRouter {
       }
       if (i >= pathSegs.length) return null;
       if (p.startsWith(':')) {
-        params[p.substring(1)] = Uri.decodeComponent(pathSegs[i]);
+        params[p.substring(1)] = _decodePercentEncodedComponent(pathSegs[i]);
       } else if (p != pathSegs[i]) {
         return null;
       }

@@ -19,6 +19,37 @@ void main() {
   });
 
   group('mountToElement DOM rendering', () {
+    test('rejects executable attributes before inserting the element', () {
+      expect(
+        () => mountToElement(
+          Div(attrs: {'onerror': 'alert(1)'}),
+          container,
+        ),
+        throwsArgumentError,
+      );
+      expect(container.children.length, 0);
+    });
+
+    test('keyed ForEach rejects duplicate keys before mounting items', () {
+      final node = ForEach<int>(
+        () => [1, 2],
+        (item) => Li(text: '$item'),
+        key: (_) => 'duplicate',
+      );
+
+      expect(
+        () => mountToElement(node, container),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Duplicate ForEach key "duplicate"'),
+          ),
+        ),
+      );
+      expect(container.querySelector('li'), isNull);
+    });
+
     test('plain ElNode renders the right tag, class, style, attrs, text', () {
       final node = ElNode(
         'button',
@@ -54,11 +85,14 @@ void main() {
       final div = container.firstElementChild as web.HTMLElement;
       expect(div.tagName.toLowerCase(), 'div');
       expect(div.children.length, 3);
-      expect((div.children.item(0)! as web.HTMLElement).tagName.toLowerCase(), 'h1');
+      expect((div.children.item(0)! as web.HTMLElement).tagName.toLowerCase(),
+          'h1');
       expect(div.children.item(0)!.textContent, 'Title');
-      expect((div.children.item(1)! as web.HTMLElement).tagName.toLowerCase(), 'p');
+      expect((div.children.item(1)! as web.HTMLElement).tagName.toLowerCase(),
+          'p');
       expect(div.children.item(1)!.textContent, 'Paragraph 1');
-      expect((div.children.item(2)! as web.HTMLElement).tagName.toLowerCase(), 'span');
+      expect((div.children.item(2)! as web.HTMLElement).tagName.toLowerCase(),
+          'span');
       expect(div.children.item(2)!.textContent, 'Span 1');
     });
 
@@ -169,7 +203,9 @@ void main() {
       expect((lis.item(2)! as web.Element).getAttribute('data-id'), '1');
     });
 
-    test('REGRESSION TEST FOR STAGE 1: on a keyed ForEach reorder/update where key is unchanged, retains exact DOM element instance', () {
+    test(
+        'REGRESSION TEST FOR STAGE 1: on a keyed ForEach reorder/update where key is unchanged, retains exact DOM element instance',
+        () {
       final items = signal([
         {'id': 'a', 'title': 'Alpha'},
         {'id': 'b', 'title': 'Beta'},
@@ -186,8 +222,10 @@ void main() {
       final handle = mountToElement(node, container);
       addTearDown(handle.dispose);
 
-      final initialDivA = container.querySelector('[data-id="a"]') as web.HTMLDivElement;
-      final initialDivB = container.querySelector('[data-id="b"]') as web.HTMLDivElement;
+      final initialDivA =
+          container.querySelector('[data-id="a"]') as web.HTMLDivElement;
+      final initialDivB =
+          container.querySelector('[data-id="b"]') as web.HTMLDivElement;
       expect(initialDivA, isNotNull);
       expect(initialDivB, isNotNull);
 
@@ -197,8 +235,10 @@ void main() {
         {'id': 'a', 'title': 'Alpha Updated'},
       ];
 
-      final afterDivA = container.querySelector('[data-id="a"]') as web.HTMLDivElement;
-      final afterDivB = container.querySelector('[data-id="b"]') as web.HTMLDivElement;
+      final afterDivA =
+          container.querySelector('[data-id="a"]') as web.HTMLDivElement;
+      final afterDivB =
+          container.querySelector('[data-id="b"]') as web.HTMLDivElement;
 
       // Identity equality check: the DOM element instances MUST be identical
       expect(identical(afterDivA, initialDivA), isTrue);
@@ -209,12 +249,17 @@ void main() {
       expect(afterDivB.textContent, 'Beta Updated');
 
       // Order was updated
-      final divChildren = container.querySelector('div')!.querySelectorAll('[data-id]');
-      expect((divChildren.item(0)! as web.Element).getAttribute('data-id'), 'b');
-      expect((divChildren.item(1)! as web.Element).getAttribute('data-id'), 'a');
+      final divChildren =
+          container.querySelector('div')!.querySelectorAll('[data-id]');
+      expect(
+          (divChildren.item(0)! as web.Element).getAttribute('data-id'), 'b');
+      expect(
+          (divChildren.item(1)! as web.Element).getAttribute('data-id'), 'a');
     });
 
-    test('REGRESSION TEST: focus is retained in a text input across a reactive update of the region containing it', () {
+    test(
+        'REGRESSION TEST: focus is retained in a text input across a reactive update of the region containing it',
+        () {
       final textValue = signal('hello');
       final otherSignal = signal(0);
 
@@ -229,7 +274,8 @@ void main() {
       final handle = mountToElement(node, container);
       addTearDown(handle.dispose);
 
-      final input = container.querySelector('#my-input') as web.HTMLInputElement;
+      final input =
+          container.querySelector('#my-input') as web.HTMLInputElement;
       input.focus();
       input.setSelectionRange(2, 4);
 
@@ -279,7 +325,8 @@ void main() {
       expect(updatedDiv.textContent, 'Val: 3');
     });
 
-    test('patching an element containing a nested Live does not duplicate DOM', () {
+    test('patching an element containing a nested Live does not duplicate DOM',
+        () {
       final items = signal([
         {'id': 'a', 'title': 'Alpha'},
       ]);
@@ -288,7 +335,9 @@ void main() {
       final node = Div(children: [
         ForEach<Map<String, String>>(
           () => items.value,
-          (item) => Div(attrs: {'data-id': item['id']!}, children: [
+          (item) => Div(attrs: {
+            'data-id': item['id']!
+          }, children: [
             Span(text: item['title']!),
             Live(() => Span(attrs: {'data-c': '1'}, text: '${counter.value}')),
           ]),
@@ -386,7 +435,8 @@ void main() {
       (container.querySelector('[data-id="a"]')! as web.HTMLElement).click();
 
       expect(fired, ['3'],
-          reason: 'stale handlers must not fire, and the live one exactly once');
+          reason:
+              'stale handlers must not fire, and the live one exactly once');
     });
 
     test('a typed Suspense<T> resolves in the browser', () async {

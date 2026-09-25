@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 import 'package:signals_core/signals_core.dart';
 import 'package:web/web.dart' as web;
@@ -105,14 +106,20 @@ class BloomRouterController {
   /// Reading `currentFragment.value` inside a [Live] or [Show] boundary triggers a re-render
   /// whenever the hash fragment changes.
   late final Signal<String> currentFragment;
+  late final Signal<bool> _initialRouteReady;
+  late final Signal<bool> _initialRouteBlocked;
+  late final Signal<Object?> _initialRouteError;
 
   late final void Function(web.Event) _popStateListener;
 
   String? _previousScrollRestoration;
   String? _currentKey;
+  String _currentLocation = '/';
   int _keySeq = 0;
+  int _navigationRevision = 0;
   final Map<String, (double, double)> _scrollPositions = {};
   web.IntersectionObserver? _intersectionObserver;
+  bool _isDisposed = false;
 
   /// Creates a client-side router controller managing browser navigation for [_router].
   ///
@@ -126,10 +133,17 @@ class BloomRouterController {
     this.announcer,
   }) {
     final initialLocation = _readCurrentBrowserLocation();
+    _currentLocation = initialLocation;
     currentPath = signal(web.window.location.pathname);
     currentQuery = signal(parseQueryString(initialLocation));
     currentQueryAll = signal(parseQueryStringAll(initialLocation));
     currentFragment = signal(parseFragment(initialLocation));
+    final initialMatch = _router.match(initialLocation);
+    final needsInitialGuardResolution =
+        initialMatch != null && initialMatch.guards.isNotEmpty;
+    _initialRouteReady = signal(!needsInitialGuardResolution);
+    _initialRouteBlocked = signal(false);
+    _initialRouteError = signal<Object?>(null);
 
     if (scrollRestoration) {
       try {
@@ -175,6 +189,10 @@ class BloomRouterController {
     };
     web.window.addEventListener('popstate', _popStateListener.toJS);
 
+    if (needsInitialGuardResolution) {
+      unawaited(_resolveInitialLocation(initialLocation));
+    }
+
     _schedulePostNavigationWork(
       restoreKey: null,
       fragment: currentFragment.value,
@@ -215,6 +233,47 @@ class BloomRouterController {
       } catch (_) {}
     }
     return null;
+  }
+
+  Future<void> _resolveInitialLocation(String requestedPath) async {
+    final revision = ++_navigationRevision;
+    try {
+      final resolution = await _router.resolveRedirects(requestedPath);
+      if (_isDisposed || revision != _navigationRevision) return;
+
+      if (resolution.blocked) {
+        _initialRouteBlocked.value = true;
+        _initialRouteReady.value = true;
+        return;
+      }
+
+      final resolvedPath = resolution.location;
+      if (resolvedPath != requestedPath) {
+        _currentLocation = resolvedPath;
+        try {
+          web.window.history.replaceState(
+            _createState(_currentKey ??= _generateKey()),
+            '',
+            resolvedPath,
+          );
+        } catch (_) {}
+        currentPath.value = resolvedPath.split('?').first.split('#').first;
+        currentQuery.value = parseQueryString(resolvedPath);
+        currentQueryAll.value = parseQueryStringAll(resolvedPath);
+        currentFragment.value = parseFragment(resolvedPath);
+      }
+
+      _initialRouteReady.value = true;
+      _schedulePostNavigationWork(
+        restoreKey: null,
+        fragment: parseFragment(resolvedPath),
+        isInitial: true,
+      );
+    } catch (error) {
+      if (_isDisposed || revision != _navigationRevision) return;
+      _initialRouteError.value = error;
+      _initialRouteReady.value = true;
+    }
   }
 
   void _saveScroll() {
@@ -293,9 +352,11 @@ class BloomRouterController {
   /// ```dart
   /// await controller.setQuery({'filter': 'active'}, replace: true);
   /// ```
-  Future<void> setQuery(Map<String, dynamic> query, {bool replace = false}) async {
+  Future<void> setQuery(Map<String, dynamic> query,
+      {bool replace = false}) async {
     final qs = buildQueryString(query);
-    final frag = currentFragment.value.isNotEmpty ? '#${currentFragment.value}' : '';
+    final frag =
+        currentFragment.value.isNotEmpty ? '#${currentFragment.value}' : '';
     final target = '${currentPath.value}$qs$frag';
     if (replace) {
       await this.replace(target);
@@ -332,7 +393,8 @@ class BloomRouterController {
   /// await controller.setFragment('top', replace: true);
   /// ```
   Future<void> setFragment(String fragment, {bool replace = false}) async {
-    final cleanFrag = fragment.startsWith('#') ? fragment.substring(1) : fragment;
+    final cleanFrag =
+        fragment.startsWith('#') ? fragment.substring(1) : fragment;
     final qs = buildQueryString(currentQueryAll.value);
     final hashPart = cleanFrag.isNotEmpty ? '#$cleanFrag' : '';
     final target = '${currentPath.value}$qs$hashPart';
@@ -349,6 +411,9 @@ class BloomRouterController {
     bool isPopState = false,
     String? restoreKey,
   }) async {
+    if (_isDisposed) return;
+    final revision = ++_navigationRevision;
+
     // Not on a popstate: the listener has already saved the outgoing scroll
     // position under the OUTGOING key, and has since repointed [_currentKey]
     // at the destination entry. Saving again here would write the current
@@ -361,8 +426,43 @@ class BloomRouterController {
     // [BloomRedirectLoopException] rather than looping forever. The final
     // location settles into a single history entry under the caller's
     // original push/replace intent.
+    final requestedPath = path;
     final resolved = await _router.resolveRedirects(path);
+    if (_isDisposed || revision != _navigationRevision) return;
+    if (resolved.blocked) {
+      // A popstate has already changed the address bar before guards run.
+      // Replace that denied entry with the last allowed location so URL and
+      // rendered route stay in sync. For programmatic navigation, history has
+      // not been changed yet, so simply leave the current route untouched.
+      if (isPopState) {
+        final key = _currentKey ??= _generateKey();
+        try {
+          web.window.history.replaceState(
+            _createState(key),
+            '',
+            _currentLocation,
+          );
+        } catch (_) {}
+      }
+      if (!_initialRouteReady.value) {
+        _initialRouteBlocked.value = true;
+        _initialRouteReady.value = true;
+      }
+      return;
+    }
     path = resolved.location;
+
+    // Back/forward has already selected an entry. If a guard redirects it,
+    // replace that entry rather than leaving the denied URL in the address bar.
+    if (isPopState && path != requestedPath) {
+      try {
+        web.window.history.replaceState(
+          _createState(_currentKey ??= _generateKey()),
+          '',
+          path,
+        );
+      } catch (_) {}
+    }
 
     final clean = path.split('?').first.split('#').first;
 
@@ -386,6 +486,10 @@ class BloomRouterController {
     currentQuery.value = parsedQuery;
     currentQueryAll.value = parsedQueryAll;
     currentFragment.value = parsedFragment;
+    _currentLocation = path;
+    _initialRouteBlocked.value = false;
+    _initialRouteError.value = null;
+    _initialRouteReady.value = true;
 
     _schedulePostNavigationWork(
       restoreKey: isPopState ? restoreKey : null,
@@ -399,9 +503,11 @@ class BloomRouterController {
     String? fragment,
     bool isInitial = false,
   }) {
+    if (_isDisposed) return;
     _intersectionObserver?.disconnect();
 
     Future.microtask(() {
+      if (_isDisposed) return;
       if (scrollRestoration) {
         try {
           if (restoreKey != null && _scrollPositions.containsKey(restoreKey)) {
@@ -558,7 +664,9 @@ class BloomRouterController {
           }).toJS;
           target.addEventListener('blur', blurListener);
         }
-        target.focus();
+        // Navigation owns the scroll position above. Focusing the heading or
+        // body must not move it again (for example to the body's 8px margin).
+        target.focus(web.FocusOptions(preventScroll: true));
       }
     } catch (_) {}
   }
@@ -607,8 +715,16 @@ class BloomRouterController {
   /// BloomNode app() => Live(() => controller.resolve());
   /// ```
   BloomNode resolve() {
+    final routeError = _initialRouteError.value;
+    if (routeError != null) {
+      throw StateError('Initial route guard resolution failed: $routeError');
+    }
+    if (!_initialRouteReady.value || _initialRouteBlocked.value) {
+      return const FragmentNode([]);
+    }
     final qs = buildQueryString(currentQueryAll.value);
-    final frag = currentFragment.value.isNotEmpty ? '#${currentFragment.value}' : '';
+    final frag =
+        currentFragment.value.isNotEmpty ? '#${currentFragment.value}' : '';
     final fullLocation = '${currentPath.value}$qs$frag';
     final m = _router.match(fullLocation);
     return m == null ? const FragmentNode([]) : m.build();
@@ -620,6 +736,8 @@ class BloomRouterController {
   /// Must be invoked when the application or router controller is torn down to prevent
   /// memory leaks and restore previous browser history settings.
   void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
     web.window.removeEventListener('popstate', _popStateListener.toJS);
     if (scrollRestoration && _previousScrollRestoration != null) {
       try {

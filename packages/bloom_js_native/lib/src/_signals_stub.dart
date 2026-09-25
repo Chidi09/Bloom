@@ -8,6 +8,14 @@ const int kMaxSignalRegistryEntries = 512;
 
 bool isBrowserHotReloadActive() => false;
 
+Set<void Function()>? getBrowserHotEffectRegistry() => null;
+
+void disposeBrowserHotEffects() {}
+
+void prepareBrowserHotReloadEffects() {}
+
+void disposePreviousBrowserHotEffects() {}
+
 Map<String, Object?>? getBrowserSignalRegistry() => null;
 
 void storeBrowserSignalValue(

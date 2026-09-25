@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:meta/meta.dart' show internal;
+
 import 'events.dart';
 import 'animate.dart';
 
@@ -79,7 +82,8 @@ class BloomContext<T> {
 /// ```dart
 /// final authContext = createContext<User?>(null);
 /// ```
-BloomContext<T> createContext<T>(T defaultValue) => BloomContext<T>(defaultValue);
+BloomContext<T> createContext<T>(T defaultValue) =>
+    BloomContext<T>(defaultValue);
 
 /// Reads the current ambient value for [context] from the surrounding [Zone].
 ///
@@ -146,6 +150,27 @@ sealed class BloomNode {
   /// Base const constructor for all [BloomNode] descriptors.
   const BloomNode();
 }
+
+/// A source-stable boundary around a Bloom component during DDC development.
+///
+/// [id] is derived from the declaring library and component method by Bloom's
+/// dev compiler. The browser runtime uses the boundary to replace a component
+/// subtree without remounting unrelated siblings. Non-browser renderers treat
+/// it transparently by evaluating [builder].
+class HmrComponentNode extends BloomNode {
+  /// Stable source identity for this component boundary.
+  final String id;
+
+  /// Current version of this component's descriptor tree.
+  final BloomNode child;
+
+  /// Creates a development hot-reload boundary.
+  const HmrComponentNode(this.id, this.child);
+}
+
+/// Wraps a component builder in a source-stable DDC hot-reload boundary.
+BloomNode bloomHmrComponent(String id, BloomNode Function() builder) =>
+    HmrComponentNode(id, builder());
 
 // ── Concrete node types ───────────────────────────────────────────────
 
@@ -260,8 +285,12 @@ class LiveNode extends BloomNode {
   /// The reactive builder callback invoked to produce this boundary's subtree.
   final BloomNode Function() builder;
 
+  /// Stable source identity used by DDC to scope signals created by [builder].
+  @internal
+  final String? hotReloadScopeId;
+
   /// Creates a reactive boundary descriptor driven by [builder].
-  const LiveNode(this.builder);
+  const LiveNode(this.builder, {this.hotReloadScopeId});
 }
 
 /// Memoization boundary — only re-evaluates [builder] when [dependency] produces
@@ -289,8 +318,12 @@ class MemoNode<T> extends BloomNode {
   /// Builder that produces a descriptor tree from the evaluated dependency [value].
   final BloomNode Function(T value) builder;
 
+  /// Stable source identity used by DDC to scope signals created by [builder].
+  @internal
+  final String? hotReloadScopeId;
+
   /// Creates a memoization boundary descriptor with [dependency] and [builder].
-  const MemoNode(this.dependency, this.builder);
+  const MemoNode(this.dependency, this.builder, {this.hotReloadScopeId});
 
   /// [dependency], viewed untyped as `Object? Function()`.
   ///
@@ -334,6 +367,10 @@ class MemoNode<T> extends BloomNode {
 ///
 /// Usually created using the DSL sugar [Show].
 class ShowNode extends BloomNode {
+  /// Stable compiler-provided scope for signals created in [when].
+  @internal
+  final String? hotReloadScopeId;
+
   /// Reactive predicate — called inside a signals effect (browser) or once (SSR).
   final bool Function() when;
 
@@ -345,7 +382,12 @@ class ShowNode extends BloomNode {
 
   /// Creates a conditional rendering descriptor with predicate [when], primary
   /// [child], and optional [fallback].
-  const ShowNode(this.when, {required this.child, this.fallback});
+  const ShowNode(
+    this.when, {
+    required this.child,
+    this.fallback,
+    this.hotReloadScopeId,
+  });
 }
 
 /// List rendering primitive. Re-reads [items] reactively; each item is
@@ -383,8 +425,14 @@ class ForEachNode<T> extends BloomNode {
   /// Optional key extractor function returning a unique string identifier for [item].
   final String Function(T item)? keyFn;
 
+  /// Stable source identity used by the DDC dev compiler to scope keyed
+  /// signals created by this list's item builder. Applications should omit it.
+  @internal
+  final String? hotReloadScopeId;
+
   /// Creates a list rendering descriptor with [items], [builder], and optional [keyFn].
-  const ForEachNode(this.items, this.builder, {this.keyFn});
+  const ForEachNode(this.items, this.builder,
+      {this.keyFn, this.hotReloadScopeId});
 
   /// Synchronously evaluates [items] and maps each element through [builder].
   ///
@@ -415,6 +463,9 @@ class ForEachNode<T> extends BloomNode {
     if (fn == null) return null;
     return (item) => fn(item as T);
   }
+
+  /// [hotReloadScopeId], exposed to the browser renderer without type erasure.
+  String? get hotReloadScopeIdErased => hotReloadScopeId;
 
   /// [builder], accepting an untyped item `Object?`.
   ///
@@ -547,7 +598,7 @@ class Fragment extends FragmentNode {
 /// ```
 class Live extends LiveNode {
   /// Creates a reactive boundary descriptor driven by [builder].
-  const Live(super.builder);
+  const Live(super.builder, {super.hotReloadScopeId});
 }
 
 /// Memoization sugar.
@@ -576,7 +627,7 @@ class Live extends LiveNode {
 /// ```
 class Memo<T> extends MemoNode<T> {
   /// Creates a memoized boundary descriptor with [dependency] and [builder].
-  const Memo(super.dependency, super.builder);
+  const Memo(super.dependency, super.builder, {super.hotReloadScopeId});
 }
 
 /// Conditional rendering sugar.
@@ -608,6 +659,7 @@ class Show extends ShowNode {
     super.when, {
     required super.child,
     super.fallback,
+    super.hotReloadScopeId,
   });
 }
 
@@ -658,6 +710,7 @@ class ForEach<T> extends ForEachNode<T> {
     super.items,
     super.builder, {
     String Function(T item)? key,
+    super.hotReloadScopeId,
   }) : super(keyFn: key);
 }
 
@@ -763,6 +816,10 @@ class Ref<T extends Object> {
 ///
 /// Usually created using the DSL sugar [Mount].
 class MountNode extends BloomNode {
+  /// Stable compiler-provided scope for signals created by lifecycle callbacks.
+  @internal
+  final String? hotReloadScopeId;
+
   /// The child descriptor tree enclosed by this lifecycle boundary.
   final BloomNode child;
 
@@ -773,7 +830,8 @@ class MountNode extends BloomNode {
   final void Function()? onUnmount;
 
   /// Creates a lifecycle boundary descriptor wrapping [child] with optional [onMount] and [onUnmount].
-  const MountNode(this.child, {this.onMount, this.onUnmount});
+  const MountNode(this.child,
+      {this.onMount, this.onUnmount, this.hotReloadScopeId});
 }
 
 /// DSL sugar for [MountNode].
@@ -793,7 +851,8 @@ class MountNode extends BloomNode {
 /// ```
 class Mount extends MountNode {
   /// Creates a lifecycle boundary wrapping [child] with optional [onMount] and [onUnmount] hooks.
-  const Mount(super.child, {super.onMount, super.onUnmount});
+  const Mount(super.child,
+      {super.onMount, super.onUnmount, super.hotReloadScopeId});
 }
 
 /// Attaches a [Ref] to the first `web.Element` created by [child].
@@ -842,6 +901,10 @@ class RefNode extends BloomNode {
 ///
 /// Usually created using the DSL sugar [ErrorBoundary].
 class ErrorBoundaryNode extends BloomNode {
+  /// Stable compiler-provided scope for signals created in its callbacks.
+  @internal
+  final String? hotReloadScopeId;
+
   /// Factory building the primary subtree.
   final BloomNode Function() builder;
 
@@ -852,6 +915,7 @@ class ErrorBoundaryNode extends BloomNode {
   const ErrorBoundaryNode({
     required this.builder,
     required this.fallback,
+    this.hotReloadScopeId,
   });
 }
 
@@ -879,6 +943,7 @@ class ErrorBoundary extends ErrorBoundaryNode {
   const ErrorBoundary({
     required super.builder,
     required super.fallback,
+    super.hotReloadScopeId,
   });
 }
 
@@ -952,6 +1017,10 @@ class Portal extends PortalNode {
 ///
 /// Usually created using the DSL sugar [Suspense].
 class SuspenseNode<T> extends BloomNode {
+  /// Stable compiler-provided scope for signals created in async builders.
+  @internal
+  final String? hotReloadScopeId;
+
   /// Async factory returning a [Future] with the resolved data of type [T].
   final Future<T> Function() resource;
 
@@ -971,6 +1040,7 @@ class SuspenseNode<T> extends BloomNode {
     required this.builder,
     required this.fallback,
     this.errorBuilder,
+    this.hotReloadScopeId,
   });
 
   /// [resource], viewed untyped as `Future<Object?> Function()`.
@@ -1021,6 +1091,7 @@ class Suspense<T> extends SuspenseNode<T> {
     required super.builder,
     required super.fallback,
     super.errorBuilder,
+    super.hotReloadScopeId,
   });
 }
 
@@ -2174,16 +2245,37 @@ class Hr extends ElNode {
 /// `<blockquote>` — section quoted from another source.
 class Blockquote extends ElNode {
   /// Creates a `<blockquote>` element descriptor.
-  Blockquote({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('blockquote');
+  Blockquote(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('blockquote');
 
   /// Const constructor for `<blockquote>`.
-  const Blockquote.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('blockquote');
+  const Blockquote.raw(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('blockquote');
 }
 
 /// `<cite>` — title of a creative work or citation reference.
 class Cite extends ElNode {
   /// Creates a `<cite>` citation descriptor.
-  const Cite({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('cite');
+  const Cite(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('cite');
 }
 
 /// `<time>` — machine-readable date/time representation.
@@ -2191,35 +2283,79 @@ class Cite extends ElNode {
 /// Use [dateTime] to specify the ISO 8601 timestamp string (maps to `datetime` attribute).
 class TimeEl extends ElNode {
   /// Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
-  TimeEl({super.text, String? dateTime, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on})
-      : super('time', attrs: _mergeAttrs(attrs, {if (dateTime != null) 'datetime': dateTime}));
+  TimeEl(
+      {super.text,
+      String? dateTime,
+      super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.children = const [],
+      super.on})
+      : super('time',
+            attrs: _mergeAttrs(
+                attrs, {if (dateTime != null) 'datetime': dateTime}));
 
   /// Const constructor for `<time>` without attribute shorthand.
-  const TimeEl.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('time');
+  const TimeEl.raw(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('time');
 }
 
 /// `<mark>` — text highlighted for reference or relevance purposes.
 class Mark extends ElNode {
   /// Creates a `<mark>` highlight descriptor.
-  const Mark({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('mark');
+  const Mark(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('mark');
 }
 
 /// `<small>` — side-comments, small print, and legal disclaimers.
 class Small extends ElNode {
   /// Creates a `<small>` fine-print descriptor.
-  const Small({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('small');
+  const Small(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('small');
 }
 
 /// `<sub>` — subscript text.
 class Sub extends ElNode {
   /// Creates a `<sub>` subscript descriptor.
-  const Sub({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sub');
+  const Sub(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('sub');
 }
 
 /// `<sup>` — superscript text.
 class Sup extends ElNode {
   /// Creates a `<sup>` superscript descriptor.
-  const Sup({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sup');
+  const Sup(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('sup');
 }
 
 /// `<abbr>` — abbreviation or acronym.
@@ -2227,32 +2363,73 @@ class Sup extends ElNode {
 /// Use [title] to provide the expanded description shown on hover.
 class Abbr extends ElNode {
   /// Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
-  Abbr({super.text, String? title, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on})
-      : super('abbr', attrs: _mergeAttrs(attrs, {if (title != null) 'title': title}));
+  Abbr(
+      {super.text,
+      String? title,
+      super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.children = const [],
+      super.on})
+      : super('abbr',
+            attrs: _mergeAttrs(attrs, {if (title != null) 'title': title}));
 
   /// Const constructor for `<abbr>` without attribute shorthand.
-  const Abbr.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('abbr');
+  const Abbr.raw(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('abbr');
 }
 
 /// `<kbd>` — keyboard input or key combination.
 class KbdEl extends ElNode {
   /// Creates a `<kbd>` keyboard input descriptor.
-  const KbdEl({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('kbd');
+  const KbdEl(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('kbd');
 }
 
 /// `<figure>` — self-contained figure content (images, charts, code blocks).
 class Figure extends ElNode {
   /// Creates a `<figure>` element descriptor.
-  Figure({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figure');
+  Figure(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('figure');
 
   /// Const constructor for `<figure>`.
-  const Figure.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('figure');
+  const Figure.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('figure');
 }
 
 /// `<figcaption>` — caption or legend for a parent `<figure>`.
 class Figcaption extends ElNode {
   /// Creates a `<figcaption>` element descriptor.
-  const Figcaption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figcaption');
+  const Figcaption(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('figcaption');
 }
 
 /// `<details>` — interactive disclosure widget.
@@ -2260,17 +2437,37 @@ class Figcaption extends ElNode {
 /// Use [open] to control whether disclosure is expanded initially.
 class Details extends ElNode {
   /// Creates a `<details>` element descriptor with [open] attribute shorthand.
-  Details({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open})
-      : super('details', attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
+  Details(
+      {super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.children = const [],
+      super.on,
+      bool? open})
+      : super('details',
+            attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
   /// Const constructor for `<details>` without attribute shorthand.
-  const Details.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('details');
+  const Details.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('details');
 }
 
 /// `<summary>` — disclosure summary or caption heading for a parent `<details>`.
 class Summary extends ElNode {
   /// Creates a `<summary>` element descriptor.
-  const Summary({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('summary');
+  const Summary(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('summary');
 }
 
 /// `<dialog>` — interactive modal or non-modal dialog window.
@@ -2278,11 +2475,24 @@ class Summary extends ElNode {
 /// Use [open] to control whether the dialog is open upon mounting.
 class Dialog extends ElNode {
   /// Creates a `<dialog>` element descriptor with [open] attribute shorthand.
-  Dialog({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open})
-      : super('dialog', attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
+  Dialog(
+      {super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.children = const [],
+      super.on,
+      bool? open})
+      : super('dialog',
+            attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
   /// Const constructor for `<dialog>` without attribute shorthand.
-  const Dialog.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('dialog');
+  const Dialog.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('dialog');
 }
 
 /// `<canvas>` — 2D and WebGL bitmap graphics surface.
@@ -2290,26 +2500,47 @@ class Dialog extends ElNode {
 /// [width] and [height] configure the coordinate space dimensions of the canvas.
 class Canvas extends ElNode {
   /// Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
-  Canvas({int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on})
-      : super('canvas', attrs: _mergeAttrs(attrs, {if (width != null) 'width': '$width', if (height != null) 'height': '$height'}));
+  Canvas(
+      {int? width,
+      int? height,
+      super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.on})
+      : super('canvas',
+            attrs: _mergeAttrs(attrs, {
+              if (width != null) 'width': '$width',
+              if (height != null) 'height': '$height'
+            }));
 
   /// Const constructor for `<canvas>` without dimension shorthands.
-  const Canvas.raw({super.className, super.style, super.attrs, super.on}) : super('canvas');
+  const Canvas.raw({super.className, super.style, super.attrs, super.on})
+      : super('canvas');
 }
 
 /// `<iframe>` — inline frame embedding an external browsing context.
 class IFrame extends ElNode {
   /// Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
-  IFrame({String? src, String? title, int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on})
-      : super('iframe', attrs: _mergeAttrs(attrs, {
-          if (src != null) 'src': src,
-          if (title != null) 'title': title,
-          if (width != null) 'width': '$width',
-          if (height != null) 'height': '$height',
-        }));
+  IFrame(
+      {String? src,
+      String? title,
+      int? width,
+      int? height,
+      super.className,
+      super.style,
+      Map<String, String>? attrs,
+      super.on})
+      : super('iframe',
+            attrs: _mergeAttrs(attrs, {
+              if (src != null) 'src': src,
+              if (title != null) 'title': title,
+              if (width != null) 'width': '$width',
+              if (height != null) 'height': '$height',
+            }));
 
   /// Const constructor for `<iframe>` without attribute shorthands.
-  const IFrame.raw({super.className, super.style, super.attrs, super.on}) : super('iframe');
+  const IFrame.raw({super.className, super.style, super.attrs, super.on})
+      : super('iframe');
 }
 
 // ── Table Elements ────────────────────────────────────────────────────
@@ -2317,52 +2548,119 @@ class IFrame extends ElNode {
 /// `<table>` — tabular data container element.
 class Table extends ElNode {
   /// Creates a `<table>` element descriptor.
-  Table({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('table');
+  Table(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('table');
 
   /// Const constructor for `<table>`.
-  const Table.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('table');
+  const Table.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('table');
 }
 
 /// `<caption>` — title or accessibility description for a parent `<table>`.
 class Caption extends ElNode {
   /// Creates a `<caption>` table description descriptor.
-  const Caption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('caption');
+  const Caption(
+      {super.text,
+      super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('caption');
 }
 
 /// `<thead>` — group of header rows in a `<table>`.
 class Thead extends ElNode {
   /// Creates a `<thead>` element descriptor.
-  Thead({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('thead');
+  Thead(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('thead');
 
   /// Const constructor for `<thead>`.
-  const Thead.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('thead');
+  const Thead.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('thead');
 }
 
 /// `<tbody>` — group of body data rows in a `<table>`.
 class Tbody extends ElNode {
   /// Creates a `<tbody>` element descriptor.
-  Tbody({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tbody');
+  Tbody(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('tbody');
 
   /// Const constructor for `<tbody>`.
-  const Tbody.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tbody');
+  const Tbody.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('tbody');
 }
 
 /// `<tfoot>` — group of summary footer rows in a `<table>`.
 class Tfoot extends ElNode {
   /// Creates a `<tfoot>` element descriptor.
-  Tfoot({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tfoot');
+  Tfoot(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('tfoot');
 
   /// Const constructor for `<tfoot>`.
-  const Tfoot.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tfoot');
+  const Tfoot.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('tfoot');
 }
 
 /// `<tr>` — row of cells in a `<table>`.
 class Tr extends ElNode {
   /// Creates a `<tr>` table row descriptor.
-  Tr({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tr');
+  Tr(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.children = const [],
+      super.on})
+      : super('tr');
 
   /// Const constructor for `<tr>`.
-  const Tr.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tr');
+  const Tr.raw(
+      {super.className,
+      super.style,
+      super.attrs,
+      super.on,
+      super.children = const []})
+      : super('tr');
 }
 
 /// `<th>` — header cell in a `<table>`.
@@ -2475,9 +2773,7 @@ class Select extends ElNode {
             if (disabled == true) 'disabled': 'disabled',
           }),
           on: _mergeEvents(on,
-              onChange: onChange,
-              onFocus: onFocus,
-              onBlur: onBlur),
+              onChange: onChange, onFocus: onFocus, onBlur: onBlur),
         );
 
   /// Const constructor for `<select>` without attribute and event shorthands.

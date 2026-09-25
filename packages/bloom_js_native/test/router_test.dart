@@ -21,6 +21,15 @@ void main() {
       expect(m.params['id'], '42');
     });
 
+    test('malformed percent escapes in path params do not throw', () {
+      final r = BloomRouter([
+        BloomRoute('/users/:id', (_) => Text('user')),
+      ]);
+
+      expect(r.match('/users/%ZZ')!.params['id'], '%ZZ');
+      expect(r.match('/users/%E0%A4%A')!.params['id'], contains('%A'));
+    });
+
     test('multiple params', () {
       final r = BloomRouter([
         BloomRoute('/posts/:postId/comments/:id', (_) => Text('c')),

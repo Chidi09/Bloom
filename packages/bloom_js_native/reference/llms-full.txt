@@ -66,6 +66,101 @@ Read-only view of reactive state.
 
 ------------------------------------------------------------------------------
 
+## _signals_browser.dart
+Availability: not exported
+
+### kMaxSignalRegistryEntries  [constant]
+```dart
+const int kMaxSignalRegistryEntries = 512
+```
+Maximum number of entries kept in the browser hot-reload signal registry.
+
+Keyed signals (see `signal(initialValue, key: ...)`) persist their latest
+value on `window` so it survives an in-page hot remount. Without a bound, a
+long dev session that repeatedly renames or removes keyed call sites would
+accumulate stale entries forever. Once this cap is exceeded, the
+least-recently-used entry is evicted; an evicted key simply falls back to
+the documented clean-reset behavior (fresh `initialValue`) on its next
+remount. Every write refreshes the key's recency, so actively updated
+signals are evicted last.
+
+### isBrowserHotReloadActive  [function]
+```dart
+bool isBrowserHotReloadActive() => isHotReloadTrackingActive()
+```
+
+### getBrowserHotEffectRegistry  [function]
+```dart
+Set<void Function()>? getBrowserHotEffectRegistry()
+```
+
+### disposeBrowserHotEffects  [function]
+```dart
+void disposeBrowserHotEffects()
+```
+Disposes user-created effects registered during a DDC dev session.
+
+The JavaScript dev bootstrap calls the installed window hook before it
+evicts and re-executes the app entry module. Mount-owned effects are already
+disposed by their mount handle; this catches top-level effects that have no
+mount region to own their cleanup.
+
+### getBrowserSignalRegistry  [function]
+```dart
+Map<String, Object?>? getBrowserSignalRegistry()
+```
+
+### storeBrowserSignalValue  [function]
+```dart
+void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
+```
+Stores [value] under [key] in the hot-reload signal [registry].
+
+The write refreshes [key]'s recency and keeps the registry bounded at
+[kMaxSignalRegistryEntries] entries: when a brand-new key overflows the
+cap, the least-recently-used entry is evicted (FIFO over Dart's insertion
+order, with re-written keys moved to the back — i.e. LRU).
+
+------------------------------------------------------------------------------
+
+## _signals_stub.dart
+Availability: not exported
+
+### kMaxSignalRegistryEntries  [constant]
+```dart
+const int kMaxSignalRegistryEntries = 512
+```
+Mirrors the browser cap (`kMaxSignalRegistryEntries` in
+`_signals_browser.dart`); unused on the VM, where the registry is always
+`null`.
+
+### isBrowserHotReloadActive  [function]
+```dart
+bool isBrowserHotReloadActive() => false
+```
+
+### getBrowserHotEffectRegistry  [function]
+```dart
+Set<void Function()>? getBrowserHotEffectRegistry() => null
+```
+
+### disposeBrowserHotEffects  [function]
+```dart
+void disposeBrowserHotEffects()
+```
+
+### getBrowserSignalRegistry  [function]
+```dart
+Map<String, Object?>? getBrowserSignalRegistry() => null
+```
+
+### storeBrowserSignalValue  [function]
+```dart
+void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
+```
+
+------------------------------------------------------------------------------
+
 ## a11y.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
@@ -909,9 +1004,9 @@ Members:
   - `bool get isExpired => DateTime.now().difference(updatedAt) > cacheTime`  -- Whether the entry has exceeded its [cacheTime] TTL relative to `DateTime.now()`.
   - `bool get shouldRevalidate =>`  -- Whether this entry is flagged as [isStale] or has exceeded its [staleTime] duration.
 
-### BloomData  [class]
+### BloomQueryScope  [class]
 ```dart
-class BloomData
+class BloomQueryScope
 ```
 Global query cache manager and request deduplicator for Bloom JS Native applications.
 
@@ -942,21 +1037,72 @@ See also:
 - [BloomQuery], the reactive query coordinator that reads from and populates [BloomData].
 - [BloomInfiniteQuery], for paginated and cursor-based infinite queries.
 - [BloomMutation], for executing mutations that invalidate or optimistically update [BloomData].
+Request-isolated query cache scope holding private SSR state.
+
+A [BloomQueryScope] owns its own cache entries, invalidation controllers,
+and in-flight deduplication trackers. Concurrent SSR requests each run in
+their own scope (via [BloomData.runWithScope] / [BloomData.withRequestScope])
+so identical keys such as `['user', 'current']` never collide across
+requests sharing one Dart isolate.
+
+The browser uses [BloomData.browserScope] implicitly. Explicitly shared
+public server data should use [BloomData.sharedPublicScope] via
+[BloomData.runWithScope] — never the per-request scope.
+
+Scopes must be disposed after the request finishes ([dispose]) to close
+broadcast controllers and drop references. [BloomData.withRequestScope]
+does this automatically, including on errors. For streaming responses,
+keep the scope alive until the stream closes or is cancelled.
 
 Members:
+  - `final String? debugLabel`  -- Optional label for debugging (e.g. `'ssr-request'`, `'browser'`).
+  - `BloomQueryScope({this.debugLabel})`  -- Creates an isolated query cache scope.
+  - `bool get isDisposed => _disposed`  -- Whether [dispose] has been called. Using a disposed scope throws.
+  - `void invalidateQueries(List<dynamic> keyPrefix)`  -- Invalidates all cached queries matching [keyPrefix] within this scope.
+  - `void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater)`  -- Directly updates cached query data for [key] within this scope.
+  - `T? getQueryData<T>(List<dynamic> key)`  -- Retrieves non-expired cached query data for [key] from this scope.
+  - `Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher)`  -- Deduplicates concurrent requests sharing [key] within this scope only.
+  - `Stream<void> onInvalidated(List<dynamic> key)`  -- Broadcast stream emitting on invalidation of [key] within this scope.
+  - `void putEntry<T>(QueryCacheEntry<T> entry)`  -- Directly inserts or overwrites a [QueryCacheEntry] in this scope.
+  - `QueryCacheEntry<T>? getEntry<T>(List<dynamic> key)`  -- Retrieves the raw [QueryCacheEntry] for [key] from this scope.
+  - `Map<String, dynamic> dehydrate({ bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, })`  -- Serializes only this scope's cache — never another request's state.
+  - `void hydrate( Map<String, dynamic> dehydratedState,`  -- Restores entries into this scope only.
+  - `String dehydrateToScriptTag({ Map<String, dynamic>? state, String id = '__BLOOM_DATA__', bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, })`  -- Serializes this scope into a safe `<script type="application/json">` tag.
+  - `void hydrateFromJson( String jsonString,`  -- Parses JSON and restores entries into this scope.
+  - `void adoptEntryFrom(BloomQueryScope source, List<dynamic> key)`  -- Copies a single entry from [source] into this scope (explicit public sharing).
+  - `void clear()`  -- Clears entries, in-flight trackers, and controllers within this scope.
+  - `void dispose()`  -- Closes controllers and drops all state. The scope must not be reused.
+
+### BloomData  [class]
+```dart
+class BloomData
+```
+
+Members:
+  - `static const Object scopeZoneKey = #bloom.queryScope`  -- Zone key carrying the current request's [BloomQueryScope].
+  - `static BloomQueryScope get currentScope =>`  -- Request scope for the current Zone, or the shared browser scope.
+  - `static BloomQueryScope? get currentScopeOrNull =>`  -- The request scope if one is active, else `null`.
+  - `static BloomQueryScope get browserScope => _browserScope`  -- Default shared scope used for ergonomic browser/test use.
+  - `static BloomQueryScope get sharedPublicScope => _sharedPublicScope`  -- Explicit opt-in shared cache for public server data.
+  - `static BloomQueryScope createScope({String? debugLabel}) =>`  -- Creates a fresh isolated scope (one per SSR request).
+  - `static R runWithScope<R>(BloomQueryScope scope, R Function() body) =>`  -- Runs [body] with [scope] as the current request scope.
+  - `static Future<T> withRequestScope<T>( FutureOr<T> Function(BloomQueryScope scope) body,`  -- Runs [body] in a fresh request scope, disposing it afterwards.
+  - `static Stream<S> withRequestScopeStream<S>( Stream<S> Function(BloomQueryScope scope) body,`  -- Variant of [withRequestScope] for `Stream` results (streaming SSR).
   - `static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':')`  -- Converts a structured key list into a normalized, canonical string key.
-  - `static void invalidateQueries(List<dynamic> keyPrefix)`  -- Invalidates all cached queries matching [keyPrefix] and notifies active [BloomQuery] subscribers.
-  - `static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater)`  -- Directly updates cached query data for [key] using a transformation [updater] callback.
-  - `static T? getQueryData<T>(List<dynamic> key)`  -- Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
-  - `static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher)`  -- Deduplicates concurrent asynchronous requests sharing the same cache [key].
-  - `static Stream<void> onInvalidated(List<dynamic> key)`  -- Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
-  - `static void putEntry<T>(QueryCacheEntry<T> entry)`  -- Directly inserts or overwrites a [QueryCacheEntry] in the cache.
-  - `static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key)`  -- Retrieves the raw [QueryCacheEntry] for [key], returning `null` if missing or expired.
-  - `static Map<String, dynamic> dehydrate({ bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, })`  -- Serializes the current [BloomData] cache into a plain, JSON-encodable Map.
-  - `static void hydrate( Map<String, dynamic> dehydratedState,`  -- Restores cache records from a [dehydratedState] Map into the [BloomData] cache.
-  - `static String dehydrateToScriptTag({ Map<String, dynamic>? state, String id = '__BLOOM_DATA__', bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, })`  -- Serializes cache state into an HTML `<script type="application/json">` tag string.
-  - `static void hydrateFromJson( String jsonString,`  -- Parses a serialized JSON string and restores the cache entries into [BloomData].
-  - `static void clear()`  -- Clears all cached query entries, active in-flight request deduplication trackers,
+  - `static bool matchesKey(List<dynamic> candidateKey, List<dynamic> prefix)`  -- Prefix-match helper shared by scopes.
+  - `static void invalidateQueries(List<dynamic> keyPrefix) =>`  -- Invalidates all cached queries matching [keyPrefix] and notifies subscribers.
+  - `static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) =>`  -- Directly updates cached query data for [key] using a transformation [updater] callback.
+  - `static T? getQueryData<T>(List<dynamic> key) => currentScope.getQueryData<T>(key)`  -- Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
+  - `static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) =>`  -- Deduplicates concurrent asynchronous requests sharing the same cache [key].
+  - `static Stream<void> onInvalidated(List<dynamic> key) =>`  -- Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
+  - `static void putEntry<T>(QueryCacheEntry<T> entry) =>`  -- Directly inserts or overwrites a [QueryCacheEntry] in the current scope.
+  - `static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) =>`  -- Retrieves the raw [QueryCacheEntry] for [key] from the current scope.
+  - `static Map<String, dynamic> dehydrate({ bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, }) =>`  -- Serializes the current request scope's cache into a plain, JSON-encodable Map.
+  - `static void hydrate( Map<String, dynamic> dehydratedState,`  -- Restores cache records from a [dehydratedState] Map into the current scope.
+  - `static String dehydrateToScriptTag({ Map<String, dynamic>? state, String id = '__BLOOM_DATA__', bool Function(QueryCacheEntry<dynamic> entry)? shouldDehydrate, dynamic Function(dynamic data, List<dynamic> key)? serialize, }) =>`  -- Serializes the current scope's state into an HTML `<script type="application/json">` tag string.
+  - `static void hydrateFromJson( String jsonString,`  -- Parses a serialized JSON string and restores entries into the current scope.
+  - `static void clear() => currentScope.clear()`  -- Clears the current scope's entries, in-flight trackers, and controllers.
+  - `static void disposeCurrentScope()`  -- Disposes the current request scope if one is active (no-op otherwise).
 
 ### BloomQuery  [class]
 ```dart
@@ -1620,6 +1766,9 @@ Members:
   - `static bool contains(String key) => _env.containsKey(key)`  -- Checks whether [key] exists in the loaded environment map.
   - `static bool has(String key) => contains(key)`  -- Checks whether [key] exists in the loaded environment map.
   - `static void clear() => _env.clear()`  -- Clears all loaded environment variables from the internal store.
+  - `static const String publicPrefix = 'BLOOM_PUBLIC_'`  -- The prefix designating environment variables that are safe for client-side web exposure.
+  - `static bool isPublic(String key) => key.startsWith(publicPrefix)`  -- Checks whether [key] is designated as client-public.
+  - `static Map<String, String> get publicVariables`  -- Returns an unmodifiable snapshot map of only the client-public environment variables.
   - `static Map<String, String> get all => UnmodifiableMapView(_env)`  -- Returns an unmodifiable snapshot map of all currently loaded environment variables.
 
 ------------------------------------------------------------------------------
@@ -2802,7 +2951,12 @@ In the browser, [ForEachNode] mounts between sentinel comments:
   keys are retained and repositioned, new keys are mounted, and removed keys
   are disposed. This preserves input focus, text selection, and internal state.
 - **Unkeyed lists (`keyFn == null`)**: When [items] updates, all existing child
-  regions between the sentinels are disposed and rebuilt from scratch.
+  regions between the sentinels are disposed and rebuilt from scratch. The
+  per-item reactive regions and their effects are dropped with them, so
+  input focus, text selection, local DOM state, and in-flight CSS
+  animations inside list items do not survive an update — even when items
+  were merely appended or reordered. Pass [keyFn] for any list that can
+  reorder, insert, or remove items.
 
 ### SSR Behavior
 During SSR (`renderToHtml`), [items] is called once synchronously and each
@@ -3024,6 +3178,13 @@ Reactive list rendering sugar.
 Renders a dynamic list of items. When [key] is supplied, enables fine-grained
 DOM reconciliation, reusing elements for unchanged keys and only updating
 insertions, deletions, and moves.
+
+### Keyless Tradeoff
+Without [key], every list update disposes and rebuilds the entire list
+region: the per-item reactive regions and effects are dropped, so input
+focus, text selection, local DOM state, and CSS animations inside items are
+lost on every update. Always pass [key] for any list that can reorder,
+insert, or remove items.
 
 ### DOM Representation
 Mounts between sentinel comments `<!-- bloom:foreach -->` and `<!-- /bloom:foreach -->`.
@@ -4240,22 +4401,26 @@ Renders a [BloomNode] descriptor tree synchronously to an HTML string.
 This is the primary server-side rendering (SSR) and static site generation (SSG) entry point.
 It executes entirely in pure Dart and requires no browser DOM, Flutter runtime, or JS interop.
 
-### Reactive Node Degradation during SSR
-- **[LiveNode] / [Live]**: Evaluates its builder closure exactly once during the render pass.
-  No signal subscriptions or reactive effect listeners are retained on the server.
-- **[ShowNode] / [Show]**: Evaluates its `when()` predicate closure once. Renders `child` if
-  true or `fallback` if false.
-- **[ForEachNode] / [ForEach]**: Evaluates its `items()` collection closure once and renders
-  each item via `builder` to static HTML.
+### Reactive Node Hydration Markers during SSR
+- **[LiveNode] / [Live]**: Evaluates its builder closure exactly once and
+  wraps the output in `<!--bloom:live-->` markers. No signal subscriptions
+  are retained on the server; the browser hydrates the existing nodes.
+- **[MemoNode] / [Memo]**: Evaluates once, wrapped in `<!--bloom:memo-->`.
+- **[ShowNode] / [Show]**: Evaluates its `when()` predicate once, renders
+  the active branch wrapped in `<!--bloom:show-->` markers.
+- **[ForEachNode] / [ForEach]**: Evaluates its `items()` collection once.
+  Keyed lists wrap each item in `<!--bloom:key=<key>-->` markers inside a
+  `<!--bloom:foreach-->` boundary so hydration can reconcile by key.
+- **[ErrorBoundaryNode]**: Renders `builder()` wrapped in
+  `<!--bloom:error-boundary-->`; on exception renders `fallback` instead.
+- **[SuspenseNode]**: In synchronous [renderToHtml], renders the `fallback`
+  wrapped in `<!--bloom:suspense-->` markers.
+  For asynchronous out-of-order streaming of Suspense boundaries, use [renderToStreamWithSuspense].
 - **[MountNode] / [Mount]**: Renders its `child` directly; lifecycle callbacks (`onMount`,
-  `onUnmount`) are ignored during SSR.
+  `onUnmount`) are ignored during SSR (hydration runs `onMount`).
 - **[RefNode]**: Renders its `child`; DOM references are not attached during SSR.
 - **[ContextProviderNode]**: Provides ambient context values down the subtree using Dart Zones.
-- **[ErrorBoundaryNode]**: Renders `builder()`; if an exception is thrown, synchronously renders
-  `fallback(error, stack)`.
 - **[PortalNode]**: Emits `<template data-bloom-portal="...">` enclosing the portal subtree.
-- **[SuspenseNode]**: In synchronous [renderToHtml], renders the `fallback` node only.
-  For asynchronous out-of-order streaming of Suspense boundaries, use [renderToStreamWithSuspense].
 
 ### Tag and Attribute Validation & Security
 - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
@@ -4321,7 +4486,7 @@ final html = renderToDocument(
 
 ### renderToStream  [function]
 ```dart
-Stream<String> renderToStream(BloomNode node) async*
+Stream<String> renderToStream(BloomNode node)
 ```
 Synchronously renders [node] to an HTML string and streams the output in fixed 4KB chunks.
 
@@ -4338,7 +4503,7 @@ await for (final chunk in renderToStream(App())) {
 
 ### renderToStreamWithSuspense  [function]
 ```dart
-Stream<String> renderToStreamWithSuspense(BloomNode node) async*
+Stream<String> renderToStreamWithSuspense(BloomNode node)
 ```
 Progressively streams HTML with out-of-order resolution for asynchronous [Suspense] boundaries.
 
@@ -4370,6 +4535,82 @@ await for (final chunk in stream) {
   httpResponse.write(chunk);
 }
 ```
+
+### runSsrRequest  [function]
+```dart
+Future<T> runSsrRequest<T>( FutureOr<T> Function(BloomQueryScope scope) body,
+```
+Runs [body] in an isolated SSR request scope, disposing it afterwards.
+
+This is the recommended per-request wrapper for native SSR servers. It
+covers synchronous and `Future` results, including errors: the owned
+scope is disposed exactly once on success or throw. For `Stream` results
+(streaming SSR), use [runSsrRequestStream] so the scope survives until
+the stream closes, errors, or is cancelled.
+
+```dart
+final html = await runSsrRequest((scope) async {
+  BloomData.setQueryData(['user', 'current'], (_) => alice);
+  final html = renderToHtml(page());
+  final state = BloomData.dehydrate();
+  return '$html${BloomData.dehydrateToScriptTag(state: state)}';
+});
+```
+
+### runSsrRequestStream  [function]
+```dart
+Stream<S> runSsrRequestStream<S>( Stream<S> Function(BloomQueryScope scope) body,
+```
+Variant of [runSsrRequest] for streaming responses.
+
+Keeps the request scope alive until the returned stream closes, errors,
+or the subscriber cancels (covers streaming, errors, and cancellation).
+
+### renderToHtmlInScope  [function]
+```dart
+String renderToHtmlInScope(BloomNode node, BloomQueryScope scope) =>
+```
+Renders [node] reusing [scope] as the ambient query cache.
+
+### renderToHtmlAllInScope  [function]
+```dart
+String renderToHtmlAllInScope(List<BloomNode> nodes, BloomQueryScope scope) =>
+```
+Renders [nodes] reusing [scope] as the ambient query cache.
+
+### renderToDocumentInScope  [function]
+```dart
+String renderToDocumentInScope( BloomNode body,
+```
+Renders a full document reusing [scope] as the ambient query cache.
+
+### renderToStreamInScope  [function]
+```dart
+Stream<String> renderToStreamInScope(BloomNode node, BloomQueryScope scope) =>
+```
+Chunked streaming render reusing [scope] (caller owns lifetime).
+
+### renderToStreamWithSuspenseInScope  [function]
+```dart
+Stream<String> renderToStreamWithSuspenseInScope( BloomNode node, BloomQueryScope scope) =>
+```
+Suspense streaming render reusing [scope] (caller owns lifetime).
+
+Async Suspense continuations inherit the scope zone, so late-resolved
+patches stay request-local.
+
+### renderToStreamWithSuspenseScoped  [function]
+```dart
+Stream<String> renderToStreamWithSuspenseScoped( BloomNode node,
+```
+Owned-scope suspense streaming: creates a request scope if the caller is
+not already scoped, and disposes it when the stream closes/errors/cancels.
+
+### renderToStreamScoped  [function]
+```dart
+Stream<String> renderToStreamScoped( BloomNode node,
+```
+Owned-scope chunked streaming with disposal bound to stream lifecycle.
 
 ------------------------------------------------------------------------------
 
@@ -4505,32 +4746,40 @@ void main() {
 
 ### hydrateElement  [function]
 ```dart
-BloomMountHandle hydrateElement(BloomNode root, web.Element element)
+BloomMountHandle hydrateElement( BloomNode root, web.Element element,
 ```
 Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
 
-Walks the existing DOM children in lockstep with the [root] descriptor tree, attaching
-event listeners and syncing attributes without destroying and recreating existing DOM nodes.
+Matches SSR boundary markers (`<!--bloom:live-->`, `<!--bloom:show-->`,
+`<!--bloom:foreach-->` with `<!--bloom:key=...-->` items, `<!--bloom:memo-->`,
+`<!--bloom:error-boundary-->`, `<!--bloom:suspense-->`, and streaming
+`<div id="bloom-suspense-N">` shells) to the [root] descriptor tree and
+attaches reactive behavior to the existing DOM nodes. Signal updates after
+hydration patch the adopted nodes; pre-hydration input values, focus, and
+text selection are preserved.
 
-### Hydration Eligibility
-True in-place hydration is performed when [root] consists exclusively of static nodes:
-- **Supported static nodes**: [TextNode] (or [Text]), [ElNode] (e.g. `Div`, `Button`, `Span`),
-  [SvgNode], [FragmentNode] (or [Fragment]), [RawHtmlNode], and [StyleNode].
-- **Unsupported reactive/sentinel nodes**: [LiveNode] (or [Live]), [ShowNode] (or [Show]),
-  [ForEachNode] (or [ForEach]), [MountNode] (or [Mount]), [RefNode], [AnimatedNode]
-  (or [Animated]), [ContextProviderNode], [ErrorBoundaryNode], [PortalNode], and
-  [SuspenseNode] (or [Suspense]).
+### Supported nodes
+Static nodes ([TextNode], [ElNode] incl. `SvgNode`, [FragmentNode],
+[RawHtmlNode], [StyleNode]) hydrate in place. Reactive boundaries
+([LiveNode], [MemoNode], [ShowNode], keyed and unkeyed [ForEachNode],
+[SuspenseNode], [ErrorBoundaryNode]) hydrate inside their SSR markers and
+stay reactive. Transparent wrappers ([ContextProviderNode], [MountNode]
+which fires `onMount`, [RefNode] which attaches, [AnimatedNode]) hydrate
+through to their content.
 
-### Mismatch Handling & Fallback
-A hydration mismatch occurs when:
-1. The descriptor tree contains any non-static/reactive node.
-2. A DOM node's tag name does not match the descriptor's tag (e.g. `<p>` vs `<div>`).
-3. A DOM node type differs from the expected descriptor (e.g. Element vs Text node).
-4. Child counts differ between the descriptor tree and the actual DOM.
+### Mismatch handling
+Each mismatch recovers at the smallest marker-delimited boundary (clear +
+remount inside that boundary) and is reported as a [HydrationMismatch]
+through `onMismatch`, [bloomHydrationMismatchHandler], and DevTools.
+Only a root-level structural mismatch falls back to clearing [element]
+and doing a clean full mount via [mountToElement]. Pass [onMismatch] to
+observe diagnostics in development.
 
-When a mismatch occurs, [hydrateElement] performs no destructive partial updates. Instead,
-it safely clears [element] (`element.textContent = ''`) and falls back to a clean full mount
-via [mountToElement].
+### Remaining full-remount cases
+Markerless legacy SSR output that no longer matches positionally, portal
+`<template>` content (remounted into its target; surrounding DOM is kept),
+and Suspense resolved-before-hydrate content (remounted as a live Suspense
+region; dehydrated query caches resolve it instantly).
 
 ```dart
 final container = web.document.getElementById('content')!;
@@ -4548,6 +4797,186 @@ final handle = hydrateElement(
   container,
 );
 ```
+
+------------------------------------------------------------------------------
+
+## hydration_contract.dart
+Availability: core (package:bloom_js_native/bloom_js_native.dart)
+
+### hydrationMarkerLive  [constant]
+```dart
+const String hydrationMarkerLive = 'bloom:live'
+```
+Boundary label for [LiveNode].
+
+### hydrationMarkerMemo  [constant]
+```dart
+const String hydrationMarkerMemo = 'bloom:memo'
+```
+Boundary label for [MemoNode].
+
+### hydrationMarkerShow  [constant]
+```dart
+const String hydrationMarkerShow = 'bloom:show'
+```
+Boundary label for [ShowNode].
+
+### hydrationMarkerForEach  [constant]
+```dart
+const String hydrationMarkerForEach = 'bloom:foreach'
+```
+Boundary label for [ForEachNode].
+
+### hydrationMarkerErrorBoundary  [constant]
+```dart
+const String hydrationMarkerErrorBoundary = 'bloom:error-boundary'
+```
+Boundary label for [ErrorBoundaryNode].
+
+### hydrationMarkerSuspense  [constant]
+```dart
+const String hydrationMarkerSuspense = 'bloom:suspense'
+```
+Boundary label for [SuspenseNode] in synchronous SSR output.
+
+### hydrationMarkerKeyPrefix  [constant]
+```dart
+const String hydrationMarkerKeyPrefix = 'bloom:key='
+```
+Marker label prefix for keyed `ForEach` items (`bloom:key=<escaped>`).
+
+### hydrationMarkerKeyClose  [constant]
+```dart
+const String hydrationMarkerKeyClose = '/bloom:key'
+```
+Closing marker label prefix for keyed `ForEach` items.
+
+### ssrOpenMarker  [function]
+```dart
+String ssrOpenMarker(String label) => '<!--$label-->'
+```
+Opening SSR marker comment for boundary [label].
+
+```dart
+ssrOpenMarker('bloom:live') // '<!--bloom:live-->'
+```
+
+### ssrCloseMarker  [function]
+```dart
+String ssrCloseMarker(String label) => '<!--/$label-->'
+```
+Closing SSR marker comment for boundary [label].
+
+```dart
+ssrCloseMarker('bloom:live') // '<!--/bloom:live-->'
+```
+
+### ssrKeyOpenMarker  [function]
+```dart
+String ssrKeyOpenMarker(String key) =>
+```
+Opening SSR marker for a keyed `ForEach` item with [key].
+
+### ssrKeyCloseMarker  [function]
+```dart
+String ssrKeyCloseMarker() => '<!--$hydrationMarkerKeyClose-->'
+```
+Closing SSR marker for a keyed `ForEach` item.
+
+### normalizeMarkerData  [function]
+```dart
+String normalizeMarkerData(String data) => data.trim()
+```
+Normalizes raw comment [data] for marker comparison.
+
+Trims whitespace so SSR output (`bloom:live`) and mount sentinels
+(` bloom:live `) match identically.
+
+### isMarkerOpen  [function]
+```dart
+bool isMarkerOpen(String data, String label) =>
+```
+Whether normalized comment [data] opens boundary [label].
+
+### isMarkerClose  [function]
+```dart
+bool isMarkerClose(String data, String label) =>
+```
+Whether normalized comment [data] closes boundary [label].
+
+### parseKeyMarker  [function]
+```dart
+String? parseKeyMarker(String data)
+```
+Extracts the escaped key from a `bloom:key=<escaped>` marker, or `null`.
+
+### isKeyMarkerClose  [function]
+```dart
+bool isKeyMarkerClose(String data) =>
+```
+Whether normalized comment [data] closes a keyed item marker.
+
+### escapeHydrationKey  [function]
+```dart
+String escapeHydrationKey(String key)
+```
+Escapes an item [key] for embedding in an HTML comment marker.
+
+Keys using `[A-Za-z0-9_:.~-]` pass through verbatim for readability.
+Anything else (spaces, `--`, `<`, `>`, unicode) is base64url-encoded with
+a `b64:` prefix so markers can never break out of the comment.
+
+### unescapeHydrationKey  [function]
+```dart
+String unescapeHydrationKey(String escaped)
+```
+Reverses [escapeHydrationKey].
+
+### suspenseStreamId  [function]
+```dart
+String suspenseStreamId(int index) => 'bloom-suspense-$index'
+```
+Streaming Suspense placeholder element id for boundary [index].
+
+```dart
+suspenseStreamId(0) // 'bloom-suspense-0'
+```
+
+### suspenseClaimedAttribute  [constant]
+```dart
+const String suspenseClaimedAttribute = 'data-bloom-ssr-suspense'
+```
+Attribute hydration sets on a claimed streaming Suspense shell.
+
+When hydration claims `<div id="bloom-suspense-N">`, it moves the id to
+this attribute so a late-arriving server patch script
+(`document.getElementById("bloom-suspense-N")`, null-guarded) safely
+no-ops instead of destroying hydrated listeners and effects. The client
+Suspense region re-runs its own `resource` and patches itself on resolve.
+
+### HydrationMismatch  [class]
+```dart
+class HydrationMismatch
+```
+Describes a single hydration mismatch and the recovery applied.
+
+Reported through the hydration mismatch handler and DevTools instead of
+throwing, so one bad boundary never breaks the whole page.
+
+Members:
+  - `final String path`  -- Slash-separated descriptor path, e.g. `Div[1]/LiveNode/P`.
+  - `final String boundary`  -- Nearest marker-delimited boundary, e.g. `bloom:live`, or `'root'`.
+  - `final String expected`  -- What hydration expected, e.g. `element <p>`.
+  - `final String actual`  -- What the DOM actually held, e.g. `element <div>` or `missing marker`.
+  - `final String recovery`  -- Recovery taken, e.g. `remounted boundary` or `remounted target`.
+  - `const HydrationMismatch({ required this.path, required this.boundary, required this.expected, required this.actual, required this.recovery, })`  -- Creates a hydration mismatch record.
+  - `String toString() => formatHydrationMismatch(this)`
+
+### formatHydrationMismatch  [function]
+```dart
+String formatHydrationMismatch(HydrationMismatch mismatch) =>
+```
+Formats [mismatch] as a single-line development diagnostic.
 
 ------------------------------------------------------------------------------
 
@@ -4612,10 +5041,10 @@ See also:
 - [formatDateTime], which combines date styles with localized time strings.
 
 Members:
-  - `short, /// Medium abbreviated date representation (e.g. `"Aug 23, 2026"`, `"23 août 2026"`, `"23. Aug. 2026"`). medium, /// Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`). long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// ### Limitations vs Full CLDR /// This is a lightweight, pure-Dart implementation covering major language families /// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese, /// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering /// systems (e.g. eastern Arabic-Indic numerals). /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Short compact date representation (e.g. `"8/23/2026"`, `"23/08/2026"`, `"23.08.2026"`).
-  - `medium, /// Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`). long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// ### Limitations vs Full CLDR /// This is a lightweight, pure-Dart implementation covering major language families /// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese, /// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering /// systems (e.g. eastern Arabic-Indic numerals). /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Medium abbreviated date representation (e.g. `"Aug 23, 2026"`, `"23 août 2026"`, `"23. Aug. 2026"`).
-  - `long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// ### Limitations vs Full CLDR /// This is a lightweight, pure-Dart implementation covering major language families /// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese, /// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering /// systems (e.g. eastern Arabic-Indic numerals). /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`).
-  - `full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// ### Limitations vs Full CLDR /// This is a lightweight, pure-Dart implementation covering major language families /// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese, /// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering /// systems (e.g. eastern Arabic-Indic numerals). /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`).
+  - `short, /// Medium abbreviated date representation (e.g. `"Aug 23, 2026"`, `"23 août 2026"`, `"23. Aug. 2026"`). medium, /// Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`). long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// Uses `package:intl` locale data, including locale-specific grouping and /// numbering patterns. An unrecognized locale falls back to Bloom's small /// built-in formatter. /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Short compact date representation (e.g. `"8/23/2026"`, `"23/08/2026"`, `"23.08.2026"`).
+  - `medium, /// Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`). long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// Uses `package:intl` locale data, including locale-specific grouping and /// numbering patterns. An unrecognized locale falls back to Bloom's small /// built-in formatter. /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Medium abbreviated date representation (e.g. `"Aug 23, 2026"`, `"23 août 2026"`, `"23. Aug. 2026"`).
+  - `long, /// Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`). full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// Uses `package:intl` locale data, including locale-specific grouping and /// numbering patterns. An unrecognized locale falls back to Bloom's small /// built-in formatter. /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Long full-month date representation (e.g. `"August 23, 2026"`, `"23 août 2026"`, `"23. August 2026"`).
+  - `full, } /// Formats a [num] value with locale-aware grouping and decimal separators in pure Dart. /// /// Formats integers and floating point numbers according to language conventions, /// using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decimal /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active /// [BloomI18n.instance.locale] signal value. /// /// Uses `package:intl` locale data, including locale-specific grouping and /// numbering patterns. An unrecognized locale falls back to Bloom's small /// built-in formatter. /// /// ```dart /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89" /// formatNumber(1234567.89, locale: 'de-DE'); // "1.234.567,89" /// formatNumber(1234567.89, locale: 'fr-FR'); // "1 234 567,89" /// ``` /// /// See also: /// - [formatPercent], for formatting percentage values. /// - [formatCurrency], for currency formatting. /// - [localizedNumber], convenience top-level shorthand. String formatNumber( num value,`  -- Complete full date including weekday name (e.g. `"Sunday, August 23, 2026"`).
 
 ### formatNumber  [function]
 ```dart
@@ -4628,11 +5057,9 @@ using appropriate thousand separators (`","`, `"."`, `" "`, or `"٬"`) and decim
 points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active
 [BloomI18n.instance.locale] signal value.
 
-### Limitations vs Full CLDR
-This is a lightweight, pure-Dart implementation covering major language families
-(English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese,
-Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering
-systems (e.g. eastern Arabic-Indic numerals).
+Uses `package:intl` locale data, including locale-specific grouping and
+numbering patterns. An unrecognized locale falls back to Bloom's small
+built-in formatter.
 
 ```dart
 formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89"
@@ -4698,9 +5125,8 @@ Supports named [style] presets ([DateFormatStyle.short], [DateFormatStyle.medium
 [DateFormatStyle.long], [DateFormatStyle.full]) or custom [pattern] tokens (`yyyy`, `yy`,
 `MMMM`, `MMM`, `MM`, `M`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `ss`, `a`).
 
-### Limitations vs Full CLDR
-Includes hand-rolled month and day translations for English, French, German, and Spanish.
-For unsupported languages, month and weekday names fallback to English.
+Uses `package:intl` date symbols and patterns for supported locales. An
+unrecognized locale falls back to Bloom's small built-in formatter.
 
 ```dart
 final date = DateTime(2026, 8, 23);
@@ -4746,7 +5172,10 @@ Formats relative time intervals (e.g. "just now", "5 minutes ago", "in 2 hours",
 Evaluates [date] relative to [relativeTo] (which defaults to `DateTime.now()`).
 If [numeric] is `true`, produces numeric representations like `"1 day ago"` instead of `"yesterday"`.
 
-Supports translations for English, French, German, Spanish, Japanese, and Chinese, falling back to English.
+Supports the built-in English, French, German, Spanish, Japanese, and
+Chinese phrasing plus the locale messages listed in [supportedRelativeTimeLocales].
+Unsupported locales fall back to English. The formatter is pure Dart, so
+server-rendered and browser-rendered text use the same locale messages.
 
 ```dart
 final fiveMinAgo = DateTime.now().subtract(const Duration(minutes: 5));
@@ -4758,6 +5187,14 @@ See also:
 - [BloomDateTimeClientI18n.toLocalizedRelativeTime], extension method on [DateTime].
 - [localizedRelativeTime], top-level convenience shorthand.
 
+### supportedRelativeTimeLocales  [constant]
+```dart
+const supportedRelativeTimeLocales = <String>
+```
+Locale tags supported by the pure-Dart relative-time formatter.
+Region subtags are accepted for the matching language; `pt` uses Brazilian
+Portuguese messages, and `no` defaults to Norwegian Bokmål.
+
 ### BloomDateTimeClientI18n  [extension]
 ```dart
 extension BloomDateTimeClientI18n on DateTime
@@ -4765,8 +5202,8 @@ extension BloomDateTimeClientI18n on DateTime
 Convenience internationalization extension on [DateTime] for localized formatting.
 
 Members:
-  - `String toLocalizedDate({String? locale, String? pattern, DateFormatStyle? style}) =>`  -- Formats this date as a localized date string.
-  - `String toLocalizedDateTime({String? locale, String? pattern, DateFormatStyle? style}) =>`  -- Formats this date as a localized date and time string.
+  - `String toLocalizedDate(`  -- Formats this date as a localized date string.
+  - `String toLocalizedDateTime(`  -- Formats this date as a localized date and time string.
   - `String toLocalizedRelativeTime({DateTime? relativeTo, String? locale}) =>`  -- Formats this date as a relative time string (e.g. "5 minutes ago").
 
 ### BloomTextDirection  [enum]
@@ -5145,7 +5582,7 @@ See also:
 
 ### loadLocale  [function]
 ```dart
-Future<bool> loadLocale(String locale) =>
+Future<bool> loadLocale(String locale) => BloomI18n.instance.loadLocale(locale)
 ```
 Asynchronously loads a catalog bundle for [locale] via [BloomI18n.instance].
 
@@ -6126,6 +6563,43 @@ void main() {
 }
 ```
 
+### bloomHotReloadTrackingEnabled  [function]
+```dart
+bool bloomHotReloadTrackingEnabled = false
+```
+When `true`, active mounted applications ([BloomMountHandle]) are tracked to enable
+clean in-page teardown and remounting during hot reload development cycles.
+
+Intended to be enabled in development environments (e.g. by `bloom js dev --experimental-ddc`
+or dev bootstrap scripts) to support fast in-page hot remounting without full page navigation.
+Defaults to `false` in production builds.
+
+```dart
+void main() {
+  bloomHotReloadTrackingEnabled = true;
+  mount(App(), '#app');
+}
+```
+
+### isHotReloadTrackingActive  [function]
+```dart
+bool isHotReloadTrackingActive()
+```
+Determines whether hot-reload active-mount tracking is currently active.
+
+Returns `true` if [bloomHotReloadTrackingEnabled] was explicitly set in Dart or if the
+DDC dev bootstrap script injected the `window.__BLOOM_DDC_HOT_REMOUNT__` marker.
+
+### bloomDisposeActiveMount  [function]
+```dart
+void bloomDisposeActiveMount()
+```
+Disposes the currently active mounted application tracked by development hot reload,
+tearing down its DOM elements, disposing all reactive signal effects, and clearing
+the active mount handle reference.
+
+Called automatically by the browser dev bootstrap script during DDC hot remount cycles.
+
 ### bloomStyleNonce  [function]
 ```dart
 String? bloomStyleNonce
@@ -6241,6 +6715,38 @@ attachBloomListener(button, 'click', (event) {
   print('Button clicked with type: ${event.type}');
 });
 ```
+
+### HydrationMismatchHandler  [typedef]
+```dart
+typedef HydrationMismatchHandler = void Function(HydrationMismatch mismatch)
+```
+Reports a [HydrationMismatch] observed while hydrating.
+
+### bloomHydrationMismatchHandler  [function]
+```dart
+HydrationMismatchHandler? bloomHydrationMismatchHandler
+```
+Global mismatch handler invoked alongside any per-call `onMismatch`.
+Null by default (mismatches still reach DevTools).
+
+### bloomHydrationPreserveFormState  [function]
+```dart
+bool bloomHydrationPreserveFormState = true
+```
+When `true` (default), hydration preserves pre-hydration form-control
+state: `value`/`checked` attributes from SSR never overwrite what the
+user typed, checked, or selected before hydration ran. Conflicts are
+reported as mismatches with recovery `preserved pre-hydration input`.
+
+### hydrateToElement  [function]
+```dart
+BloomMountHandle hydrateToElement( BloomNode root, web.Element container,
+```
+Hydrates server-rendered DOM inside [container] against [root].
+
+Attaches listeners, refs, lifecycle hooks, and reactive regions to the
+existing nodes. Falls back to a clean full mount (previous behavior) only
+when the root structure itself mismatches.
 
 ------------------------------------------------------------------------------
 
@@ -6692,6 +7198,92 @@ final binding = realtimeBinding(client);
 
 ------------------------------------------------------------------------------
 
+## realtime_browser.dart
+Availability: browser-only (package:bloom_js_native/browser.dart)
+
+### defaultRealtimeInitialReconnectDelay  [constant]
+```dart
+const Duration defaultRealtimeInitialReconnectDelay = Duration(milliseconds: 500)
+```
+Default initial reconnection delay before the first retry attempt (500ms).
+
+### defaultRealtimeMaxReconnectDelay  [constant]
+```dart
+const Duration defaultRealtimeMaxReconnectDelay = Duration(seconds: 30)
+```
+Default maximum delay ceiling for exponential reconnection backoff (30s).
+
+### defaultRealtimeBackoffMultiplier  [constant]
+```dart
+const double defaultRealtimeBackoffMultiplier = 1.5
+```
+Default exponential backoff multiplier applied on consecutive reconnection failures.
+
+### defaultRealtimePingInterval  [constant]
+```dart
+const Duration defaultRealtimePingInterval = Duration(seconds: 30)
+```
+Default keep-alive heartbeat ping interval (30s).
+
+### BrowserRealtimeClient  [class]
+```dart
+class BrowserRealtimeClient implements BloomRealtimeChannelClient
+```
+Browser-only [BloomRealtimeChannelClient] backed by native browser WebSockets (`package:web`).
+
+Implements resilient, multiplexed realtime communication for Bloom JS Native applications:
+- Channel subscription multiplexing (multiple calls to [subscribe] share one underlying socket subscription).
+- Automatic presence tracking with snapshots, joins, and leaves.
+- Heartbeat ping/pong keep-alives (automatically replies to server pings with pong frames).
+- Bounded exponential backoff reconnection with jitter on unexpected socket disconnects.
+- Automatic channel and presence re-subscription upon reconnecting.
+
+### VM / SSR Safety
+This class requires browser WebSocket APIs and must only be imported in client-side code
+via `package:bloom_js_native/browser.dart`. Do not import in server-side rendering (SSR) code.
+
+### Example
+```dart
+final client = BrowserRealtimeClient(
+  uri: Uri.parse('wss://api.example.com/ws'),
+);
+
+final binding = BloomRealtimeBinding(client: client);
+await client.connect();
+
+final chatMessages = binding.channel('chat:general');
+final activeUsers = binding.presence('chat:general', userInfo: {'name': 'Alice'});
+```
+
+Members:
+  - `final Uri uri`  -- Target WebSocket server endpoint URI.
+  - `final Duration initialReconnectDelay`  -- Initial reconnection delay before the first retry attempt.
+  - `final Duration maxReconnectDelay`  -- Maximum ceiling on reconnection delay.
+  - `final double backoffMultiplier`  -- Exponential backoff multiplier applied on each consecutive failed reconnection attempt.
+  - `final bool autoReconnect`  -- Whether to automatically reconnect when the connection drops unexpectedly.
+  - `final Duration pingInterval`  -- Interval at which heartbeat ping keep-alive messages are sent.
+  - `final List<String>? protocols`  -- Optional WebSocket sub-protocols to negotiate with the server.
+  - `BrowserRealtimeClient({ required this.uri, this.initialReconnectDelay = defaultRealtimeInitialReconnectDelay, this.maxReconnectDelay = defaultRealtimeMaxReconnectDelay, this.backoffMultiplier = defaultRealtimeBackoffMultiplier, this.autoReconnect = true, this.pingInterval = defaultRealtimePingInterval, this.protocols, })`  -- Creates a [BrowserRealtimeClient] connecting to [uri].
+  - `RealtimeConnectionState get state => _state`
+  - `Stream<RealtimeConnectionState> get onStateChanged => _stateController.stream`
+  - `bool get isConnected => _state == RealtimeConnectionState.connected`  -- Whether the client is currently connected to the server.
+  - `Future<void> connect() async`  -- Explicitly initiates connection to the WebSocket server.
+  - `Stream<Map<String, dynamic>> subscribe(String channelName)`  -- Subscribes to [channelName] and returns a broadcast stream of message payloads.
+  - `void unsubscribe(String channelName)`  -- Unsubscribes from [channelName], closing its local broadcast controller
+  - `Stream<List<Map<String, dynamic>>> joinPresence( String channelName, Map<String, dynamic> userInfo, )`  -- Joins presence in [channelName] publishing [userInfo] metadata.
+  - `void leavePresence(String channelName)`  -- Leaves presence in [channelName], removing local presence state and sending
+  - `void broadcast(String channelName, Map<String, dynamic> payload)`  -- Broadcasts a [payload] map to [channelName].
+  - `bool send(RealtimeMessage message)`  -- Sends a raw [RealtimeMessage] envelope across the WebSocket connection.
+  - `void dispose()`  -- Closes the socket, cancels reconnect and ping timers, closes all broadcast controllers,
+
+### browserRealtimeClient  [function]
+```dart
+BrowserRealtimeClient browserRealtimeClient({ required Uri uri, Duration initialReconnectDelay = defaultRealtimeInitialReconnectDelay, Duration maxReconnectDelay = defaultRealtimeMaxReconnectDelay, double backoffMultiplier = defaultRealtimeBackoffMultiplier, bool autoReconnect = true, Duration pingInterval = defaultRealtimePingInterval, List<String>? protocols, }) =>
+```
+Convenience factory for creating a [BrowserRealtimeClient].
+
+------------------------------------------------------------------------------
+
 ## reducer.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
@@ -6859,6 +7451,36 @@ Members:
   - `final String? redirectPath`  -- Target path to redirect to when navigation is disallowed.
   - `factory GuardResult.allow() => const GuardResult._(isAllowed: true)`  -- Creates a guard result permitting navigation to proceed.
   - `factory GuardResult.redirect(String path) =>`  -- Creates a guard result that cancels the current navigation and redirects to [path].
+  - `factory GuardResult.deny() => const GuardResult._(isAllowed: false)`  -- Creates a guard result that blocks navigation without redirecting.
+
+### GuardResolution  [class]
+```dart
+class GuardResolution
+```
+Outcome of [BloomRouter.resolveRedirects] after following guard redirects.
+
+Members:
+  - `final String location`  -- The final location guards settled on (redirect targets applied).
+  - `final BloomRouteMatch? match`  -- The route match for [location], or `null` when nothing matched.
+  - `final bool blocked`  -- Whether a guard blocked navigation without offering a redirect target.
+  - `const GuardResolution({ required this.location, required this.match, this.blocked = false, })`
+  - `factory GuardResolution.noMatch(String location) =>`  -- Resolution for a location with no matching route.
+
+### BloomRedirectLoopException  [class]
+```dart
+class BloomRedirectLoopException implements Exception
+```
+Thrown by [BloomRouter.resolveRedirects] when guard redirects loop.
+
+Records the visited [chain] and the [offendingTarget] that revisited a
+location (or exceeded the hop budget), e.g. route A redirecting to B
+while B redirects back to A.
+
+Members:
+  - `final List<String> chain`  -- Locations visited before the loop was detected, in order.
+  - `final String offendingTarget`  -- The redirect target that closed the loop or broke the hop budget.
+  - `const BloomRedirectLoopException(this.chain, this.offendingTarget)`
+  - `String toString() =>`
 
 ### PrefetchMode  [enum]
 ```dart
@@ -7108,6 +7730,7 @@ Members:
   - `Future<void> prefetchRoute(String path) async`  -- Prefetches route data and lazily-loaded components for [path] using this router instance.
   - `BloomRouteMatch? match(String path)`  -- Matches [path] against registered routes.
   - `Future<GuardResult> evaluateGuards( BloomRoute route, String location, Map<String, String> params, ) async`  -- Evaluates all navigation guards attached to [route] in sequential order.
+  - `Future<GuardResolution> resolveRedirects( String location,`  -- Follows guard redirects for [location] until navigation is allowed.
 
 ### Link  [class]
 ```dart
@@ -7974,6 +8597,42 @@ BloomNode submitButton(bool isDisabled) => Button(
 ## signals.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
+### BloomEffectCallback  [typedef]
+```dart
+typedef BloomEffectCallback = dynamic Function()
+```
+Callback type accepted by [effect]. The result is ignored by the effect
+engine, so callbacks may return any value.
+
+### signal  [function]
+```dart
+s.Signal<T> signal<T>(T initialValue,
+```
+Creates a reactive [Signal] container initialized to [initialValue].
+
+When hot-reload tracking is active and a non-null [key] is supplied,
+the signal's value survives in-page module re-executions across hot remounts.
+
+If the stored value type does not match [T], the signal cleanly resets to [initialValue].
+
+The browser-side registry backing keyed signals is bounded at
+[kMaxSignalRegistryEntries] entries with least-recently-used eviction, so a
+long dev session cannot grow it without limit; an evicted key simply resets
+to [initialValue] on its next remount. Zero overhead when no key is given or
+tracking is inactive.
+
+### effect  [function]
+```dart
+void Function() effect( BloomEffectCallback compute,
+```
+Runs [compute] reactively and returns a function that stops the effect.
+
+While Bloom DDC hot-reload tracking is active, the returned cleanup is also
+registered for disposal before the next in-page remount. This prevents
+top-level effects from continuing to observe stale signals after their
+module is re-executed. Outside that dev mode this delegates directly to
+`signals_core`.
+
 ### readonly  [function]
 ```dart
 s.ReadonlySignal<T> readonly<T>(s.Signal<T> signal)
@@ -8327,6 +8986,15 @@ Members:
 ## web_components.dart
 Availability: browser-only (package:bloom_js_native/browser.dart)
 
+### bloomScriptNonce  [function]
+```dart
+String? bloomScriptNonce
+```
+CSP nonce for the short registration script inserted by [defineCustomElement].
+Set this to the nonce in the response's `script-src` policy before registering
+custom elements. Unlike `eval`, a nonce-bearing script works without
+`unsafe-eval` or `unsafe-inline`.
+
 ### dartToJsValue  [function]
 ```dart
 JSAny? dartToJsValue(Object? value)
@@ -8585,8 +9253,10 @@ Bloom subtree into an internal wrapper `<div style="display: contents;">` to mai
 and DOM encapsulation. Set `useShadowDom: false` to mount directly into the light DOM of the host element.
 
 ### Browser-Only Execution
-[defineCustomElement] requires the browser's `customElements` registry, `window`, and JavaScript
-evaluation. It does not execute during Server-Side Rendering (`renderToHtml`).
+[defineCustomElement] requires the browser's `customElements` registry and
+`window`. It does not execute during Server-Side Rendering (`renderToHtml`).
+For a strict Content Security Policy, set [bloomScriptNonce] to the nonce
+permitted by `script-src` before calling this function.
 
 ```dart
 void main() {
@@ -8647,6 +9317,7 @@ void main() {
   BloomData -> data.dart
   BloomDateTimeClientI18n -> i18n.dart
   BloomDevToolsEvent -> devtools.dart
+  BloomEffectCallback -> signals.dart
   BloomEnv -> env.dart
   BloomEnvironmentException -> env.dart
   BloomEnvironmentSchema -> env.dart
@@ -8685,8 +9356,10 @@ void main() {
   BloomPaginatedQuery -> data.dart
   BloomPicture -> image.dart
   BloomQuery -> data.dart
+  BloomQueryScope -> data.dart
   BloomRealtimeBinding -> realtime.dart
   BloomRealtimeChannelClient -> realtime.dart
+  BloomRedirectLoopException -> router.dart
   BloomReducer -> reducer.dart
   BloomReducerFn -> reducer.dart
   BloomRoute -> router.dart
@@ -8720,6 +9393,7 @@ void main() {
   BloomVirtualItem -> virtual.dart
   BloomVirtualizer -> virtual.dart
   Br -> framework.dart
+  BrowserRealtimeClient -> realtime_browser.dart
   Button -> framework.dart
   Canvas -> framework.dart
   Caption -> framework.dart
@@ -8750,6 +9424,7 @@ void main() {
   Fragment -> framework.dart
   FragmentNode -> framework.dart
   GetNextPageParamFn -> data.dart
+  GuardResolution -> router.dart
   GuardResult -> router.dart
   H1 -> framework.dart
   H2 -> framework.dart
@@ -8759,6 +9434,8 @@ void main() {
   H6 -> framework.dart
   Header -> framework.dart
   Hr -> framework.dart
+  HydrationMismatch -> hydration_contract.dart
+  HydrationMismatchHandler -> mount.dart
   HydrationStrategy -> island_node.dart
   IFrame -> framework.dart
   ImageDecoding -> image.dart
@@ -8866,7 +9543,11 @@ void main() {
   attachBloomListener -> mount.dart
   batch -> signals.dart (re-export)
   bloomDevErrorOverlayEnabled -> mount.dart
+  bloomDisposeActiveMount -> mount.dart
+  bloomHotReloadTrackingEnabled -> mount.dart
   bloomHydratedAttribute -> island_node.dart
+  bloomHydrationMismatchHandler -> mount.dart
+  bloomHydrationPreserveFormState -> mount.dart
   bloomImage -> image.dart
   bloomIsland -> island_node.dart
   bloomIslandAttribute -> island_node.dart
@@ -8874,8 +9555,10 @@ void main() {
   bloomPicture -> image.dart
   bloomPropsAttribute -> island_node.dart
   bloomRootMarginAttribute -> island_node.dart
+  bloomScriptNonce -> web_components.dart
   bloomStrategyAttribute -> island_node.dart
   bloomStyleNonce -> mount.dart
+  browserRealtimeClient -> realtime_browser.dart
   buildQueryString -> router.dart
   buildSrcSet -> image.dart
   computed -> signals.dart (re-export)
@@ -8885,11 +9568,17 @@ void main() {
   cx -> framework.dart
   dartToJsValue -> web_components.dart
   defaultImageUrlBuilder -> image.dart
+  defaultRealtimeBackoffMultiplier -> realtime_browser.dart
+  defaultRealtimeInitialReconnectDelay -> realtime_browser.dart
+  defaultRealtimeMaxReconnectDelay -> realtime_browser.dart
+  defaultRealtimePingInterval -> realtime_browser.dart
   defineCustomElement -> web_components.dart
   dirAttribute -> i18n.dart
-  effect -> signals.dart (re-export)
+  disposeBrowserHotEffects -> _signals_stub.dart
+  effect -> signals.dart
   email -> form.dart
   escapeHtml -> html.dart
+  escapeHydrationKey -> hydration_contract.dart
   extractIslandProps -> islands.dart
   fileRequired -> form.dart
   fireEvent -> bloom_test.dart
@@ -8898,19 +9587,37 @@ void main() {
   formatCurrency -> i18n.dart
   formatDate -> i18n.dart
   formatDateTime -> i18n.dart
+  formatHydrationMismatch -> hydration_contract.dart
   formatNumber -> i18n.dart
   formatPercent -> i18n.dart
   formatRelativeTime -> i18n.dart
+  getBrowserHotEffectRegistry -> _signals_stub.dart
+  getBrowserSignalRegistry -> _signals_stub.dart
   getTextDirection -> i18n.dart
   globalContainer -> di.dart
   hydrate -> hydrate.dart
   hydrateElement -> hydrate.dart
+  hydrateToElement -> mount.dart
+  hydrationMarkerErrorBoundary -> hydration_contract.dart
+  hydrationMarkerForEach -> hydration_contract.dart
+  hydrationMarkerKeyClose -> hydration_contract.dart
+  hydrationMarkerKeyPrefix -> hydration_contract.dart
+  hydrationMarkerLive -> hydration_contract.dart
+  hydrationMarkerMemo -> hydration_contract.dart
+  hydrationMarkerShow -> hydration_contract.dart
+  hydrationMarkerSuspense -> hydration_contract.dart
   infiniteQuery -> data.dart
   inject -> di.dart
   injectOrNull -> di.dart
+  isBrowserHotReloadActive -> _signals_stub.dart
+  isHotReloadTrackingActive -> mount.dart
+  isKeyMarkerClose -> hydration_contract.dart
+  isMarkerClose -> hydration_contract.dart
+  isMarkerOpen -> hydration_contract.dart
   isRtl -> i18n.dart
   isTransitionPending -> transition.dart
   jsToDartValue -> web_components.dart
+  kMaxSignalRegistryEntries -> _signals_stub.dart
   lazy -> lazy.dart
   loadLocale -> i18n.dart
   localizedCurrency -> i18n.dart
@@ -8931,10 +9638,12 @@ void main() {
   mount -> mount.dart
   mountToElement -> mount.dart
   mutation -> mutation.dart
+  normalizeMarkerData -> hydration_contract.dart
   orchestrateIslands -> islands.dart
   paginatedQuery -> data.dart
   parseAcceptLanguage -> i18n.dart
   parseFragment -> router.dart
+  parseKeyMarker -> hydration_contract.dart
   parseQueryString -> router.dart
   parseQueryStringAll -> router.dart
   pattern -> form.dart
@@ -8951,10 +9660,17 @@ void main() {
   renderDevErrorOverlayJson -> dev_error_overlay.dart
   renderForTest -> bloom_test.dart
   renderToDocument -> html.dart
+  renderToDocumentInScope -> html.dart
   renderToHtml -> html.dart
   renderToHtmlAll -> html.dart
+  renderToHtmlAllInScope -> html.dart
+  renderToHtmlInScope -> html.dart
   renderToStream -> html.dart
+  renderToStreamInScope -> html.dart
+  renderToStreamScoped -> html.dart
   renderToStreamWithSuspense -> html.dart
+  renderToStreamWithSuspenseInScope -> html.dart
+  renderToStreamWithSuspenseScoped -> html.dart
   required -> form.dart
   requiredTrue -> form.dart
   requiredValue -> form.dart
@@ -8963,16 +9679,27 @@ void main() {
   rpcContract -> rpc.dart
   rpcMutation -> rpc.dart
   rpcQuery -> rpc.dart
+  runSsrRequest -> html.dart
+  runSsrRequestStream -> html.dart
   scheduleTransition -> transition.dart
   scopedCss -> scoped_css.dart
   setActiveContainer -> di.dart
   setLocale -> i18n.dart
-  signal -> signals.dart (re-export)
+  signal -> signals.dart
   srOnlyClass -> a11y.dart
+  ssrCloseMarker -> hydration_contract.dart
+  ssrKeyCloseMarker -> hydration_contract.dart
+  ssrKeyOpenMarker -> hydration_contract.dart
+  ssrOpenMarker -> hydration_contract.dart
   startTransition -> transition.dart
+  storeBrowserSignalValue -> _signals_stub.dart
+  supportedRelativeTimeLocales -> i18n.dart
+  suspenseClaimedAttribute -> hydration_contract.dart
+  suspenseStreamId -> hydration_contract.dart
   t -> i18n.dart
   tr -> i18n.dart
   typedRequired -> form.dart
+  unescapeHydrationKey -> hydration_contract.dart
   unregisterIsland -> islands.dart
   untracked -> signals.dart (re-export)
   useContext -> framework.dart

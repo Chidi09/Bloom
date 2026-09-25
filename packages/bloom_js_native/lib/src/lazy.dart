@@ -23,7 +23,10 @@
 // `lazy()` itself works with any `Future<BloomNode> Function()` loader —
 // including one that never uses `deferred as` (useful in tests, or for
 // components that are merely expensive to *construct*, not to *load*).
+import 'package:meta/meta.dart' show internal;
+
 import 'framework.dart';
+import '_signal_scope.dart';
 
 /// Caches an asynchronous component [loader], ensuring the loader executes at most once across renders.
 ///
@@ -86,12 +89,17 @@ class BloomLazyComponent {
 BloomNode lazy(
   Future<BloomNode> Function() loader, {
   required BloomNode fallback,
+  @internal String? hotReloadScopeId,
 }) {
-  final component = BloomLazyComponent(loader);
+  final signalScope = hotReloadScopeId == null
+      ? currentBloomSignalScope
+      : composeBloomSignalScope(hotReloadScopeId);
+  final component = BloomLazyComponent(
+    () => runWithBloomSignalScopeBoundary(signalScope, loader),
+  );
   return Suspense<BloomNode>(
     resource: component.load,
     builder: (node) => node,
     fallback: fallback,
   );
 }
-

@@ -90,7 +90,19 @@ class BloomJsDevTools {
   /// ```
   static Map<String, dynamic> snapshotTree(BloomNode node) {
     return switch (node) {
-      ElNode(:final tag, :final text, :final className, :final attrs, :final children) => {
+      HmrComponentNode(:final id, :final child) => {
+          'kind': 'component',
+          'id': id,
+          'children': [snapshotTree(child)],
+        },
+      ElNode(
+        :final tag,
+        :final text,
+        :final className,
+        :final attrs,
+        :final children
+      ) =>
+        {
           'kind': 'element',
           'tag': tag,
           if (text != null) 'text': text,

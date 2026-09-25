@@ -25,15 +25,27 @@ void main() {
       expect(tag, contains('zod'));
     });
 
+    test('importmap JSON cannot terminate its script element', () {
+      NpmRegistry.register(
+        const NpmDependency('</script><script>alert(1)</script>', '1.0.0'),
+      );
+      final tag = NpmRegistry.generateImportMapTag();
+
+      expect(tag, contains(r'\u003c/script>'));
+      expect(tag, isNot(contains('</script><script>alert(1)')));
+    });
+
     test('custom importAs specifier', () {
-      NpmRegistry.register(const NpmDependency('lodash', '^4.17.0', importAs: 'lodash-es'));
+      NpmRegistry.register(
+          const NpmDependency('lodash', '^4.17.0', importAs: 'lodash-es'));
       final map = NpmRegistry.toMap()['imports'] as Map<String, dynamic>;
       expect(map.containsKey('lodash-es'), isTrue);
       expect(map['lodash-es'], contains('lodash@'));
     });
 
     test('custom cdn', () {
-      const dep = NpmDependency('zod', '^3.23.0', cdn: 'https://cdn.jsdelivr.net/npm');
+      const dep =
+          NpmDependency('zod', '^3.23.0', cdn: 'https://cdn.jsdelivr.net/npm');
       expect(dep.url, 'https://cdn.jsdelivr.net/npm/zod@^3.23.0');
     });
 
@@ -57,7 +69,8 @@ void main() {
     test('subPath entry appears in scopes block', () {
       NpmRegistry.clear();
       NpmRegistry.register(const NpmDependency('lucide', '^0.460.0'));
-      NpmRegistry.register(const NpmDependency('lucide', '^0.460.0', subPath: 'icons', importAs: 'lucide/icons'));
+      NpmRegistry.register(const NpmDependency('lucide', '^0.460.0',
+          subPath: 'icons', importAs: 'lucide/icons'));
       final json = NpmRegistry.generateImportMapJson();
       expect(json, contains('"scopes"'));
       NpmRegistry.clear();

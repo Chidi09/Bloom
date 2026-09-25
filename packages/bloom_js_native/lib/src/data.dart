@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'attribute_safety.dart';
 
 import 'package:signals_core/signals_core.dart';
 
@@ -328,8 +329,8 @@ class BloomQueryScope {
           serialize: serialize,
         );
     final jsonStr = jsonEncode(payload);
-    final safeJson = jsonStr.replaceAll('<', r'\u003c');
-    return '<script id="$id" type="application/json">$safeJson</script>';
+    final safeJson = escapeBloomJsonForScript(jsonStr);
+    return '<script id="${escapeBloomHtml(id)}" type="application/json">$safeJson</script>';
   }
 
   /// Parses JSON and restores entries into this scope.
@@ -450,11 +451,12 @@ class BloomData {
     BloomQueryScope? scope,
     String? debugLabel,
   }) async {
-    final effective = scope ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-request');
+    final effective =
+        scope ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-request');
     final owned = scope == null;
     try {
-      final result =
-          runZoned(() => body(effective), zoneValues: {scopeZoneKey: effective});
+      final result = runZoned(() => body(effective),
+          zoneValues: {scopeZoneKey: effective});
       if (result is Future<T>) {
         try {
           return await result;
@@ -490,11 +492,13 @@ class BloomData {
         current = zoned;
       }
     }
-    final effective = current ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-stream');
+    final effective =
+        current ?? BloomQueryScope(debugLabel: debugLabel ?? 'ssr-stream');
     final owned = current == null;
     late final Stream<S> raw;
     try {
-      raw = runZoned(() => body(effective), zoneValues: {scopeZoneKey: effective});
+      raw = runZoned(() => body(effective),
+          zoneValues: {scopeZoneKey: effective});
     } catch (_) {
       if (owned) effective.dispose();
       rethrow;
@@ -538,11 +542,15 @@ class BloomData {
   /// final keyStr = BloomData.normalizeKey(['tasks', {'status': 'done', 'page': 1}]);
   /// // Produces: "tasks:{page: 1, status: done}"
   /// ```
-  static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':');
+  static String normalizeKey(List<dynamic> key) =>
+      key.map(_canonical).join(':');
 
   static String _canonical(dynamic e) {
     if (e is Map) {
-      final entries = e.entries.map((kv) => '${kv.key}: ${_canonical(kv.value)}').toList()..sort();
+      final entries = e.entries
+          .map((kv) => '${kv.key}: ${_canonical(kv.value)}')
+          .toList()
+        ..sort();
       return '{${entries.join(', ')}}';
     }
     if (e is Iterable) return '[${e.map(_canonical).join(', ')}]';
@@ -578,7 +586,8 @@ class BloomData {
   /// ```dart
   /// BloomData.setQueryData<List<Task>>(['tasks'], (oldTasks) => [...?oldTasks, newTask]);
   /// ```
-  static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) =>
+  static void setQueryData<T>(
+          List<dynamic> key, T Function(T? oldData) updater) =>
       currentScope.setQueryData<T>(key, updater);
 
   /// Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
@@ -588,7 +597,8 @@ class BloomData {
   /// ```dart
   /// final cachedUser = BloomData.getQueryData<User>(['user', 'current']);
   /// ```
-  static T? getQueryData<T>(List<dynamic> key) => currentScope.getQueryData<T>(key);
+  static T? getQueryData<T>(List<dynamic> key) =>
+      currentScope.getQueryData<T>(key);
 
   /// Deduplicates concurrent asynchronous requests sharing the same cache [key].
   ///
@@ -598,7 +608,8 @@ class BloomData {
   /// ```dart
   /// final result = await BloomData.deduplicate(['items'], () => client.get('/items'));
   /// ```
-  static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) =>
+  static Future<T> deduplicate<T>(
+          List<dynamic> key, Future<T> Function() fetcher) =>
       currentScope.deduplicate<T>(key, fetcher);
 
   /// Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
@@ -1018,7 +1029,8 @@ BloomQuery<T> query<T>({
 /// ```dart
 /// InfiniteQueryFn<List<Post>, int> fetchPostsPage = (pageIndex) => api.fetchPosts(page: pageIndex);
 /// ```
-typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function(TParam pageParam);
+typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function(
+    TParam pageParam);
 
 /// Function signature for deriving the next page parameter from the [lastPage] and [allPages].
 ///
@@ -1375,7 +1387,11 @@ class BloomInfiniteQuery<TPage, TParam> {
     _isFetching.value = true;
 
     try {
-      final firstPageKey = [...key, 'page', BloomData._canonical(initialPageParam)];
+      final firstPageKey = [
+        ...key,
+        'page',
+        BloomData._canonical(initialPageParam)
+      ];
       final result = await BloomData.deduplicate<TPage>(
         firstPageKey,
         () => fetch(initialPageParam),
@@ -1444,7 +1460,8 @@ BloomInfiniteQuery<TPage, TParam> infiniteQuery<TPage, TParam>({
   required List<dynamic> key,
   required Future<TPage> Function(TParam pageParam) fetch,
   required TParam initialPageParam,
-  required TParam? Function(TPage lastPage, List<TPage> allPages) getNextPageParam,
+  required TParam? Function(TPage lastPage, List<TPage> allPages)
+      getNextPageParam,
   Duration staleTime = const Duration(minutes: 5),
   Duration cacheTime = const Duration(minutes: 30),
   bool enabled = true,
@@ -1484,7 +1501,8 @@ BloomInfiniteQuery<TPage, TParam> paginatedQuery<TPage, TParam>({
   required List<dynamic> key,
   required Future<TPage> Function(TParam pageParam) fetch,
   required TParam initialPageParam,
-  required TParam? Function(TPage lastPage, List<TPage> allPages) getNextPageParam,
+  required TParam? Function(TPage lastPage, List<TPage> allPages)
+      getNextPageParam,
   Duration staleTime = const Duration(minutes: 5),
   Duration cacheTime = const Duration(minutes: 30),
   bool enabled = true,
@@ -1502,4 +1520,3 @@ BloomInfiniteQuery<TPage, TParam> paginatedQuery<TPage, TParam>({
       getItems: getItems,
       initialData: initialData,
     );
-

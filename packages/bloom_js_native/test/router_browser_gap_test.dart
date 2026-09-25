@@ -1,6 +1,8 @@
 @TestOn('browser')
 library;
 
+import 'dart:async';
+
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 import 'package:test/test.dart';
@@ -11,6 +13,35 @@ BloomRouter _router() => BloomRouter([
       BloomRoute('/search', (p) => Div(text: 'search')),
       BloomRoute('/docs', (p) => Div(text: 'docs')),
     ]);
+
+class _GateGuard extends BloomRouteGuard {
+  final Completer<void> started = Completer<void>();
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<GuardResult> canActivate(
+      String location, Map<String, String> params) async {
+    started.complete();
+    await release.future;
+    return GuardResult.allow();
+  }
+}
+
+class _DenyGuard extends BloomRouteGuard {
+  @override
+  GuardResult canActivate(String location, Map<String, String> params) =>
+      GuardResult.deny();
+}
+
+class _RedirectGuard extends BloomRouteGuard {
+  final String target;
+
+  _RedirectGuard(this.target);
+
+  @override
+  GuardResult canActivate(String location, Map<String, String> params) =>
+      GuardResult.redirect(target);
+}
 
 void main() {
   late BloomRouterController c;
@@ -50,6 +81,95 @@ void main() {
     await c.navigate('/search?tag=a&tag=b');
     expect(c.currentQueryAll.value['tag'], ['a', 'b']);
     expect(c.currentQuery.value['tag'], 'b');
+  });
+
+  test('a denied programmatic navigation leaves the URL and route unchanged',
+      () async {
+    final router = BloomRouter([
+      BloomRoute('/', (p) => Div(text: 'home')),
+      BloomRoute('/private', (p) => Div(text: 'private'),
+          guards: [_DenyGuard()]),
+    ]);
+    c = BloomRouterController(router);
+
+    await c.navigate('/private');
+
+    expect(c.currentPath.value, '/');
+    expect(web.window.location.pathname, '/');
+  });
+
+  test('a guarded direct load stays blank until redirected', () async {
+    web.window.history.replaceState(null, '', '/private');
+    final router = BloomRouter([
+      BloomRoute('/private', (p) => H1(text: 'private'),
+          guards: [_RedirectGuard('/login')]),
+      BloomRoute('/login', (p) => H1(text: 'login')),
+    ]);
+    c = BloomRouterController(router);
+
+    expect(c.resolve(), isA<FragmentNode>(),
+        reason: 'the protected page must not flash before its guard resolves');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(c.currentPath.value, '/login');
+    expect(web.window.location.pathname, '/login');
+    expect(renderToHtml(c.resolve()), contains('login'));
+  });
+
+  test('a denied direct load does not render the protected route', () async {
+    web.window.history.replaceState(null, '', '/private');
+    final router = BloomRouter([
+      BloomRoute('/private', (p) => H1(text: 'private'),
+          guards: [_DenyGuard()]),
+    ]);
+    c = BloomRouterController(router);
+
+    expect(c.resolve(), isA<FragmentNode>());
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(c.resolve(), isA<FragmentNode>());
+    expect(web.window.location.pathname, '/private');
+  });
+
+  test('a denied back navigation restores the last allowed URL', () async {
+    final router = BloomRouter([
+      BloomRoute('/safe', (p) => Div(text: 'safe')),
+      BloomRoute('/private', (p) => Div(text: 'private'),
+          guards: [_DenyGuard()]),
+      BloomRoute('/safe-again', (p) => Div(text: 'safe again')),
+    ]);
+    web.window.history
+      ..replaceState(null, '', '/safe')
+      ..pushState(null, '', '/private')
+      ..pushState(null, '', '/safe-again');
+    c = BloomRouterController(router);
+
+    web.window.history.back();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(c.currentPath.value, '/safe-again');
+    expect(web.window.location.pathname, '/safe-again');
+  });
+
+  test('a redirected back navigation replaces the denied URL', () async {
+    final router = BloomRouter([
+      BloomRoute('/safe', (p) => Div(text: 'safe')),
+      BloomRoute('/private', (p) => Div(text: 'private'),
+          guards: [_RedirectGuard('/login')]),
+      BloomRoute('/safe-again', (p) => Div(text: 'safe again')),
+      BloomRoute('/login', (p) => Div(text: 'login')),
+    ]);
+    web.window.history
+      ..replaceState(null, '', '/safe')
+      ..pushState(null, '', '/private')
+      ..pushState(null, '', '/safe-again');
+    c = BloomRouterController(router);
+
+    web.window.history.back();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(c.currentPath.value, '/login');
+    expect(web.window.location.pathname, '/login');
   });
 
   test('setQuery updates the query without changing the path', () async {
@@ -118,7 +238,8 @@ void main() {
 
     expect(web.document.activeElement, isNotNull);
     expect(web.document.activeElement, same(h1),
-        reason: 'focus must land on the new page heading, not stay on the link');
+        reason:
+            'focus must land on the new page heading, not stay on the link');
   });
 
   test('autoFocus: false leaves focus alone', () async {
@@ -164,5 +285,41 @@ void main() {
 
     // Satisfy tearDown, which disposes `c`.
     c = BloomRouterController(_router());
+  });
+
+  test('dispose cancels queued initial navigation work', () async {
+    final tall = web.document.createElement('div') as web.HTMLDivElement;
+    tall.style.height = '3000px';
+    web.document.body!.appendChild(tall);
+    addTearDown(() => tall.remove());
+
+    web.window.scrollTo(web.ScrollToOptions(left: 0, top: 500));
+    expect(web.window.scrollY, 500);
+
+    c = BloomRouterController(_router());
+    c.dispose();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(web.window.scrollY, 500,
+        reason: 'queued work must not scroll after controller disposal');
+  });
+
+  test('dispose prevents an async route guard from changing browser history',
+      () async {
+    final guard = _GateGuard();
+    final router = BloomRouter([
+      BloomRoute('/', (p) => Div(text: 'home')),
+      BloomRoute('/slow', (p) => Div(text: 'slow'), guards: [guard]),
+    ]);
+    c = BloomRouterController(router);
+
+    final navigation = c.navigate('/slow');
+    await guard.started.future;
+    c.dispose();
+    guard.release.complete();
+    await navigation;
+
+    expect(web.window.location.pathname, '/');
+    expect(c.currentPath.value, '/');
   });
 }

@@ -7,7 +7,8 @@ class AuthGuard extends BloomRouteGuard {
   const AuthGuard(this.isAuthenticated);
 
   @override
-  FutureOr<GuardResult> canActivate(String location, Map<String, String> params) {
+  FutureOr<GuardResult> canActivate(
+      String location, Map<String, String> params) {
     if (!isAuthenticated) return GuardResult.redirect('/login');
     return GuardResult.allow();
   }
@@ -17,25 +18,66 @@ void main() {
   group('BloomRouteGuard', () {
     test('allows navigation when guard permits', () async {
       final router = BloomRouter([
-        BloomRoute('/dashboard', (_) => const Span.raw(text: 'Dashboard'), guards: [const AuthGuard(true)]),
+        BloomRoute('/dashboard', (_) => const Span.raw(text: 'Dashboard'),
+            guards: [const AuthGuard(true)]),
         BloomRoute('/login', (_) => const Span.raw(text: 'Login')),
       ]);
       final match = router.match('/dashboard');
       expect(match, isNotNull);
-      final allowed = await router.evaluateGuards(match!.route, '/dashboard', match.params);
+      final allowed =
+          await router.evaluateGuards(match!.route, '/dashboard', match.params);
       expect(allowed.isAllowed, isTrue);
     });
 
     test('redirects navigation when guard denies', () async {
       final router = BloomRouter([
-        BloomRoute('/dashboard', (_) => const Span.raw(text: 'Dashboard'), guards: [const AuthGuard(false)]),
+        BloomRoute('/dashboard', (_) => const Span.raw(text: 'Dashboard'),
+            guards: [const AuthGuard(false)]),
         BloomRoute('/login', (_) => const Span.raw(text: 'Login')),
       ]);
       final match = router.match('/dashboard');
       expect(match, isNotNull);
-      final result = await router.evaluateGuards(match!.route, '/dashboard', match.params);
+      final result =
+          await router.evaluateGuards(match!.route, '/dashboard', match.params);
       expect(result.isAllowed, isFalse);
       expect(result.redirectPath, '/login');
+    });
+
+    test('applies shell and leaf guards from outermost to innermost', () async {
+      final calls = <String>[];
+      final router = BloomRouter([
+        BloomRoute.shell(
+          layout: (child, params) => child,
+          guards: [_RecordingGuard('shell', calls)],
+          routes: [
+            BloomRoute('/admin/users', (_) => const Span.raw(text: 'Users'),
+                guards: [_RecordingGuard('leaf', calls)]),
+          ],
+        ),
+      ]);
+
+      final resolution = await router.resolveRedirects('/admin/users');
+
+      expect(resolution.blocked, isFalse);
+      expect(calls, ['shell', 'leaf']);
+    });
+
+    test('a shell guard can redirect a matched child route', () async {
+      final router = BloomRouter([
+        BloomRoute.shell(
+          layout: (child, params) => child,
+          guards: [const AuthGuard(false)],
+          routes: [
+            BloomRoute('/admin/users', (_) => const Span.raw(text: 'Users')),
+          ],
+        ),
+        BloomRoute('/login', (_) => const Span.raw(text: 'Login')),
+      ]);
+
+      final resolution = await router.resolveRedirects('/admin/users');
+
+      expect(resolution.location, '/login');
+      expect(resolution.blocked, isFalse);
     });
 
     group('resolveRedirects loop detection (#17)', () {
@@ -60,8 +102,8 @@ void main() {
         expect(
           () => router.resolveRedirects('/a'),
           throwsA(isA<BloomRedirectLoopException>()
-              .having((e) => e.chain, 'chain', ['/a', '/b'])
-              .having((e) => e.offendingTarget, 'offendingTarget', '/a')),
+              .having((e) => e.chain, 'chain', ['/a', '/b']).having(
+                  (e) => e.offendingTarget, 'offendingTarget', '/a')),
         );
       });
 
@@ -97,8 +139,8 @@ void main() {
             routes.add(BloomRoute(from, (_) => const Span.raw(text: 'n'),
                 guards: [_RedirectGuard(to)]));
           }
-          routes.add(BloomRoute('/n${hops + 1}',
-              (_) => const Span.raw(text: 'last')));
+          routes.add(
+              BloomRoute('/n${hops + 1}', (_) => const Span.raw(text: 'last')));
           return BloomRouter(routes);
         }
 
@@ -108,8 +150,8 @@ void main() {
           throwsA(isA<BloomRedirectLoopException>()),
         );
         // A raised budget lets the same chain through.
-        final res = await chainRouter(12)
-            .resolveRedirects('/n0', maxRedirects: 20);
+        final res =
+            await chainRouter(12).resolveRedirects('/n0', maxRedirects: 20);
         expect(res.location, '/n13');
       });
     });
@@ -133,4 +175,18 @@ class _DenyGuard extends BloomRouteGuard {
   FutureOr<GuardResult> canActivate(
           String location, Map<String, String> params) =>
       GuardResult.deny();
+}
+
+class _RecordingGuard extends BloomRouteGuard {
+  final String name;
+  final List<String> calls;
+
+  const _RecordingGuard(this.name, this.calls);
+
+  @override
+  FutureOr<GuardResult> canActivate(
+      String location, Map<String, String> params) {
+    calls.add(name);
+    return GuardResult.allow();
+  }
 }

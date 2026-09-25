@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* Rejected executable raw HTML attributes and URL schemes across SSR, browser mounting, reconciliation, and hydration; escaped script-context JSON in import maps, streamed Suspense updates, and cache dehydration; neutralized case-insensitive `</style>` terminators.
+* Enforced route guards on direct browser loads and nested shell routes, kept denied or redirected back/forward URLs consistent with the rendered route, and withheld guarded content until initial authorization completes.
+* Query and path parameter decoding now handles malformed percent escapes and invalid UTF-8 without throwing during route matching; malformed markers stay literal and invalid byte sequences become U+FFFD.
+* Excluded generated `example/main.js` bundles and source maps from the published package archive; they remain reproducible with `example/build.sh`.
+* Disposed browser router controllers now ignore queued navigation work and stop in-flight guarded navigations before they can change history or reactive location state.
+* **Top-level effects survive DDC remounts as stale subscriptions**: browser dev effects now register their cleanup and the DDC bootstrap stops them before re-executing the app module. Production and SSR behavior still delegates directly to `signals_core`.
+* Added the development-only `bloomHmrScope` runtime hook used by Bloom's compiler to isolate signals owned by stateful object instances; it executes without creating a Zone outside active browser hot reload.
+* **Duplicate keyed list entries**: SSR, mounting, reconciliation, and hydration now validate each keyed `ForEach` snapshot before processing it, preventing duplicate IDs from overwriting entries and leaking mounted regions.
+* `defineCustomElement` registers through a nonce-bearing script instead of `eval()`. Apps with a strict script Content Security Policy can set `bloomScriptNonce` to the response nonce; `unsafe-eval` is no longer required. Tag names are validated and JavaScript literals are JSON-encoded.
+* Removed the Chrome test configuration override that prevented `CHROME_EXECUTABLE` from selecting a browser installed outside `/Applications`.
+* The DDC signal-key injector no longer assigns the same automatic key to every invocation of an anonymous reactive or list builder. Top-level signals still preserve state; repeated builders require an explicit instance-specific key.
+* Number, percent, currency, date, and date-time formatting now use `package:intl` locale data on both the VM and in the browser, with the existing formatter as a fallback for unknown locale tags. Indian digit grouping and Italian month names are covered by regression tests.
+* Relative-time formatting now uses pure-Dart locale messages for more than 40 languages on both the VM and in the browser, while preserving existing phrasing for English, French, German, Spanish, Japanese, and Chinese.
+* Router focus management now uses `preventScroll`, so focusing the new heading cannot undo navigation scroll restoration.
+
 ## 0.3.7 - 2026-09-04
 
 ### Fixed
@@ -81,10 +99,9 @@
   only wrote to a signal that nothing displayed.
 - Error boundaries now cover reactive rebuild paths.
 
-### Known limitations
-- `defineCustomElement` uses `eval()` to construct the custom-element class and
-  therefore does not work under a Content-Security-Policy without `unsafe-eval`.
-  Consuming custom elements via `customElement()` is unaffected.
+### Known limitations at release
+- `defineCustomElement` used `eval()` to construct the custom-element class;
+  this is addressed in the unreleased changes above.
 
 ## 0.1.0 - 2026-08-21
 

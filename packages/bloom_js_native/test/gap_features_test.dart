@@ -11,6 +11,14 @@ void main() {
       expect(q['café'], 'au lait');
     });
 
+    test('malformed escapes stay literal instead of throwing', () {
+      final q = parseQueryString('/s?q=hello%ZZ+world&bad=%E0%A4%A');
+
+      expect(q['q'], 'hello%ZZ world');
+      expect(q['bad'], contains('%A'));
+      expect(q['bad'], contains('\uFFFD'));
+    });
+
     test('treats + as a space', () {
       final q = parseQueryString('/s?q=red+running+shoes');
       expect(q['q'], 'red running shoes');
@@ -32,7 +40,8 @@ void main() {
 
     test('repeated keys: single map takes the last, All keeps every value', () {
       expect(parseQueryString('/s?tag=a&tag=b&tag=c')['tag'], 'c');
-      expect(parseQueryStringAll('/s?tag=a&tag=b&tag=c')['tag'], ['a', 'b', 'c']);
+      expect(
+          parseQueryStringAll('/s?tag=a&tag=b&tag=c')['tag'], ['a', 'b', 'c']);
     });
 
     test('a value containing an encoded & or = survives intact', () {
@@ -57,9 +66,10 @@ void main() {
       expect(parseQueryString('/s$built')['page'], '2');
       expect(buildQueryString({}), isEmpty,
           reason: 'an empty map must not produce a bare "?"');
-      expect(parseQueryStringAll('/s${buildQueryString({
-            'tag': ['a', 'b']
-          })}')['tag'],
+      expect(
+          parseQueryStringAll('/s${buildQueryString({
+                'tag': ['a', 'b']
+              })}')['tag'],
           ['a', 'b'],
           reason: 'an Iterable value must expand to repeated keys');
     });
@@ -132,10 +142,10 @@ void main() {
     });
 
     test('shouldDehydrate can exclude entries', () {
-      BloomData.putEntry(
-          QueryCacheEntry<String>(key: ['public'], data: 'ok', updatedAt: DateTime.now()));
-      BloomData.putEntry(
-          QueryCacheEntry<String>(key: ['secret'], data: 'shh', updatedAt: DateTime.now()));
+      BloomData.putEntry(QueryCacheEntry<String>(
+          key: ['public'], data: 'ok', updatedAt: DateTime.now()));
+      BloomData.putEntry(QueryCacheEntry<String>(
+          key: ['secret'], data: 'shh', updatedAt: DateTime.now()));
 
       final payload = BloomData.dehydrate(
         shouldDehydrate: (e) => e.key.first != 'secret',
@@ -147,9 +157,8 @@ void main() {
     });
 
     test('non-encodable data without a serializer fails loudly', () {
-      BloomData.putEntry(
-          QueryCacheEntry<Object>(
-              key: ['bad'], data: Object(), updatedAt: DateTime.now()));
+      BloomData.putEntry(QueryCacheEntry<Object>(
+          key: ['bad'], data: Object(), updatedAt: DateTime.now()));
       expect(() => BloomData.dehydrate(), throwsA(isA<Object>()),
           reason: 'must not silently emit a broken payload');
     });
@@ -181,6 +190,17 @@ void main() {
       final tag = BloomData.dehydrateToScriptTag();
       expect(tag.contains('</script><script>alert(1)'), isFalse,
           reason: 'an unescaped </script> would break out of the JSON block');
+    });
+
+    test('script payload and id are escaped for HTML parsing', () {
+      final tag = BloomData.dehydrateToScriptTag(
+        state: {'value': '</SCRIPT><script>alert(1)</script>'},
+        id: 'cache"><script>alert(2)</script>',
+      );
+
+      expect(tag, contains(r'\u003c/SCRIPT>'));
+      expect(tag, contains('id="cache&quot;&gt;&lt;script&gt;'));
+      expect(tag, isNot(contains('</SCRIPT><script>alert(1)')));
     });
   });
 

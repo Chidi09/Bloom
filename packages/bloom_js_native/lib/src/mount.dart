@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:signals_core/signals_core.dart';
+import 'package:meta/meta.dart' show internal;
 import 'package:web/web.dart' as web;
 
+import 'attribute_safety.dart';
 import 'dev_error_overlay.dart';
 import 'devtools.dart';
 import 'events.dart';
 import 'framework.dart';
 import 'hydration_contract.dart';
+import '_signal_scope.dart';
 
 /// When `true`, uncaught errors thrown while mounting or rendering a tree display
 /// a full-screen visual error overlay ([renderDevErrorOverlay]) in the browser DOM
@@ -60,6 +63,25 @@ bool isHotReloadTrackingActive() {
 
 bool _isHotReloadTrackingActive() => isHotReloadTrackingActive();
 
+const String _hotReplaceActiveMountProp = '__bloomTryHotReplaceActiveMount';
+
+@JS('window.__bloomTryHotReplaceActiveMount')
+external JSBoolean _callHotReplaceActiveMount(
+  JSBoxedDartObject node,
+  web.Element root,
+);
+
+@JS('window.__bloomDisposeActiveMount')
+external void _callDisposeActiveMount();
+
+bool _tryHotReplaceAcrossModule(BloomNode node, web.Element root) {
+  try {
+    return _callHotReplaceActiveMount(node.toJSBox, root).toDart;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Bridges teardown and error reporting hooks onto `window` for dev bootstrap scripts.
 void _installHotReloadHooks() {
   try {
@@ -69,6 +91,27 @@ void _installHotReloadHooks() {
       '__bloomDisposeActiveMount',
       (() {
         bloomDisposeActiveMount();
+      }).toJS,
+    );
+    _reflectSet(
+      win,
+      _hotReplaceActiveMountProp,
+      ((JSBoxedDartObject boxedNode, web.Element root) {
+        try {
+          final node = boxedNode.toDart;
+          final active = _activeDevMountHandle;
+          if (node is! BloomNode ||
+              active == null ||
+              active.isDisposed ||
+              !identical(active._root, root)) {
+            return false;
+          }
+          if (active._tryHotReplace(node)) return true;
+          active.dispose();
+          return false;
+        } catch (_) {
+          return false;
+        }
       }).toJS,
     );
     _reflectSet(
@@ -128,7 +171,8 @@ void _reportUnhandledError(Object error, StackTrace stackTrace) {
   if (bloomDevErrorOverlayEnabled || _isHotReloadTrackingActive()) {
     final overlayHost = web.document.createElement('div');
     overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
-    (web.document.body ?? web.document.documentElement)?.appendChild(overlayHost);
+    (web.document.body ?? web.document.documentElement)
+        ?.appendChild(overlayHost);
   }
 }
 
@@ -137,6 +181,7 @@ class _ErrorBoundaryHandler {
   final _Sentinel sentinel;
   final _Region inner;
   final BloomNode Function(Object error, StackTrace stackTrace) fallback;
+  final String? fallbackSignalScope;
   final _ErrorBoundaryHandler? parentBoundary;
   bool isFailed = false;
 
@@ -144,6 +189,7 @@ class _ErrorBoundaryHandler {
     required this.sentinel,
     required this.inner,
     required this.fallback,
+    required this.fallbackSignalScope,
     this.parentBoundary,
   });
 
@@ -162,10 +208,15 @@ class _ErrorBoundaryHandler {
     sentinel.clear();
 
     try {
-      final fallbackNode = fallback(error, stackTrace);
-      final fallbackNodes = runZoned(
-        () => _mountNode(fallbackNode, inner),
-        zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+      final fallbackNodes = _withCapturedBloomSignalScope(
+        fallbackSignalScope,
+        () {
+          final fallbackNode = fallback(error, stackTrace);
+          return runZoned(
+            () => _mountNode(fallbackNode, inner),
+            zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+          );
+        },
       );
       sentinel.appendAll(fallbackNodes);
     } catch (fallbackErr, fallbackStack) {
@@ -201,10 +252,26 @@ class _ErrorBoundaryHandler {
 class BloomMountHandle {
   final web.Element _root;
   final List<void Function()> _disposers;
+  final _Region? _region;
+  final List<web.Node> _rootNodes;
+  BloomNode? _descriptor;
   bool _disposed = false;
 
   /// Creates a [BloomMountHandle] for [_root] holding the given [_disposers] cleanup functions.
-  BloomMountHandle(this._root, this._disposers);
+  BloomMountHandle(this._root, this._disposers)
+      : _region = null,
+        _descriptor = null,
+        _rootNodes = const [];
+
+  BloomMountHandle._(
+    this._root,
+    this._disposers, {
+    required _Region region,
+    BloomNode? descriptor,
+    List<web.Node> rootNodes = const [],
+  })  : _region = region,
+        _descriptor = descriptor,
+        _rootNodes = rootNodes;
 
   /// Removes all child DOM elements from the host container and disposes all reactive effects.
   ///
@@ -217,13 +284,38 @@ class BloomMountHandle {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    for (final d in _disposers) {
-      try {
-        d();
-      } catch (_) {}
+    if (_region != null) {
+      _region.disposeAll();
+    } else {
+      for (final d in _disposers) {
+        try {
+          d();
+        } catch (_) {}
+      }
     }
     _disposers.clear();
     _root.textContent = '';
+    if (identical(_activeDevMountHandle, this)) {
+      _activeDevMountHandle = null;
+    }
+  }
+
+  bool _tryHotReplace(BloomNode next) {
+    final current = _descriptor;
+    final region = _region;
+    if (_disposed ||
+        current == null ||
+        region == null ||
+        _rootNodes.isEmpty ||
+        (_rootNodes.length != 1 && current is! HmrComponentNode) ||
+        !_isSingleNodeDescriptor(current) ||
+        !_isSingleNodeDescriptor(next) ||
+        !_canHotPatch(current, next)) {
+      return false;
+    }
+    if (!_patchNode(_rootNodes.first, current, next, region)) return false;
+    _descriptor = next;
+    return true;
   }
 
   /// Whether this handle has already been disposed.
@@ -280,25 +372,55 @@ BloomMountHandle mount(BloomNode node, String selector) {
 ///   container,
 /// );
 /// ```
-BloomMountHandle mountToElement(BloomNode node, web.Element root) {
+BloomMountHandle mountToElement(
+  BloomNode node,
+  web.Element root, {
+  @internal bool trackHotReloadMount = true,
+}) {
+  final active = _activeDevMountHandle;
+  if (trackHotReloadMount &&
+      _isHotReloadTrackingActive() &&
+      active != null &&
+      !active.isDisposed &&
+      identical(active._root, root)) {
+    if (active._tryHotReplace(node)) return active;
+    active.dispose();
+  }
+
+  if (trackHotReloadMount &&
+      _isHotReloadTrackingActive() &&
+      _tryHotReplaceAcrossModule(node, root)) {
+    // DDC re-executes the entry module, so the active handle may belong to the
+    // previous module instance. Keep its global disposal hook as the owner.
+    return BloomMountHandle(root, [
+      () {
+        try {
+          _callDisposeActiveMount();
+        } catch (_) {}
+      },
+    ]);
+  }
+
   final region = _Region();
   try {
     final domNodes = _mountNode(node, region);
     for (final n in domNodes) {
       root.appendChild(n);
     }
-    final handle = BloomMountHandle(root, region.disposers.toList());
-    if (_isHotReloadTrackingActive()) {
+    final handle = BloomMountHandle._(
+      root,
+      region.disposers.toList(),
+      region: region,
+      descriptor: node,
+      rootNodes: domNodes,
+    );
+    if (trackHotReloadMount && _isHotReloadTrackingActive()) {
       _activeDevMountHandle = handle;
       _installHotReloadHooks();
     }
     return handle;
   } catch (error, stackTrace) {
-    for (final d in region.disposers) {
-      try {
-        d();
-      } catch (_) {}
-    }
+    region.disposeAll();
     BloomJsDevTools.notify('mount-error', {
       'error': error.toString(),
       'stackTrace': stackTrace.toString(),
@@ -309,7 +431,7 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
       overlayHost.innerHTML = renderDevErrorOverlay(error, stackTrace).toJS;
       root.appendChild(overlayHost);
       final handle = BloomMountHandle(root, []);
-      if (_isHotReloadTrackingActive()) {
+      if (trackHotReloadMount && _isHotReloadTrackingActive()) {
         _activeDevMountHandle = handle;
         _installHotReloadHooks();
       }
@@ -333,7 +455,8 @@ BloomMountHandle mountToElement(BloomNode node, web.Element root) {
 ///   print('Button clicked with type: ${event.type}');
 /// });
 /// ```
-void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
+void attachBloomListener(
+        web.Element el, String type, BloomEventHandler handler) =>
     _attachListener(el, type, handler);
 
 // ── Internal mount helpers ────────────────────────────────────────────
@@ -398,6 +521,51 @@ class _Region {
   }
 }
 
+class _HotComponentInstance {
+  String id;
+  web.Node root;
+  web.Node? end;
+  BloomNode child;
+  _Region region;
+  bool isDisposed = false;
+
+  _HotComponentInstance({
+    required this.id,
+    required this.root,
+    this.end,
+    required this.child,
+    required this.region,
+  });
+
+  void dispose() {
+    if (isDisposed) return;
+    isDisposed = true;
+    region.disposeAll();
+    _hotComponentInstances[root] = null;
+  }
+
+  void replace({
+    required String nextId,
+    required web.Node nextRoot,
+    web.Node? nextEnd,
+    required BloomNode nextChild,
+    required _Region nextRegion,
+  }) {
+    region.disposeAll();
+    _hotComponentInstances[root] = null;
+    id = nextId;
+    root = nextRoot;
+    end = nextEnd;
+    child = nextChild;
+    region = nextRegion;
+    isDisposed = false;
+    _hotComponentInstances[root] = this;
+  }
+}
+
+final Expando<_HotComponentInstance> _hotComponentInstances =
+    Expando<_HotComponentInstance>('Bloom HMR component boundary');
+
 /// Mount a single [BloomNode] and return the created DOM nodes.
 /// Side-effect: registers disposers into [region] for reactive boundaries.
 List<web.Node> _mountNode(
@@ -405,6 +573,28 @@ List<web.Node> _mountNode(
   _Region region,
 ) {
   switch (node) {
+    case HmrComponentNode(:final id, :final child):
+      if (!_isHotReloadTrackingActive()) return _mountNode(child, region);
+      final componentRegion = _Region();
+      final nodes = _mountNode(child, componentRegion);
+      final start = nodes.length == 1
+          ? nodes.single
+          : web.document.createComment('bloom-hmr-start');
+      final end = nodes.length == 1
+          ? null
+          : web.document.createComment('bloom-hmr-end');
+      final mountedNodes = end == null ? nodes : [start, ...nodes, end];
+      final instance = _HotComponentInstance(
+        id: id,
+        root: start,
+        end: end,
+        child: child,
+        region: componentRegion,
+      );
+      _hotComponentInstances[start] = instance;
+      region.add(instance.dispose);
+      return mountedNodes;
+
     case TextNode(:final text):
       return [web.document.createTextNode(text)];
 
@@ -414,12 +604,21 @@ List<web.Node> _mountNode(
       host.innerHTML = html.toJS;
       return [host];
 
-    case ElNode(:final tag, :final text, :final className, :final style, :final attrs, :final on, :final children):
+    case ElNode(
+        :final tag,
+        :final text,
+        :final className,
+        :final style,
+        :final attrs,
+        :final on,
+        :final children
+      ):
       final el = web.document.createElement(tag);
       if (className != null) el.className = className;
       if (style != null) el.setAttribute('style', style);
       if (attrs != null) {
         for (final e in attrs.entries) {
+          validateBloomAttribute(e.key, e.value);
           el.setAttribute(e.key, e.value);
         }
       }
@@ -446,27 +645,35 @@ List<web.Node> _mountNode(
       }
       return out;
 
-    case LiveNode(:final builder):
+    case LiveNode(:final builder, :final hotReloadScopeId):
       final sentinel = _Sentinel('live');
-      final initial = _bindSentinelRegion(sentinel, region, builder);
+      final initial = _bindSentinelRegion(
+        sentinel,
+        region,
+        builder,
+        signalScopeId: hotReloadScopeId,
+      );
       return [sentinel.start, ...initial, sentinel.end];
 
-    case MemoNode():
+    case MemoNode(:final hotReloadScopeId):
       final sentinel = _Sentinel('memo');
       final initial = _bindMemoRegion(
         sentinel,
         region,
         node.dependencyErased,
         node.builderErased,
+        signalScopeId: hotReloadScopeId,
       );
       return [sentinel.start, ...initial, sentinel.end];
 
-    case ShowNode(:final child, :final fallback):
+    case ShowNode(:final child, :final fallback, :final hotReloadScopeId):
       final sentinel = _Sentinel('show');
       final initial = _bindSentinelRegion(
         sentinel,
         region,
         () => node.when() ? child : (fallback ?? FragmentNode(const [])),
+        signalScopeId:
+            hotReloadScopeId == null ? null : '$hotReloadScopeId#when',
       );
       return [sentinel.start, ...initial, sentinel.end];
 
@@ -481,6 +688,7 @@ List<web.Node> _mountNode(
           node.itemsErased,
           keyFnErased,
           node.builderErased,
+          node.hotReloadScopeIdErased,
         );
       } else {
         initial = _bindSentinelRegion<List<BloomNode>>(
@@ -500,13 +708,24 @@ List<web.Node> _mountNode(
       el.textContent = css;
       return [el];
 
-    case MountNode(:final child, :final onMount, :final onUnmount):
+    case MountNode(
+        :final child,
+        :final onMount,
+        :final onUnmount,
+        :final hotReloadScopeId
+      ):
+      final mountSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'onMount');
+      final unmountSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'onUnmount');
       final nodes = _mountNode(child, region);
       if (onMount != null) {
-        Future.microtask(onMount);
+        Future.microtask(
+            () => _withCapturedBloomSignalScope(mountSignalScope, onMount));
       }
       if (onUnmount != null) {
-        region.add(onUnmount);
+        region.add(
+            () => _withCapturedBloomSignalScope(unmountSignalScope, onUnmount));
       }
       return nodes;
 
@@ -544,34 +763,55 @@ List<web.Node> _mountNode(
         zoneValues: {context.zoneKey: value},
       );
 
-    case ErrorBoundaryNode(:final builder, :final fallback):
+    case ErrorBoundaryNode(
+        :final builder,
+        :final fallback,
+        :final hotReloadScopeId
+      ):
       final sentinel = _Sentinel('error-boundary');
       final inner = _Region();
-      final parentBoundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+      final builderSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'builder');
+      final fallbackSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'fallback');
+      final parentBoundary =
+          Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       final handler = _ErrorBoundaryHandler(
         sentinel: sentinel,
         inner: inner,
         fallback: fallback,
+        fallbackSignalScope: fallbackSignalScope,
         parentBoundary: parentBoundary,
       );
       List<web.Node> initial;
       try {
-        final node = runZoned(
-          builder,
-          zoneValues: {_errorBoundaryZoneKey: handler},
+        final node = _withCapturedBloomSignalScope(
+          builderSignalScope,
+          () => runZoned(
+            builder,
+            zoneValues: {_errorBoundaryZoneKey: handler},
+          ),
         );
-        initial = runZoned(
-          () => _mountNode(node, inner),
-          zoneValues: {_errorBoundaryZoneKey: handler},
+        initial = _withCapturedBloomSignalScope(
+          builderSignalScope,
+          () => runZoned(
+            () => _mountNode(node, inner),
+            zoneValues: {_errorBoundaryZoneKey: handler},
+          ),
         );
       } catch (err, stack) {
         handler.isFailed = true;
         inner.reset();
         try {
-          final fallbackNode = fallback(err, stack);
-          initial = runZoned(
-            () => _mountNode(fallbackNode, inner),
-            zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+          initial = _withCapturedBloomSignalScope(
+            fallbackSignalScope,
+            () {
+              final fallbackNode = fallback(err, stack);
+              return runZoned(
+                () => _mountNode(fallbackNode, inner),
+                zoneValues: {_errorBoundaryZoneKey: parentBoundary},
+              );
+            },
           );
         } catch (fallbackErr, fallbackStack) {
           inner.reset();
@@ -587,7 +827,8 @@ List<web.Node> _mountNode(
       return [sentinel.start, ...initial, sentinel.end];
 
     case PortalNode(:final child, :final targetSelector):
-      final targetEl = web.document.querySelector(targetSelector) ?? web.document.body!;
+      final targetEl =
+          web.document.querySelector(targetSelector) ?? web.document.body!;
       final childNodes = _mountNode(child, region);
       for (final n in childNodes) {
         targetEl.appendChild(n);
@@ -596,10 +837,21 @@ List<web.Node> _mountNode(
       final comment = web.document.createComment(' portal:$targetSelector ');
       return [comment];
 
-    case SuspenseNode(:final fallback, :final errorBuilder):
+    case SuspenseNode(
+        :final fallback,
+        :final errorBuilder,
+        :final hotReloadScopeId
+      ):
       final sentinel = _Sentinel('suspense');
       final inner = _Region();
-      final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+      final resourceSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'resource');
+      final builderSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'resolved');
+      final errorSignalScope =
+          _captureBranchSignalScope(hotReloadScopeId, 'error');
+      final boundary =
+          Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       final fallbackNodes = _mountNode(fallback, inner);
 
       void handleSuspenseError(Object error, StackTrace stackTrace) {
@@ -608,10 +860,15 @@ List<web.Node> _mountNode(
         sentinel.clear();
         if (errorBuilder != null) {
           try {
-            final errorNode = errorBuilder(error, stackTrace);
-            final errorNodes = runZoned(
-              () => _mountNode(errorNode, inner),
-              zoneValues: {_errorBoundaryZoneKey: boundary},
+            final errorNodes = _withCapturedBloomSignalScope(
+              errorSignalScope,
+              () {
+                final errorNode = errorBuilder(error, stackTrace);
+                return runZoned(
+                  () => _mountNode(errorNode, inner),
+                  zoneValues: {_errorBoundaryZoneKey: boundary},
+                );
+              },
             );
             sentinel.appendAll(errorNodes);
           } catch (ebErr, ebStack) {
@@ -636,15 +893,23 @@ List<web.Node> _mountNode(
       // match casts them to `Function(dynamic)`, which throws for any
       // `Suspense<T>` with a concrete `T`. See [SuspenseNode.builderErased].
       try {
-        node.resourceErased().then((data) {
+        _withCapturedBloomSignalScope(
+          resourceSignalScope,
+          node.resourceErased,
+        ).then((data) {
           if (!region.isDisposed) {
             try {
               inner.reset();
               sentinel.clear();
-              final loadedNode = node.builderErased(data);
-              final loadedNodes = runZoned(
-                () => _mountNode(loadedNode, inner),
-                zoneValues: {_errorBoundaryZoneKey: boundary},
+              final loadedNodes = _withCapturedBloomSignalScope(
+                builderSignalScope,
+                () {
+                  final loadedNode = node.builderErased(data);
+                  return runZoned(
+                    () => _mountNode(loadedNode, inner),
+                    zoneValues: {_errorBoundaryZoneKey: boundary},
+                  );
+                },
               );
               sentinel.appendAll(loadedNodes);
             } catch (err, stack) {
@@ -767,7 +1032,6 @@ void _setSelectionRange(web.Element el, int start, int end) {
   } catch (_) {}
 }
 
-
 /// Whether [n] is guaranteed to mount to exactly one DOM node.
 ///
 /// Only these four descriptor kinds have a 1:1 descriptor-to-DOM-node
@@ -777,7 +1041,51 @@ void _setSelectionRange(web.Element el, int start, int end) {
 /// emit sibling nodes (e.g. [AnimatedNode] can emit a keyframes `<style>`
 /// alongside its wrapper), so index-aligned child patching is unsound for them.
 bool _isSingleNodeDescriptor(BloomNode n) =>
-    n is TextNode || n is ElNode || n is StyleNode || n is RawHtmlNode;
+    n is TextNode ||
+    n is ElNode ||
+    n is StyleNode ||
+    n is RawHtmlNode ||
+    n is HmrComponentNode;
+
+/// Whether the existing mounted structure can be refreshed without tearing
+/// down an ordinary reactive region. Component boundaries are refreshed by
+/// their own region manager, so their child structure is checked separately.
+bool _canHotPatch(BloomNode oldNode, BloomNode newNode) {
+  if (oldNode is HmrComponentNode && newNode is HmrComponentNode) {
+    return true;
+  }
+  if (oldNode is TextNode && newNode is TextNode) return true;
+  if (oldNode is StyleNode && newNode is StyleNode) return true;
+  if (oldNode is RawHtmlNode && newNode is RawHtmlNode) return true;
+  if (oldNode is! ElNode || newNode is! ElNode || oldNode.tag != newNode.tag) {
+    return false;
+  }
+  final oldChildren = <BloomNode>[
+    if (oldNode.text != null) TextNode(oldNode.text!),
+    ...oldNode.children,
+  ];
+  final newChildren = <BloomNode>[
+    if (newNode.text != null) TextNode(newNode.text!),
+    ...newNode.children,
+  ];
+  return oldChildren.every(_isSingleNodeDescriptor) &&
+      newChildren.every(_isSingleNodeDescriptor) &&
+      List.generate(
+        oldChildren.length < newChildren.length
+            ? oldChildren.length
+            : newChildren.length,
+        (index) => index,
+      ).every((index) => _canHotPatch(oldChildren[index], newChildren[index]));
+}
+
+void _disposeHotComponentsInSubtree(web.Node node) {
+  _hotComponentInstances[node]?.dispose();
+  final children = node.childNodes;
+  for (var i = 0; i < children.length; i++) {
+    final child = children.item(i);
+    if (child != null) _disposeHotComponentsInSubtree(child);
+  }
+}
 
 /// Attempts to update [existingDom] in place to match [newDesc].
 ///
@@ -791,6 +1099,68 @@ bool _patchNode(
   _Region region,
 ) {
   if (identical(oldDesc, newDesc)) return true;
+
+  if (oldDesc is HmrComponentNode && newDesc is HmrComponentNode) {
+    final instance = _hotComponentInstances[existingDom];
+    if (instance == null || instance.isDisposed || instance.id != oldDesc.id) {
+      return false;
+    }
+
+    if (instance.end == null &&
+        _isSingleNodeDescriptor(instance.child) &&
+        _isSingleNodeDescriptor(newDesc.child) &&
+        _canHotPatch(instance.child, newDesc.child)) {
+      if (!_patchNode(
+          existingDom, instance.child, newDesc.child, instance.region)) {
+        return false;
+      }
+      instance.id = newDesc.id;
+      instance.child = newDesc.child;
+      return true;
+    }
+
+    final parent = existingDom.parentNode;
+    if (parent == null) return false;
+    final replacementRegion = _Region();
+    final replacementNodes = _mountNode(newDesc.child, replacementRegion);
+    if (instance.end != null) {
+      final end = instance.end!;
+      final oldNodes = _nodesFromThrough(existingDom, end);
+      if (oldNodes == null) {
+        replacementRegion.disposeAll();
+        return false;
+      }
+      for (final old in oldNodes.skip(1).take(oldNodes.length - 2)) {
+        _disposeHotComponentsInSubtree(old);
+        if (old.parentNode == parent) parent.removeChild(old);
+      }
+      for (final replacement in replacementNodes) {
+        parent.insertBefore(replacement, end);
+      }
+      instance.replace(
+        nextId: newDesc.id,
+        nextRoot: existingDom,
+        nextEnd: end,
+        nextChild: newDesc.child,
+        nextRegion: replacementRegion,
+      );
+      return true;
+    }
+    if (replacementNodes.length != 1) {
+      replacementRegion.disposeAll();
+      return false;
+    }
+    final replacement = replacementNodes.single;
+    parent.replaceChild(replacement, existingDom);
+    instance.replace(
+      nextId: newDesc.id,
+      nextRoot: replacement,
+      nextEnd: null,
+      nextChild: newDesc.child,
+      nextRegion: replacementRegion,
+    );
+    return true;
+  }
 
   if (oldDesc is TextNode && newDesc is TextNode) {
     if (existingDom.nodeType != web.Node.TEXT_NODE) return false;
@@ -825,19 +1195,14 @@ bool _patchNode(
     final el = existingDom as web.Element;
     if (el.tagName.toLowerCase() != oldDesc.tag.toLowerCase()) return false;
 
-    // Child patching below aligns descriptor index to child-DOM index 1:1. That
-    // holds only while every child mounts to exactly one node. A reactive or
-    // effectful child (Live/Show/ForEach/Suspense/...) mounts to a sentinel
-    // comment pair wrapping its content — several DOM nodes for one descriptor
-    // — so the indices desync and we would patch descriptors against unrelated
-    // DOM, orphan the old region's nodes, and leak its effect. Bail out to the
-    // caller's destroy-and-recreate path instead. Checked up front, before any
-    // mutation, because returning false must leave `existingDom` untouched.
+    // Reactive/effectful descriptors emit sentinel ranges and still fall back
+    // to remount. HMR component boundaries are the exception: their anchors
+    // let us identify their complete multi-root DOM span as one child slot.
     for (final c in oldDesc.children) {
-      if (!_isSingleNodeDescriptor(c)) return false;
+      if (!_isSingleNodeDescriptor(c) && c is! HmrComponentNode) return false;
     }
     for (final c in newDesc.children) {
-      if (!_isSingleNodeDescriptor(c)) return false;
+      if (!_isSingleNodeDescriptor(c) && c is! HmrComponentNode) return false;
     }
 
     // className: if changed, set class attribute; if new is null, remove class
@@ -861,13 +1226,17 @@ bool _patchNode(
     // attrs: set new/changed attrs, remove deleted attrs
     final oldAttrs = oldDesc.attrs ?? const <String, String>{};
     final newAttrs = newDesc.attrs ?? const <String, String>{};
+    for (final entry in newAttrs.entries) {
+      validateBloomAttribute(entry.key, entry.value);
+    }
     for (final key in oldAttrs.keys) {
       if (!newAttrs.containsKey(key)) {
         el.removeAttribute(key);
       }
     }
     for (final entry in newAttrs.entries) {
-      if (!oldAttrs.containsKey(entry.key) || oldAttrs[entry.key] != entry.value) {
+      if (!oldAttrs.containsKey(entry.key) ||
+          oldAttrs[entry.key] != entry.value) {
         el.setAttribute(entry.key, entry.value);
       }
     }
@@ -894,9 +1263,25 @@ bool _patchNode(
       ...newDesc.children,
     ];
 
-    final domChildren = <web.Node>[];
+    final spans = <List<web.Node>>[];
+    var domIndex = 0;
     for (var i = 0; i < el.childNodes.length; i++) {
-      domChildren.add(el.childNodes.item(i)!);
+      final dom = el.childNodes.item(i)!;
+      if (domIndex >= oldChildren.length) break;
+      final descriptor = oldChildren[domIndex];
+      if (descriptor is HmrComponentNode) {
+        final component = _hotComponentInstances[dom];
+        final end = component?.end;
+        final span = end == null ? [dom] : _nodesFromThrough(dom, end);
+        if (span == null) return false;
+        spans.add(span);
+        // Keep the descriptor index independent from the number of roots.
+        domIndex++;
+        i += span.length - 1;
+      } else {
+        spans.add([dom]);
+        domIndex++;
+      }
     }
 
     final commonLength = oldChildren.length < newChildren.length
@@ -904,8 +1289,8 @@ bool _patchNode(
         : newChildren.length;
 
     for (var i = 0; i < commonLength; i++) {
-      if (i < domChildren.length) {
-        final existingChild = domChildren[i];
+      if (i < spans.length) {
+        final existingChild = spans[i].first;
         final patched = _patchNode(
           existingChild,
           oldChildren[i],
@@ -913,16 +1298,16 @@ bool _patchNode(
           region,
         );
         if (!patched) {
+          for (final old in spans[i]) {
+            _disposeHotComponentsInSubtree(old);
+          }
           final newMounted = _mountNode(newChildren[i], region);
-          if (newMounted.isNotEmpty) {
-            el.replaceChild(newMounted[0], existingChild);
-            var prev = newMounted[0];
-            for (var j = 1; j < newMounted.length; j++) {
-              el.insertBefore(newMounted[j], prev.nextSibling);
-              prev = newMounted[j];
-            }
-          } else {
-            el.removeChild(existingChild);
+          final before = spans[i].last.nextSibling;
+          for (final old in spans[i]) {
+            if (old.parentNode == el) el.removeChild(old);
+          }
+          for (final replacement in newMounted) {
+            el.insertBefore(replacement, before);
           }
         }
       } else {
@@ -934,9 +1319,10 @@ bool _patchNode(
     }
 
     if (newChildren.length < oldChildren.length) {
-      for (var i = newChildren.length; i < domChildren.length; i++) {
-        if (domChildren[i].parentNode == el) {
-          el.removeChild(domChildren[i]);
+      for (var i = newChildren.length; i < spans.length; i++) {
+        for (final old in spans[i]) {
+          _disposeHotComponentsInSubtree(old);
+          if (old.parentNode == el) el.removeChild(old);
         }
       }
     } else if (newChildren.length > oldChildren.length) {
@@ -954,18 +1340,53 @@ bool _patchNode(
   return false;
 }
 
+/// Returns the siblings from [start] through [end], inclusive, when both are
+/// attached to the same parent. This is used by multi-root component anchors.
+List<web.Node>? _nodesFromThrough(web.Node start, web.Node end) {
+  final parent = start.parentNode;
+  if (parent == null || !identical(parent, end.parentNode)) return null;
+  final nodes = <web.Node>[];
+  web.Node? current = start;
+  while (current != null) {
+    nodes.add(current);
+    if (identical(current, end)) return nodes;
+    current = current.nextSibling;
+  }
+  return null;
+}
+
 class _KeyedEntry {
   final String key;
   final List<web.Node> domNodes;
   final _Region region;
+  final String? signalScope;
   BloomNode descriptor;
 
   _KeyedEntry({
     required this.key,
     required this.domNodes,
     required this.region,
+    required this.signalScope,
     required this.descriptor,
   });
+}
+
+List<(Object?, String)> _keyedItems(
+  List<Object?> items,
+  String Function(Object? item) keyFn,
+) {
+  final seen = <String>{};
+  final keyed = <(Object?, String)>[];
+  for (final item in items) {
+    final key = keyFn(item);
+    if (!seen.add(key)) {
+      throw StateError(
+        'Duplicate ForEach key "$key". Every keyed list item must have a unique key.',
+      );
+    }
+    keyed.add((item, key));
+  }
+  return keyed;
 }
 
 /// Keyed list reconciler state shared by fresh mounts and hydration.
@@ -981,6 +1402,7 @@ class _KeyedListController {
   final List<Object?> Function() itemsFn;
   final String Function(Object? item) keyFn;
   final BloomNode Function(Object? item) builderFn;
+  final String? signalScopeId;
   final _ErrorBoundaryHandler? boundary;
 
   _KeyedListController({
@@ -988,24 +1410,49 @@ class _KeyedListController {
     required this.itemsFn,
     required this.keyFn,
     required this.builderFn,
+    required this.signalScopeId,
     required this.boundary,
   });
+
+  List<Object?> _itemsInScope() {
+    final scopeId = signalScopeId;
+    if (scopeId == null) return itemsFn();
+    return runWithBloomSignalScope('$scopeId#items', itemsFn);
+  }
+
+  R _inItemScope<R>(String key, R Function() callback) {
+    final scopeId = signalScopeId;
+    if (scopeId == null) return callback();
+    return runWithBloomSignalScope('$scopeId:$key', callback);
+  }
+
+  String? _signalScopeForItem(String key) {
+    final scopeId = signalScopeId;
+    if (scopeId == null) return null;
+    return composeBloomSignalScope('$scopeId:$key');
+  }
 
   /// Builds and returns the initial DOM nodes (fresh-mount path).
   List<web.Node> mountInitial() {
     final initialNodes = <web.Node>[];
-    for (final item in itemsFn()) {
-      final key = keyFn(item);
+    final keyedItems = _keyedItems(_itemsInScope(), keyFn);
+    for (final pair in keyedItems) {
+      final item = pair.$1;
+      final key = pair.$2;
       final itemRegion = _Region();
-      final descriptor = builderFn(item);
-      final domNodes = runZoned(
-        () => _mountNode(descriptor, itemRegion),
-        zoneValues: {_errorBoundaryZoneKey: boundary},
+      final descriptor = _inItemScope(key, () => builderFn(item));
+      final domNodes = _inItemScope(
+        key,
+        () => runZoned(
+          () => _mountNode(descriptor, itemRegion),
+          zoneValues: {_errorBoundaryZoneKey: boundary},
+        ),
       );
       final entry = _KeyedEntry(
         key: key,
         domNodes: domNodes,
         region: itemRegion,
+        signalScope: _signalScopeForItem(key),
         descriptor: descriptor,
       );
       activeEntries[key] = entry;
@@ -1017,36 +1464,41 @@ class _KeyedListController {
   /// Reconciles DOM against the current items (update path).
   void reconcile() {
     try {
-      final items = itemsFn();
-      final newKeys = <String>{};
+      final keyedItems = _keyedItems(_itemsInScope(), keyFn);
+      final newKeys = keyedItems.map((pair) => pair.$2).toSet();
       final newOrder = <_KeyedEntry>[];
 
-      for (final item in items) {
-        final key = keyFn(item);
-        newKeys.add(key);
-
+      for (final pair in keyedItems) {
+        final item = pair.$1;
+        final key = pair.$2;
         if (activeEntries.containsKey(key)) {
           final existing = activeEntries[key]!;
-          final descriptor = builderFn(item);
+          final descriptor = _inItemScope(key, () => builderFn(item));
 
           var patched = false;
-          if (existing.domNodes.length == 1) {
-            patched = _patchNode(
-              existing.domNodes.first,
-              existing.descriptor,
-              descriptor,
-              existing.region,
-            );
-          }
+          patched = _inItemScope(
+            key,
+            () =>
+                existing.domNodes.length == 1 &&
+                _patchNode(
+                  existing.domNodes.first,
+                  existing.descriptor,
+                  descriptor,
+                  existing.region,
+                ),
+          );
 
           if (patched) {
             existing.descriptor = descriptor;
             newOrder.add(existing);
           } else {
             existing.region.disposeAll();
-            final newDomNodes = runZoned(
-              () => _mountNode(descriptor, existing.region),
-              zoneValues: {_errorBoundaryZoneKey: boundary},
+            final newDomNodes = _inItemScope(
+              key,
+              () => runZoned(
+                () => _mountNode(descriptor, existing.region),
+                zoneValues: {_errorBoundaryZoneKey: boundary},
+              ),
             );
 
             final parent = sentinel.end.parentNode;
@@ -1063,6 +1515,7 @@ class _KeyedListController {
               key: key,
               domNodes: newDomNodes,
               region: existing.region,
+              signalScope: existing.signalScope,
               descriptor: descriptor,
             );
             activeEntries[key] = updated;
@@ -1070,15 +1523,19 @@ class _KeyedListController {
           }
         } else {
           final itemRegion = _Region();
-          final descriptor = builderFn(item);
-          final domNodes = runZoned(
-            () => _mountNode(descriptor, itemRegion),
-            zoneValues: {_errorBoundaryZoneKey: boundary},
+          final descriptor = _inItemScope(key, () => builderFn(item));
+          final domNodes = _inItemScope(
+            key,
+            () => runZoned(
+              () => _mountNode(descriptor, itemRegion),
+              zoneValues: {_errorBoundaryZoneKey: boundary},
+            ),
           );
           final entry = _KeyedEntry(
             key: key,
             domNodes: domNodes,
             region: itemRegion,
+            signalScope: _signalScopeForItem(key),
             descriptor: descriptor,
           );
           activeEntries[key] = entry;
@@ -1093,10 +1550,12 @@ class _KeyedListController {
       }
 
       // Remove deleted keys & dispose their regions
-      final toRemove = activeEntries.keys.where((k) => !newKeys.contains(k)).toList();
+      final toRemove =
+          activeEntries.keys.where((k) => !newKeys.contains(k)).toList();
       for (final k in toRemove) {
         final entry = activeEntries.remove(k)!;
         entry.region.disposeAll();
+        releaseBloomSignalScope(entry.signalScope);
         final parent = sentinel.end.parentNode;
         if (parent != null) {
           for (final n in entry.domNodes) {
@@ -1147,13 +1606,16 @@ List<web.Node> _bindKeyedForEachSentinel(
   List<Object?> Function() itemsFn,
   String Function(Object? item) keyFn,
   BloomNode Function(Object? item) builderFn,
+  String? signalScopeId,
 ) {
-  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+  final boundary =
+      Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
   final controller = _KeyedListController(
     sentinel: sentinel,
     itemsFn: itemsFn,
     keyFn: keyFn,
     builderFn: builderFn,
+    signalScopeId: signalScopeId,
     boundary: boundary,
   );
   // The effect's synchronous initial run happens while mounting is still
@@ -1164,7 +1626,7 @@ List<web.Node> _bindKeyedForEachSentinel(
   // builder on update still reaches the enclosing error boundary).
   var isFirstRun = true;
   var initialNodes = const <web.Node>[];
-  final stop = effect(() {
+  final stop = _effectInCapturedBloomSignalScope(() {
     if (isFirstRun) {
       isFirstRun = false;
       initialNodes = controller.mountInitial();
@@ -1187,25 +1649,37 @@ List<web.Node> _bindMemoRegion(
   _Sentinel sentinel,
   _Region parentRegion,
   Object? Function() dependencyFn,
-  BloomNode Function(Object? value) builderFn,
-) {
+  BloomNode Function(Object? value) builderFn, {
+  String? signalScopeId,
+}) {
   final inner = _Region();
+  final dependencySignalScope =
+      _captureBranchSignalScope(signalScopeId, 'dependency');
+  final builderSignalScope =
+      _captureBranchSignalScope(signalScopeId, 'builder');
   var isFirstRun = true;
   var hasPrevValue = false;
   Object? prevValue;
   BloomNode? prevDescriptor;
   List<web.Node> currentNodes = const [];
   List<web.Node> initialNodes = const [];
-  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+  final boundary =
+      Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
 
   void renderRegion() {
     try {
-      final value = dependencyFn();
+      final value = _withCapturedBloomSignalScope(
+        dependencySignalScope,
+        dependencyFn,
+      );
       if (!isFirstRun && hasPrevValue && prevValue == value) {
         return;
       }
 
-      final newDescriptor = builderFn(value);
+      final newDescriptor = _withCapturedBloomSignalScope(
+        builderSignalScope,
+        () => builderFn(value),
+      );
 
       if (!isFirstRun && prevDescriptor != null && currentNodes.length == 1) {
         final patched = _patchNode(
@@ -1223,9 +1697,12 @@ List<web.Node> _bindMemoRegion(
       }
 
       inner.reset();
-      final nodes = runZoned(
-        () => _mountNode(newDescriptor, inner),
-        zoneValues: {_errorBoundaryZoneKey: boundary},
+      final nodes = _withCapturedBloomSignalScope(
+        builderSignalScope,
+        () => runZoned(
+          () => _mountNode(newDescriptor, inner),
+          zoneValues: {_errorBoundaryZoneKey: boundary},
+        ),
       );
       if (isFirstRun) {
         initialNodes = nodes;
@@ -1251,7 +1728,7 @@ List<web.Node> _bindMemoRegion(
     }
   }
 
-  final stop = effect(() {
+  final stop = _effectInCapturedBloomSignalScope(() {
     renderRegion();
     isFirstRun = false;
   });
@@ -1264,6 +1741,30 @@ List<web.Node> _bindMemoRegion(
   return initialNodes;
 }
 
+String? _captureBloomSignalScope(String? scopeId) => scopeId == null
+    ? currentBloomSignalScope
+    : composeBloomSignalScope(scopeId);
+
+String? _captureBranchSignalScope(String? scopeId, String branch) =>
+    scopeId == null
+        ? currentBloomSignalScope
+        : _captureBloomSignalScope('$scopeId#$branch');
+
+T _withCapturedBloomSignalScope<T>(
+  String? scope,
+  T Function() callback,
+) =>
+    runWithBloomSignalScopeBoundary(scope, callback);
+
+void Function() _effectInCapturedBloomSignalScope(
+  dynamic Function() compute,
+) {
+  final signalScope = currentBloomSignalScope;
+  return effect(
+    () => runWithBloomSignalScopeBoundary(signalScope, compute),
+  );
+}
+
 /// Shared sentinel reactive-region binding: re-renders between comments
 /// whenever signals read inside [build] change.
 List<web.Node> _bindSentinelRegion<T>(
@@ -1271,11 +1772,14 @@ List<web.Node> _bindSentinelRegion<T>(
   _Region parentRegion,
   T Function() build, {
   BloomNode Function(T value)? wrap,
+  String? signalScopeId,
 }) {
   final inner = _Region();
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   var isFirstRun = true;
   List<web.Node> initialNodes = const [];
-  final boundary = Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+  final boundary =
+      Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
 
   void renderRegion() {
     try {
@@ -1311,11 +1815,14 @@ List<web.Node> _bindSentinelRegion<T>(
       }
 
       inner.reset();
-      final value = build();
+      final value = _withCapturedBloomSignalScope(capturedSignalScope, build);
       final node = wrap == null ? value as BloomNode : wrap(value);
-      final nodes = runZoned(
-        () => _mountNode(node, inner),
-        zoneValues: {_errorBoundaryZoneKey: boundary},
+      final nodes = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () => runZoned(
+          () => _mountNode(node, inner),
+          zoneValues: {_errorBoundaryZoneKey: boundary},
+        ),
       );
       if (isFirstRun) {
         // The sentinel comments are not attached to the document yet on the
@@ -1353,7 +1860,7 @@ List<web.Node> _bindSentinelRegion<T>(
     }
   }
 
-  final stop = effect(() {
+  final stop = _effectInCapturedBloomSignalScope(() {
     renderRegion();
     isFirstRun = false;
   });
@@ -1401,7 +1908,11 @@ void _attachListener(
 ) {
   final handlers = _getOrCreateHandlersMap(el);
   final alreadyAttached = handlers.containsKey(type);
-  handlers[type] = handler;
+  final capturedSignalScope = currentBloomSignalScope;
+  handlers[type] = (event) => runWithBloomSignalScopeBoundary(
+        capturedSignalScope,
+        () => handler(event),
+      );
 
   if (!alreadyAttached) {
     void listener(web.Event e) {
@@ -1610,7 +2121,11 @@ BloomMountHandle hydrateToElement(
         'consumed $consumed nodes',
       );
     }
-    return BloomMountHandle(container, region.disposers.toList());
+    return BloomMountHandle._(
+      container,
+      region.disposers.toList(),
+      region: region,
+    );
   } catch (e) {
     if (e is _HydrationAbort) {
       hctx.report(
@@ -1744,6 +2259,8 @@ String _commentText(web.Node n) => (n as web.Comment).data;
 
 String _describeNode(BloomNode node) {
   switch (node) {
+    case HmrComponentNode():
+      return 'HMR component';
     case TextNode():
       return 'Text';
     case RawHtmlNode():
@@ -1797,6 +2314,9 @@ int _hydrateNode(
   hctx.push('${_describeNode(desc)}[$index]');
   try {
     switch (desc) {
+      case HmrComponentNode(:final child):
+        return _hydrateNode(child, sibs, index, parentLive, region, hctx);
+
       case TextNode(:final text):
         if (index >= sibs.length) {
           throw _HydrationAbort('text node', 'missing node');
@@ -1854,31 +2374,72 @@ int _hydrateNode(
           :final on,
           :final children
         ):
-        return _hydrateElement(tag, text, className, style, attrs, on,
-            children, sibs, index, parentLive, region, hctx);
+        return _hydrateElement(tag, text, className, style, attrs, on, children,
+            sibs, index, parentLive, region, hctx);
 
-      case LiveNode(:final builder):
-        return _hydrateLive(node: desc, builder: builder, sibs: sibs,
-            index: index, parentLive: parentLive, region: region, hctx: hctx);
+      case LiveNode(:final builder, :final hotReloadScopeId):
+        return _hydrateLive(
+            node: desc,
+            builder: builder,
+            signalScopeId: hotReloadScopeId,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
 
-      case MemoNode():
-        return _hydrateMemo(node: desc, sibs: sibs, index: index,
-            parentLive: parentLive, region: region, hctx: hctx);
+      case MemoNode(:final hotReloadScopeId):
+        return _hydrateMemo(
+            node: desc,
+            signalScopeId: hotReloadScopeId,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
 
-      case ShowNode(:final child, :final fallback):
+      case ShowNode(:final child, :final fallback, :final hotReloadScopeId):
         return _hydrateShow(
-            when: desc.when, child: child, fallback: fallback, sibs: sibs,
-            index: index, parentLive: parentLive, region: region, hctx: hctx);
+            when: desc.when,
+            child: child,
+            fallback: fallback,
+            signalScopeId:
+                hotReloadScopeId == null ? null : '$hotReloadScopeId#when',
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
 
       case ForEachNode():
-        return _hydrateForEach(node: desc, sibs: sibs, index: index,
-            parentLive: parentLive, region: region, hctx: hctx);
+        return _hydrateForEach(
+            node: desc,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
 
-      case MountNode(:final child, :final onMount, :final onUnmount):
+      case MountNode(
+          :final child,
+          :final onMount,
+          :final onUnmount,
+          :final hotReloadScopeId
+        ):
+        final mountSignalScope =
+            _captureBranchSignalScope(hotReloadScopeId, 'onMount');
+        final unmountSignalScope =
+            _captureBranchSignalScope(hotReloadScopeId, 'onUnmount');
         final consumed =
             _hydrateNode(child, sibs, index, parentLive, region, hctx);
-        if (onMount != null) Future.microtask(onMount);
-        if (onUnmount != null) region.add(onUnmount);
+        if (onMount != null) {
+          Future.microtask(
+              () => _withCapturedBloomSignalScope(mountSignalScope, onMount));
+        }
+        if (onUnmount != null) {
+          region.add(() =>
+              _withCapturedBloomSignalScope(unmountSignalScope, onUnmount));
+        }
         return consumed;
 
       case RefNode(:final ref, :final child):
@@ -1896,9 +2457,14 @@ int _hydrateNode(
 
       case AnimatedNode(:final child, :final animation):
         return _hydrateAnimated(
-            child: child, animationName: animation.name,
-            inlineStyle: animation.toInlineStyle(), sibs: sibs, index: index,
-            parentLive: parentLive, region: region, hctx: hctx);
+            child: child,
+            animationName: animation.name,
+            inlineStyle: animation.toInlineStyle(),
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
 
       case ContextProviderNode(:final context, :final value, :final child):
         return runZoned(
@@ -1906,19 +2472,39 @@ int _hydrateNode(
           zoneValues: {context.zoneKey: value},
         );
 
-      case ErrorBoundaryNode(:final builder, :final fallback):
-        return _hydrateErrorBoundary(builder: builder, fallback: fallback,
-            sibs: sibs, index: index, parentLive: parentLive, region: region,
+      case ErrorBoundaryNode(
+          :final builder,
+          :final fallback,
+          :final hotReloadScopeId
+        ):
+        return _hydrateErrorBoundary(
+            builder: builder,
+            fallback: fallback,
+            signalScopeId: hotReloadScopeId,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
             hctx: hctx);
 
       case PortalNode(:final child, :final targetSelector):
-        return _hydratePortal(child: child, targetSelector: targetSelector,
-            sibs: sibs, index: index, parentLive: parentLive, region: region,
+        return _hydratePortal(
+            child: child,
+            targetSelector: targetSelector,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
             hctx: hctx);
 
       case SuspenseNode():
-        return _hydrateSuspense(node: desc, sibs: sibs, index: index,
-            parentLive: parentLive, region: region, hctx: hctx);
+        return _hydrateSuspense(
+            node: desc,
+            sibs: sibs,
+            index: index,
+            parentLive: parentLive,
+            region: region,
+            hctx: hctx);
     }
   } finally {
     hctx.pop();
@@ -1969,8 +2555,10 @@ int _hydrateElement(
     el.removeAttribute('style');
   }
   if (attrs != null) {
-    final preserve =
-        bloomHydrationPreserveFormState && _isFormControlTag(tag);
+    for (final entry in attrs.entries) {
+      validateBloomAttribute(entry.key, entry.value);
+    }
+    final preserve = bloomHydrationPreserveFormState && _isFormControlTag(tag);
     for (final e in attrs.entries) {
       if (preserve && _isPreservedFormAttr(e.key)) {
         _syncFormAttr(el, e.key, e.value, hctx);
@@ -1991,7 +2579,8 @@ int _hydrateElement(
   var consumed = 0;
   if (text != null) {
     if (kids.isEmpty || kids[0].nodeType != web.Node.TEXT_NODE) {
-      throw _HydrationAbort('text "$text"', kids.isEmpty ? 'no children' : _describeDom(kids[0]));
+      throw _HydrationAbort(
+          'text "$text"', kids.isEmpty ? 'no children' : _describeDom(kids[0]));
     }
     if (kids[0].textContent != text) kids[0].textContent = text;
     consumed = 1;
@@ -2085,6 +2674,7 @@ void _relocateEndMarker(
 int _hydrateLive({
   required LiveNode node,
   required BloomNode Function() builder,
+  required String? signalScopeId,
   required List<web.Node> sibs,
   required int index,
   required web.Node parentLive,
@@ -2092,6 +2682,7 @@ int _hydrateLive({
   required _HydrationContext hctx,
 }) {
   const label = hydrationMarkerLive;
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   final span = _findMarkerSpan(sibs, index, label);
   if (span != null) {
     final sentinel = _Sentinel.adopt(
@@ -2100,8 +2691,13 @@ int _hydrateLive({
     );
     final content = sibs.sublist(span.open + 1, span.close);
     _bindMarkerHydratedRegion(
-      sentinel: sentinel, parentRegion: region, build: builder,
-      content: content, hctx: hctx, label: label,
+      sentinel: sentinel,
+      parentRegion: region,
+      build: builder,
+      content: content,
+      hctx: hctx,
+      label: label,
+      signalScopeId: signalScopeId,
     );
     return span.close - span.open + 1;
   }
@@ -2109,17 +2705,25 @@ int _hydrateLive({
   final inner = _Region();
   late final int consumed;
   try {
-    final target = builder();
-    consumed = hctx.withBoundary(label, () =>
-        _hydrateNode(target, sibs, index, parentLive, inner, hctx));
+    final target = _withCapturedBloomSignalScope(capturedSignalScope, builder);
+    consumed = _withCapturedBloomSignalScope(
+      capturedSignalScope,
+      () => hctx.withBoundary(label,
+          () => _hydrateNode(target, sibs, index, parentLive, inner, hctx)),
+    );
   } catch (_) {
     inner.disposeAll();
     rethrow;
   }
   _relocateEndMarker(sentinel, parentLive, sibs, index, consumed);
   _bindTrackingRegion(
-      sentinel: sentinel, parentRegion: region, inner: inner,
-      build: builder, hctx: hctx, label: label);
+      sentinel: sentinel,
+      parentRegion: region,
+      inner: inner,
+      build: builder,
+      hctx: hctx,
+      label: label,
+      signalScopeId: signalScopeId);
   return consumed;
 }
 
@@ -2133,8 +2737,10 @@ void _bindMarkerHydratedRegion({
   required List<web.Node> content,
   required _HydrationContext hctx,
   required String label,
+  String? signalScopeId,
 }) {
   final inner = _Region();
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   final errorBoundary =
       Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
   var isFirstRun = true;
@@ -2143,16 +2749,22 @@ void _bindMarkerHydratedRegion({
     try {
       if (isFirstRun) {
         isFirstRun = false;
-        final target =
-            runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+        final target = _withCapturedBloomSignalScope(
+          capturedSignalScope,
+          () => runZoned(build,
+              zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+        );
         try {
           hctx.withBoundary(label, () {
-            final parentLive = sentinel.start.parentNode ?? sentinel.end.parentNode;
+            final parentLive =
+                sentinel.start.parentNode ?? sentinel.end.parentNode;
             if (parentLive == null) {
               throw _HydrationAbort('attached boundary', 'detached markers');
             }
-            final consumed = _hydrateNode(
-                target, content, 0, parentLive, inner, hctx);
+            final consumed = _withCapturedBloomSignalScope(
+              capturedSignalScope,
+              () => _hydrateNode(target, content, 0, parentLive, inner, hctx),
+            );
             if (consumed != content.length) {
               throw _HydrationAbort('exact boundary content',
                   'consumed $consumed of ${content.length}');
@@ -2161,29 +2773,40 @@ void _bindMarkerHydratedRegion({
         } catch (abort) {
           hctx.report(
             boundary: label,
-            expected: abort is _HydrationAbort ? abort.expected : 'hydratable content',
+            expected: abort is _HydrationAbort
+                ? abort.expected
+                : 'hydratable content',
             actual: abort is _HydrationAbort ? abort.actual : '$abort',
             recovery: 'remounted boundary',
           );
           inner.reset();
-          final fresh = runZoned(() => _mountNode(target, inner),
-              zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+          final fresh = _withCapturedBloomSignalScope(
+            capturedSignalScope,
+            () => runZoned(() => _mountNode(target, inner),
+                zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+          );
           sentinel.clear();
           sentinel.appendAll(fresh);
         }
         return;
       }
       inner.reset();
-      final target =
-          runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary});
-      final nodes = runZoned(() => _mountNode(target, inner),
-          zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+      final target = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () =>
+            runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+      );
+      final nodes = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () => runZoned(() => _mountNode(target, inner),
+            zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+      );
       sentinel.clear();
       sentinel.appendAll(nodes);
     } catch (err, stack) {
       inner.reset();
-      final boundary = Zone.current[_errorBoundaryZoneKey]
-          as _ErrorBoundaryHandler?;
+      final boundary =
+          Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       if (boundary != null) {
         boundary.handleError(err, stack);
       } else {
@@ -2192,7 +2815,7 @@ void _bindMarkerHydratedRegion({
     }
   }
 
-  final stop = effect(() => renderRegion());
+  final stop = _effectInCapturedBloomSignalScope(renderRegion);
   parentRegion.add(() {
     stop();
     inner.disposeAll();
@@ -2212,16 +2835,22 @@ void _bindTrackingRegion({
   required BloomNode Function() build,
   required _HydrationContext hctx,
   required String label,
+  String? signalScopeId,
 }) {
   final errorBoundary =
       Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   var skipFirst = true;
 
   void renderRegion() {
     try {
       if (skipFirst) {
         skipFirst = false;
-        runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+        _withCapturedBloomSignalScope(
+          capturedSignalScope,
+          () => runZoned(build,
+              zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+        );
         return;
       }
       web.Element? focusedEl;
@@ -2242,10 +2871,16 @@ void _bindTrackingRegion({
         }
       }
       inner.reset();
-      final target =
-          runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary});
-      final nodes = runZoned(() => _mountNode(target, inner),
-          zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+      final target = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () =>
+            runZoned(build, zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+      );
+      final nodes = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () => runZoned(() => _mountNode(target, inner),
+            zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+      );
       sentinel.clear();
       sentinel.appendAll(nodes);
       if (focusPath != null) {
@@ -2261,8 +2896,8 @@ void _bindTrackingRegion({
       }
     } catch (err, stack) {
       inner.reset();
-      final boundary = Zone.current[_errorBoundaryZoneKey]
-          as _ErrorBoundaryHandler?;
+      final boundary =
+          Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       if (boundary != null) {
         boundary.handleError(err, stack);
       } else {
@@ -2271,7 +2906,7 @@ void _bindTrackingRegion({
     }
   }
 
-  final stop = effect(() => renderRegion());
+  final stop = _effectInCapturedBloomSignalScope(renderRegion);
   parentRegion.add(() {
     stop();
     inner.disposeAll();
@@ -2280,6 +2915,7 @@ void _bindTrackingRegion({
 
 int _hydrateMemo({
   required MemoNode<dynamic> node,
+  required String? signalScopeId,
   required List<web.Node> sibs,
   required int index,
   required web.Node parentLive,
@@ -2296,9 +2932,14 @@ int _hydrateMemo({
       sibs[span.close] as web.Comment,
     );
     _bindHydratedMemoRegion(
-      sentinel: sentinel, parentRegion: region, dependencyFn: dependency,
-      builderFn: builder, content: sibs.sublist(span.open + 1, span.close),
-      prehydrated: null, hctx: hctx,
+      sentinel: sentinel,
+      parentRegion: region,
+      dependencyFn: dependency,
+      builderFn: builder,
+      content: sibs.sublist(span.open + 1, span.close),
+      prehydrated: null,
+      hctx: hctx,
+      signalScopeId: signalScopeId,
     );
     return span.close - span.open + 1;
   }
@@ -2306,20 +2947,31 @@ int _hydrateMemo({
   final inner = _Region();
   late final int consumed;
   Object? initialValue;
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   try {
     initialValue = dependency();
-    final target = builder(initialValue);
-    consumed = hctx.withBoundary(label, () =>
-        _hydrateNode(target, sibs, index, parentLive, inner, hctx));
+    final target = _withCapturedBloomSignalScope(
+        capturedSignalScope, () => builder(initialValue));
+    consumed = _withCapturedBloomSignalScope(
+      capturedSignalScope,
+      () => hctx.withBoundary(label,
+          () => _hydrateNode(target, sibs, index, parentLive, inner, hctx)),
+    );
   } catch (_) {
     inner.disposeAll();
     rethrow;
   }
   _relocateEndMarker(sentinel, parentLive, sibs, index, consumed);
   _bindHydratedMemoRegion(
-    sentinel: sentinel, parentRegion: region, dependencyFn: dependency,
-    builderFn: builder, content: const [], innerOverride: inner,
-    prehydrated: (value: initialValue, hasValue: true), hctx: hctx,
+    sentinel: sentinel,
+    parentRegion: region,
+    dependencyFn: dependency,
+    builderFn: builder,
+    content: const [],
+    innerOverride: inner,
+    prehydrated: (value: initialValue, hasValue: true),
+    hctx: hctx,
+    signalScopeId: signalScopeId,
   );
   return consumed;
 }
@@ -2339,9 +2991,11 @@ void _bindHydratedMemoRegion({
   _Region? innerOverride,
   ({Object? value, bool hasValue})? prehydrated,
   required _HydrationContext hctx,
+  String? signalScopeId,
 }) {
   const label = hydrationMarkerMemo;
   final inner = innerOverride ?? _Region();
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
   var isFirstRun = true;
   var hasPrevValue = prehydrated?.hasValue ?? false;
   Object? prevValue = prehydrated?.value;
@@ -2357,7 +3011,8 @@ void _bindHydratedMemoRegion({
 
       if (isFirstRun && prehydrated == null) {
         isFirstRun = false;
-        final newDescriptor = builderFn(value);
+        final newDescriptor = _withCapturedBloomSignalScope(
+            capturedSignalScope, () => builderFn(value));
         try {
           hctx.withBoundary(label, () {
             final parentLive =
@@ -2365,8 +3020,11 @@ void _bindHydratedMemoRegion({
             if (parentLive == null) {
               throw _HydrationAbort('attached boundary', 'detached markers');
             }
-            final consumed = _hydrateNode(
-                newDescriptor, content, 0, parentLive, inner, hctx);
+            final consumed = _withCapturedBloomSignalScope(
+              capturedSignalScope,
+              () => _hydrateNode(
+                  newDescriptor, content, 0, parentLive, inner, hctx),
+            );
             if (consumed != content.length) {
               throw _HydrationAbort('exact boundary content',
                   'consumed $consumed of ${content.length}');
@@ -2375,13 +3033,18 @@ void _bindHydratedMemoRegion({
         } catch (abort) {
           hctx.report(
             boundary: label,
-            expected: abort is _HydrationAbort ? abort.expected : 'hydratable content',
+            expected: abort is _HydrationAbort
+                ? abort.expected
+                : 'hydratable content',
             actual: abort is _HydrationAbort ? abort.actual : '$abort',
             recovery: 'remounted boundary',
           );
           inner.reset();
-          final fresh = runZoned(() => _mountNode(newDescriptor, inner),
-              zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+          final fresh = _withCapturedBloomSignalScope(
+            capturedSignalScope,
+            () => runZoned(() => _mountNode(newDescriptor, inner),
+                zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+          );
           sentinel.clear();
           sentinel.appendAll(fresh);
           currentNodes = fresh;
@@ -2393,7 +3056,8 @@ void _bindHydratedMemoRegion({
       }
 
       isFirstRun = false;
-      final newDescriptor = builderFn(value);
+      final newDescriptor = _withCapturedBloomSignalScope(
+          capturedSignalScope, () => builderFn(value));
       if (hasPrevValue && prevValue == value && prevDescriptor != null) {
         // Tracking-only run (positional path): dependency already seen.
         prevDescriptor = newDescriptor;
@@ -2410,8 +3074,11 @@ void _bindHydratedMemoRegion({
         }
       }
       inner.reset();
-      final nodes = runZoned(() => _mountNode(newDescriptor, inner),
-          zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+      final nodes = _withCapturedBloomSignalScope(
+        capturedSignalScope,
+        () => runZoned(() => _mountNode(newDescriptor, inner),
+            zoneValues: {_errorBoundaryZoneKey: errorBoundary}),
+      );
       if (prehydrated != null && currentNodes.isEmpty) {
         // Positional path: content already hydrated in place; adopt the
         // live nodes between the inserted sentinels as the current set.
@@ -2429,8 +3096,8 @@ void _bindHydratedMemoRegion({
       hasPrevValue = true;
     } catch (err, stack) {
       inner.reset();
-      final boundary = Zone.current[_errorBoundaryZoneKey]
-          as _ErrorBoundaryHandler?;
+      final boundary =
+          Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
       if (boundary != null) {
         boundary.handleError(err, stack);
       } else {
@@ -2439,7 +3106,7 @@ void _bindHydratedMemoRegion({
     }
   }
 
-  final stop = effect(() => renderRegion());
+  final stop = _effectInCapturedBloomSignalScope(renderRegion);
   parentRegion.add(() {
     stop();
     inner.disposeAll();
@@ -2450,6 +3117,7 @@ int _hydrateShow({
   required bool Function() when,
   required BloomNode child,
   required BloomNode? fallback,
+  required String? signalScopeId,
   required List<web.Node> sibs,
   required int index,
   required web.Node parentLive,
@@ -2457,7 +3125,10 @@ int _hydrateShow({
   required _HydrationContext hctx,
 }) {
   const label = hydrationMarkerShow;
-  BloomNode active() => when() ? child : (fallback ?? const FragmentNode([]));
+  BloomNode active() => _withCapturedBloomSignalScope(
+        _captureBloomSignalScope(signalScopeId),
+        () => when() ? child : (fallback ?? const FragmentNode([])),
+      );
   final span = _findMarkerSpan(sibs, index, label);
   if (span != null) {
     final sentinel = _Sentinel.adopt(
@@ -2466,8 +3137,12 @@ int _hydrateShow({
     );
     final content = sibs.sublist(span.open + 1, span.close);
     _bindMarkerHydratedRegion(
-      sentinel: sentinel, parentRegion: region, build: active,
-      content: content, hctx: hctx, label: label,
+      sentinel: sentinel,
+      parentRegion: region,
+      build: active,
+      content: content,
+      hctx: hctx,
+      label: label,
     );
     return span.close - span.open + 1;
   }
@@ -2475,16 +3150,20 @@ int _hydrateShow({
   final inner = _Region();
   late final int consumed;
   try {
-    consumed = hctx.withBoundary(label, () =>
-        _hydrateNode(active(), sibs, index, parentLive, inner, hctx));
+    consumed = hctx.withBoundary(label,
+        () => _hydrateNode(active(), sibs, index, parentLive, inner, hctx));
   } catch (_) {
     inner.disposeAll();
     rethrow;
   }
   _relocateEndMarker(sentinel, parentLive, sibs, index, consumed);
   _bindTrackingRegion(
-      sentinel: sentinel, parentRegion: region, inner: inner,
-      build: active, hctx: hctx, label: label);
+      sentinel: sentinel,
+      parentRegion: region,
+      inner: inner,
+      build: active,
+      hctx: hctx,
+      label: label);
   return consumed;
 }
 
@@ -2501,9 +3180,16 @@ int _hydrateForEach({
   final span = _findMarkerSpan(sibs, index, label);
   if (keyFn != null) {
     return _hydrateKeyedForEach(
-      itemsFn: node.itemsErased, keyFn: keyFn, builderFn: node.builderErased,
-      span: span, sibs: sibs, index: index, parentLive: parentLive,
-      region: region, hctx: hctx,
+      itemsFn: node.itemsErased,
+      keyFn: keyFn,
+      builderFn: node.builderErased,
+      signalScopeId: node.hotReloadScopeIdErased,
+      span: span,
+      sibs: sibs,
+      index: index,
+      parentLive: parentLive,
+      region: region,
+      hctx: hctx,
     );
   }
   // Unkeyed: same region semantics as Live over the built child list.
@@ -2515,8 +3201,12 @@ int _hydrateForEach({
     );
     final content = sibs.sublist(span.open + 1, span.close);
     _bindMarkerHydratedRegion(
-      sentinel: sentinel, parentRegion: region, build: build,
-      content: content, hctx: hctx, label: label,
+      sentinel: sentinel,
+      parentRegion: region,
+      build: build,
+      content: content,
+      hctx: hctx,
+      label: label,
     );
     return span.close - span.open + 1;
   }
@@ -2524,16 +3214,20 @@ int _hydrateForEach({
   final inner = _Region();
   late final int consumed;
   try {
-    consumed = hctx.withBoundary(label, () =>
-        _hydrateNode(build(), sibs, index, parentLive, inner, hctx));
+    consumed = hctx.withBoundary(label,
+        () => _hydrateNode(build(), sibs, index, parentLive, inner, hctx));
   } catch (_) {
     inner.disposeAll();
     rethrow;
   }
   _relocateEndMarker(sentinel, parentLive, sibs, index, consumed);
   _bindTrackingRegion(
-      sentinel: sentinel, parentRegion: region, inner: inner,
-      build: build, hctx: hctx, label: label);
+      sentinel: sentinel,
+      parentRegion: region,
+      inner: inner,
+      build: build,
+      hctx: hctx,
+      label: label);
   return consumed;
 }
 
@@ -2543,6 +3237,7 @@ int _hydrateKeyedForEach({
   required List<Object?> Function() itemsFn,
   required String Function(Object? item) keyFn,
   required BloomNode Function(Object? item) builderFn,
+  required String? signalScopeId,
   required ({int open, int close})? span,
   required List<web.Node> sibs,
   required int index,
@@ -2560,11 +3255,15 @@ int _hydrateKeyedForEach({
     );
     final content = sibs.sublist(span.open + 1, span.close);
     final controller = _KeyedListController(
-      sentinel: sentinel, itemsFn: itemsFn, keyFn: keyFn,
-      builderFn: builderFn, boundary: errorBoundary,
+      sentinel: sentinel,
+      itemsFn: itemsFn,
+      keyFn: keyFn,
+      builderFn: builderFn,
+      signalScopeId: signalScopeId,
+      boundary: errorBoundary,
     );
     var isFirstRun = true;
-    final stop = effect(() {
+    final stop = _effectInCapturedBloomSignalScope(() {
       if (!isFirstRun) {
         controller.reconcile();
         return;
@@ -2572,14 +3271,19 @@ int _hydrateKeyedForEach({
       isFirstRun = false;
       try {
         _hydrateKeyedItems(
-          itemsFn: itemsFn, keyFn: keyFn, builderFn: builderFn,
-          content: content, parentLive: sentinel.start.parentNode,
-          controller: controller, hctx: hctx,
+          itemsFn: itemsFn,
+          keyFn: keyFn,
+          builderFn: builderFn,
+          content: content,
+          parentLive: sentinel.start.parentNode,
+          controller: controller,
+          hctx: hctx,
         );
       } catch (abort) {
         hctx.report(
           boundary: label,
-          expected: abort is _HydrationAbort ? abort.expected : 'hydratable items',
+          expected:
+              abort is _HydrationAbort ? abort.expected : 'hydratable items',
           actual: abort is _HydrationAbort ? abort.actual : '$abort',
           recovery: 'remounted boundary',
         );
@@ -2598,24 +3302,37 @@ int _hydrateKeyedForEach({
   // Markerless: insert markers, hydrate eagerly, track afterwards.
   final sentinel = _insertBoundaryMarkers(parentLive, sibs, index, label);
   final controller = _KeyedListController(
-    sentinel: sentinel, itemsFn: itemsFn, keyFn: keyFn,
-    builderFn: builderFn, boundary: errorBoundary,
+    sentinel: sentinel,
+    itemsFn: itemsFn,
+    keyFn: keyFn,
+    builderFn: builderFn,
+    signalScopeId: signalScopeId,
+    boundary: errorBoundary,
   );
   late final int consumed;
   try {
     consumed = hctx.withBoundary(label, () {
       var cursor = index;
       var total = 0;
-      for (final item in itemsFn()) {
-        final descriptor =
-            runZoned(() => builderFn(item), zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+      for (final pair in _keyedItems(controller._itemsInScope(), keyFn)) {
+        final descriptor = controller._inItemScope(
+          pair.$2,
+          () => runZoned(
+            () => builderFn(pair.$1),
+            zoneValues: {_errorBoundaryZoneKey: errorBoundary},
+          ),
+        );
         final itemRegion = _Region();
-        final used = _hydrateNode(
-            descriptor, sibs, cursor, parentLive, itemRegion, hctx);
-        controller.activeEntries[keyFn(item)] = _KeyedEntry(
-          key: keyFn(item),
+        final used = controller._inItemScope(
+          pair.$2,
+          () => _hydrateNode(
+              descriptor, sibs, cursor, parentLive, itemRegion, hctx),
+        );
+        controller.activeEntries[pair.$2] = _KeyedEntry(
+          key: pair.$2,
           domNodes: sibs.sublist(cursor, cursor + used),
           region: itemRegion,
+          signalScope: controller._signalScopeForItem(pair.$2),
           descriptor: descriptor,
         );
         cursor += used;
@@ -2631,12 +3348,12 @@ int _hydrateKeyedForEach({
   // Tracking run mirrors the fresh mount's first run: the item closures'
   // reads belong to this effect so update-time throws reach the boundary.
   var skipFirst = true;
-  final stop = effect(() {
+  final stop = _effectInCapturedBloomSignalScope(() {
     if (skipFirst) {
       skipFirst = false;
-      for (final item in itemsFn()) {
-        keyFn(item);
-        builderFn(item);
+      for (final item in controller._itemsInScope()) {
+        final key = keyFn(item);
+        controller._inItemScope(key, () => builderFn(item));
       }
       return;
     }
@@ -2663,33 +3380,41 @@ void _hydrateKeyedItems({
     throw _HydrationAbort('attached boundary', 'detached markers');
   }
   final errorBoundary = controller.boundary;
-  final items = itemsFn();
+  final keyedItems = _keyedItems(controller._itemsInScope(), keyFn);
   final byKey = <String, Object?>{};
-  for (final item in items) {
-    byKey[keyFn(item)] = item;
+  for (final pair in keyedItems) {
+    byKey[pair.$2] = pair.$1;
   }
   // Split content by key markers when present; otherwise positional.
   final segments = _splitKeySegments(content);
   if (segments != null) {
-    if (segments.length != items.length) {
+    if (segments.length != keyedItems.length) {
       throw _HydrationAbort(
-        'foreach with exactly ${items.length} keyed items',
+        'foreach with exactly ${keyedItems.length} keyed items',
         '${segments.length} keyed segments',
       );
     }
     for (var i = 0; i < segments.length; i++) {
       final seg = segments[i];
-      final item = byKey[seg.key];
-      if (item == null) {
+      if (!byKey.containsKey(seg.key)) {
         throw _HydrationAbort(
             'keyed item "${seg.key}"', 'no matching client item');
       }
-      final expectedKey = keyFn(items[i]);
-      final descriptor = runZoned(() => builderFn(item),
-          zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+      final item = byKey[seg.key];
+      final expectedKey = keyedItems[i].$2;
+      final descriptor = controller._inItemScope(
+        seg.key,
+        () => runZoned(
+          () => builderFn(item),
+          zoneValues: {_errorBoundaryZoneKey: errorBoundary},
+        ),
+      );
       final itemRegion = _Region();
-      final used = _hydrateNode(
-          descriptor, content, seg.start, parentLive, itemRegion, hctx);
+      final used = controller._inItemScope(
+        seg.key,
+        () => _hydrateNode(
+            descriptor, content, seg.start, parentLive, itemRegion, hctx),
+      );
       if (seg.start + used != seg.end) {
         itemRegion.disposeAll();
         throw _HydrationAbort('exact keyed item "${seg.key}"',
@@ -2701,7 +3426,8 @@ void _hydrateKeyedItems({
         hctx.report(
           boundary: hydrationMarkerForEach,
           expected: 'SSR order position $i key "$expectedKey"',
-          actual: 'SSR key "${seg.key}" (hydrated in place; reconciler owns order)',
+          actual:
+              'SSR key "${seg.key}" (hydrated in place; reconciler owns order)',
           recovery: 'kept SSR order until next update',
         );
       }
@@ -2709,6 +3435,7 @@ void _hydrateKeyedItems({
         key: seg.key,
         domNodes: content.sublist(seg.start, seg.end),
         region: itemRegion,
+        signalScope: controller._signalScopeForItem(seg.key),
         descriptor: descriptor,
       );
     }
@@ -2716,23 +3443,31 @@ void _hydrateKeyedItems({
   }
   // Positional fallback within a delimited foreach span.
   var cursor = 0;
-  for (final item in items) {
-    final descriptor = runZoned(() => builderFn(item),
-        zoneValues: {_errorBoundaryZoneKey: errorBoundary});
+  for (final pair in keyedItems) {
+    final descriptor = controller._inItemScope(
+      pair.$2,
+      () => runZoned(
+        () => builderFn(pair.$1),
+        zoneValues: {_errorBoundaryZoneKey: errorBoundary},
+      ),
+    );
     final itemRegion = _Region();
-    final used =
-        _hydrateNode(descriptor, content, cursor, parentLive, itemRegion, hctx);
-    controller.activeEntries[keyFn(item)] = _KeyedEntry(
-      key: keyFn(item),
+    final used = controller._inItemScope(
+      pair.$2,
+      () => _hydrateNode(
+          descriptor, content, cursor, parentLive, itemRegion, hctx),
+    );
+    controller.activeEntries[pair.$2] = _KeyedEntry(
+      key: pair.$2,
       domNodes: content.sublist(cursor, cursor + used),
       region: itemRegion,
+      signalScope: controller._signalScopeForItem(pair.$2),
       descriptor: descriptor,
     );
     cursor += used;
   }
   if (cursor != content.length) {
-    throw _HydrationAbort(
-        'foreach with exactly ${content.length} item nodes',
+    throw _HydrationAbort('foreach with exactly ${content.length} item nodes',
         'consumed $cursor nodes');
   }
 }
@@ -2759,7 +3494,8 @@ List<_KeySegment>? _splitKeySegments(List<web.Node> content) {
     final key = parseKeyMarker(_commentText(n));
     if (key == null) {
       if (out.isEmpty && !sawMarker) return null;
-      throw _HydrationAbort('keyed item marker', 'comment <!--${normalizeMarkerData(_commentText(n))}-->');
+      throw _HydrationAbort('keyed item marker',
+          'comment <!--${normalizeMarkerData(_commentText(n))}-->');
     }
     sawMarker = true;
     var depth = 0;
@@ -2817,8 +3553,7 @@ int _hydrateAnimated({
   final kids = _liveChildren(wrapper);
   final used = _hydrateNode(child, kids, 0, wrapper, region, hctx);
   if (used != kids.length) {
-    throw _HydrationAbort(
-        'animated content with exactly ${kids.length} nodes',
+    throw _HydrationAbort('animated content with exactly ${kids.length} nodes',
         'consumed $used nodes');
   }
   return consumed + 1;
@@ -2827,6 +3562,7 @@ int _hydrateAnimated({
 int _hydrateErrorBoundary({
   required BloomNode Function() builder,
   required BloomNode Function(Object error, StackTrace stackTrace) fallback,
+  required String? signalScopeId,
   required List<web.Node> sibs,
   required int index,
   required web.Node parentLive,
@@ -2834,6 +3570,10 @@ int _hydrateErrorBoundary({
   required _HydrationContext hctx,
 }) {
   const label = hydrationMarkerErrorBoundary;
+  final builderSignalScope =
+      _captureBranchSignalScope(signalScopeId, 'builder');
+  final fallbackSignalScope =
+      _captureBranchSignalScope(signalScopeId, 'fallback');
   final parentBoundary =
       Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
   final span = _findMarkerSpan(sibs, index, label);
@@ -2842,11 +3582,18 @@ int _hydrateErrorBoundary({
     // fallback instead (mirrors SSR). Future errors have no adopted span to
     // recover into, so they propagate to the enclosing boundary.
     try {
-      final target = builder();
-      return _hydrateNode(target, sibs, index, parentLive, region, hctx);
+      final target = _withCapturedBloomSignalScope(builderSignalScope, builder);
+      return _withCapturedBloomSignalScope(
+        builderSignalScope,
+        () => _hydrateNode(target, sibs, index, parentLive, region, hctx),
+      );
     } catch (err, stack) {
-      final target = fallback(err, stack);
-      return _hydrateNode(target, sibs, index, parentLive, region, hctx);
+      final target = _withCapturedBloomSignalScope(
+          fallbackSignalScope, () => fallback(err, stack));
+      return _withCapturedBloomSignalScope(
+        fallbackSignalScope,
+        () => _hydrateNode(target, sibs, index, parentLive, region, hctx),
+      );
     }
   }
   final sentinel = _Sentinel.adopt(
@@ -2859,19 +3606,24 @@ int _hydrateErrorBoundary({
     sentinel: sentinel,
     inner: inner,
     fallback: fallback,
+    fallbackSignalScope: fallbackSignalScope,
     parentBoundary: parentBoundary,
   );
   try {
-    final target = runZoned(builder,
-        zoneValues: {_errorBoundaryZoneKey: handler});
+    final target = _withCapturedBloomSignalScope(
+      builderSignalScope,
+      () => runZoned(builder, zoneValues: {_errorBoundaryZoneKey: handler}),
+    );
     try {
       hctx.withBoundary(label, () {
         final parent = sentinel.start.parentNode ?? sentinel.end.parentNode;
         if (parent == null) {
           throw _HydrationAbort('attached boundary', 'detached markers');
         }
-        final consumed =
-            _hydrateNode(target, content, 0, parent, inner, hctx);
+        final consumed = _withCapturedBloomSignalScope(
+          builderSignalScope,
+          () => _hydrateNode(target, content, 0, parent, inner, hctx),
+        );
         if (consumed != content.length) {
           throw _HydrationAbort('exact boundary content',
               'consumed $consumed of ${content.length}');
@@ -2880,13 +3632,17 @@ int _hydrateErrorBoundary({
     } catch (abort) {
       hctx.report(
         boundary: label,
-        expected: abort is _HydrationAbort ? abort.expected : 'hydratable content',
+        expected:
+            abort is _HydrationAbort ? abort.expected : 'hydratable content',
         actual: abort is _HydrationAbort ? abort.actual : '$abort',
         recovery: 'remounted boundary',
       );
       inner.reset();
-      final fresh = runZoned(() => _mountNode(target, inner),
-          zoneValues: {_errorBoundaryZoneKey: handler});
+      final fresh = _withCapturedBloomSignalScope(
+        builderSignalScope,
+        () => runZoned(() => _mountNode(target, inner),
+            zoneValues: {_errorBoundaryZoneKey: handler}),
+      );
       sentinel.clear();
       sentinel.appendAll(fresh);
     }
@@ -2894,9 +3650,14 @@ int _hydrateErrorBoundary({
     handler.isFailed = true;
     inner.reset();
     try {
-      final fallbackNode = fallback(err, stack);
-      final fresh = runZoned(() => _mountNode(fallbackNode, inner),
-          zoneValues: {_errorBoundaryZoneKey: parentBoundary});
+      final fresh = _withCapturedBloomSignalScope(
+        fallbackSignalScope,
+        () {
+          final fallbackNode = fallback(err, stack);
+          return runZoned(() => _mountNode(fallbackNode, inner),
+              zoneValues: {_errorBoundaryZoneKey: parentBoundary});
+        },
+      );
       sentinel.clear();
       sentinel.appendAll(fresh);
     } catch (fallbackErr, fallbackStack) {
@@ -2953,6 +3714,12 @@ int _hydrateSuspense({
   required _HydrationContext hctx,
 }) {
   const label = hydrationMarkerSuspense;
+  final builderSignalScope =
+      _captureBranchSignalScope(node.hotReloadScopeId, 'resolved');
+  final resourceSignalScope =
+      _captureBranchSignalScope(node.hotReloadScopeId, 'resource');
+  final errorSignalScope =
+      _captureBranchSignalScope(node.hotReloadScopeId, 'error');
   final boundary =
       Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
   final dynamic dynNode = node;
@@ -2961,8 +3728,7 @@ int _hydrateSuspense({
   // Claim it so a late server patch script (null-guarded
   // getElementById) no-ops instead of destroying hydrated state; the client
   // region re-runs resource and patches itself on resolve.
-  if (index < sibs.length &&
-      sibs[index].nodeType == web.Node.ELEMENT_NODE) {
+  if (index < sibs.length && sibs[index].nodeType == web.Node.ELEMENT_NODE) {
     final el = sibs[index] as web.Element;
     final id = el.getAttribute('id') ?? '';
     if (id.startsWith('bloom-suspense-')) {
@@ -2974,17 +3740,19 @@ int _hydrateSuspense({
       try {
         hctx.withBoundary(label, () {
           final kids = _liveChildren(el);
-          final consumed = _hydrateNode(
-              node.fallback, kids, 0, el, inner, hctx);
+          final consumed =
+              _hydrateNode(node.fallback, kids, 0, el, inner, hctx);
           if (consumed != kids.length) {
-            throw _HydrationAbort('suspense fallback with exactly ${kids.length} nodes',
+            throw _HydrationAbort(
+                'suspense fallback with exactly ${kids.length} nodes',
                 'consumed $consumed nodes');
           }
         });
       } catch (abort) {
         hctx.report(
           boundary: label,
-          expected: abort is _HydrationAbort ? abort.expected : 'hydratable fallback',
+          expected:
+              abort is _HydrationAbort ? abort.expected : 'hydratable fallback',
           actual: abort is _HydrationAbort ? abort.actual : '$abort',
           recovery: 'remounted boundary',
         );
@@ -3010,6 +3778,9 @@ int _hydrateSuspense({
         ownerRegion: region,
         boundary: boundary,
         hctx: hctx,
+        builderSignalScope: builderSignalScope,
+        errorSignalScope: errorSignalScope,
+        resourceSignalScope: resourceSignalScope,
       );
       return 1;
     }
@@ -3040,7 +3811,8 @@ int _hydrateSuspense({
     } catch (abort) {
       hctx.report(
         boundary: label,
-        expected: abort is _HydrationAbort ? abort.expected : 'hydratable fallback',
+        expected:
+            abort is _HydrationAbort ? abort.expected : 'hydratable fallback',
         actual: abort is _HydrationAbort ? abort.actual : '$abort',
         recovery: 'remounted boundary',
       );
@@ -3062,6 +3834,9 @@ int _hydrateSuspense({
       ownerRegion: region,
       boundary: boundary,
       hctx: hctx,
+      builderSignalScope: builderSignalScope,
+      errorSignalScope: errorSignalScope,
+      resourceSignalScope: resourceSignalScope,
     );
     return span.close - span.open + 1;
   }
@@ -3074,8 +3849,10 @@ int _hydrateSuspense({
   final inner = _Region();
   late final int consumed;
   try {
-    consumed = hctx.withBoundary(label, () =>
-        _hydrateNode(node.fallback, sibs, index, parentLive, inner, hctx));
+    consumed = hctx.withBoundary(
+        label,
+        () =>
+            _hydrateNode(node.fallback, sibs, index, parentLive, inner, hctx));
   } catch (_) {
     inner.disposeAll();
     rethrow;
@@ -3093,6 +3870,9 @@ int _hydrateSuspense({
     ownerRegion: region,
     boundary: boundary,
     hctx: hctx,
+    builderSignalScope: builderSignalScope,
+    errorSignalScope: errorSignalScope,
+    resourceSignalScope: resourceSignalScope,
   );
   return consumed;
 }
@@ -3106,21 +3886,30 @@ int _hydrateSuspense({
 void _attachSuspenseContinuation({
   required Future<Object?> Function() resource,
   required BloomNode Function(Object? data) builder,
-  required BloomNode Function(Object error, StackTrace stackTrace)? errorBuilder,
+  required BloomNode Function(Object error, StackTrace stackTrace)?
+      errorBuilder,
   required void Function(List<web.Node> fresh) replace,
   required _Region inner,
   required _Region ownerRegion,
   required _ErrorBoundaryHandler? boundary,
   required _HydrationContext hctx,
+  required String? builderSignalScope,
+  required String? errorSignalScope,
+  required String? resourceSignalScope,
 }) {
   void handleSuspenseError(Object error, StackTrace stackTrace) {
     if (ownerRegion.isDisposed) return;
     if (errorBuilder != null) {
       try {
         inner.reset();
-        final errorNode = errorBuilder(error, stackTrace);
-        final errorNodes = runZoned(() => _mountNode(errorNode, inner),
-            zoneValues: {_errorBoundaryZoneKey: boundary});
+        final errorNodes = _withCapturedBloomSignalScope(
+          errorSignalScope,
+          () {
+            final errorNode = errorBuilder(error, stackTrace);
+            return runZoned(() => _mountNode(errorNode, inner),
+                zoneValues: {_errorBoundaryZoneKey: boundary});
+          },
+        );
         replace(errorNodes);
       } catch (ebErr, ebStack) {
         inner.reset();
@@ -3140,14 +3929,19 @@ void _attachSuspenseContinuation({
   }
 
   try {
-    resource().then((data) {
+    _withCapturedBloomSignalScope(resourceSignalScope, resource).then((data) {
       if (ownerRegion.isDisposed) return;
       try {
         // Detached by a racing server patch or teardown: don't resurrect.
         inner.reset();
-        final loadedNode = builder(data);
-        final loadedNodes = runZoned(() => _mountNode(loadedNode, inner),
-            zoneValues: {_errorBoundaryZoneKey: boundary});
+        final loadedNodes = _withCapturedBloomSignalScope(
+          builderSignalScope,
+          () {
+            final loadedNode = builder(data);
+            return runZoned(() => _mountNode(loadedNode, inner),
+                zoneValues: {_errorBoundaryZoneKey: boundary});
+          },
+        );
         replace(loadedNodes);
       } catch (err, stack) {
         handleSuspenseError(err, stack);

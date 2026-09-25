@@ -255,6 +255,11 @@ BloomNode statusBadge({required bool isOnline, required String label}) {
 }
 ```
 
+SSR escapes attribute values and rejects inline `on*` handlers, `srcdoc`, and
+script-bearing URL schemes. Attach handlers through `onClick`/`on:` instead.
+`RawHtmlNode` remains an explicit trusted-HTML escape hatch; never pass
+untrusted strings to it.
+
 ---
 
 ### How do I handle DOM events?
@@ -1173,6 +1178,13 @@ void main() {
 }
 ```
 
+The controller checks guards on a guarded deep link before `resolve()` exposes
+the route builder, so protected content does not flash during startup. A redirect
+replaces the current URL. A guard that denies without a redirect leaves the
+route empty; wrap `router.resolve()` in an `ErrorBoundary` if guard errors such
+as redirect loops should render a recovery UI. Guards on shell routes run before
+guards on their matched child routes.
+
 ---
 
 ### How do I read and mutate query parameters and hash fragments?
@@ -1493,21 +1505,32 @@ BloomNode styledCard(String titleText) {
 
 ---
 
-### How do I configure CSP Nonces for injected stylesheets?
-Set `bloomStyleNonce` before mounting in the browser.
+### How do I configure CSP nonces for styles and custom elements?
+Set both nonces before mounting or registering custom elements in the browser.
+Use the nonce issued for this response by your server; do not hard-code it.
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
+import 'package:web/web.dart' as web;
 
 void main() {
-  bloomStyleNonce = 'rAnd0mN0nc3Str1ng';
-  mount(App(), '#app'); // All injected <style> tags receive nonce="rAnd0mN0nc3Str1ng"
+  final nonce = web.document
+      .querySelector('meta[name="csp-nonce"]')
+      ?.getAttribute('content');
+  if (nonce == null) throw StateError('Missing server-provided CSP nonce');
+  bloomStyleNonce = nonce;
+  bloomScriptNonce = nonce;
+  mount(App(), '#app');
+  defineCustomElement('bloom-card', (_) => Div(text: 'Card'));
 }
 
 /// Your own root component.
 BloomNode App() => Div(text: 'App root');
 ```
+
+`defineCustomElement()` works with a nonce-only `script-src` policy and does
+not require `unsafe-eval` or `unsafe-inline`.
 
 ---
 
@@ -1695,7 +1718,10 @@ BloomNode greetingWidget(String userName, int itemCount) {
 }
 ```
 
-Watch out: Built-in number and date formatting functions (`formatNumber`, `formatDate`) use a lightweight pure-Dart translation engine covering major language families. They do not bundle the entire Unicode CLDR dataset.
+`formatNumber`, `formatCurrency`, `formatPercent`, `formatDate`, and
+`formatDateTime` use CLDR-backed `package:intl` data in the browser and on the
+server, so both render the same locale-specific result. Relative-time phrases
+still cover a smaller set of languages.
 
 ---
 
@@ -1970,15 +1996,23 @@ stable `key:`:
 final count = signal(0, key: 'lib/state/counter.dart#count');
 ```
 
-The dev compiler auto-injects a stable key (derived from file path +
-enclosing declaration + ordinal) for any `signal(...)` call that doesn't
-have one explicitly, so in practice you don't need to write `key:`
-yourself during normal development — it's already preserved. If a
-signal's declared type changes between edits, its value is safely reset
-to the new initial value rather than risking a type-mismatch crash. This
-carry-over only applies to top-level/static signals in dev mode; it has
-zero effect on `bloom js build` production bundles, and `computed()`/
-`effect()`/closure-scoped signals are always reset on a remount.
+The dev compiler auto-injects stable keys for `signal(...)` calls that do
+not have one explicitly. It scopes signals created in supported reactive
+callbacks, including `Live`, `Show`, `Memo`, `Suspense`, `ErrorBoundary`,
+`Mount`, `effect`, `lazy`, event handlers, and keyed `ForEach` callbacks.
+Nested callbacks keep their enclosing keyed-row identity. Constructor
+expressions and named constructors assigned directly to variables at stable
+call sites also receive per-instance scopes, including imported classes;
+separate call sites retain separate field signals. Unkeyed lists, ordinary
+loops, top-level factory functions, and inline imported constructor
+expressions are left alone when the compiler cannot prove instance identity.
+If a signal's declared type
+changes between edits, its value safely
+resets to the new initial value rather than risking a type-mismatch crash.
+Previous user-created effects are stopped before the next module runs, then
+the new module creates them again; effect-local state is therefore recreated.
+Computed values are re-derived from the preserved signals. All of this has
+zero effect on `bloom js build` production bundles.
 
 The dev server owns the `main.js` bootstrap path. Do not add a second
 `<script src="main.js">`, rewrite it with a relative prefix, or serve a
@@ -3902,7 +3936,7 @@ A consolidated reference of every mistake this framework's own gotchas invite. E
 
 ### Reactivity
 
-- **Reading a signal outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a subscription.** This is the #1 beginner bug — see Section 2. If a value doesn't update on screen after a signal changes, this is almost always why. `bloom lint`'s `untracked_signal_read` rule (Section 16) catches this automatically.
+- **Reading a signal outside `Live`/`Show`/`ForEach` captures a one-time snapshot, not a subscription.** This includes `lazy()` loaders and reads wrapped only in `batch()` or `untracked()` — those helpers do not make a UI read reactive. This is the #1 beginner bug — see Section 2. If a value doesn't update on screen after a signal changes, this is almost always why. `bloom lint`'s `untracked_signal_read` rule (Section 16) catches this automatically.
 - **A DDC dev-mode hot remount (`bloom js dev`'s default) resets all top-level/static state, including signals, unless it's keyed** — the dev compiler auto-injects a stable key for you, so this is normally transparent, but a signal's value resets to its initial value if its declared type changes between edits (Section 16). This only affects dev mode; production builds always start fresh.
 - **Update a list/map signal by reassigning `.value`, never by mutating the existing collection in place.** `todos.value.add(x)` does not notify subscribers because the identity of `.value` never changed; `todos.value = [...todos.value, x]` does. Every list-mutation example in this cookbook (Section 6, Section 7) reassigns for this reason — copy the pattern exactly, don't "simplify" it back to `.add()`/`.remove()`.
 - **Always pass `key:` to `ForEach` for any list that can reorder, insert, or remove items** (Section 6). An unkeyed `ForEach` tears down and rebuilds every child DOM node on each update — visible as lost input focus, restarted CSS transitions, or flicker.

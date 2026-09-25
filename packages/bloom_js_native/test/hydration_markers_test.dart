@@ -5,8 +5,7 @@ void main() {
   group('SSR hydration marker contract', () {
     test('Live wraps output in live markers', () {
       final html = renderToHtml(Live(() => P(text: 'x')));
-      expect(html,
-          '<!--bloom:live--><p>x</p><!--/bloom:live-->');
+      expect(html, '<!--bloom:live--><p>x</p><!--/bloom:live-->');
     });
 
     test('Memo wraps output in memo markers', () {
@@ -17,8 +16,7 @@ void main() {
     test('Show wraps the active branch in show markers', () {
       final html = renderToHtml(
           Show(() => true, child: P(text: 'y'), fallback: P(text: 'n')));
-      expect(
-          html, '<!--bloom:show--><p>y</p><!--/bloom:show-->');
+      expect(html, '<!--bloom:show--><p>y</p><!--/bloom:show-->');
     });
 
     test('keyed ForEach tags each item with its key', () {
@@ -36,9 +34,28 @@ void main() {
       );
     });
 
+    test('keyed ForEach rejects duplicate keys during SSR', () {
+      final node = ForEach<int>(
+        () => [1, 2],
+        (item) => Li(text: '$item'),
+        key: (_) => 'duplicate',
+      );
+
+      expect(
+        () => renderToHtml(node),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Duplicate ForEach key "duplicate"'),
+          ),
+        ),
+      );
+    });
+
     test('unkeyed ForEach emits only the container boundary', () {
-      final html = renderToHtml(
-          ForEach(() => ['a'], (String t) => Li(text: t)));
+      final html =
+          renderToHtml(ForEach(() => ['a'], (String t) => Li(text: t)));
       expect(html, '<!--bloom:foreach--><li>a</li><!--/bloom:foreach-->');
     });
 
@@ -62,8 +79,8 @@ void main() {
 
     test('Mount and Ref stay transparent in SSR', () {
       final ref = Ref<Object>();
-      final html = renderToHtml(Mount(RefNode(ref, P(text: 'hi')),
-          onMount: () {}, onUnmount: () {}));
+      final html = renderToHtml(
+          Mount(RefNode(ref, P(text: 'hi')), onMount: () {}, onUnmount: () {}));
       expect(html, '<p>hi</p>');
     });
 
@@ -86,7 +103,15 @@ void main() {
     });
 
     test('unsafe keys round-trip through b64 encoding', () {
-      for (final key in ['a b', 'x--y', '<b>', 'ünï', 'a/b?c=d&e', '日本', '😀']) {
+      for (final key in [
+        'a b',
+        'x--y',
+        '<b>',
+        'ünï',
+        'a/b?c=d&e',
+        '日本',
+        '😀'
+      ]) {
         final escaped = escapeHydrationKey(key);
         expect(escaped, isNot(contains('--')));
         expect(escaped, isNot(contains('<')));
@@ -100,6 +125,13 @@ void main() {
       final data = open.substring(4, open.length - 3);
       expect(parseKeyMarker(data), key);
       expect(isKeyMarkerClose('/bloom:key'), isTrue);
+    });
+
+    test('corrupted base64 key markers are rejected without throwing', () {
+      expect(parseKeyMarker('bloom:key=b64:%%%'), isNull);
+      expect(parseKeyMarker('bloom:key=b64:_w'), isNull,
+          reason:
+              'invalid base64 must become a recoverable hydration mismatch');
     });
 
     test('marker matching ignores mount-style whitespace', () {

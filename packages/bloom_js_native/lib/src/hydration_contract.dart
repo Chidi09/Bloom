@@ -95,8 +95,14 @@ bool isMarkerClose(String data, String label) =>
 String? parseKeyMarker(String data) {
   final normalized = normalizeMarkerData(data);
   if (normalized.startsWith(hydrationMarkerKeyPrefix)) {
-    return unescapeHydrationKey(
-        normalized.substring(hydrationMarkerKeyPrefix.length));
+    try {
+      return unescapeHydrationKey(
+          normalized.substring(hydrationMarkerKeyPrefix.length));
+    } on FormatException {
+      // SSR output can be modified by an intermediary or contain hand-authored
+      // raw HTML. Treat a corrupt marker as a hydration mismatch, not a crash.
+      return null;
+    }
   }
   return null;
 }

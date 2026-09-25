@@ -6,6 +6,8 @@ import 'dart:js_interop';
 
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
+import 'package:bloom_js_native/src/_signal_scope.dart';
+import 'package:bloom_js_native/src/_signals_browser.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -26,14 +28,15 @@ void main() {
   setUp(() {
     container = newContainer();
     mismatches.clear();
+    bloomHotReloadTrackingEnabled = false;
   });
 
   tearDown(() {
+    bloomHotReloadTrackingEnabled = false;
     container.remove();
   });
 
-  HydrationMismatchHandler collect() =>
-      (m) => mismatches.add(m);
+  HydrationMismatchHandler collect() => (m) => mismatches.add(m);
 
   group('reactive hydration preserves SSR DOM', () {
     test('Live hydrates in place and stays reactive', () {
@@ -46,8 +49,7 @@ void main() {
       final h1Before = container.querySelector('h1');
       final pBefore = container.querySelector('p');
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       expect(mismatches, isEmpty);
@@ -65,16 +67,13 @@ void main() {
       final flag = signal(true);
       BloomNode page() => Div(children: [
             Span(text: 'static'),
-            Show(
-                () => flag.value,
-                child: P(text: 'yes'),
-                fallback: P(text: 'no')),
+            Show(() => flag.value,
+                child: P(text: 'yes'), fallback: P(text: 'no')),
           ]);
       setSsrHtml(container, renderToHtml(page()));
       final spanBefore = container.querySelector('span');
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
       expect(mismatches, isEmpty);
 
@@ -86,29 +85,26 @@ void main() {
     test('event listeners attach to SSR nodes exactly once', () {
       var clicks = 0;
       BloomNode page() => Div(children: [
-            Button(
-                text: 'go', on: {'click': (_) => clicks++}),
+            Button(text: 'go', on: {'click': (_) => clicks++}),
           ]);
       setSsrHtml(container, renderToHtml(page()));
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
-      container.querySelector('button')!.dispatchEvent(
-          web.MouseEvent('click'));
+      container.querySelector('button')!.dispatchEvent(web.MouseEvent('click'));
       expect(clicks, 1);
     });
 
     test('pre-hydration input values survive with a diagnostic', () {
-      BloomNode page() =>
-          Div(children: [Input(attrs: {'value': 'server', 'type': 'text'})]);
+      BloomNode page() => Div(children: [
+            Input(attrs: {'value': 'server', 'type': 'text'})
+          ]);
       setSsrHtml(container, renderToHtml(page()));
       final input = container.querySelector('input') as web.HTMLInputElement;
       input.value = 'typed-by-user';
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       expect(input.value, 'typed-by-user',
@@ -131,8 +127,7 @@ void main() {
       input.focus();
       input.setSelectionRange(6, 11);
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       expect(web.document.activeElement, same(input));
@@ -157,8 +152,7 @@ void main() {
       final liA = container.querySelector('li[data-k="a"]')!;
       final liB = container.querySelector('li[data-k="b"]')!;
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
       expect(mismatches, isEmpty);
 
@@ -172,6 +166,78 @@ void main() {
       // Same node instances, reordered — not recreated.
       expect(container.querySelector('li[data-k="a"]'), same(liA));
       expect(container.querySelector('li[data-k="b"]'), same(liB));
+    });
+
+    test('corrupted keyed marker recovers instead of throwing', () {
+      BloomNode page() => Ul(children: [
+            ForEach<String>(
+              () => ['a'],
+              (value) => Li(attrs: {'data-k': value}, text: value),
+              key: (value) => value,
+            ),
+          ]);
+
+      // Simulate a malformed marker in otherwise valid SSR output (for
+      // example, after an intermediary has modified the HTML comment).
+      final html = renderToHtml(page()).replaceFirst(
+        'bloom:key=a',
+        'bloom:key=b64:%%%',
+      );
+      setSsrHtml(container, html);
+
+      final handle = hydrateElement(page(), container, onMismatch: collect());
+      addTearDown(handle.dispose);
+
+      expect(container.textContent, 'a');
+      expect(container.querySelector('li[data-k="a"]'), isNotNull);
+    });
+
+    test('keyed item signal scopes survive rehydration without cross-row state',
+        () {
+      BloomNode page() => Div(children: [
+            ForEach<int>(
+              () => [1, 2],
+              (item) {
+                final count = signal(0, key: 'hydrated-row-count');
+                return Button(
+                  attrs: {'data-row': '$item'},
+                  text: '$item: ${count.value}',
+                  on: {'click': (_) => count.value++},
+                );
+              },
+              key: (item) => item.toString(),
+              hotReloadScopeId: 'hydration-list',
+            ),
+          ]);
+
+      setSsrHtml(container, renderToHtml(page()));
+      bloomHotReloadTrackingEnabled = true;
+      final firstHandle =
+          hydrateElement(page(), container, onMismatch: collect());
+      expect(mismatches, isEmpty);
+
+      final firstButton = container.querySelector('button[data-row="1"]')!;
+      final secondButton = container.querySelector('button[data-row="2"]')!;
+      firstButton.dispatchEvent(web.MouseEvent('click'));
+      for (var i = 0; i < 3; i++) {
+        secondButton.dispatchEvent(web.MouseEvent('click'));
+      }
+      expect(firstButton.textContent, '1: 1');
+      expect(secondButton.textContent, '2: 3');
+      beginBloomSignalScopeTransition();
+      firstHandle.dispose();
+
+      bloomHotReloadTrackingEnabled = false;
+      setSsrHtml(container, renderToHtml(page()));
+      bloomHotReloadTrackingEnabled = true;
+      final secondHandle =
+          hydrateElement(page(), container, onMismatch: collect());
+      finishBloomSignalScopeTransition();
+      expect(
+          container.querySelector('button[data-row="1"]')?.textContent, '1: 1');
+      expect(
+          container.querySelector('button[data-row="2"]')?.textContent, '2: 3');
+      secondHandle.dispose();
     });
 
     test('dispose stops effects and listeners', () {
@@ -203,8 +269,7 @@ void main() {
           );
       setSsrHtml(container, renderToHtml(page()));
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       expect(mismatches, isEmpty);
@@ -234,8 +299,7 @@ void main() {
       );
       addTearDown(handle.dispose);
 
-      expect(
-          mismatches.where((m) => m.boundary == 'bloom:live'), isNotEmpty,
+      expect(mismatches.where((m) => m.boundary == 'bloom:live'), isNotEmpty,
           reason: 'the Live boundary recovers itself');
       // Untouched sibling keeps its node identity.
       expect(container.querySelector('span'), same(spanBefore));
@@ -245,13 +309,11 @@ void main() {
 
     test('root mismatch falls back to a full remount', () {
       setSsrHtml(container, '<section><p>other app</p></section>');
-      final handle = hydrateElement(Div(text: 'fresh'), container,
-          onMismatch: collect());
+      final handle =
+          hydrateElement(Div(text: 'fresh'), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
-      expect(
-          mismatches
-              .where((m) => m.recovery == 'remounted target'),
+      expect(mismatches.where((m) => m.recovery == 'remounted target'),
           isNotEmpty);
       expect(container.textContent, 'fresh');
     });
@@ -271,8 +333,7 @@ void main() {
       setSsrHtml(container,
           '<div><div id="bloom-suspense-0"><p>loading</p></div></div>');
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       // Claimed synchronously during hydrate: the stale id is gone, so a
@@ -290,6 +351,49 @@ void main() {
       expect(container.textContent, contains('got data'));
     });
 
+    test('async builder signals keep their scope through hydration and HMR',
+        () async {
+      bloomHotReloadTrackingEnabled = true;
+      final completer = Completer<int>();
+      BloomNode page() => Div(children: [
+            Suspense<int>(
+              resource: () => completer.future,
+              builder: (_) {
+                final count = signal(0, key: 'hydrated-suspense-count');
+                return Button(
+                  text: 'Resolved ${count.value}',
+                  on: {'click': (_) => count.value++},
+                );
+              },
+              fallback: P(text: 'loading'),
+              hotReloadScopeId: 'hydrated-suspense',
+            ),
+          ]);
+
+      setSsrHtml(container,
+          '<div><div id="bloom-suspense-0"><p>loading</p></div></div>');
+      final firstHandle =
+          hydrateElement(page(), container, onMismatch: collect());
+      completer.complete(1);
+      await completer.future;
+      await Future<void>.delayed(Duration.zero);
+      expect(container.querySelector('button')?.textContent, 'Resolved 0');
+      container.querySelector('button')!.dispatchEvent(web.MouseEvent('click'));
+
+      prepareBrowserHotReloadEffects();
+      firstHandle.dispose();
+      setSsrHtml(container,
+          '<div><div id="bloom-suspense-0"><p>loading</p></div></div>');
+      final nextHandle =
+          hydrateElement(page(), container, onMismatch: collect());
+      addTearDown(nextHandle.dispose);
+      await Future<void>.delayed(Duration.zero);
+      disposePreviousBrowserHotEffects();
+
+      expect(container.querySelector('button')?.textContent, 'Resolved 1');
+      expect(mismatches, isEmpty);
+    });
+
     test('resolved-before-hydrate recovers through a delimited parent',
         () async {
       BloomNode page() => Div(children: [
@@ -303,8 +407,7 @@ void main() {
       // no shell div, no markers around the resolved markup.
       setSsrHtml(container, '<div><p>got fast</p></div>');
 
-      final handle = hydrateElement(page(), container,
-          onMismatch: collect());
+      final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -317,16 +420,15 @@ void main() {
       registerIsland('toggler', (props) {
         final count = signal(0);
         return Live(() => Button(
-            text: 'c=${count.value}',
-            on: {'click': (_) => count.value++}));
+            text: 'c=${count.value}', on: {'click': (_) => count.value++}));
       });
       addTearDown(() => unregisterIsland('toggler'));
 
-      container.innerHTML = ('<div data-bloom-island="toggler" data-bloom-strategy="interaction">'
-              '<button>c=0</button></div>')
-          .toJS;
-      final orchestrator =
-          BloomIslandOrchestrator(autoScan: true);
+      container.innerHTML =
+          ('<div data-bloom-island="toggler" data-bloom-strategy="interaction">'
+                  '<button>c=0</button></div>')
+              .toJS;
+      final orchestrator = BloomIslandOrchestrator(autoScan: true);
       addTearDown(orchestrator.dispose);
       await Future<void>.delayed(Duration.zero);
 
@@ -348,9 +450,10 @@ void main() {
       registerIsland('idl', (_) => Span(text: 'live'));
       addTearDown(() => unregisterIsland('idl'));
 
-      container.innerHTML = ('<div data-bloom-island="idl" data-bloom-strategy="idle">'
-              '<span>live</span></div>')
-          .toJS;
+      container.innerHTML =
+          ('<div data-bloom-island="idl" data-bloom-strategy="idle">'
+                  '<span>live</span></div>')
+              .toJS;
       final orchestrator = BloomIslandOrchestrator(autoScan: true);
       addTearDown(orchestrator.dispose);
 

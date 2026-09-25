@@ -4,7 +4,8 @@ import 'package:bloom_js_native/bloom_js_native.dart';
 void main() {
   group('renderToStreamWithSuspense', () {
     test('a plain (non-Suspense) node yields exactly one chunk', () async {
-      final chunks = await renderToStreamWithSuspense(Div(text: 'hello')).toList();
+      final chunks =
+          await renderToStreamWithSuspense(Div(text: 'hello')).toList();
       expect(chunks, hasLength(1));
       expect(chunks.first, contains('hello'));
     });
@@ -23,7 +24,8 @@ void main() {
       expect(firstChunk, isNot(contains('resolved-data')));
     });
 
-    test('later chunk contains a script replacing the resolved content', () async {
+    test('later chunk contains a script replacing the resolved content',
+        () async {
       final node = Suspense<String>(
         resource: () => Future.value('resolved-data'),
         builder: (data) => Div(text: data),
@@ -37,7 +39,24 @@ void main() {
       expect(joined, contains('<script>'));
     });
 
-    test('multiple top-level Suspense boundaries under a Fragment each get a chunk',
+    test('replacement scripts are safe for mixed-case end-tag text', () async {
+      final node = Suspense<String>(
+        resource: () =>
+            Future.value('</SCRIPT><script>alert(1)</script>\u2028line\u2029'),
+        builder: (data) => Div(text: data),
+        fallback: Div(text: 'loading'),
+      );
+
+      final joined = (await renderToStreamWithSuspense(node).toList()).join();
+
+      expect(joined, contains(r'\u003cdiv>'));
+      expect(joined, contains(r'\u2028'));
+      expect(joined, contains(r'\u2029'));
+      expect(joined, isNot(contains('</SCRIPT><script>alert(1)')));
+    });
+
+    test(
+        'multiple top-level Suspense boundaries under a Fragment each get a chunk',
         () async {
       final node = Fragment(children: [
         Suspense<String>(
@@ -60,7 +79,8 @@ void main() {
       expect(joined, contains('second'));
     });
 
-    test('the sum of all chunks contains the same resolved content as renderToHtml '
+    test(
+        'the sum of all chunks contains the same resolved content as renderToHtml '
         'would after the resource settles', () async {
       final node = Suspense<int>(
         resource: () => Future.value(42),
@@ -84,7 +104,8 @@ void main() {
       expect(chunks.first, contains('loading'));
     });
 
-    test('a Suspense nested inside a Div child streams progressively', () async {
+    test('a Suspense nested inside a Div child streams progressively',
+        () async {
       final node = Div(children: [
         Suspense<String>(
           resource: () => Future.value('nested-data'),
@@ -102,7 +123,8 @@ void main() {
       expect(joined, contains('<script>'));
     });
 
-    test('a Suspense nested two levels deep (Div > Fragment > Div) streams', () async {
+    test('a Suspense nested two levels deep (Div > Fragment > Div) streams',
+        () async {
       final node = Div(children: [
         Fragment(children: [
           Div(children: [
@@ -121,7 +143,9 @@ void main() {
       expect(joined, contains('deep-data'));
     });
 
-    test('a Suspense nested inside another Suspense\'s resolved content streams', () async {
+    test(
+        'a Suspense nested inside another Suspense\'s resolved content streams',
+        () async {
       final node = Suspense<String>(
         resource: () => Future.value('outer'),
         builder: (outerData) => Div(children: [

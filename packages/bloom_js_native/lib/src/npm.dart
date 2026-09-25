@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'attribute_safety.dart';
 
 /// Declaration of an npm package dependency resolved via browser ESM import maps.
 ///
@@ -170,7 +171,7 @@ class NpmRegistry {
   /// ```
   static String generateImportMapTag({bool pretty = false}) {
     final json = generateImportMapJson(pretty: pretty);
-    return '<script type="importmap">$json</script>';
+    return '<script type="importmap">${escapeBloomJsonForScript(json)}</script>';
   }
 
   /// Returns the top-level import map as a Dart [Map] with an `'imports'` key.
