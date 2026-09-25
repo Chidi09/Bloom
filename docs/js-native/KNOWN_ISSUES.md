@@ -71,70 +71,81 @@ crashes, with no static warning at the import site.
 `bloom_lint.dart`, independent of the existing `browser_import_in_test`
 rule (both fire on a `test/` file importing `browser.dart`).
 
-### 4. Dev-loop (hot reload) latency — Partially fixed (in-page fast remount shipped; full Signal-state preservation deferred)
-Each save currently costs ~4.5s–7.0s: a whole-program `dart2js`
-compile, Bun asset assembly, then an SSE-triggered full
-`window.location.reload()`. Comparable web tooling (Vite, Turbopack,
-SolidStart) achieves sub-150ms HMR.
+### 4. Dev-loop (hot reload) latency — Incremental DDC compile and localized component HMR shipped
+Bloom's default DDC dev loop, CSS hot-swap, in-page updates, and stable
+top-level Signal preservation are implemented. Component boundaries now have
+localized DOM patching for compatible component subtrees, including components
+that emit multiple DOM roots, and local root replacement for incompatible
+ones. These paths are verified in headless Chromium, including direct-root
+mounting and DDC cross-module re-execution. Signal state now survives in
+`Live`, `Show`, `Memo`, `Suspense`, `ErrorBoundary`, `lazy()`, `Mount`,
+`effect()`, DOM event handlers, `defineCustomElement` builders, and keyed
+`ForEach` builders; callbacks without a compiler-recognized stable identity
+remain open.
 
-**Fixed in:** both of the two independent levers below are now
-implemented in `bloom js dev`:
+**Implemented improvements:**
 - CSS-only edits (a `Style(r'''...''')` body or a top-level
   `const *Css = r'''...''';`) are detected via a skeleton diff
   (`css_hot_swap.dart`) and pushed as a `css-patch` SSE event that
   patches the `<style>` tag in place — no recompile, no reload.
-- `bloom js dev --experimental-ddc` (opt-in, off by default) swaps
+- DDC staging caches each Dart source by SHA-256 for the lifetime of the dev
+  compiler. Unchanged files reuse their transformed staging copy, while
+  deleted files are removed before the next compile. The staged package
+  configuration also routes this project's `package:` imports through the
+  transformed tree. Compile output is written to a temporary file and only
+  replaces the last good JS bundle after DDC exits successfully with nonempty
+  output.
+- `bloom js dev` runs DDC as a persistent Bazel-protocol worker with compiler
+  result reuse and DDC's incremental front end enabled. Each request supplies
+  SHA-256 digests for staged Dart inputs and the SDK outline summary; edits
+  invalidate changed files while the worker reuses its compiler state. If the
+  SDK worker protocol is unavailable, Bloom retires the worker and falls back
+  to one-shot DDC for that session. The compiler still emits the full entry
+  module. Compatible component trees can patch in place; unsupported trees
+  use the app remount fallback.
+- `bloom js dev` (DDC is enabled by default) swaps
   the `dart2js -O0` compile for DDC (`ddc_dev_compiler.dart`),
   serving a version-cached `dart_sdk.js`/`require.js` runtime module.
+  If DDC runtime artifact generation fails, the previous SDK cache is kept
+  intact and the dev command falls back to `dart2js -O0` before serving.
   Verified in headless Chromium (`test/dev/npm_interop_umd_test.dart`,
   `test/dev/ddc_ecommerce_integration_test.dart`) that vendored npm
   UMD packages still attach to `window` correctly and a real example
   app boots and renders under DDC. `bloom js build` (`dart2js -O4`,
   production) is completely unaffected.
-- `bloom js dev --experimental-ddc` now performs an **in-page fast
-  remount** on a Dart source edit instead of a full
+- `bloom js dev` performs an **in-page update** on a Dart source edit instead
+  of a full
   `window.location.reload()`: the dev server broadcasts a new
   `hot-remount` SSE event (only when DDC mode is active — the
-  `dart2js` dev path's `reload` behavior is unchanged), the browser
-  disposes the currently-mounted app via a new
-  `bloomDisposeActiveMount()` hook (installed by `mount.dart` only
-  when hot-reload tracking is active, so this adds zero overhead to
-  production builds), evicts the cached `main` module from RequireJS
+  `dart2js` dev path's `reload` behavior is unchanged), the browser keeps
+  the mounted app while it evicts the cached `main` module from RequireJS
   (`require.undef('main')`, a real API in the vendored Dart SDK
-  `amd/require.js`), and re-requires/re-invokes `main()` — with no
-  browser navigation. Verified in headless Chromium
+  `amd/require.js`) and re-invokes `main()` — with no browser navigation.
+  Compatible component boundaries patch in place; old module effects are
+  disposed after the updated app has mounted or patched. Unsupported tree
+  shapes fall back to a full app remount. Verified in headless Chromium
   (`test/dev/hot_remount_test.dart`) that a window-level sentinel
   survives the remount (proving no navigation occurred), that the DOM
   updates to the new source's content, and that a `main()` thrown
   during the second invocation renders the existing dev error overlay
   in place.
-- Still open: this is a fast *remount*, not state-preserving hot
-  reload — every `Signal<T>` legitimately resets to its initial value
-  on each hot reload, same as before, just without a full page
-  reload/navigation (scroll position, DevTools console history, and
-  network tab survive; component state does not). Full Signal-value
-  preservation across a hot reload was investigated and explicitly
-  **not attempted**: an external technical review found the
-  naive "just re-execute the changed module" premise false for
-  Bloom's DDC output (it compiles to a single monolithic AMD module,
-  not a fine-grained module graph), and all three candidate
-  Signal-matching strategies (declaration-order key, explicit opt-in
-  key, top-level-only scoping) carry a real risk of silently binding a
-  stale value to the wrong Signal — worse for developer trust than a
-  clean reset. The recommended path to real state preservation is
-  compiler-level (AST/macro-based stable keying of each `signal(...)`
-  call site), which is a separate, larger, not-yet-started body of
-  work.
-
-**Fix direction (two independent levers):**
-- Compile with DDC (Dart Dev Compiler) or incremental Wasm in dev mode
-  instead of a whole-program `dart2js` batch compile on every save.
-- Since Bloom state lives in isolated `Signal<T>` cells, patch DOM
-  subtrees and preserve signal values across an edit instead of forcing
-  a full page reload (fine-grained HMR).
+- Stable `BloomNode build()` methods are wrapped in source-identified
+  `HmrComponentNode` boundaries in the DDC staging copy. Component boundaries
+  use comment anchors to patch or replace any number of sibling DOM roots
+  locally while preserving surrounding DOM identity. Old component effects
+  are disposed when the boundary updates.
+- State carryover covers keyed `ForEach`, `Live`, and `Memo` builders, both
+  callbacks in `ErrorBoundary`, resolved and error builders in `Suspense`, and
+  `Mount` lifecycle and user `effect()` callbacks, as well as stable top-level
+  and explicitly keyed signals. Nested scopes preserve enclosing keyed-row
+  identity when reactive callbacks rerun outside their original Zone. Signals
+  in unkeyed lists or other closures without a stable instance identity still
+  require an explicit key. `computed` values are re-derived and effects are
+  recreated on reload.
+  `--legacy-dart2js` retains the full-page-reload path.
 
 **Owner package:** `bloom_cli` (`bloom js dev`), `bloom_js_native`
-(HMR client/signal preservation).
+(HMR client/component boundaries/signal preservation).
 
 **Reference: how Next.js/Turbopack gets sub-150ms HMR** (from reading
 the real Next.js/Turbopack source, for context on what's actually
@@ -156,55 +167,48 @@ transferable to a `dart2js` + Bun dev server):
   when their specific inputs change) is a bespoke Rust engine — not
   something to reimplement for Bloom.
 
-**What's actually adoptable here, in order of leverage/cost:**
-1. **WebSocket push of a targeted diff instead of
-   `window.location.reload()`** — highest leverage, fully transferable
-   without any compiler changes: the dev server already knows *what*
-   changed (a CSS-only edit inside a `Style(r'''...''')` raw string vs.
-   a Dart source edit) and could push a typed message instead of
-   always forcing a full reload.
-2. **CSS hot-swap via `<style>` textContent replacement** — directly
-   implementable today: on a CSS-only edit, re-run `formatCss`/the CSS
-   extraction step and push the new CSS text over the existing SSE/WS
-   channel to patch a `<style>` tag in place, skipping `dart2js`
-   entirely for that class of edit.
-3. **DDC or incremental Wasm compilation in dev mode** — the actual
-   fix for JS/Dart source edits (not CSS), replacing the whole-program
-   `dart2js` batch compile; larger, riskier change, worth its own
-   dispatch/implementation pass separate from (1) and (2).
-4. Turbopack's `turbo-tasks` incremental-computation engine is **not**
-   transferable directly — only the general shape (cache results keyed
-   by content hash, invalidate only affected units) is worth keeping
-   in mind if Bloom ever moves off whole-program `dart2js` in dev mode.
+**Next useful work:** extend state carryover to remaining callbacks with a
+stable runtime identity, while keeping unkeyed repeated instances isolated.
+The incremental front end now reuses compiler state; Turbopack's `turbo-tasks`
+engine is not directly transferable.
 
-### 5. No state-preserving hot reload — ✅ Fixed (first slice)
-Item 4 shipped a fast in-page remount (no full page reload, no
-navigation), but every `Signal<T>` still reset to its initial value on
-every DDC-mode hot reload — component/app state did not survive an
-edit, unlike Vite/Next.js Fast Refresh or Solid's HMR.
+### 5. Partial state preservation during hot reload — ✅ First slice shipped
+The in-page remount preserves keyed signal values across supported callbacks,
+but it does not preserve every reactive resource or effect-local state.
 
-**Why this was its own tracked item, not part of item 4:** an external
-technical review (see item 4's "Still open" note) rejected building
-this via any of the three obvious matching strategies
-(declaration-order key, explicit opt-in key, top-level-only scoping) —
-each risks silently binding a stale value to the wrong `Signal`, which
-is worse for developer trust than a clean reset. The compiler-level
-approach below was built instead.
+**Implementation:** an analyzer-based AST pass builds stable identities for
+top-level signal call sites, `Live` builders, `Show` predicates, both `Memo`
+callbacks, both `ErrorBoundary` callbacks, `Suspense` resource, resolved, and
+error callbacks, `lazy()` loader callbacks, native custom element builders,
+`Mount` lifecycle callbacks, user `effect()` callbacks, `batch()` and
+`untracked()` callbacks, DOM event handlers, and keyed `ForEach` item-list and
+item-builder callbacks.
+Runtime scopes compose the
+callback call site with any enclosing keyed item so values survive DDC
+remounts without crossing between repeated rows. Lazy loaders re-enter their
+captured scope when asynchronous work runs. Closures without a stable
+instance identity remain unkeyed.
 
-**Fixed in:** a new analyzer-based AST pass
-(`signal_key_injector.dart`, mirroring the existing `bloom_formatter.dart`
-pattern) tags each top-level `signal(...)` call site with a stable key
-derived only from its own file path + enclosing declaration + ordinal
-*within that declaration only* — never a whole-program ordinal, so
-adding an unrelated `signal()` call elsewhere in the file never shifts
-another call's key. This runs strictly in the DDC dev-compile path
-(staged into a temp cache copy; the developer's real source files are
-never touched, and `dart2js` dev mode / `bloom js build` are completely
-unaffected). Explicit `key:` arguments always win over the injected
-one; a `signal(...)` call nested inside a `Live(() => ...)` closure or
-other non-stable location is deliberately left un-keyed and falls back
-to the existing reset behavior, since its call count isn't stable
-across executions.
+**Fixed in:** an analyzer-based AST pass
+(`signal_key_injector.dart`) tags signal call sites with stable keys and adds
+stable runtime scopes to `Live`, `Show`, `Memo`, `Suspense`, `ErrorBoundary`,
+`lazy()`, `defineCustomElement` builders, and `Mount` callbacks and user
+`effect()` callbacks. Signals created in imported synchronous `batch()` and
+`untracked()` callbacks also receive stable call-site keys, with import
+combinators honored. Keyed `ForEach`
+item scopes compose with those callback scopes, keeping repeated rows independent;
+async `Suspense` and `lazy()` continuations re-enter their captured scope after
+resolution or rejection. DOM event listeners
+re-enter the scope where their element was mounted, and internal reactive
+effects restore their captured scope boundary so event scopes cannot leak into
+unrelated list or sibling updates. Unkeyed lists and
+closures without a stable instance identity are left untouched. The pass runs
+strictly in the DDC dev-compile path (staged into a temporary cache copy; the
+developer's real source files are never touched, and `dart2js` dev mode /
+`bloom js build` are unaffected). Explicit `key:` arguments always win over
+injected keys. The `ForEach` scope identity hashes its item source and key
+callback, so adding another keyed list in the same function does not shift
+existing item scopes.
 
 On the runtime side, `signals.dart`'s bare re-export of `signal` is now
 a real wrapper: zero overhead when hot-reload tracking is inactive or
@@ -216,28 +220,69 @@ hot remount, so only `window`-stored state survives. Any type mismatch
 at a given key between two compiled versions falls back to a clean
 reset of the new value rather than risking silent corruption.
 
-Verified independently: `dart analyze` clean; 9 AST-injector unit
-tests (`signal_key_injector_test.dart`); 4 browser-level carryover
-tests covering explicit keys, auto-injected keys, type-mismatch
-fallback, and tracking-disabled/production passthrough
-(`signal_hot_reload_test.dart`); 2 real headless-Chromium/puppeteer
-end-to-end tests via real DDC compiles (`signal_hot_remount_test.dart`),
+Verified independently: `dart analyze` clean; AST-injector unit tests
+(`signal_key_injector_test.dart`); browser-level carryover tests covering
+explicit keys, auto-injected keys, Live builder scopes, per-item scopes,
+type-mismatch fallback, and tracking-disabled/production passthrough
+(`signal_hot_reload_test.dart`);
+Memo, Suspense, ErrorBoundary, Mount, and effect callback scopes in
+`signal_hot_reload_test.dart`; Suspense async builder hydration in
+`reactive_hydration_test.dart`; and 4 real
+headless-Chromium/puppeteer end-to-end tests via real DDC compiles
+(`signal_hot_remount_test.dart`), including state carryover through async
+`lazy()` loaders, native custom element builder replacement, `batch()`, and
+`untracked()` callbacks,
 including the specific case of adding an unrelated `signal()` call
-*above* the tracked one between hot reloads to prove the key is not a
-naive whole-file ordinal.
+above the tracked signal and preserving different values in two keyed list
+items without cross-restoring either value, including when each keyed item
+contains a stateful `Live` builder.
 
-**Still open (explicitly out of scope for this slice):** `computed`
-and `effect` are never keyed/preserved — always re-derived on every
-reload, by design. Signals created inside `Live(() => ...)` builders or
-any other non-stable call site are not preserved and reset as before.
-This is a first slice, not general HMR state preservation for every
-possible pattern.
+When a keyed row is removed during normal list reconciliation, its scoped
+signal values are released so re-adding the same key starts with fresh local
+state. Whole-tree disposal retains values for the in-progress HMR remount.
+
+The injector only transforms calls when the file directly imports Bloom's
+`bloom_js_native.dart` entry point or its signal implementation (with or
+without a prefix). It honors
+`show`/`hide` combinators and skips a file when a declaration could shadow
+the imported name, preventing an unrelated `signal(...)` helper from being
+rewritten into an invalid call.
+
+**Fixed in this pass:** user-created `effect()` callbacks register their
+cleanup while DDC hot reload is active. The dev bootstrap disposes those
+callbacks before evicting and re-executing the app module, including
+top-level effects that are outside any mounted DOM region. The new module
+then creates fresh effects against its new signal instances. Production and
+SSR still delegate directly to `signals_core`.
+
+Constructor expressions and named constructors assigned directly to
+variables now receive per-call-site scopes at stable locations in `main`,
+top-level initializers, and supported UI callbacks/build methods, including
+constructors imported from another project file. Signal-bearing classes
+declared in the same file also receive scopes when constructed inline at
+those locations. This composes with keyed `ForEach` item scopes, so separate
+store instances preserve their field-signal values independently through a
+remount. The compiler skips
+unkeyed repeated builders, ordinary loops, top-level factory functions, and
+inline imported constructors when it cannot prove instance identity; those
+patterns remain open.
+
+**Still open:** computed values are re-derived and effect subscriptions are
+recreated on each reload. Closure-local variables are not preserved. Signals
+inside unkeyed lists or
+other repeated closures without an instance-specific identity remain
+unkeyed. `Memo`, `Suspense`, `ErrorBoundary`, `lazy()`, `defineCustomElement`,
+`Mount`, `effect()`, `batch()`, and `untracked()` callback handling and DOM
+event handlers are supported;
+unsupported callback patterns
+still need explicit signal keys.
+This is still not general HMR state preservation for every pattern.
 
 **Owner package:** `bloom_cli` (compile-time keying,
 `signal_key_injector.dart`, `ddc_dev_compiler.dart`), `bloom_js_native`
 (runtime matching/carry-over, `signals.dart`).
 
-### 6. DDC fast dev-loop is opt-in and invisible by default — ✅ Fixed
+### 6. DDC fast dev-loop was opt-in — ✅ Fixed
 `bloom js dev` with no flags now uses the DDC fast dev-loop by default.
 `js_command.dart`'s arg parser was inverted: `--ddc` now defaults to
 `true`, a new `--legacy-dart2js` flag (default `false`, `negatable:
@@ -287,11 +332,13 @@ reactive callback" (a depth counter incrementing/decrementing around
 `.value` read on an identifier resolvable to a signal that falls
 outside all of them.
 
-**Verified:** 10 new tests (4 true-positive: direct read in a
+**Verified:** 16 tests (8 true-positive: direct read in a
 `BloomNode` function body, in `Show`'s non-predicate child, in a UI
-getter, in an inferred-return-type UI function; 6 true-negative:
+getter, in an inferred-return-type UI function, and an untracked `lazy`
+loader or fallback read and UI reads hidden in `batch()`/`untracked()`;
+8 true-negative:
 wrapped in `Live`, in `Show`'s `when:` predicate, in `ForEach`'s items
-callback, in `effect()`/`computed()`, in an event handler, in
+callback, in `effect()`/`computed()`, a `lazy()` loader read wrapped in `Live`, in an event handler, in
 non-UI/business-logic code, `.value` on an unrelated non-signal class)
 all pass. A real compile bug in the dispatch's diff was caught and
 fixed during review: `InstanceCreationExpression` (used for `Show(...)`
@@ -368,12 +415,47 @@ unrelated to this change).
 
 **Owner package:** `bloom_cli` (`generate_command.dart`, `templates.dart`).
 
-**Not fixed (deferred, lower priority):** no LSP/editor-integration
-story for `bloom.yaml` or in-editor signal/component IntelliSense — the
-generic Dart LSP covers `.dart` files but there's no `bloom.yaml` JSON
-Schema for the VS Code YAML extension. Noted but not tracked as a
-numbered item; lowest-effort real win would be publishing a JSON Schema
-rather than a custom LSP.
+### 10. `bloom js create` generated permissive and empty scaffolds — ✅ Fixed
+The route-guard template returned `GuardResult.allow()` while its
+authorization check was still a TODO, so a developer could generate and
+register a placeholder that silently granted access. Component tests were
+also empty commented examples, and pages and guards had no companion tests.
+
+**Fixed in:** generated guards return `GuardResult.deny()` until the developer
+implements authorization. Components, pages, and guards now each receive a
+test that imports the generated file and checks rendered markup or the guard's
+fail-closed default.
+
+**Verified:** the `js_create_command_test.dart` suite checks all three
+generated test templates and the guard's default-deny behavior; `dart analyze`
+and all 12 command tests pass.
+
+**Owner package:** `bloom_cli` (`js_command.dart`).
+
+### 11. Duplicate `ForEach` keys corrupt list bookkeeping — ✅ Fixed
+The keyed reconciler stored entries in a map by key but did not reject a
+duplicate key. Repeated keys could overwrite the tracked entry while leaving
+duplicate DOM nodes and undisposed per-item effects behind. SSR emitted
+duplicate hydration markers as well.
+
+**Fixed in:** SSR, browser mounting, reconciliation, and keyed hydration now
+validate each list snapshot before processing it. Duplicate keys throw a
+clear `StateError` on SSR/initial mount and are routed through normal list
+error handling on reactive updates.
+
+**Verified:** targeted analysis and the VM hydration-marker suite pass; the
+suite now asserts duplicate-key rejection during SSR. A browser mount
+regression test also asserts that duplicate keys fail before any item DOM is
+inserted; it is included in the JS Native browser test gate.
+
+**Owner package:** `bloom_js_native` (`mount.dart`, `html.dart`).
+
+**Editor schema:** A JSON Schema for `bloom.yaml` now ships at
+`packages/bloom_cli/schema/bloom.schema.json`. Both project templates include
+the YAML language server modeline, which enables completion and diagnostics
+for known manifest fields in compatible editors. The schema leaves plugin
+settings and unknown future fields open. In-editor signal/component
+IntelliSense beyond the Dart LSP is still open.
 
 ## Review summary (for context)
 
@@ -381,6 +463,6 @@ rather than a custom LSP.
 |---|---|---|
 | Architecture & API Design | 9/10 | Clean, declarative, elegant signal reactivity |
 | Bundle Efficiency & SSR | 9.5/10 | Very fast SSR, small footprint |
-| Fullstack Integration (`bloom_db`/`bloom_server`) | 9/10 | Ergonomic ORM with real atomic transactions, tRPC-comparable typed RPC layer, seamless same-origin dev proxy; no connection pooling yet |
-| Hot Reload & Dev Loop Speed | 9.5/10 | CSS hot-swap, DDC fast remount (now the default `bloom js dev` behavior), and compiler-level Signal-state preservation (top-level signals) all ship; `computed`/`effect`/closure-scoped signals still reset by design |
-| CLI Tooling & Formatters | 9/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), static Tailwind build, and generator test scaffolding now shipped; command surface (35+ subcommands) broader than most competitor CLIs. No `bloom.yaml` LSP/editor-schema story yet — minor, deferred |
+| Fullstack Integration (`bloom_db`/`bloom_server`) | 9/10 | Ergonomic ORM with real atomic transactions, bounded PostgreSQL pooling, typed RPC, and a seamless same-origin dev proxy |
+| Hot Reload & Dev Loop Speed | 9.5/10 | CSS hot-swap, incremental DDC compilation, fast remount, top-level and keyed-row Signal state preservation, previous-module effect disposal, and localized multi-root component updates ship; unkeyed repeated closures still need explicit keys |
+| CLI Tooling & Formatters | 9/10 | CSS-safe raw-string formatting, lint rules (including the #1 documented reactivity footgun), static Tailwind build, generator test scaffolding, and a `bloom.yaml` JSON Schema now ship; broader component-aware editor intelligence is still open |

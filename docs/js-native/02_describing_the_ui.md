@@ -163,6 +163,11 @@ BloomNode renderTodoList() {
 }
 ```
 
+Every key must be unique within the current list. Duplicate keys throw a
+`StateError` during SSR or initial mount; an invalid reactive update is
+sent to the surrounding error boundary (or dev error handler) instead of
+overwriting another item's DOM and cleanup state.
+
 ---
 
 ## 6. XSS Protection & Raw HTML

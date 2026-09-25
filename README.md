@@ -106,19 +106,31 @@ dart pub global activate bloom_cli
 
 ### 2. Create a New Application
 ```bash
-# Standard project
+# Flutter application
 bloom create my_app
-
-# Or use an official reference template
-bloom create my_store --template ecommerce
 cd my_app
 ```
 
-### 3. Run Interactive Development Server
+Or create a Dart web application with Bloom JS Native:
+
+```bash
+# Requires the Bloom CLI from this repository or a release that includes JS Native
+bloom create my_web_app --js-native
+cd my_web_app
+```
+
+For a Flutter reference template, run `bloom create my_store --template ecommerce` instead, then `cd my_store`.
+
+### 3. Run the Development Server
+
+For a Flutter application, run:
+
 ```bash
 bloom dev
 ```
 Scan the terminal QR code or auto-discover over LAN using **Bloom Go** on your device to launch the app wirelessly!
+
+For a JS Native web application, run `bloom js dev` from its project directory and open the local URL printed by the server.
 
 ### 4. Health & Security Verification
 ```bash
@@ -163,20 +175,21 @@ bloom doctor --ci
 
 ## 📚 Architectural Documentation
 
-Explore the detailed documentation in [`docs/`](file:///root/dev/Bloom/docs):
+Explore the detailed documentation in [`docs/`](docs/):
 
-* [`00. Overview & Vision`](file:///root/dev/Bloom/docs/00_overview.md)
-* [`01. Architecture & Design Principles`](file:///root/dev/Bloom/docs/01_architecture_and_design_principles.md)
-* [`02. CLI & Developer Workflows`](file:///root/dev/Bloom/docs/02_cli_and_developer_tooling.md)
-* [`03. Boot, Lifecycle & DI`](file:///root/dev/Bloom/docs/03_boot_lifecycle_and_di.md)
-* [`04. State Management & Controllers`](file:///root/dev/Bloom/docs/04_state_management_and_controllers.md)
-* [`05. Filesystem Routing & Navigation`](file:///root/dev/Bloom/docs/05_filesystem_routing_and_navigation.md)
-* [`06. Bloom Data & Offline Architecture`](file:///root/dev/Bloom/docs/06_bloom_data_and_offline.md)
-* [`07. Native Architecture & Plugins`](file:///root/dev/Bloom/docs/07_native_architecture_and_plugins.md)
-* [`08. Dev Experience, Bloom Go & OTA`](file:///root/dev/Bloom/docs/08_development_experience_and_bloom_go.md)
-* [`09. Testing, CI & DevTools`](file:///root/dev/Bloom/docs/09_testing_ci_and_devtools.md)
-* [`10. Phased Roadmap & Implementation`](file:///root/dev/Bloom/docs/10_phased_implementation_roadmap.md)
-* [**Hardening Roadmap Index (Phases 9–17)**](file:///root/dev/Bloom/docs/hardening-phases/00_hardening_roadmap_overview.md)
+* [`00. Overview & Vision`](docs/00_overview.md)
+* [`01. Architecture & Design Principles`](docs/01_architecture_and_design_principles.md)
+* [`02. CLI & Developer Workflows`](docs/02_cli_and_developer_tooling.md)
+* [`03. Boot, Lifecycle & DI`](docs/03_boot_lifecycle_and_di.md)
+* [`04. State Management & Controllers`](docs/04_state_management_and_controllers.md)
+* [`05. Filesystem Routing & Navigation`](docs/05_filesystem_routing_and_navigation.md)
+* [`06. Bloom Data & Offline Architecture`](docs/06_bloom_data_and_offline.md)
+* [`07. Native Architecture & Plugins`](docs/07_native_architecture_and_plugins.md)
+* [`08. Dev Experience, Bloom Go & OTA`](docs/08_development_experience_and_bloom_go.md)
+* [`09. Testing, CI & DevTools`](docs/09_testing_ci_and_devtools.md)
+* [`10. Phased Roadmap & Implementation`](docs/10_phased_implementation_roadmap.md)
+* [**Bloom JS Native guide and quickstart**](packages/bloom_js_native/README.md)
+* [**Hardening Roadmap Index (Phases 9–17)**](docs/hardening-phases/00_hardening_roadmap_overview.md)
 
 ---
 
@@ -188,14 +201,19 @@ Run the comprehensive test and analysis matrix across the entire monorepo:
 cd packages/bloom_framework && flutter test && flutter analyze
 
 # 2. CLI Tooling Test Suite
-cd ../bloom_cli && dart test && dart analyze
+cd ../bloom_cli && bash tool/check.sh
 
-# 3. Backend Packages (pure Dart, run per package: bloom_server, bloom_db, bloom_auth_server,
+# 3. Dart-to-DOM web runtime checks
+cd ../bloom_js_native && bash tool/check.sh
+
+# 4. Backend Packages (pure Dart, run per package: bloom_db, bloom_server, bloom_auth_server,
 #    bloom_mail, bloom_jobs, bloom_admin, bloom_rest, bloom_i18n, bloom_storage, bloom_realtime,
 #    bloom_cache, bloom_errors, bloom_validate, bloom_security, bloom_migrate)
-cd ../bloom_server && dart test && dart analyze
+cd ../bloom_db && dart test -p vm && dart analyze
+# To include PostgreSQL integration tests, prepare bloom_db_test and set BLOOM_TEST_POSTGRES=1.
+cd ../bloom_server && dart test -p vm && dart analyze
 
-# 4. Official Sample Applications
+# 5. Official Sample Applications
 cd ../../examples/bloom_fullstack_todo && dart test && dart analyze
 cd ../bloom_ecommerce && flutter test && flutter analyze
 cd ../bloom_social_feed && flutter test && flutter analyze
