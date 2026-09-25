@@ -5,7 +5,20 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:intl/date_symbol_data_local.dart' as date_symbols;
+import 'package:intl/intl.dart' as intl;
 import 'package:signals_core/signals_core.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+bool _dateSymbolsReady = false;
+
+void _ensureDateSymbols() {
+  if (_dateSymbolsReady) return;
+  // The local data source registers its symbols synchronously before the
+  // returned Future completes, so the public formatting API stays synchronous.
+  date_symbols.initializeDateFormatting();
+  _dateSymbolsReady = true;
+}
 
 // ─── ICU Message Formatter & Catalog ────────────────────────────────────────
 
@@ -158,7 +171,8 @@ class BloomCatalog {
         return template;
       }
     }
-    return _IcuMessageFormatter(locale: locale).format(template, args ?? const {});
+    return _IcuMessageFormatter(locale: locale)
+        .format(template, args ?? const {});
   }
 }
 
@@ -270,9 +284,8 @@ class _IcuMessageFormatter {
     Map<String, Object> args,
   ) {
     final rawVal = args[varName];
-    final num count = rawVal is num
-        ? rawVal
-        : (num.tryParse(rawVal?.toString() ?? '') ?? 0);
+    final num count =
+        rawVal is num ? rawVal : (num.tryParse(rawVal?.toString() ?? '') ?? 0);
 
     final exactKey = count is int || count == count.toInt()
         ? '=${count.toInt()}'
@@ -333,9 +346,8 @@ class _IcuMessageFormatter {
     Map<String, Object> args,
   ) {
     final rawVal = args[varName];
-    final num count = rawVal is num
-        ? rawVal
-        : (num.tryParse(rawVal?.toString() ?? '') ?? 0);
+    final num count =
+        rawVal is num ? rawVal : (num.tryParse(rawVal?.toString() ?? '') ?? 0);
 
     final style = formatStyle.trim().toLowerCase();
     if (style == 'currency') {
@@ -482,11 +494,9 @@ enum DateFormatStyle {
 /// points (`"."`, `","`, or `"٫"`). When [locale] is omitted, uses the active
 /// [BloomI18n.instance.locale] signal value.
 ///
-/// ### Limitations vs Full CLDR
-/// This is a lightweight, pure-Dart implementation covering major language families
-/// (English, French, German, Spanish, Portuguese, Italian, Russian, Japanese, Chinese,
-/// Arabic, etc.). It does not include full Unicode CLDR tables or localized numbering
-/// systems (e.g. eastern Arabic-Indic numerals).
+/// Uses `package:intl` locale data, including locale-specific grouping and
+/// numbering patterns. An unrecognized locale falls back to Bloom's small
+/// built-in formatter.
 ///
 /// ```dart
 /// formatNumber(1234567.89, locale: 'en-US'); // "1,234,567.89"
@@ -505,7 +515,19 @@ String formatNumber(
   bool useGrouping = true,
   String style = 'decimal',
 }) {
-  final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
+  final intlLocale =
+      (locale ?? BloomI18n.instance.locale.value).replaceAll('-', '_');
+  try {
+    final formatter = intl.NumberFormat.decimalPatternDigits(
+        locale: intlLocale, decimalDigits: decimalDigits);
+    if (!useGrouping) formatter.turnOffGrouping();
+    return formatter.format(value);
+  } catch (_) {
+    // Preserve the lightweight fallback for a locale absent from intl data.
+  }
+  final loc = (locale ?? BloomI18n.instance.locale.value)
+      .replaceAll('_', '-')
+      .toLowerCase();
   final lang = loc.split('-').first;
 
   // Determine separators
@@ -515,7 +537,8 @@ String formatNumber(
   if (['de', 'it', 'es', 'pt', 'nl', 'tr', 'id'].contains(lang)) {
     decimalSep = ',';
     groupSep = '.';
-  } else if (['fr', 'ru', 'sv', 'pl', 'cs', 'fi', 'no', 'uk', 'bg'].contains(lang)) {
+  } else if (['fr', 'ru', 'sv', 'pl', 'cs', 'fi', 'no', 'uk', 'bg']
+      .contains(lang)) {
     decimalSep = ',';
     groupSep = ' ';
   } else if (['ar'].contains(lang)) {
@@ -581,10 +604,24 @@ String formatPercent(
   String? locale,
   int? decimalDigits = 0,
 }) {
-  final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
+  final intlLocale =
+      (locale ?? BloomI18n.instance.locale.value).replaceAll('-', '_');
+  final percentValue = value <= 1.0 && value >= -1.0 ? value : value / 100;
+  try {
+    return intl.NumberFormat.decimalPercentPattern(
+            locale: intlLocale, decimalDigits: decimalDigits)
+        .format(percentValue);
+  } catch (_) {
+    // Fall back to the small built-in formatter for an unknown locale.
+  }
+  final loc = (locale ?? BloomI18n.instance.locale.value)
+      .replaceAll('_', '-')
+      .toLowerCase();
   final lang = loc.split('-').first;
-  final percentValue = value <= 1.0 && value >= -1.0 ? value * 100 : value;
-  final numStr = formatNumber(percentValue, locale: locale, decimalDigits: decimalDigits);
+  final fallbackPercentValue =
+      value <= 1.0 && value >= -1.0 ? value * 100 : value;
+  final numStr = formatNumber(fallbackPercentValue,
+      locale: locale, decimalDigits: decimalDigits);
 
   if (['fr', 'de', 'ru', 'sv', 'pl', 'fi', 'no', 'cs'].contains(lang)) {
     return '$numStr %';
@@ -615,7 +652,20 @@ String formatCurrency(
   String? locale,
   int? decimalDigits,
 }) {
-  final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
+  final intlLocale =
+      (locale ?? BloomI18n.instance.locale.value).replaceAll('-', '_');
+  try {
+    return intl.NumberFormat.currency(
+            locale: intlLocale,
+            name: currency.toUpperCase(),
+            decimalDigits: decimalDigits)
+        .format(value);
+  } catch (_) {
+    // Preserve the existing fallback for a locale or currency intl rejects.
+  }
+  final loc = (locale ?? BloomI18n.instance.locale.value)
+      .replaceAll('_', '-')
+      .toLowerCase();
   final lang = loc.split('-').first;
 
   final symbols = <String, String>{
@@ -634,11 +684,13 @@ String formatCurrency(
   };
 
   final symbol = symbols[currency.toUpperCase()] ?? currency;
-  final decimals = decimalDigits ?? (['JPY', 'KRW'].contains(currency.toUpperCase()) ? 0 : 2);
+  final decimals = decimalDigits ??
+      (['JPY', 'KRW'].contains(currency.toUpperCase()) ? 0 : 2);
   final numStr = formatNumber(value, locale: locale, decimalDigits: decimals);
 
   // Position symbol
-  if (['fr', 'de', 'ru', 'es', 'pt', 'it', 'sv', 'pl', 'nl', 'fi', 'no'].contains(lang)) {
+  if (['fr', 'de', 'ru', 'es', 'pt', 'it', 'sv', 'pl', 'nl', 'fi', 'no']
+      .contains(lang)) {
     return '$numStr $symbol';
   } else if (['ar'].contains(lang)) {
     return '$symbol $numStr';
@@ -647,54 +699,158 @@ String formatCurrency(
 }
 
 const _monthNamesEn = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
 ];
 const _monthNamesEnShort = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
 ];
 const _dayNamesEn = [
-  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday'
 ];
 // Note: no DateFormatStyle currently renders an abbreviated weekday, so the
 // short day-name tables are deliberately absent. Add them alongside a style
 // that uses them rather than leaving them unreferenced.
 
 const _monthNamesFr = [
-  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre'
 ];
 const _monthNamesFrShort = [
-  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
-  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.'
 ];
 const _dayNamesFr = [
-  'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche'
 ];
 
 const _monthNamesDe = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember'
 ];
 const _monthNamesDeShort = [
-  'Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni',
-  'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'
+  'Jan.',
+  'Feb.',
+  'März',
+  'Apr.',
+  'Mai',
+  'Juni',
+  'Juli',
+  'Aug.',
+  'Sept.',
+  'Okt.',
+  'Nov.',
+  'Dez.'
 ];
 const _dayNamesDe = [
-  'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'
+  'Montag',
+  'Dienstag',
+  'Mittwoch',
+  'Donnerstag',
+  'Freitag',
+  'Samstag',
+  'Sonntag'
 ];
 
 const _monthNamesEs = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre'
 ];
 const _monthNamesEsShort = [
-  'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
-  'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'
+  'ene.',
+  'feb.',
+  'mar.',
+  'abr.',
+  'may.',
+  'jun.',
+  'jul.',
+  'ago.',
+  'sept.',
+  'oct.',
+  'nov.',
+  'dic.'
 ];
 const _dayNamesEs = [
-  'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo'
 ];
 
 /// Formats a [DateTime] date according to locale conventions in pure Dart.
@@ -703,9 +859,8 @@ const _dayNamesEs = [
 /// [DateFormatStyle.long], [DateFormatStyle.full]) or custom [pattern] tokens (`yyyy`, `yy`,
 /// `MMMM`, `MMM`, `MM`, `M`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `ss`, `a`).
 ///
-/// ### Limitations vs Full CLDR
-/// Includes hand-rolled month and day translations for English, French, German, and Spanish.
-/// For unsupported languages, month and weekday names fallback to English.
+/// Uses `package:intl` date symbols and patterns for supported locales. An
+/// unrecognized locale falls back to Bloom's small built-in formatter.
 ///
 /// ```dart
 /// final date = DateTime(2026, 8, 23);
@@ -726,6 +881,22 @@ String formatDate(
   DateFormatStyle? style,
 }) {
   final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-');
+  try {
+    _ensureDateSymbols();
+    final intlLocale = loc.replaceAll('-', '_');
+    if (pattern != null) {
+      return intl.DateFormat(pattern, intlLocale).format(date);
+    }
+    final formatter = switch (style ?? DateFormatStyle.short) {
+      DateFormatStyle.short => intl.DateFormat.yMd(intlLocale),
+      DateFormatStyle.medium => intl.DateFormat.yMMMd(intlLocale),
+      DateFormatStyle.long => intl.DateFormat.yMMMMd(intlLocale),
+      DateFormatStyle.full => intl.DateFormat.yMMMMEEEEd(intlLocale),
+    };
+    return formatter.format(date);
+  } catch (_) {
+    // Keep the original formatter available for unsupported locale tags.
+  }
   final lang = loc.split('-').first.toLowerCase();
 
   if (pattern != null) {
@@ -820,7 +991,8 @@ String _formatDateWithPattern(DateTime date, String pattern, String lang) {
   final d = date.day.toString();
   final hh24 = date.hour.toString().padLeft(2, '0');
   final h24 = date.hour.toString();
-  final hour12 = date.hour == 0 ? 12 : (date.hour > 12 ? date.hour - 12 : date.hour);
+  final hour12 =
+      date.hour == 0 ? 12 : (date.hour > 12 ? date.hour - 12 : date.hour);
   final hh12 = hour12.toString().padLeft(2, '0');
   final h12 = hour12.toString();
   final min = date.minute.toString().padLeft(2, '0');
@@ -880,8 +1052,26 @@ String formatDateTime(
   String? pattern,
   DateFormatStyle? style,
 }) {
+  final intlLocale =
+      (locale ?? BloomI18n.instance.locale.value).replaceAll('-', '_');
+  try {
+    _ensureDateSymbols();
+    if (pattern != null) {
+      return intl.DateFormat(pattern, intlLocale).format(dateTime);
+    }
+    final formatter = switch (style ?? DateFormatStyle.short) {
+      DateFormatStyle.short => intl.DateFormat.yMd(intlLocale),
+      DateFormatStyle.medium => intl.DateFormat.yMMMd(intlLocale),
+      DateFormatStyle.long => intl.DateFormat.yMMMMd(intlLocale),
+      DateFormatStyle.full => intl.DateFormat.yMMMMEEEEd(intlLocale),
+    };
+    return formatter.add_jm().format(dateTime);
+  } catch (_) {
+    // Keep the original formatter for locale tags intl does not recognize.
+  }
   if (pattern != null) {
-    final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-');
+    final loc =
+        (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-');
     final lang = loc.split('-').first.toLowerCase();
     return _formatDateWithPattern(dateTime, pattern, lang);
   }
@@ -892,7 +1082,10 @@ String formatDateTime(
 
   final h24 = dateTime.hour.toString().padLeft(2, '0');
   final min = dateTime.minute.toString().padLeft(2, '0');
-  final h12 = (dateTime.hour == 0 ? 12 : (dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour)).toString();
+  final h12 = (dateTime.hour == 0
+          ? 12
+          : (dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour))
+      .toString();
   final ampm = dateTime.hour < 12 ? 'AM' : 'PM';
 
   if (['en-us', 'en-ca'].contains(loc.toLowerCase())) {
@@ -908,7 +1101,10 @@ String formatDateTime(
 /// Evaluates [date] relative to [relativeTo] (which defaults to `DateTime.now()`).
 /// If [numeric] is `true`, produces numeric representations like `"1 day ago"` instead of `"yesterday"`.
 ///
-/// Supports translations for English, French, German, Spanish, Japanese, and Chinese, falling back to English.
+/// Supports the built-in English, French, German, Spanish, Japanese, and
+/// Chinese phrasing plus the locale messages listed in [supportedRelativeTimeLocales].
+/// Unsupported locales fall back to English. The formatter is pure Dart, so
+/// server-rendered and browser-rendered text use the same locale messages.
 ///
 /// ```dart
 /// final fiveMinAgo = DateTime.now().subtract(const Duration(minutes: 5));
@@ -929,8 +1125,20 @@ String formatRelativeTime(
   final diff = now.difference(date);
   final isPast = !diff.isNegative;
   final absSeconds = diff.inSeconds.abs();
-  final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
+  final loc = (locale ?? BloomI18n.instance.locale.value)
+      .replaceAll('_', '-')
+      .toLowerCase();
   final lang = loc.split('-').first;
+
+  final messages = _relativeTimeMessages(lang);
+  if (messages != null) {
+    return _formatRelativeWithMessages(
+      messages,
+      absSeconds: absSeconds,
+      isPast: isPast,
+      numeric: numeric,
+    );
+  }
 
   if (absSeconds < 45) {
     if (lang == 'fr') return 'à l\'instant';
@@ -981,6 +1189,163 @@ String formatRelativeTime(
 
   final years = (days / 365).round();
   return _formatRelativeUnit(years, 'year', isPast, lang);
+}
+
+/// Locale tags supported by the pure-Dart relative-time formatter.
+/// Region subtags are accepted for the matching language; `pt` uses Brazilian
+/// Portuguese messages, and `no` defaults to Norwegian Bokmål.
+const supportedRelativeTimeLocales = <String>{
+  'am',
+  'ar',
+  'az',
+  'be',
+  'bn',
+  'bs',
+  'ca',
+  'cs',
+  'da',
+  'de',
+  'dv',
+  'el',
+  'en',
+  'es',
+  'et',
+  'fa',
+  'fi',
+  'fr',
+  'he',
+  'hi',
+  'hr',
+  'hu',
+  'id',
+  'it',
+  'ja',
+  'km',
+  'ko',
+  'ku',
+  'lv',
+  'mn',
+  'ms',
+  'my',
+  'nb',
+  'nl',
+  'nn',
+  'no',
+  'pl',
+  'pt',
+  'ro',
+  'ru',
+  'rw',
+  'sr',
+  'sv',
+  'ta',
+  'th',
+  'tk',
+  'tr',
+  'uk',
+  'ur',
+  'vi',
+  'zh',
+};
+
+timeago.LookupMessages? _relativeTimeMessages(String lang) {
+  return switch (lang) {
+    'am' => timeago.AmMessages(),
+    'ar' => timeago.ArMessages(),
+    'az' => timeago.AzMessages(),
+    'be' => timeago.BeMessages(),
+    'bn' => timeago.BnMessages(),
+    'bs' => timeago.BsMessages(),
+    'ca' => timeago.CaMessages(),
+    'cs' => timeago.CsMessages(),
+    'da' => timeago.DaMessages(),
+    'dv' => timeago.DvMessages(),
+    'el' => timeago.GrMessages(),
+    'et' => timeago.EtMessages(),
+    'fa' => timeago.FaMessages(),
+    'fi' => timeago.FiMessages(),
+    'he' || 'iw' => timeago.HeMessages(),
+    'hi' => timeago.HiMessages(),
+    'hr' => timeago.HrMessages(),
+    'hu' => timeago.HuMessages(),
+    'id' => timeago.IdMessages(),
+    'it' => timeago.ItMessages(),
+    'km' => timeago.KmMessages(),
+    'ko' => timeago.KoMessages(),
+    'ku' => timeago.KuMessages(),
+    'lv' => timeago.LvMessages(),
+    'mn' => timeago.MnMessages(),
+    'ms' => timeago.MsMyMessages(),
+    'my' => timeago.MyMessages(),
+    'nb' || 'no' => timeago.NbNoMessages(),
+    'nn' => timeago.NnNoMessages(),
+    'nl' => timeago.NlMessages(),
+    'pl' => timeago.PlMessages(),
+    'pt' => timeago.PtBrMessages(),
+    'ro' => timeago.RoMessages(),
+    'ru' => timeago.RuMessages(),
+    'rw' => timeago.RwMessages(),
+    'sr' => timeago.SrMessages(),
+    'sv' => timeago.SvMessages(),
+    'ta' => timeago.TaMessages(),
+    'th' => timeago.ThMessages(),
+    'tk' => timeago.TkMessages(),
+    'tr' => timeago.TrMessages(),
+    'uk' => timeago.UkMessages(),
+    'ur' => timeago.UrMessages(),
+    'vi' => timeago.ViMessages(),
+    _ => null,
+  };
+}
+
+String _formatRelativeWithMessages(
+  timeago.LookupMessages messages, {
+  required int absSeconds,
+  required bool isPast,
+  required bool numeric,
+}) {
+  final String phrase;
+  if (absSeconds < 45) {
+    phrase = messages.lessThanOneMinute(absSeconds);
+  } else {
+    final minutes = (absSeconds / 60).round();
+    if (minutes < 45) {
+      phrase = minutes == 1
+          ? messages.aboutAMinute(minutes)
+          : messages.minutes(minutes);
+    } else {
+      final hours = (absSeconds / 3600).round();
+      if (hours < 22) {
+        phrase =
+            hours == 1 ? messages.aboutAnHour(minutes) : messages.hours(hours);
+      } else {
+        final days = (absSeconds / 86400).round();
+        if (days == 1 && !numeric) {
+          phrase = messages.aDay(hours);
+        } else if (days < 26) {
+          phrase = messages.days(days);
+        } else {
+          final months = (days / 30).round();
+          if (months < 11) {
+            phrase = months == 1
+                ? messages.aboutAMonth(days)
+                : messages.months(months);
+          } else {
+            final years = (days / 365).round();
+            phrase = years == 1
+                ? messages.aboutAYear(months)
+                : messages.years(years);
+          }
+        }
+      }
+    }
+  }
+
+  final prefix = isPast ? messages.prefixAgo() : messages.prefixFromNow();
+  final suffix = isPast ? messages.suffixAgo() : messages.suffixFromNow();
+  return [prefix, phrase, suffix]
+      .where((part) => part.isNotEmpty)
+      .join(messages.wordSeparator());
 }
 
 String _formatRelativeUnit(int count, String unit, bool isPast, String lang) {
@@ -1048,7 +1413,8 @@ extension BloomDateTimeClientI18n on DateTime {
   /// ```dart
   /// final formatted = DateTime(2026, 8, 23).toLocalizedDate(locale: 'en-US'); // "8/23/2026"
   /// ```
-  String toLocalizedDate({String? locale, String? pattern, DateFormatStyle? style}) =>
+  String toLocalizedDate(
+          {String? locale, String? pattern, DateFormatStyle? style}) =>
       formatDate(this, locale: locale, pattern: pattern, style: style);
 
   /// Formats this date as a localized date and time string.
@@ -1056,7 +1422,8 @@ extension BloomDateTimeClientI18n on DateTime {
   /// ```dart
   /// final formatted = DateTime.now().toLocalizedDateTime(locale: 'fr-FR');
   /// ```
-  String toLocalizedDateTime({String? locale, String? pattern, DateFormatStyle? style}) =>
+  String toLocalizedDateTime(
+          {String? locale, String? pattern, DateFormatStyle? style}) =>
       formatDateTime(this, locale: locale, pattern: pattern, style: style);
 
   /// Formats this date as a relative time string (e.g. "5 minutes ago").
@@ -1126,7 +1493,9 @@ const _rtlLanguages = {
 /// - [getTextDirection], which returns a [BloomTextDirection] enum.
 /// - [dirAttribute], which produces an attribute map for element descriptors.
 bool isRtl([String? locale]) {
-  final loc = (locale ?? BloomI18n.instance.locale.value).replaceAll('_', '-').toLowerCase();
+  final loc = (locale ?? BloomI18n.instance.locale.value)
+      .replaceAll('_', '-')
+      .toLowerCase();
   final lang = loc.split('-').first;
   return _rtlLanguages.contains(lang);
 }
@@ -1351,7 +1720,8 @@ String resolveLocale(
     return preferences.isNotEmpty ? preferences.first : fallback;
   }
 
-  final normalizedSupported = supported.map((s) => s.replaceAll('_', '-').toLowerCase()).toList();
+  final normalizedSupported =
+      supported.map((s) => s.replaceAll('_', '-').toLowerCase()).toList();
 
   // 1. Exact match
   for (final pref in preferences) {
@@ -1604,7 +1974,8 @@ class BloomI18n {
   Future<bool> loadLocale(String targetLocale) async {
     if (_catalogs.containsKey(targetLocale)) return true;
 
-    final loader = _loaders[targetLocale] ?? _findLoaderNormalized(targetLocale);
+    final loader =
+        _loaders[targetLocale] ?? _findLoaderNormalized(targetLocale);
     if (loader == null) return false;
 
     isLoading.value = true;
@@ -1818,8 +2189,7 @@ void setLocale(String locale) => BloomI18n.instance.setLocale(locale);
 /// See also:
 /// - [BloomI18n.loadLocale], instance method.
 /// - [BloomI18n.registerLoader], registers the loader callback.
-Future<bool> loadLocale(String locale) =>
-    BloomI18n.instance.loadLocale(locale);
+Future<bool> loadLocale(String locale) => BloomI18n.instance.loadLocale(locale);
 
 /// Formats a localized date for the active locale on [BloomI18n.instance].
 ///
@@ -1840,7 +2210,8 @@ String localizedDate(DateTime date, [String? locale, String? pattern]) =>
 ///
 /// See also:
 /// - [formatDateTime], standalone date-time formatting function.
-String localizedDateTime(DateTime dateTime, [String? locale, String? pattern]) =>
+String localizedDateTime(DateTime dateTime,
+        [String? locale, String? pattern]) =>
     formatDateTime(dateTime, locale: locale, pattern: pattern);
 
 /// Formats a localized relative time string for the active locale on [BloomI18n.instance].
@@ -1852,7 +2223,8 @@ String localizedDateTime(DateTime dateTime, [String? locale, String? pattern]) =
 ///
 /// See also:
 /// - [formatRelativeTime], standalone relative time formatting function.
-String localizedRelativeTime(DateTime date, [DateTime? relativeTo, String? locale]) =>
+String localizedRelativeTime(DateTime date,
+        [DateTime? relativeTo, String? locale]) =>
     formatRelativeTime(date, relativeTo: relativeTo, locale: locale);
 
 /// Formats a localized number for the active locale on [BloomI18n.instance].
@@ -1874,6 +2246,6 @@ String localizedNumber(num value, [String? locale, int? decimalDigits]) =>
 ///
 /// See also:
 /// - [formatCurrency], standalone currency formatting function.
-String localizedCurrency(num value, [String currency = 'USD', String? locale]) =>
+String localizedCurrency(num value,
+        [String currency = 'USD', String? locale]) =>
     formatCurrency(value, currency: currency, locale: locale);
-
