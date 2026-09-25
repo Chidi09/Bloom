@@ -1,8 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.8 - 2026-09-25
+
+### Added
+* **Request-isolated SSR query caches (#31)**: `BloomData` caches, invalidation and in-flight deduplication are now scoped per SSR request through `BloomQueryScope` (`BloomData.withRequestScope`), so concurrent requests never share private query data. SSR render helpers create and dispose the scope automatically, including for streaming, errors and cancellation.
+* **Reactive hydration preserves SSR DOM (#32)**: hydration attaches reactive behavior to the server-rendered DOM through boundary markers (`live`, `memo`, `show`, keyed `foreach`, error boundaries, Suspense) instead of remounting the target. Mismatches are recovered at the smallest delimited boundary and reported as `HydrationMismatch` diagnostics; pre-hydration input values and focus are kept, and streamed Suspense shells are claimed against late server patches.
 
 ### Fixed
+* Hydration keys are UTF-8 encoded before base64, so keyed `ForEach` items with non-Latin-1 keys (CJK, emoji) match their SSR markers instead of remounting the whole list.
 * Rejected executable raw HTML attributes and URL schemes across SSR, browser mounting, reconciliation, and hydration; escaped script-context JSON in import maps, streamed Suspense updates, and cache dehydration; neutralized case-insensitive `</style>` terminators.
 * Enforced route guards on direct browser loads and nested shell routes, kept denied or redirected back/forward URLs consistent with the rendered route, and withheld guarded content until initial authorization completes.
 * Query and path parameter decoding now handles malformed percent escapes and invalid UTF-8 without throwing during route matching; malformed markers stay literal and invalid byte sequences become U+FFFD.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 - 2026-09-25
 
 ### Added
 * **Bounded PostgreSQL connection pooling**: `PostgresDbExecutor.pooled()` now reuses up to `maxConnections` sessions for concurrent queries and transactions. The existing `connect()` API remains a single dedicated connection.

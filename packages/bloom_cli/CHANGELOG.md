@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.6 - 2026-09-25
 
 ### Added
 * **JS dev terminal dashboard (#3)**: `bloom js dev` now renders a Next.js-style startup panel (project, local URL, DDC vs dart2js mode, assets, watch roots, proxies, routes, shortcuts) and prints live build-status lines as the watcher recompiles — tracking elapsed time, a running compile count and an error count at a glance. Replaces the flat ad-hoc startup prints.
@@ -11,6 +11,8 @@
 * **Executable `bloom js create` tests**: component and page scaffolds now include tests that import and render the generated source; route guards also receive a test for the safe default.
 
 ### Fixed
+* **`bloom doctor` without Flutter**: toolchain probes (`dart`, `flutter`, `java`, `xcode-select`) now report a missing executable as a failed check instead of crashing with `ProcessException`, so JS Native-only machines and CI images can run doctor.
+* **DDC worker fallback on early worker exit**: a persistent worker that dies before accepting a request no longer surfaces an uncaught broken-pipe error; `bloom js dev` falls back to one-shot DDC as intended.
 * **DDC error reporting**: failed app startup and RequireJS module loads now show the dev overlay; fallback error details use `textContent` so source text cannot be interpreted as HTML.
 * **`bloom doctor` manifest diagnostics**: interactive and CI doctor runs now parse `bloom.yaml` and validate its required name, schema version, mode, and build/deployment targets instead of treating any existing file as valid.
 * **Windows Tailwind builds**: `NODE_PATH` now uses the platform's path-list separator so the static CSS toolchain can resolve its packages on Windows.
