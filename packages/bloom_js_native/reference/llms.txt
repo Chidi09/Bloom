@@ -4,13 +4,47 @@ One line per public symbol. For full docs and examples see
 reference/llms-full.txt. If a symbol is not listed here, it
 does not exist.
 
+## _signal_scope.dart  [not exported]
+  T runWithBloomSignalScope<T>(String segment, T Function() callback)
+      Runs [callback] with a stable, nested scope for hot-reload signal keys.
+  T runWithBloomSignalScopeValue<T>(String? scope, T Function() callback)
+      Re-enters a previously captured full scope, independent of the caller's
+  T runWithBloomSignalScopeBoundary<T>(String? scope, T Function() callback)
+      Re-enters a captured signal-scope boundary, including a captured `null`.
+  String? get currentBloomSignalScope =>
+  String composeBloomSignalScope(String segment)
+      Stable full scope value that [runWithBloomSignalScope] will install for
+  void registerBloomScopedSignal(String scope, String key) =>
+  void releaseBloomSignalScope(String? scope)
+  void forgetBloomScopedSignal(String key) => registry.forgetScopedSignal(key)
+  void beginBloomSignalScopeTransition() => registry.beginSignalScopeTransition()
+  void finishBloomSignalScopeTransition() =>
+
+## _signal_scope_registry_browser.dart  [not exported]
+  void registerScopedSignal(String scope, String key)
+  void releaseSignalScope(String scope)
+  void forgetScopedSignal(String key)
+  void beginSignalScopeTransition()
+  void finishSignalScopeTransition()
+
+## _signal_scope_registry_stub.dart  [not exported]
+  void registerScopedSignal(String scope, String key)
+  void releaseSignalScope(String scope)
+  void forgetScopedSignal(String key)
+  void beginSignalScopeTransition()
+  void finishSignalScopeTransition()
+
 ## _signals_browser.dart  [not exported]
   const int kMaxSignalRegistryEntries = 512
       Maximum number of entries kept in the browser hot-reload signal registry.
   bool isBrowserHotReloadActive() => isHotReloadTrackingActive()
   Set<void Function()>? getBrowserHotEffectRegistry()
   void disposeBrowserHotEffects()
-      Disposes user-created effects registered during a DDC dev session.
+      Disposes every user-created effect currently registered in this DDC session.
+  void prepareBrowserHotReloadEffects()
+      Moves effects from the old module aside so updated code can patch first.
+  void disposePreviousBrowserHotEffects()
+      Disposes old module effects after updated code has mounted or patched.
   Map<String, Object?>? getBrowserSignalRegistry()
   void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
       Stores [value] under [key] in the hot-reload signal [registry].
@@ -21,6 +55,8 @@ does not exist.
   bool isBrowserHotReloadActive() => false
   Set<void Function()>? getBrowserHotEffectRegistry() => null
   void disposeBrowserHotEffects()
+  void prepareBrowserHotReloadEffects()
+  void disposePreviousBrowserHotEffects()
   Map<String, Object?>? getBrowserSignalRegistry() => null
   void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
 
@@ -84,6 +120,14 @@ does not exist.
   class BloomAnimationPresets
       Ready-to-use [BloomAnimation] presets for common UI transitions.
 
+## attribute_safety.dart  [not exported]
+  void validateBloomAttribute(String name, String value)
+      Rejects raw HTML attributes that can execute attacker-controlled content.
+  String escapeBloomHtml(String value) => value .replaceAll('&', '&amp;') .replaceAll('<', '&lt;') .replaceAll('>', '&gt;') .replaceAll('"', '&quot;') .replaceAll("'", '&#x27;')
+      Escapes text and quoted attribute content for safe HTML serialization.
+  String escapeBloomJsonForScript(String json) => json .replaceAll('<', r'\u003c') .replaceAll('\u2028', r'\u2028') .replaceAll('\u2029', r'\u2029')
+      Escapes JSON text placed inside an HTML `<script>` element.
+
 ## bloom_test.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   class BloomTestRenderer
       Test harness wrapping a [BloomNode] AST tree for querying and assertion in VM tests.
@@ -110,7 +154,7 @@ does not exist.
       A reactive asynchronous query manager with automatic caching, request deduplication,
   BloomQuery<T> query<T>({ required List<dynamic> key, required Future<T> Function() fetch, Duration staleTime = const Duration(minutes: 5), Duration cacheTime = const Duration(minutes: 30), bool enabled = true, T? initialData, })
       Creates a reactive [BloomQuery] configured with [key], [fetch], and caching durations.
-  typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function(TParam pageParam)
+  typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function( TParam pageParam)
       Function signature for fetching a single page of type [TPage] using page parameter [TParam].
   typedef GetNextPageParamFn<TPage, TParam> = TParam? Function( TPage lastPage, List<TPage> allPages, )
       Function signature for deriving the next page parameter from the [lastPage] and [allPages].
@@ -252,7 +296,7 @@ does not exist.
 ## framework.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   class BloomContext<T>
       Token representing an ambient context value of type [T].
-  BloomContext<T> createContext<T>(T defaultValue) => BloomContext<T>(defaultValue)
+  BloomContext<T> createContext<T>(T defaultValue) =>
       Creates a typed ambient [BloomContext] with [defaultValue].
   T useContext<T>(BloomContext<T> context)
       Reads the current ambient value for [context] from the surrounding [Zone].
@@ -260,6 +304,10 @@ does not exist.
       AST node that injects context [value] into its descendant [child] tree.
   sealed class BloomNode
       The core descriptor tree root — pure Dart, zero DOM dependency.
+  class HmrComponentNode extends BloomNode
+      A source-stable boundary around a Bloom component during DDC development.
+  BloomNode bloomHmrComponent(String id, BloomNode Function() builder) =>
+      Wraps a component builder in a source-stable DDC hot-reload boundary.
   class TextNode extends BloomNode
       Plain text leaf descriptor.
   class ElNode extends BloomNode
@@ -706,9 +754,9 @@ does not exist.
       Handle representing an active Bloom application mounted in the browser DOM.
   BloomMountHandle mount(BloomNode node, String selector)
       Mounts a [BloomNode] descriptor tree into the DOM element matching [selector].
-  BloomMountHandle mountToElement(BloomNode node, web.Element root)
+  BloomMountHandle mountToElement( BloomNode node, web.Element root,
       Mounts a [BloomNode] descriptor tree directly into the provided DOM [root] element.
-  void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
+  void attachBloomListener( web.Element el, String type, BloomEventHandler handler) =>
       Attaches a synthetic [BloomEvent] listener of the given [type] to DOM element [el].
   typedef HydrationMismatchHandler = void Function(HydrationMismatch mismatch)
       Reports a [HydrationMismatch] observed while hydrating.
@@ -872,6 +920,8 @@ does not exist.
       Callback type accepted by [effect]. The result is ignored by the effect
   s.Signal<T> signal<T>(T initialValue,
       Creates a reactive [Signal] container initialized to [initialValue].
+  T bloomHmrScope<T>(String scopeId, T Function() callback)
+      Runs [callback] in a stable nested signal scope during DDC hot reload.
   void Function() effect( BloomEffectCallback compute,
       Runs [compute] reactively and returns a function that stops the effect.
   s.ReadonlySignal<T> readonly<T>(s.Signal<T> signal)

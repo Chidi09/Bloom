@@ -66,6 +66,135 @@ Read-only view of reactive state.
 
 ------------------------------------------------------------------------------
 
+## _signal_scope.dart
+Availability: not exported
+
+### runWithBloomSignalScope  [function]
+```dart
+T runWithBloomSignalScope<T>(String segment, T Function() callback)
+```
+Runs [callback] with a stable, nested scope for hot-reload signal keys.
+
+The length-prefixed encoding keeps arbitrary list keys unambiguous when
+scopes are nested.
+
+### runWithBloomSignalScopeValue  [function]
+```dart
+T runWithBloomSignalScopeValue<T>(String? scope, T Function() callback)
+```
+Re-enters a previously captured full scope, independent of the caller's
+current Zone. Reactive callbacks can run later from browser event handlers,
+where the original parent scope is no longer ambient.
+
+### runWithBloomSignalScopeBoundary  [function]
+```dart
+T runWithBloomSignalScopeBoundary<T>(String? scope, T Function() callback)
+```
+Re-enters a captured signal-scope boundary, including a captured `null`.
+
+A reactive callback may be notified synchronously from an event handler that
+runs in a nested item scope. Restoring `null` prevents that caller's scope
+from leaking into a callback that was originally created outside any scope.
+
+### currentBloomSignalScope  [getter]
+```dart
+String? get currentBloomSignalScope =>
+```
+
+### composeBloomSignalScope  [function]
+```dart
+String composeBloomSignalScope(String segment)
+```
+Stable full scope value that [runWithBloomSignalScope] will install for
+[segment] from the current zone.
+
+### registerBloomScopedSignal  [function]
+```dart
+void registerBloomScopedSignal(String scope, String key) =>
+```
+
+### releaseBloomSignalScope  [function]
+```dart
+void releaseBloomSignalScope(String? scope)
+```
+
+### forgetBloomScopedSignal  [function]
+```dart
+void forgetBloomScopedSignal(String key) => registry.forgetScopedSignal(key)
+```
+
+### beginBloomSignalScopeTransition  [function]
+```dart
+void beginBloomSignalScopeTransition() => registry.beginSignalScopeTransition()
+```
+
+### finishBloomSignalScopeTransition  [function]
+```dart
+void finishBloomSignalScopeTransition() =>
+```
+
+------------------------------------------------------------------------------
+
+## _signal_scope_registry_browser.dart
+Availability: not exported
+
+### registerScopedSignal  [function]
+```dart
+void registerScopedSignal(String scope, String key)
+```
+
+### releaseSignalScope  [function]
+```dart
+void releaseSignalScope(String scope)
+```
+
+### forgetScopedSignal  [function]
+```dart
+void forgetScopedSignal(String key)
+```
+
+### beginSignalScopeTransition  [function]
+```dart
+void beginSignalScopeTransition()
+```
+
+### finishSignalScopeTransition  [function]
+```dart
+void finishSignalScopeTransition()
+```
+
+------------------------------------------------------------------------------
+
+## _signal_scope_registry_stub.dart
+Availability: not exported
+
+### registerScopedSignal  [function]
+```dart
+void registerScopedSignal(String scope, String key)
+```
+
+### releaseSignalScope  [function]
+```dart
+void releaseSignalScope(String scope)
+```
+
+### forgetScopedSignal  [function]
+```dart
+void forgetScopedSignal(String key)
+```
+
+### beginSignalScopeTransition  [function]
+```dart
+void beginSignalScopeTransition()
+```
+
+### finishSignalScopeTransition  [function]
+```dart
+void finishSignalScopeTransition()
+```
+
+------------------------------------------------------------------------------
+
 ## _signals_browser.dart
 Availability: not exported
 
@@ -98,12 +227,24 @@ Set<void Function()>? getBrowserHotEffectRegistry()
 ```dart
 void disposeBrowserHotEffects()
 ```
-Disposes user-created effects registered during a DDC dev session.
+Disposes every user-created effect currently registered in this DDC session.
 
-The JavaScript dev bootstrap calls the installed window hook before it
-evicts and re-executes the app entry module. Mount-owned effects are already
-disposed by their mount handle; this catches top-level effects that have no
-mount region to own their cleanup.
+Normal HMR uses [prepareBrowserHotReloadEffects] and
+[disposePreviousBrowserHotEffects] to defer old cleanup until after the new
+app has attempted its patch or remount. This immediate form remains useful
+for explicit teardown and tests.
+
+### prepareBrowserHotReloadEffects  [function]
+```dart
+void prepareBrowserHotReloadEffects()
+```
+Moves effects from the old module aside so updated code can patch first.
+
+### disposePreviousBrowserHotEffects  [function]
+```dart
+void disposePreviousBrowserHotEffects()
+```
+Disposes old module effects after updated code has mounted or patched.
 
 ### getBrowserSignalRegistry  [function]
 ```dart
@@ -147,6 +288,16 @@ Set<void Function()>? getBrowserHotEffectRegistry() => null
 ### disposeBrowserHotEffects  [function]
 ```dart
 void disposeBrowserHotEffects()
+```
+
+### prepareBrowserHotReloadEffects  [function]
+```dart
+void prepareBrowserHotReloadEffects()
+```
+
+### disposePreviousBrowserHotEffects  [function]
+```dart
+void disposePreviousBrowserHotEffects()
 ```
 
 ### getBrowserSignalRegistry  [function]
@@ -809,6 +960,37 @@ Members:
 
 ------------------------------------------------------------------------------
 
+## attribute_safety.dart
+Availability: not exported
+
+### validateBloomAttribute  [function]
+```dart
+void validateBloomAttribute(String name, String value)
+```
+Rejects raw HTML attributes that can execute attacker-controlled content.
+
+Bloom event handlers belong in the typed `on:` map. URL attributes are
+checked after decoding the character references SSR would decode and
+removing control characters browsers may ignore while parsing a scheme.
+
+### escapeBloomHtml  [function]
+```dart
+String escapeBloomHtml(String value) => value .replaceAll('&', '&amp;') .replaceAll('<', '&lt;') .replaceAll('>', '&gt;') .replaceAll('"', '&quot;') .replaceAll("'", '&#x27;')
+```
+Escapes text and quoted attribute content for safe HTML serialization.
+
+### escapeBloomJsonForScript  [function]
+```dart
+String escapeBloomJsonForScript(String json) => json .replaceAll('<', r'\u003c') .replaceAll('\u2028', r'\u2028') .replaceAll('\u2029', r'\u2029')
+```
+Escapes JSON text placed inside an HTML `<script>` element.
+
+The HTML parser recognizes `</script>` without regard to case, even inside
+JavaScript strings and non-executable JSON script elements. Escaping every
+`<` prevents the HTML parser from seeing any attacker-controlled end tag.
+
+------------------------------------------------------------------------------
+
 ## bloom_test.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
@@ -1088,12 +1270,12 @@ Members:
   - `static R runWithScope<R>(BloomQueryScope scope, R Function() body) =>`  -- Runs [body] with [scope] as the current request scope.
   - `static Future<T> withRequestScope<T>( FutureOr<T> Function(BloomQueryScope scope) body,`  -- Runs [body] in a fresh request scope, disposing it afterwards.
   - `static Stream<S> withRequestScopeStream<S>( Stream<S> Function(BloomQueryScope scope) body,`  -- Variant of [withRequestScope] for `Stream` results (streaming SSR).
-  - `static String normalizeKey(List<dynamic> key) => key.map(_canonical).join(':')`  -- Converts a structured key list into a normalized, canonical string key.
+  - `static String normalizeKey(List<dynamic> key) =>`  -- Converts a structured key list into a normalized, canonical string key.
   - `static bool matchesKey(List<dynamic> candidateKey, List<dynamic> prefix)`  -- Prefix-match helper shared by scopes.
   - `static void invalidateQueries(List<dynamic> keyPrefix) =>`  -- Invalidates all cached queries matching [keyPrefix] and notifies subscribers.
-  - `static void setQueryData<T>(List<dynamic> key, T Function(T? oldData) updater) =>`  -- Directly updates cached query data for [key] using a transformation [updater] callback.
-  - `static T? getQueryData<T>(List<dynamic> key) => currentScope.getQueryData<T>(key)`  -- Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
-  - `static Future<T> deduplicate<T>(List<dynamic> key, Future<T> Function() fetcher) =>`  -- Deduplicates concurrent asynchronous requests sharing the same cache [key].
+  - `static void setQueryData<T>( List<dynamic> key, T Function(T? oldData) updater) =>`  -- Directly updates cached query data for [key] using a transformation [updater] callback.
+  - `static T? getQueryData<T>(List<dynamic> key) =>`  -- Retrieves non-expired cached query data for [key], or returns `null` if absent or expired.
+  - `static Future<T> deduplicate<T>( List<dynamic> key, Future<T> Function() fetcher) =>`  -- Deduplicates concurrent asynchronous requests sharing the same cache [key].
   - `static Stream<void> onInvalidated(List<dynamic> key) =>`  -- Returns a broadcast [Stream] that emits whenever queries matching [key] are invalidated.
   - `static void putEntry<T>(QueryCacheEntry<T> entry) =>`  -- Directly inserts or overwrites a [QueryCacheEntry] in the current scope.
   - `static QueryCacheEntry<T>? getEntry<T>(List<dynamic> key) =>`  -- Retrieves the raw [QueryCacheEntry] for [key] from the current scope.
@@ -1191,7 +1373,7 @@ final todosQuery = query<List<Todo>>(
 
 ### InfiniteQueryFn  [typedef]
 ```dart
-typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function(TParam pageParam)
+typedef InfiniteQueryFn<TPage, TParam> = Future<TPage> Function( TParam pageParam)
 ```
 Function signature for fetching a single page of type [TPage] using page parameter [TParam].
 
@@ -2700,7 +2882,7 @@ Members:
 
 ### createContext  [function]
 ```dart
-BloomContext<T> createContext<T>(T defaultValue) => BloomContext<T>(defaultValue)
+BloomContext<T> createContext<T>(T defaultValue) =>
 ```
 Creates a typed ambient [BloomContext] with [defaultValue].
 
@@ -2776,6 +2958,28 @@ descriptor trees to be constructed and evaluated anywhere Dart runs:
 
 Members:
   - `const BloomNode()`  -- Base const constructor for all [BloomNode] descriptors.
+
+### HmrComponentNode  [class]
+```dart
+class HmrComponentNode extends BloomNode
+```
+A source-stable boundary around a Bloom component during DDC development.
+
+[id] is derived from the declaring library and component method by Bloom's
+dev compiler. The browser runtime uses the boundary to replace a component
+subtree without remounting unrelated siblings. Non-browser renderers treat
+it transparently by evaluating [builder].
+
+Members:
+  - `final String id`  -- Stable source identity for this component boundary.
+  - `final BloomNode child`  -- Current version of this component's descriptor tree.
+  - `const HmrComponentNode(this.id, this.child)`  -- Creates a development hot-reload boundary.
+
+### bloomHmrComponent  [function]
+```dart
+BloomNode bloomHmrComponent(String id, BloomNode Function() builder) =>
+```
+Wraps a component builder in a source-stable DDC hot-reload boundary.
 
 ### TextNode  [class]
 ```dart
@@ -2872,7 +3076,8 @@ Usually created using the DSL sugar [Live].
 
 Members:
   - `final BloomNode Function() builder`  -- The reactive builder callback invoked to produce this boundary's subtree.
-  - `const LiveNode(this.builder)`  -- Creates a reactive boundary descriptor driven by [builder].
+  - `final String? hotReloadScopeId`  -- Stable source identity used by DDC to scope signals created by [builder].
+  - `const LiveNode(this.builder,`  -- Creates a reactive boundary descriptor driven by [builder].
 
 ### MemoNode  [class]
 ```dart
@@ -2900,7 +3105,8 @@ Usually created using the DSL sugar [Memo].
 Members:
   - `final T Function() dependency`  -- Reactive computation returning the dependency value of type [T].
   - `final BloomNode Function(T value) builder`  -- Builder that produces a descriptor tree from the evaluated dependency [value].
-  - `const MemoNode(this.dependency, this.builder)`  -- Creates a memoization boundary descriptor with [dependency] and [builder].
+  - `final String? hotReloadScopeId`  -- Stable source identity used by DDC to scope signals created by [builder].
+  - `const MemoNode(this.dependency, this.builder,`  -- Creates a memoization boundary descriptor with [dependency] and [builder].
   - `Object? Function() get dependencyErased => dependency`  -- [dependency], viewed untyped as `Object? Function()`.
   - `BloomNode Function(Object? value) get builderErased =>`  -- [builder], accepting an untyped `Object?` dependency value.
 
@@ -2929,10 +3135,11 @@ During SSR (`renderToHtml`), [when] is evaluated once synchronously. If `true`,
 Usually created using the DSL sugar [Show].
 
 Members:
+  - `final String? hotReloadScopeId`  -- Stable compiler-provided scope for signals created in [when].
   - `final bool Function() when`  -- Reactive predicate — called inside a signals effect (browser) or once (SSR).
   - `final BloomNode child`  -- The descriptor tree rendered when [when] evaluates to `true`.
   - `final BloomNode? fallback`  -- Optional descriptor tree rendered when [when] evaluates to `false`.
-  - `const ShowNode(this.when,`  -- Creates a conditional rendering descriptor with predicate [when], primary
+  - `const ShowNode( this.when,`  -- Creates a conditional rendering descriptor with predicate [when], primary
 
 ### ForEachNode  [class]
 ```dart
@@ -2968,10 +3175,12 @@ Members:
   - `final List<T> Function() items`  -- Reactive getter returning the list of items to render.
   - `final BloomNode Function(T item) builder`  -- Factory callback mapping each item of type [T] to its [BloomNode] descriptor.
   - `final String Function(T item)? keyFn`  -- Optional key extractor function returning a unique string identifier for [item].
+  - `final String? hotReloadScopeId`  -- Stable source identity used by the DDC dev compiler to scope keyed
   - `const ForEachNode(this.items, this.builder,`  -- Creates a list rendering descriptor with [items], [builder], and optional [keyFn].
   - `List<BloomNode> buildChildren() =>`  -- Synchronously evaluates [items] and maps each element through [builder].
   - `List<Object?> Function() get itemsErased => items`  -- [items], viewed as an untyped list getter `List<Object?> Function()`.
   - `String Function(Object? item)? get keyFnErased`  -- [keyFn], accepting an untyped item `Object?`. Returns `null` when the list is unkeyed.
+  - `String? get hotReloadScopeIdErased => hotReloadScopeId`  -- [hotReloadScopeId], exposed to the browser renderer without type erasure.
   - `BloomNode Function(Object? item) get builderErased =>`  -- [builder], accepting an untyped item `Object?`.
 
 ### StyleNode  [class]
@@ -3105,7 +3314,7 @@ BloomNode counterView() => Div(
 ```
 
 Members:
-  - `const Live(super.builder)`  -- Creates a reactive boundary descriptor driven by [builder].
+  - `const Live(super.builder,`  -- Creates a reactive boundary descriptor driven by [builder].
 
 ### Memo  [class]
 ```dart
@@ -3137,7 +3346,7 @@ BloomNode userProfileView() => Div(
 ```
 
 Members:
-  - `const Memo(super.dependency, super.builder)`  -- Creates a memoized boundary descriptor with [dependency] and [builder].
+  - `const Memo(super.dependency, super.builder,`  -- Creates a memoized boundary descriptor with [dependency] and [builder].
 
 ### Show  [class]
 ```dart
@@ -3315,6 +3524,7 @@ Executes [onMount] after the child tree is attached to the DOM, and
 Usually created using the DSL sugar [Mount].
 
 Members:
+  - `final String? hotReloadScopeId`  -- Stable compiler-provided scope for signals created by lifecycle callbacks.
   - `final BloomNode child`  -- The child descriptor tree enclosed by this lifecycle boundary.
   - `final void Function()? onMount`  -- Callback executed asynchronously in a microtask after [child] is inserted into the DOM.
   - `final void Function()? onUnmount`  -- Callback executed synchronously when [child] is removed from the DOM.
@@ -3393,9 +3603,10 @@ is thrown, renders `fallback(err, stack)`.
 Usually created using the DSL sugar [ErrorBoundary].
 
 Members:
+  - `final String? hotReloadScopeId`  -- Stable compiler-provided scope for signals created in its callbacks.
   - `final BloomNode Function() builder`  -- Factory building the primary subtree.
   - `final BloomNode Function(Object error, StackTrace stackTrace) fallback`  -- Fallback builder invoked with the caught [Object] error and [StackTrace] when [builder] fails.
-  - `const ErrorBoundaryNode({ required this.builder, required this.fallback, })`  -- Creates an error boundary descriptor with [builder] and error [fallback].
+  - `const ErrorBoundaryNode({ required this.builder, required this.fallback, this.hotReloadScopeId, })`  -- Creates an error boundary descriptor with [builder] and error [fallback].
 
 ### ErrorBoundary  [class]
 ```dart
@@ -3422,7 +3633,7 @@ BloomNode safeDashboard() => ErrorBoundary(
 ```
 
 Members:
-  - `const ErrorBoundary({ required super.builder, required super.fallback, })`  -- Creates an error boundary wrapping [builder] with [fallback].
+  - `const ErrorBoundary({ required super.builder, required super.fallback, super.hotReloadScopeId, })`  -- Creates an error boundary wrapping [builder] with [fallback].
 
 ### PortalNode  [class]
 ```dart
@@ -3495,11 +3706,12 @@ Declarative async boundary that renders [fallback] while [resource] resolves.
 Usually created using the DSL sugar [Suspense].
 
 Members:
+  - `final String? hotReloadScopeId`  -- Stable compiler-provided scope for signals created in async builders.
   - `final Future<T> Function() resource`  -- Async factory returning a [Future] with the resolved data of type [T].
   - `final BloomNode Function(T data) builder`  -- Builder constructing the descriptor tree once [resource] resolves with [data].
   - `final BloomNode fallback`  -- Descriptor tree displayed while [resource] is still pending.
   - `final BloomNode Function(Object error, StackTrace stackTrace)? errorBuilder`  -- Optional error builder invoked if [resource] rejects with an exception.
-  - `const SuspenseNode({ required this.resource, required this.builder, required this.fallback, this.errorBuilder, })`  -- Creates a suspense boundary descriptor with async [resource], resolved [builder],
+  - `const SuspenseNode({ required this.resource, required this.builder, required this.fallback, this.errorBuilder, this.hotReloadScopeId, })`  -- Creates a suspense boundary descriptor with async [resource], resolved [builder],
   - `Future<Object?> Function() get resourceErased => resource`  -- [resource], viewed untyped as `Future<Object?> Function()`.
   - `BloomNode Function(Object? data) get builderErased =>`  -- [builder], accepting untyped resolved `Object?` data.
 
@@ -3527,7 +3739,7 @@ BloomNode userProfile() => Suspense<String>(
 ```
 
 Members:
-  - `const Suspense({ required super.resource, required super.builder, required super.fallback, super.errorBuilder, })`  -- Creates a suspense boundary with async [resource], [builder], [fallback],
+  - `const Suspense({ required super.resource, required super.builder, required super.fallback, super.errorBuilder, super.hotReloadScopeId, })`  -- Creates a suspense boundary with async [resource], [builder], [fallback],
 
 ### cx  [function]
 ```dart
@@ -3968,8 +4180,8 @@ class Blockquote extends ElNode
 `<blockquote>` — section quoted from another source.
 
 Members:
-  - `Blockquote({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('blockquote')`  -- Creates a `<blockquote>` element descriptor.
-  - `const Blockquote.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('blockquote')`  -- Const constructor for `<blockquote>`.
+  - `Blockquote(`  -- Creates a `<blockquote>` element descriptor.
+  - `const Blockquote.raw(`  -- Const constructor for `<blockquote>`.
 
 ### Cite  [class]
 ```dart
@@ -3978,7 +4190,7 @@ class Cite extends ElNode
 `<cite>` — title of a creative work or citation reference.
 
 Members:
-  - `const Cite({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('cite')`  -- Creates a `<cite>` citation descriptor.
+  - `const Cite(`  -- Creates a `<cite>` citation descriptor.
 
 ### TimeEl  [class]
 ```dart
@@ -3989,8 +4201,8 @@ class TimeEl extends ElNode
 Use [dateTime] to specify the ISO 8601 timestamp string (maps to `datetime` attribute).
 
 Members:
-  - `TimeEl({super.text, String? dateTime, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on}) : super('time', attrs: _mergeAttrs(attrs,`  -- Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
-  - `const TimeEl.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('time')`  -- Const constructor for `<time>` without attribute shorthand.
+  - `TimeEl(`  -- Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
+  - `const TimeEl.raw(`  -- Const constructor for `<time>` without attribute shorthand.
 
 ### Mark  [class]
 ```dart
@@ -3999,7 +4211,7 @@ class Mark extends ElNode
 `<mark>` — text highlighted for reference or relevance purposes.
 
 Members:
-  - `const Mark({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('mark')`  -- Creates a `<mark>` highlight descriptor.
+  - `const Mark(`  -- Creates a `<mark>` highlight descriptor.
 
 ### Small  [class]
 ```dart
@@ -4008,7 +4220,7 @@ class Small extends ElNode
 `<small>` — side-comments, small print, and legal disclaimers.
 
 Members:
-  - `const Small({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('small')`  -- Creates a `<small>` fine-print descriptor.
+  - `const Small(`  -- Creates a `<small>` fine-print descriptor.
 
 ### Sub  [class]
 ```dart
@@ -4017,7 +4229,7 @@ class Sub extends ElNode
 `<sub>` — subscript text.
 
 Members:
-  - `const Sub({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sub')`  -- Creates a `<sub>` subscript descriptor.
+  - `const Sub(`  -- Creates a `<sub>` subscript descriptor.
 
 ### Sup  [class]
 ```dart
@@ -4026,7 +4238,7 @@ class Sup extends ElNode
 `<sup>` — superscript text.
 
 Members:
-  - `const Sup({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('sup')`  -- Creates a `<sup>` superscript descriptor.
+  - `const Sup(`  -- Creates a `<sup>` superscript descriptor.
 
 ### Abbr  [class]
 ```dart
@@ -4037,8 +4249,8 @@ class Abbr extends ElNode
 Use [title] to provide the expanded description shown on hover.
 
 Members:
-  - `Abbr({super.text, String? title, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on}) : super('abbr', attrs: _mergeAttrs(attrs,`  -- Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
-  - `const Abbr.raw({super.text, super.className, super.style, super.attrs, super.on, super.children = const []}) : super('abbr')`  -- Const constructor for `<abbr>` without attribute shorthand.
+  - `Abbr(`  -- Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
+  - `const Abbr.raw(`  -- Const constructor for `<abbr>` without attribute shorthand.
 
 ### KbdEl  [class]
 ```dart
@@ -4047,7 +4259,7 @@ class KbdEl extends ElNode
 `<kbd>` — keyboard input or key combination.
 
 Members:
-  - `const KbdEl({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('kbd')`  -- Creates a `<kbd>` keyboard input descriptor.
+  - `const KbdEl(`  -- Creates a `<kbd>` keyboard input descriptor.
 
 ### Figure  [class]
 ```dart
@@ -4056,8 +4268,8 @@ class Figure extends ElNode
 `<figure>` — self-contained figure content (images, charts, code blocks).
 
 Members:
-  - `Figure({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figure')`  -- Creates a `<figure>` element descriptor.
-  - `const Figure.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('figure')`  -- Const constructor for `<figure>`.
+  - `Figure(`  -- Creates a `<figure>` element descriptor.
+  - `const Figure.raw(`  -- Const constructor for `<figure>`.
 
 ### Figcaption  [class]
 ```dart
@@ -4066,7 +4278,7 @@ class Figcaption extends ElNode
 `<figcaption>` — caption or legend for a parent `<figure>`.
 
 Members:
-  - `const Figcaption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('figcaption')`  -- Creates a `<figcaption>` element descriptor.
+  - `const Figcaption(`  -- Creates a `<figcaption>` element descriptor.
 
 ### Details  [class]
 ```dart
@@ -4077,8 +4289,8 @@ class Details extends ElNode
 Use [open] to control whether disclosure is expanded initially.
 
 Members:
-  - `Details({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open}) : super('details', attrs: _mergeAttrs(attrs,`  -- Creates a `<details>` element descriptor with [open] attribute shorthand.
-  - `const Details.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('details')`  -- Const constructor for `<details>` without attribute shorthand.
+  - `Details(`  -- Creates a `<details>` element descriptor with [open] attribute shorthand.
+  - `const Details.raw(`  -- Const constructor for `<details>` without attribute shorthand.
 
 ### Summary  [class]
 ```dart
@@ -4087,7 +4299,7 @@ class Summary extends ElNode
 `<summary>` — disclosure summary or caption heading for a parent `<details>`.
 
 Members:
-  - `const Summary({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('summary')`  -- Creates a `<summary>` element descriptor.
+  - `const Summary(`  -- Creates a `<summary>` element descriptor.
 
 ### Dialog  [class]
 ```dart
@@ -4098,8 +4310,8 @@ class Dialog extends ElNode
 Use [open] to control whether the dialog is open upon mounting.
 
 Members:
-  - `Dialog({super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open}) : super('dialog', attrs: _mergeAttrs(attrs,`  -- Creates a `<dialog>` element descriptor with [open] attribute shorthand.
-  - `const Dialog.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('dialog')`  -- Const constructor for `<dialog>` without attribute shorthand.
+  - `Dialog(`  -- Creates a `<dialog>` element descriptor with [open] attribute shorthand.
+  - `const Dialog.raw(`  -- Const constructor for `<dialog>` without attribute shorthand.
 
 ### Canvas  [class]
 ```dart
@@ -4110,7 +4322,7 @@ class Canvas extends ElNode
 [width] and [height] configure the coordinate space dimensions of the canvas.
 
 Members:
-  - `Canvas({int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on}) : super('canvas', attrs: _mergeAttrs(attrs,`  -- Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
+  - `Canvas(`  -- Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
   - `const Canvas.raw({super.className, super.style, super.attrs, super.on}) : super('canvas')`  -- Const constructor for `<canvas>` without dimension shorthands.
 
 ### IFrame  [class]
@@ -4120,7 +4332,7 @@ class IFrame extends ElNode
 `<iframe>` — inline frame embedding an external browsing context.
 
 Members:
-  - `IFrame({String? src, String? title, int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on}) : super('iframe', attrs: _mergeAttrs(attrs,`  -- Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
+  - `IFrame(`  -- Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
   - `const IFrame.raw({super.className, super.style, super.attrs, super.on}) : super('iframe')`  -- Const constructor for `<iframe>` without attribute shorthands.
 
 ### Table  [class]
@@ -4130,8 +4342,8 @@ class Table extends ElNode
 `<table>` — tabular data container element.
 
 Members:
-  - `Table({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('table')`  -- Creates a `<table>` element descriptor.
-  - `const Table.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('table')`  -- Const constructor for `<table>`.
+  - `Table(`  -- Creates a `<table>` element descriptor.
+  - `const Table.raw(`  -- Const constructor for `<table>`.
 
 ### Caption  [class]
 ```dart
@@ -4140,7 +4352,7 @@ class Caption extends ElNode
 `<caption>` — title or accessibility description for a parent `<table>`.
 
 Members:
-  - `const Caption({super.text, super.className, super.style, super.attrs, super.children = const [], super.on}) : super('caption')`  -- Creates a `<caption>` table description descriptor.
+  - `const Caption(`  -- Creates a `<caption>` table description descriptor.
 
 ### Thead  [class]
 ```dart
@@ -4149,8 +4361,8 @@ class Thead extends ElNode
 `<thead>` — group of header rows in a `<table>`.
 
 Members:
-  - `Thead({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('thead')`  -- Creates a `<thead>` element descriptor.
-  - `const Thead.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('thead')`  -- Const constructor for `<thead>`.
+  - `Thead(`  -- Creates a `<thead>` element descriptor.
+  - `const Thead.raw(`  -- Const constructor for `<thead>`.
 
 ### Tbody  [class]
 ```dart
@@ -4159,8 +4371,8 @@ class Tbody extends ElNode
 `<tbody>` — group of body data rows in a `<table>`.
 
 Members:
-  - `Tbody({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tbody')`  -- Creates a `<tbody>` element descriptor.
-  - `const Tbody.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tbody')`  -- Const constructor for `<tbody>`.
+  - `Tbody(`  -- Creates a `<tbody>` element descriptor.
+  - `const Tbody.raw(`  -- Const constructor for `<tbody>`.
 
 ### Tfoot  [class]
 ```dart
@@ -4169,8 +4381,8 @@ class Tfoot extends ElNode
 `<tfoot>` — group of summary footer rows in a `<table>`.
 
 Members:
-  - `Tfoot({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tfoot')`  -- Creates a `<tfoot>` element descriptor.
-  - `const Tfoot.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tfoot')`  -- Const constructor for `<tfoot>`.
+  - `Tfoot(`  -- Creates a `<tfoot>` element descriptor.
+  - `const Tfoot.raw(`  -- Const constructor for `<tfoot>`.
 
 ### Tr  [class]
 ```dart
@@ -4179,8 +4391,8 @@ class Tr extends ElNode
 `<tr>` — row of cells in a `<table>`.
 
 Members:
-  - `Tr({super.className, super.style, super.attrs, super.children = const [], super.on}) : super('tr')`  -- Creates a `<tr>` table row descriptor.
-  - `const Tr.raw({super.className, super.style, super.attrs, super.on, super.children = const []}) : super('tr')`  -- Const constructor for `<tr>`.
+  - `Tr(`  -- Creates a `<tr>` table row descriptor.
+  - `const Tr.raw(`  -- Const constructor for `<tr>`.
 
 ### Th  [class]
 ```dart
@@ -4426,6 +4638,8 @@ It executes entirely in pure Dart and requires no browser DOM, Flutter runtime, 
 - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
   and will throw an [ArgumentError] if an invalid name is encountered.
 - Text content, class names, styles, and attribute values are automatically escaped via [escapeHtml].
+- Inline event attributes, `srcdoc`, and executable URL schemes are rejected; use the typed
+  `on:` event map for handlers.
 - Void elements (e.g. `<img>`, `<input>`, `<br>`, `<meta>`, `<link>`) are emitted without closing tags.
 
 ```dart
@@ -6640,7 +6854,7 @@ handle.unmount();
 ```
 
 Members:
-  - `BloomMountHandle(this._root, this._disposers)`  -- Creates a [BloomMountHandle] for [_root] holding the given [_disposers] cleanup functions.
+  - `BloomMountHandle(this._root, this._disposers) : _region = null, _descriptor = null, _rootNodes = const []`  -- Creates a [BloomMountHandle] for [_root] holding the given [_disposers] cleanup functions.
   - `void unmount() => dispose()`  -- Removes all child DOM elements from the host container and disposes all reactive effects.
   - `void dispose()`  -- Disposes all reactive effects and empties the container DOM element (`root.textContent = ''`).
   - `bool get isDisposed => _disposed`  -- Whether this handle has already been disposed.
@@ -6674,7 +6888,7 @@ void main() {
 
 ### mountToElement  [function]
 ```dart
-BloomMountHandle mountToElement(BloomNode node, web.Element root)
+BloomMountHandle mountToElement( BloomNode node, web.Element root,
 ```
 Mounts a [BloomNode] descriptor tree directly into the provided DOM [root] element.
 
@@ -6699,7 +6913,7 @@ final handle = mountToElement(
 
 ### attachBloomListener  [function]
 ```dart
-void attachBloomListener(web.Element el, String type, BloomEventHandler handler) =>
+void attachBloomListener( web.Element el, String type, BloomEventHandler handler) =>
 ```
 Attaches a synthetic [BloomEvent] listener of the given [type] to DOM element [el].
 
@@ -7545,7 +7759,7 @@ class AdminGuard extends BloomRouteGuard {
 
 Members:
   - `const BloomRouteGuard()`  -- Base const constructor for route guards.
-  - `FutureOr<GuardResult> canActivate(String location, Map<String, String> params)`  -- Evaluates whether navigation to [location] with extracted route [params] is allowed.
+  - `FutureOr<GuardResult> canActivate( String location, Map<String, String> params)`  -- Evaluates whether navigation to [location] with extracted route [params] is allowed.
 
 ### parseQueryString  [function]
 ```dart
@@ -7555,6 +7769,8 @@ Parses a URL or query string into a single-value map of query parameters.
 
 Keys and values are percent-decoded, `+` is converted to spaces, and duplicate
 keys follow "last-wins" semantics. Keys without values are assigned an empty string.
+Malformed percent escapes remain literal; invalid UTF-8 bytes decode as U+FFFD
+so untrusted URL input cannot crash route resolution.
 If no query string is present, returns an empty map.
 
 Safe for both server-side rendering (SSR) and browser environments.
@@ -7574,6 +7790,7 @@ Parses a URL or query string into a multi-value map preserving repeated keys.
 Keys and values are percent-decoded, `+` is converted to spaces, and repeated
 keys (e.g. `?tag=news&tag=tech`) are collected into a [List<String>] in order of appearance.
 Keys without values are assigned a list containing an empty string (`['']`).
+Malformed percent escapes remain literal and invalid UTF-8 bytes decode as U+FFFD.
 If no query string is present, returns an empty map.
 
 Safe for both server-side rendering (SSR) and browser environments.
@@ -7686,12 +7903,13 @@ multi-value query parameters ([queryAll]), and the optional hash [fragment].
 
 Members:
   - `final BloomRoute route`  -- The [BloomRoute] that matched the requested path.
+  - `final List<BloomRouteGuard> guards`  -- Guards collected from the matched route and every enclosing shell route,
   - `final Map<String, String> params`  -- Extracted route parameters, keyed by parameter name with URI-decoded string values.
   - `final Map<String, String> query`  -- Extracted route query parameters (single value per key, last wins).
   - `final Map<String, List<String>> queryAll`  -- Extracted route query parameters preserving multiple values for repeated keys.
   - `final String fragment`  -- Extracted URL hash fragment without the leading `#`.
   - `final BloomNode Function()? _buildNode`
-  - `const BloomRouteMatch({ required this.route, required this.params, this.query = const`  -- Creates a route match result.
+  - `const BloomRouteMatch({ required this.route, required this.params, this.guards = const [], this.query = const`  -- Creates a route match result.
   - `BloomNode build()`  -- Builds and returns the [BloomNode] descriptor tree for this route match.
 
 ### BloomRouter  [class]
@@ -8621,6 +8839,16 @@ long dev session cannot grow it without limit; an evicted key simply resets
 to [initialValue] on its next remount. Zero overhead when no key is given or
 tracking is inactive.
 
+### bloomHmrScope  [function]
+```dart
+T bloomHmrScope<T>(String scopeId, T Function() callback)
+```
+Runs [callback] in a stable nested signal scope during DDC hot reload.
+
+This is an implementation hook used by Bloom's development compiler to
+isolate signals owned by stateful objects created at a stable call site.
+It has no Zone overhead outside an active browser hot-reload session.
+
 ### effect  [function]
 ```dart
 void Function() effect( BloomEffectCallback compute,
@@ -8628,10 +8856,9 @@ void Function() effect( BloomEffectCallback compute,
 Runs [compute] reactively and returns a function that stops the effect.
 
 While Bloom DDC hot-reload tracking is active, the returned cleanup is also
-registered for disposal before the next in-page remount. This prevents
-top-level effects from continuing to observe stale signals after their
-module is re-executed. Outside that dev mode this delegates directly to
-`signals_core`.
+registered so the dev runtime can stop old module effects after updated
+code attempts its in-place patch or remount. Outside that dev mode this
+delegates directly to `signals_core`.
 
 ### readonly  [function]
 ```dart
@@ -9433,6 +9660,7 @@ void main() {
   H5 -> framework.dart
   H6 -> framework.dart
   Header -> framework.dart
+  HmrComponentNode -> framework.dart
   Hr -> framework.dart
   HydrationMismatch -> hydration_contract.dart
   HydrationMismatchHandler -> mount.dart
@@ -9542,8 +9770,12 @@ void main() {
   ariaAttr -> a11y.dart
   attachBloomListener -> mount.dart
   batch -> signals.dart (re-export)
+  beginBloomSignalScopeTransition -> _signal_scope.dart
+  beginSignalScopeTransition -> _signal_scope_registry_stub.dart
   bloomDevErrorOverlayEnabled -> mount.dart
   bloomDisposeActiveMount -> mount.dart
+  bloomHmrComponent -> framework.dart
+  bloomHmrScope -> signals.dart
   bloomHotReloadTrackingEnabled -> mount.dart
   bloomHydratedAttribute -> island_node.dart
   bloomHydrationMismatchHandler -> mount.dart
@@ -9561,8 +9793,10 @@ void main() {
   browserRealtimeClient -> realtime_browser.dart
   buildQueryString -> router.dart
   buildSrcSet -> image.dart
+  composeBloomSignalScope -> _signal_scope.dart
   computed -> signals.dart (re-export)
   createContext -> framework.dart
+  currentBloomSignalScope -> _signal_scope.dart
   currentLocaleSignal -> i18n.dart
   customElement -> web_components.dart
   cx -> framework.dart
@@ -9575,15 +9809,22 @@ void main() {
   defineCustomElement -> web_components.dart
   dirAttribute -> i18n.dart
   disposeBrowserHotEffects -> _signals_stub.dart
+  disposePreviousBrowserHotEffects -> _signals_stub.dart
   effect -> signals.dart
   email -> form.dart
+  escapeBloomHtml -> attribute_safety.dart
+  escapeBloomJsonForScript -> attribute_safety.dart
   escapeHtml -> html.dart
   escapeHydrationKey -> hydration_contract.dart
   extractIslandProps -> islands.dart
   fileRequired -> form.dart
+  finishBloomSignalScopeTransition -> _signal_scope.dart
+  finishSignalScopeTransition -> _signal_scope_registry_stub.dart
   fireEvent -> bloom_test.dart
   firstLocaleTag -> i18n.dart
   fnv1a32 -> scoped_css.dart
+  forgetBloomScopedSignal -> _signal_scope.dart
+  forgetScopedSignal -> _signal_scope_registry_stub.dart
   formatCurrency -> i18n.dart
   formatDate -> i18n.dart
   formatDateTime -> i18n.dart
@@ -9647,6 +9888,7 @@ void main() {
   parseQueryString -> router.dart
   parseQueryStringAll -> router.dart
   pattern -> form.dart
+  prepareBrowserHotReloadEffects -> _signals_stub.dart
   provide -> di.dart
   provideSingleton -> di.dart
   provideValue -> di.dart
@@ -9655,7 +9897,11 @@ void main() {
   rangeItems -> form.dart
   readonly -> signals.dart
   realtimeBinding -> realtime.dart
+  registerBloomScopedSignal -> _signal_scope.dart
   registerIsland -> islands.dart
+  registerScopedSignal -> _signal_scope_registry_stub.dart
+  releaseBloomSignalScope -> _signal_scope.dart
+  releaseSignalScope -> _signal_scope_registry_stub.dart
   renderDevErrorOverlay -> dev_error_overlay.dart
   renderDevErrorOverlayJson -> dev_error_overlay.dart
   renderForTest -> bloom_test.dart
@@ -9681,6 +9927,9 @@ void main() {
   rpcQuery -> rpc.dart
   runSsrRequest -> html.dart
   runSsrRequestStream -> html.dart
+  runWithBloomSignalScope -> _signal_scope.dart
+  runWithBloomSignalScopeBoundary -> _signal_scope.dart
+  runWithBloomSignalScopeValue -> _signal_scope.dart
   scheduleTransition -> transition.dart
   scopedCss -> scoped_css.dart
   setActiveContainer -> di.dart
@@ -9704,6 +9953,7 @@ void main() {
   untracked -> signals.dart (re-export)
   useContext -> framework.dart
   useReducer -> reducer.dart
+  validateBloomAttribute -> attribute_safety.dart
   visuallyHiddenClass -> a11y.dart
   visuallyHiddenCss -> a11y.dart
   visuallyHiddenStyle -> a11y.dart
