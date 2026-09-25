@@ -82,7 +82,7 @@ class DoctorCommand extends Command<int> {
 
     // Dart SDK Check
     stdout.write('  Checking Dart SDK... ');
-    final dartRes = await Process.run('dart', ['--version']);
+    final dartRes = await _runTool('dart', ['--version']);
     if (dartRes.exitCode == 0 ||
         dartRes.stderr.toString().contains('Dart SDK version')) {
       final out = dartRes.stdout.toString().isNotEmpty
@@ -97,7 +97,7 @@ class DoctorCommand extends Command<int> {
 
     // Flutter SDK Check
     stdout.write('  Checking Flutter SDK... ');
-    final flutterRes = await Process.run('flutter', ['--version']);
+    final flutterRes = await _runTool('flutter', ['--version']);
     if (flutterRes.exitCode == 0) {
       final out = flutterRes.stdout.toString().trim();
       final firstLine = out.split('\n').first;
@@ -109,7 +109,7 @@ class DoctorCommand extends Command<int> {
 
     // Android SDK / Java Check
     stdout.write('  Checking Android Toolchain / Java... ');
-    final javaRes = await Process.run('java', ['-version']);
+    final javaRes = await _runTool('java', ['-version']);
     final androidHome = Platform.environment['ANDROID_HOME'] ??
         Platform.environment['ANDROID_SDK_ROOT'];
     if (javaRes.exitCode == 0) {
@@ -124,7 +124,7 @@ class DoctorCommand extends Command<int> {
     // iOS / macOS Toolchain
     if (Platform.isMacOS) {
       stdout.write('  Checking Xcode & CocoaPods... ');
-      final xcodeRes = await Process.run('xcode-select', ['-p']);
+      final xcodeRes = await _runTool('xcode-select', ['-p']);
       if (xcodeRes.exitCode == 0) {
         print('${Ansi.green}✔ OK${Ansi.reset}');
       } else {
@@ -388,5 +388,15 @@ class DoctorCommand extends Command<int> {
     print(Ansi.success(
         '✔ Continuous CI Health Check Passed: 100% Healthy & Production-Ready!\n'));
     return 0;
+  }
+}
+
+/// Runs a toolchain probe, treating a missing executable as a failed check
+/// (exit code 127) instead of letting [ProcessException] abort `bloom doctor`.
+Future<ProcessResult> _runTool(String executable, List<String> args) async {
+  try {
+    return await Process.run(executable, args);
+  } on ProcessException catch (e) {
+    return ProcessResult(0, 127, '', e.message);
   }
 }

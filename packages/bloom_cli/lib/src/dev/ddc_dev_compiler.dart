@@ -395,12 +395,19 @@ class DdcDevCompiler {
 
     try {
       final worker = _workerDriver ??= BazelWorkerDriver(
-        () => spawnWorker(executable, [
-          toolchain.snapshotPath!,
-          '--persistent_worker',
-          '--reuse-compiler-result',
-          '--use-incremental-compiler',
-        ]),
+        () async {
+          final process = await spawnWorker(executable, [
+            toolchain.snapshotPath!,
+            '--persistent_worker',
+            '--reuse-compiler-result',
+            '--use-incremental-compiler',
+          ]);
+          // A worker that exits early makes the driver's stdin write fail with
+          // a broken pipe. The driver already reports that as a failed
+          // response; observe the sink so the error is not also uncaught.
+          process.stdin.done.catchError((Object _) {});
+          return process;
+        },
         maxWorkers: 1,
         maxIdleWorkers: 1,
         maxRetries: 0,
