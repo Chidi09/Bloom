@@ -9,6 +9,10 @@ class BloomSourceWatcher {
   final List<String> extensions;
   final List<String> ignorePatterns;
 
+  /// Exact file names (compared against the basename) that never trigger a
+  /// change event, such as the compiled bundle the dev server writes.
+  final Set<String> ignoredFileNames;
+
   final StreamController<List<FileSystemEvent>> _controller =
       StreamController<List<FileSystemEvent>>.broadcast();
 
@@ -26,8 +30,9 @@ class BloomSourceWatcher {
       '.dart_tool',
       'build',
       '.tmp',
-      'vendor'
+      'vendor',
     ],
+    this.ignoredFileNames = const {'main.js', 'main.js.map', 'main.js.deps'},
   }) {
     _startWatching();
   }
@@ -68,6 +73,7 @@ class BloomSourceWatcher {
       final path = event.path;
 
       // Check ignore patterns
+      if (ignoredFileNames.contains(p.basename(path))) return;
       for (final pattern in ignorePatterns) {
         if (path.contains(pattern)) return;
       }

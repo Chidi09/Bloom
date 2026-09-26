@@ -195,5 +195,38 @@ void main() {
 
       await socket.close();
     });
+
+    test('serves /main.js from devDir with precedence over web/main.js',
+        () async {
+      await devServer.stop();
+      final tempDevDir =
+          await Directory.systemTemp.createTemp('bloom_dev_bundle_');
+      final webMainJs = File('${tempWebDir.path}/main.js');
+      await webMainJs.writeAsString('console.log("web production main.js");');
+
+      final devMainJs = File('${tempDevDir.path}/main.js');
+      await devMainJs.writeAsString('console.log("dev ddc main.js");');
+
+      devServer = BloomLiveReloadServer(
+        webDir: tempWebDir,
+        devDir: tempDevDir,
+        host: '127.0.0.1',
+        port: testPort,
+      );
+      await devServer.start();
+
+      final client = HttpClient();
+      final req = await client.get('127.0.0.1', testPort, '/main.js');
+      final res = await req.close();
+      final body = await utf8.decodeStream(res);
+
+      expect(res.statusCode, 200);
+      expect(body, 'console.log("dev ddc main.js");');
+
+      client.close(force: true);
+      if (tempDevDir.existsSync()) {
+        await tempDevDir.delete(recursive: true);
+      }
+    });
   });
 }

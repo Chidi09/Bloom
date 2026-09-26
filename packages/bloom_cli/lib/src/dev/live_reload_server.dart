@@ -7,6 +7,7 @@ import 'dev_proxy.dart';
 /// Zero-configuration HTTP dev server with Server-Sent Events (SSE) live reload.
 class BloomLiveReloadServer {
   final Directory webDir;
+  final Directory? devDir;
   final String host;
   final int port;
   final bool autoInjectScript;
@@ -1525,6 +1526,7 @@ class BloomLiveReloadServer {
 
   BloomLiveReloadServer({
     required this.webDir,
+    this.devDir,
     this.host = '127.0.0.1',
     this.port = 8080,
     this.autoInjectScript = true,
@@ -1735,6 +1737,32 @@ class BloomLiveReloadServer {
           req.response.add(file.readAsBytesSync());
           await req.response.close();
           return;
+        }
+      }
+    }
+
+    // 5. Dev bundle files served from devDir (precedence over webDir)
+    if (devDir != null && devDir!.existsSync()) {
+      var reqPath = path.startsWith('/') ? path.substring(1) : path;
+      if (reqPath.isNotEmpty) {
+        final devTargetPath = p.canonicalize(p.join(devDir!.path, reqPath));
+        if (p.isWithin(devDir!.path, devTargetPath) ||
+            devTargetPath == p.canonicalize(devDir!.path)) {
+          final devTargetFile = File(devTargetPath);
+          if (devTargetFile.existsSync() &&
+              !FileSystemEntity.isDirectorySync(devTargetFile.path)) {
+            final ext = p
+                .extension(devTargetFile.path)
+                .replaceAll('.', '')
+                .toLowerCase();
+            req.response.headers
+                .set(HttpHeaders.contentTypeHeader, _getContentType(ext));
+            req.response.headers
+                .set(HttpHeaders.cacheControlHeader, 'no-cache');
+            req.response.add(devTargetFile.readAsBytesSync());
+            await req.response.close();
+            return;
+          }
         }
       }
     }

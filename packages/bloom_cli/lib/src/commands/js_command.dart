@@ -15,6 +15,7 @@ import '../npm/npm_vendor_assembler.dart';
 import '../utils/ansi.dart';
 import '../utils/project.dart';
 import '../dev/server_supervisor.dart';
+import '../web/tailwind_static_build.dart';
 
 /// Top-level command `bloom js` for Bloom JS Native web apps.
 ///
@@ -129,7 +130,12 @@ class JsDevCommand extends Command<int> {
             ? File(p.join(project.rootDir.path, 'lib', 'main.dart'))
             : File(p.join(project.rootDir.path, 'example', 'main.dart')));
 
-    final outputFile = File(p.join(webDir.path, 'main.js'));
+    final devDir =
+        Directory(p.join(project.rootDir.path, '.dart_tool', 'bloom', 'dev'));
+    if (!devDir.existsSync()) {
+      devDir.createSync(recursive: true);
+    }
+    final outputFile = File(p.join(devDir.path, 'main.js'));
 
     // Check DDC fast dev-loop option (enabled by default; legacy-dart2js or --no-ddc to opt out)
     final legacyDart2js = (argResults?['legacy-dart2js'] as bool?) ?? false;
@@ -248,6 +254,7 @@ class JsDevCommand extends Command<int> {
     // 6. Start Live Reload Dev Server with SSE and Auto-Injection
     final devServer = BloomLiveReloadServer(
       webDir: webDir,
+      devDir: devDir,
       host: host,
       port: port,
       autoInjectScript: true,
@@ -447,7 +454,9 @@ class JsBuildCommand extends Command<int> {
   final String description =
       'Compiles the Bloom JS application for production with -O4 tree-shaking and minification.';
 
-  JsBuildCommand() {
+  final BloomProject? _explicitProject;
+
+  JsBuildCommand({BloomProject? project}) : _explicitProject = project {
     argParser
       ..addOption(
         'output',
@@ -463,12 +472,17 @@ class JsBuildCommand extends Command<int> {
         'analyze',
         defaultsTo: false,
         help: 'Analyze output bundle size breakdown.',
+      )
+      ..addFlag(
+        'ssg',
+        defaultsTo: false,
+        help: 'Also render a static site into dist/ via bin/ssg.dart',
       );
   }
 
   @override
   Future<int> run() async {
-    final project = BloomProject.find();
+    final project = _explicitProject ?? BloomProject.find();
     if (project == null) {
       print(Ansi.error('No Bloom project found in current directory tree.'));
       return 1;
@@ -540,6 +554,104 @@ class JsBuildCommand extends Command<int> {
         print(Ansi.info(
             '› Generated host configuration: ${p.basename(file.path)}'));
       }
+    }
+
+    // SSG (Static Site Generation) pipeline
+    final isSsg = (argResults?['ssg'] as bool?) ?? false;
+    if (isSsg) {
+      print(Ansi.step('\n⚡ Executing Static Site Generation (SSG)...'));
+
+      final ssgScript = File(p.join(project.rootDir.path, 'bin', 'ssg.dart'));
+      if (!ssgScript.existsSync()) {
+        print(Ansi.error(
+            '✖ SSG generation failed: bin/ssg.dart does not exist.\n'
+            'Please create bin/ssg.dart to define your static routes using package:bloom_js_native/ssg.dart.'));
+        return 1;
+      }
+
+      final ssgProcess = await Process.start(
+        'dart',
+        ['run', 'bin/ssg.dart'],
+        workingDirectory: project.rootDir.path,
+      );
+
+      final stdoutFuture = stdout.addStream(ssgProcess.stdout);
+      final stderrFuture = stderr.addStream(ssgProcess.stderr);
+      final ssgExitCode = await ssgProcess.exitCode;
+      await stdoutFuture;
+      await stderrFuture;
+
+      if (ssgExitCode != 0) {
+        print(Ansi.error('✖ bin/ssg.dart failed with exit code $ssgExitCode.'));
+        return ssgExitCode;
+      }
+
+      final distDir = Directory(p.join(project.rootDir.path, 'dist'));
+      if (!distDir.existsSync()) {
+        print(Ansi.error(
+            '✖ SSG verification failed: dist/ directory was not created.'));
+        return 1;
+      }
+
+      // If Tailwind is used in npm_packages, run TailwindStaticBuild to generate dist static CSS
+      final tailwindBuilder = TailwindStaticBuild(project: project);
+      if (tailwindBuilder.isTailwindProject) {
+        final distCss = File(p.join(distDir.path, 'app.css'));
+        final twCode = await tailwindBuilder.build(customOutputFile: distCss);
+        if (twCode != 0) {
+          print(Ansi.error(
+              '✖ Tailwind static CSS compilation for dist/ failed.'));
+          return twCode;
+        }
+
+        // Link static CSS and remove in-browser Tailwind JIT script from every dist HTML page
+        for (final entity
+            in distDir.listSync(recursive: true, followLinks: false)) {
+          if (entity is File && entity.path.endsWith('.html')) {
+            final relToDist =
+                p.relative(distCss.path, from: entity.parent.path);
+            final cleanHref = relToDist.replaceAll('\\', '/');
+            final originalHtml = entity.readAsStringSync();
+            final transformedHtml = TailwindStaticBuild.transformIndexHtml(
+              originalHtml,
+              cssHref: cleanHref,
+            );
+            entity.writeAsStringSync(transformedHtml);
+          }
+        }
+      }
+
+      // Verification: dist/main.js exists
+      final distMainJs = File(p.join(distDir.path, 'main.js'));
+      if (!distMainJs.existsSync()) {
+        print(
+            Ansi.error('✖ SSG verification failed: dist/main.js is missing.'));
+        return 1;
+      }
+
+      // Verification: every dist/**/*.html that references main.js has it
+      int pageCount = 0;
+      int totalDistSizeBytes = 0;
+
+      for (final entity
+          in distDir.listSync(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          totalDistSizeBytes += entity.lengthSync();
+          if (entity.path.endsWith('.html')) {
+            pageCount++;
+            final content = entity.readAsStringSync();
+            if (content.contains('main.js') && !distMainJs.existsSync()) {
+              print(Ansi.error(
+                  '✖ SSG verification failed: ${p.relative(entity.path, from: project.rootDir.path)} references main.js but dist/main.js does not exist.'));
+              return 1;
+            }
+          }
+        }
+      }
+
+      final totalDistKb = (totalDistSizeBytes / 1024).toStringAsFixed(1);
+      print(Ansi.success(
+          '✓ Static site successfully generated into dist/! ($pageCount pages, $totalDistKb kB total dist size)'));
     }
 
     return 0;
