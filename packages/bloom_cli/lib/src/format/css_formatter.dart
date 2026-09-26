@@ -41,17 +41,19 @@ enum _TokenType {
 class _Token {
   final _TokenType type;
   final String text;
+  final bool hasLeadingWhitespace;
 
-  const _Token(this.type, this.text);
+  const _Token(this.type, this.text, {this.hasLeadingWhitespace = false});
 
   @override
-  String toString() => 'Token($type, "$text")';
+  String toString() => 'Token($type, "$text", ws=$hasLeadingWhitespace)';
 }
 
 List<_Token> _tokenize(String source) {
   final tokens = <_Token>[];
   var i = 0;
   final len = source.length;
+  var hadWhitespace = false;
 
   while (i < len) {
     final char = source[i];
@@ -60,34 +62,62 @@ List<_Token> _tokenize(String source) {
     if (char == '/' && i + 1 < len && source[i + 1] == '*') {
       final end = source.indexOf('*/', i + 2);
       if (end == -1) {
-        tokens.add(_Token(_TokenType.comment, source.substring(i)));
+        tokens.add(_Token(
+          _TokenType.comment,
+          source.substring(i),
+          hasLeadingWhitespace: hadWhitespace,
+        ));
         break;
       } else {
-        tokens.add(_Token(_TokenType.comment, source.substring(i, end + 2)));
+        tokens.add(_Token(
+          _TokenType.comment,
+          source.substring(i, end + 2),
+          hasLeadingWhitespace: hadWhitespace,
+        ));
         i = end + 2;
+        hadWhitespace = false;
         continue;
       }
     }
 
-    // Skip whitespace
+    // Whitespace tracking
     if (char == ' ' || char == '\t' || char == '\r' || char == '\n') {
+      hadWhitespace = true;
       i++;
       continue;
     }
 
+    final currentHadWs = hadWhitespace;
+    hadWhitespace = false;
+
     // Structural characters
     if (char == '{') {
-      tokens.add(const _Token(_TokenType.lbrace, '{'));
+      tokens.add(
+          _Token(_TokenType.lbrace, '{', hasLeadingWhitespace: currentHadWs));
       i++;
       continue;
     }
     if (char == '}') {
-      tokens.add(const _Token(_TokenType.rbrace, '}'));
+      tokens.add(
+          _Token(_TokenType.rbrace, '}', hasLeadingWhitespace: currentHadWs));
       i++;
       continue;
     }
     if (char == ';') {
-      tokens.add(const _Token(_TokenType.semicolon, ';'));
+      tokens.add(_Token(_TokenType.semicolon, ';',
+          hasLeadingWhitespace: currentHadWs));
+      i++;
+      continue;
+    }
+
+    // Combinators and delimiters as individual tokens when encountered standalone
+    if (char == '>' ||
+        char == '+' ||
+        char == '~' ||
+        char == ',' ||
+        char == ':') {
+      tokens.add(
+          _Token(_TokenType.text, char, hasLeadingWhitespace: currentHadWs));
       i++;
       continue;
     }
@@ -106,7 +136,8 @@ List<_Token> _tokenize(String source) {
           j++;
         }
       }
-      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len))));
+      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len)),
+          hasLeadingWhitespace: currentHadWs));
       i = j;
       continue;
     }
@@ -139,7 +170,8 @@ List<_Token> _tokenize(String source) {
           j++;
         }
       }
-      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len))));
+      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len)),
+          hasLeadingWhitespace: currentHadWs));
       i = j;
       continue;
     }
@@ -166,7 +198,8 @@ List<_Token> _tokenize(String source) {
         }
       }
       if (j < len && source[j] == ']') j++;
-      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len))));
+      tokens.add(_Token(_TokenType.text, source.substring(i, j.clamp(0, len)),
+          hasLeadingWhitespace: currentHadWs));
       i = j;
       continue;
     }
@@ -182,6 +215,11 @@ List<_Token> _tokenize(String source) {
           c == '[' ||
           c == '"' ||
           c == "'" ||
+          c == '>' ||
+          c == '+' ||
+          c == '~' ||
+          c == ',' ||
+          c == ':' ||
           c == ' ' ||
           c == '\t' ||
           c == '\r' ||
@@ -194,7 +232,8 @@ List<_Token> _tokenize(String source) {
       j++;
     }
     if (j > i) {
-      tokens.add(_Token(_TokenType.text, source.substring(i, j)));
+      tokens.add(_Token(_TokenType.text, source.substring(i, j),
+          hasLeadingWhitespace: currentHadWs));
       i = j;
     } else {
       i++;
@@ -283,7 +322,7 @@ List<_CssNode> _parseNodeList(_TokenIterator it, {required bool isTopLevel}) {
 
     if (token.type == _TokenType.lbrace) {
       it.advance(); // consume '{'
-      final header = _tokensToText(pendingTokens);
+      final header = _tokensToSelectorText(pendingTokens);
       pendingTokens.clear();
       final children = _parseNodeList(it, isTopLevel: false);
       nodes.add(_CssRuleNode(header, children));
@@ -309,68 +348,59 @@ List<_CssNode> _parseNodeList(_TokenIterator it, {required bool isTopLevel}) {
 void _flushPending(List<_Token> tokens, List<_CssNode> nodes) {
   if (tokens.isEmpty) return;
 
-  final text = _tokensToText(tokens);
-  tokens.clear();
-  if (text.trim().isEmpty) return;
+  var colonIndex = -1;
+  for (var i = 0; i < tokens.length; i++) {
+    final t = tokens[i];
+    if (t.text == ':') {
+      colonIndex = i;
+      break;
+    } else if (t.text.startsWith(':') && !t.text.startsWith('::')) {
+      // e.g. text token started with colon if any
+      colonIndex = i;
+      break;
+    }
+  }
 
-  // Check if declaration (has a colon separating property and value)
-  final colonIndex = _findDeclarationColon(text);
   if (colonIndex != -1) {
-    final prop = text.substring(0, colonIndex).trim();
-    final val = text.substring(colonIndex + 1).trim();
-    nodes.add(_CssDeclarationNode(prop, val));
-  } else if (text.startsWith('@')) {
-    nodes.add(_CssAtStatementNode(text.trim()));
+    final propTokens = tokens.sublist(0, colonIndex);
+    final valTokens = tokens.sublist(colonIndex + 1);
+    final prop = _tokensToDeclarationText(propTokens).trim();
+    final val = _tokensToDeclarationText(valTokens).trim();
+    tokens.clear();
+    if (prop.isNotEmpty || val.isNotEmpty) {
+      nodes.add(_CssDeclarationNode(prop, val));
+    }
   } else {
-    // Other statement / custom property
-    nodes.add(_CssDeclarationNode(text.trim(), ''));
+    final text = _tokensToSelectorText(tokens);
+    tokens.clear();
+    if (text.trim().isEmpty) return;
+    if (text.startsWith('@')) {
+      nodes.add(_CssAtStatementNode(text.trim()));
+    } else {
+      nodes.add(_CssDeclarationNode(text.trim(), ''));
+    }
   }
 }
 
-int _findDeclarationColon(String text) {
-  var inQuote = false;
-  var quoteChar = '';
-  var parenDepth = 0;
-  var bracketDepth = 0;
-
-  for (var i = 0; i < text.length; i++) {
-    final c = text[i];
-    if (inQuote) {
-      if (c == '\\') {
-        i++;
-      } else if (c == quoteChar) {
-        inQuote = false;
-      }
-      continue;
+String _tokensToDeclarationText(List<_Token> tokens) {
+  final buffer = StringBuffer();
+  for (var i = 0; i < tokens.length; i++) {
+    final t = tokens[i];
+    if (i > 0 && t.hasLeadingWhitespace) {
+      buffer.write(' ');
     }
-
-    if (c == '"' || c == "'") {
-      inQuote = true;
-      quoteChar = c;
-      continue;
-    }
-
-    if (c == '(') parenDepth++;
-    if (c == ')') parenDepth--;
-    if (c == '[') bracketDepth++;
-    if (c == ']') bracketDepth--;
-
-    if (c == ':' && parenDepth == 0 && bracketDepth == 0) {
-      return i;
-    }
+    buffer.write(t.text);
   }
-
-  return -1;
+  return buffer.toString().trim();
 }
 
-String _tokensToText(List<_Token> tokens) {
+String _tokensToSelectorText(List<_Token> tokens) {
   final buffer = StringBuffer();
   for (var i = 0; i < tokens.length; i++) {
     final t = tokens[i];
     if (i > 0) {
       final prev = tokens[i - 1];
-      // Keep selectors and properties cleanly spaced
-      if (_needsSpaceBetween(prev, t)) {
+      if (_needsSpaceBetweenSelectorTokens(prev, t)) {
         buffer.write(' ');
       }
     }
@@ -379,30 +409,143 @@ String _tokensToText(List<_Token> tokens) {
   return buffer.toString().trim();
 }
 
-bool _needsSpaceBetween(_Token prev, _Token next) {
-  if (prev.text == ':' && !prev.text.startsWith('::')) {
-    // space after colon in declaration
-    return true;
-  }
+bool _needsSpaceBetweenSelectorTokens(_Token prev, _Token next) {
+  // Combinators require spaces around them
+  if (prev.text == '>' || prev.text == '+' || prev.text == '~') return true;
+  if (next.text == '>' || next.text == '+' || next.text == '~') return true;
   if (prev.text == ',') return true;
-  if (next.text == ',' || next.text == ';' || next.text == ':') return false;
-  if (prev.type == _TokenType.text && next.type == _TokenType.text) {
-    // If next is a pseudo-class or pseudo-element attached to selector, no space
-    if (next.text.startsWith(':') || next.text.startsWith('.')) {
-      return false;
-    }
-    // If next is a parenthesized group (e.g. CSS function call or selector
-    // pseudo-class argument), do not insert a space before '(', unless prev
-    // is an at-rule keyword (e.g. @media (...), @supports (...)).
-    if (next.text.startsWith('(')) {
-      if (prev.text.startsWith('@')) {
-        return true;
-      }
-      return false;
-    }
+  if (next.text == ',') return false;
+
+  // Between words / classes / attributes / pseudo-classes
+  // Emit space iff source had whitespace there
+  if (next.hasLeadingWhitespace) {
     return true;
   }
+
   return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Semantic Normalization & Safety Net
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Produces a semantically normalized form of [css] for safety comparison:
+/// Collapses whitespace runs to a single space, then removes spaces adjacent
+/// to `{`, `}`, `;`, `:`, `,`, `>`, `+`, `~`, `(`, `)` only where they are not
+/// significant.
+String normalizeCssSemantics(String css) {
+  final sb = StringBuffer();
+  var inString = false;
+  var quoteChar = '';
+  final len = css.length;
+  var i = 0;
+
+  // First pass: strip comments and normalize whitespace outside strings
+  while (i < len) {
+    final c = css[i];
+
+    if (!inString && c == '/' && i + 1 < len && css[i + 1] == '*') {
+      // Skip comment
+      final end = css.indexOf('*/', i + 2);
+      if (end == -1) {
+        break;
+      }
+      i = end + 2;
+      // Comments act like whitespace
+      if (sb.isNotEmpty && !sb.toString().endsWith(' ')) {
+        sb.write(' ');
+      }
+      continue;
+    }
+
+    if (!inString && (c == '"' || c == "'")) {
+      inString = true;
+      quoteChar = c;
+      sb.write(c);
+      i++;
+      continue;
+    }
+
+    if (inString) {
+      sb.write(c);
+      if (c == '\\' && i + 1 < len) {
+        i++;
+        sb.write(css[i]);
+      } else if (c == quoteChar) {
+        inString = false;
+      }
+      i++;
+      continue;
+    }
+
+    // Outside string / comment
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      if (sb.isNotEmpty && !sb.toString().endsWith(' ')) {
+        sb.write(' ');
+      }
+      i++;
+      continue;
+    }
+
+    sb.write(c);
+    i++;
+  }
+
+  final collapsed = sb.toString().trim();
+  // Second pass: remove spaces around non-significant punctuation
+  final out = StringBuffer();
+  inString = false;
+  quoteChar = '';
+
+  bool isPunct(String ch) =>
+      ch == '{' ||
+      ch == '}' ||
+      ch == ';' ||
+      ch == ':' ||
+      ch == ',' ||
+      ch == '>' ||
+      ch == '+' ||
+      ch == '~' ||
+      ch == '(' ||
+      ch == ')';
+
+  for (var j = 0; j < collapsed.length; j++) {
+    final c = collapsed[j];
+
+    if (!inString && (c == '"' || c == "'")) {
+      inString = true;
+      quoteChar = c;
+      out.write(c);
+      continue;
+    }
+
+    if (inString) {
+      out.write(c);
+      if (c == '\\' && j + 1 < collapsed.length) {
+        j++;
+        out.write(collapsed[j]);
+      } else if (c == quoteChar) {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (c == ' ') {
+      final prevChar = j > 0 ? collapsed[j - 1] : '';
+      final nextChar = j + 1 < collapsed.length ? collapsed[j + 1] : '';
+
+      if (isPunct(prevChar) || isPunct(nextChar)) {
+        // Space adjacent to punct is insignificant, skip it
+        continue;
+      }
+      out.write(' ');
+      continue;
+    }
+
+    out.write(c);
+  }
+
+  return out.toString().trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

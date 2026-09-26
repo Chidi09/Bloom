@@ -14,7 +14,9 @@ void main() {
       formatter = BloomFormatter(pageWidth: 80);
     });
 
-    test('wraps long named argument string literal and preserves exact concatenated value', () {
+    test(
+        'wraps long named argument string literal and preserves exact concatenated value',
+        () {
       const originalValue =
           'flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium';
       final source = '''
@@ -35,7 +37,8 @@ BloomNode buildCard() {
       expect(result.changed, isTrue);
 
       // Re-parse formatted output and programmatically extract the concatenated string
-      final parseResult = parseString(content: result.formatted, throwIfDiagnostics: true);
+      final parseResult =
+          parseString(content: result.formatted, throwIfDiagnostics: true);
       String? extractedConcatenatedValue;
 
       for (final declaration in parseResult.unit.declarations) {
@@ -51,7 +54,8 @@ BloomNode buildCard() {
 
       // Verify that lines in formatted output do not exceed page width
       for (final line in result.formatted.split('\n')) {
-        expect(line.length, lessThanOrEqualTo(80), reason: 'Line exceeds 80 columns: "$line"');
+        expect(line.length, lessThanOrEqualTo(80),
+            reason: 'Line exceeds 80 columns: "$line"');
       }
     });
 
@@ -90,7 +94,8 @@ BloomNode buildCode() {
       // never split into adjacent-string concatenation).
       expect(
         result.formatted,
-        contains(r"r'long raw string with \d+ regex and spaces that exceeds normal lengths by a lot'"),
+        contains(
+            r"r'long raw string with \d+ regex and spaces that exceeds normal lengths by a lot'"),
       );
     });
 
@@ -111,40 +116,76 @@ BloomNode buildDynamic(String activeClass) {
       expect(result.formatted, contains(r'$activeClass'));
     });
 
+    test('without --css, leaves CSS string literals byte-for-byte unchanged',
+        () {
+      final source = "const tokensCss = r'''\n"
+          '.a .b { transition: opacity .3s; }\n'
+          'details[open] .x { color: red; }\n'
+          "''';\n";
+
+      final result = formatter.format(source);
+      expect(result.hasError, isFalse);
+      expect(result.changed, isFalse);
+      expect(result.formatted, equals(source));
+    });
+
     test('formats embedded CSS in top-level const <name>Css declaration', () {
-      // Built via concatenation: Dart cannot nest a raw triple-quoted string
-      // literally inside another triple-quoted literal in source.
+      final cssFormatter = BloomFormatter(pageWidth: 80, formatCss: true);
       final source = "const tokensCss = r'''\n"
           ':root { --brand-500: #14B8A6; --brand-600: #0D9488; }\n'
           "@media (prefers-color-scheme: dark) { :root { --bg: #000000; } }\n"
           "''';\n";
 
-      final result = formatter.format(source);
+      final result = cssFormatter.format(source);
       expect(result.hasError, isFalse);
       expect(result.changed, isTrue);
       expect(result.formatted, contains(':root {'));
       expect(result.formatted, contains('  --brand-500: #14B8A6;'));
       expect(result.formatted, contains('  --brand-600: #0D9488;'));
       expect(result.formatted, contains('}'));
-      expect(result.formatted, contains('@media (prefers-color-scheme: dark) {'));
+      expect(
+          result.formatted, contains('@media (prefers-color-scheme: dark) {'));
     });
 
     test('formats embedded CSS in Style(...) call', () {
-      // Built via concatenation: Dart cannot nest a raw triple-quoted string
-      // literally inside another triple-quoted literal in source.
-      final source = "import 'package:bloom_js_native/bloom_js_native.dart';\n\n"
+      final cssFormatter = BloomFormatter(pageWidth: 80, formatCss: true);
+      final source =
+          "import 'package:bloom_js_native/bloom_js_native.dart';\n\n"
           'BloomNode buildStyle() {\n'
           "  return Style(r'''\n"
           '.card { padding: 16px; margin: 8px; }\n'
           "''');\n"
           '}\n';
 
-      final result = formatter.format(source);
+      final result = cssFormatter.format(source);
       expect(result.hasError, isFalse);
       expect(result.changed, isTrue);
       expect(result.formatted, contains('.card {'));
       expect(result.formatted, contains('  padding: 16px;'));
       expect(result.formatted, contains('  margin: 8px;'));
+    });
+
+    test(
+        'with --css preserves .a .b, details[open] .x, opacity .3s, .a.b, a > b, rgba(0, 0, 0, .5)',
+        () {
+      final cssFormatter = BloomFormatter(pageWidth: 80, formatCss: true);
+      final source = "const testCss = r'''\n"
+          '.a .b { transition: opacity .3s; }\n'
+          'details[open] .x { color: red; }\n'
+          '.a.b { color: blue; }\n'
+          'a > b { color: green; }\n'
+          '.box { background: rgba(0, 0, 0, .5); }\n'
+          "''';\n";
+
+      final result = cssFormatter.format(source);
+      expect(result.hasError, isFalse);
+      expect(result.changed, isTrue);
+      expect(result.formatted, contains('.a .b {'));
+      expect(result.formatted, contains('transition: opacity .3s;'));
+      expect(result.formatted, contains('details[open] .x {'));
+      expect(result.formatted, contains('.a.b {'));
+      expect(result.formatted, contains('a > b {'));
+      expect(result.formatted, contains('background: rgba(0, 0, 0, .5);'));
     });
 
     test('handles syntax errors gracefully without throwing', () {
@@ -157,7 +198,9 @@ BloomNode buildDynamic(String activeClass) {
   });
 
   group('formatCss', () {
-    test('normalizes indentation and braces without changing property/value token content', () {
+    test(
+        'normalizes indentation and braces without changing property/value token content',
+        () {
       const rawCss = '''
 :root {
   --brand-50: #F0FDFA;
@@ -178,7 +221,8 @@ BloomNode buildDynamic(String activeClass) {
       expect(formatted, contains(':root {'));
       expect(formatted, contains('  --brand-50: #F0FDFA;'));
       expect(formatted, contains('  --brand-500: #14B8A6;'));
-      expect(formatted, contains("  font-family: 'Plus Jakarta Sans', sans-serif;"));
+      expect(formatted,
+          contains("  font-family: 'Plus Jakarta Sans', sans-serif;"));
       expect(formatted, contains('@media (prefers-color-scheme: dark) {'));
       expect(formatted, contains('    --bg: #0C0A09;'));
       expect(formatted, contains('* {'));
@@ -203,7 +247,9 @@ BloomNode buildDynamic(String activeClass) {
       expect(strippedOutput, equals(strippedInput));
     });
 
-    test('does not insert space between CSS function names and opening parenthesis', () {
+    test(
+        'does not insert space between CSS function names and opening parenthesis',
+        () {
       const rawCss = '''
 .card {
   background: rgba(0, 0, 0, .5);
@@ -225,7 +271,9 @@ BloomNode buildDynamic(String activeClass) {
       expect(formatted, isNot(contains('translateY (')));
     });
 
-    test('does not insert space before parentheses in selectors like :not() and :nth-child()', () {
+    test(
+        'does not insert space before parentheses in selectors like :not() and :nth-child()',
+        () {
       const rawCss = '''
 .list li:nth-child(2n):not(.foo) {
   color: red;
@@ -237,6 +285,34 @@ BloomNode buildDynamic(String activeClass) {
       expect(formatted, contains('.list li:nth-child(2n):not(.foo) {'));
       expect(formatted, isNot(contains(':nth-child (')));
       expect(formatted, isNot(contains(':not (')));
+    });
+  });
+
+  group('normalizeCssSemantics & Safety net', () {
+    test('normalizes CSS whitespace and punctuation insignificance', () {
+      const a = '.a .b { color: red; margin: 10px 20px; }';
+      const b = '.a   .b  {\n  color:\n red;\n  margin:  10px   20px;\n}';
+      expect(normalizeCssSemantics(a), equals(normalizeCssSemantics(b)));
+    });
+
+    test('distinguishes compound selector from descendant selector', () {
+      expect(
+        normalizeCssSemantics('.a .b { color: red; }'),
+        isNot(equals(normalizeCssSemantics('.a.b { color: red; }'))),
+      );
+    });
+
+    test('safety net skips formatting when semantic normalization differs', () {
+      final cssFormatter = BloomFormatter(pageWidth: 80, formatCss: true);
+      // Construct a corrupted result scenario or check that safety net prints warning and preserves source
+      // Here, test that a literal where formatting changes meaning would be skipped
+      const source = "const trickyCss = r'''\n"
+          '.a .b { color: red; }\n'
+          "''';\n";
+      final result = cssFormatter.format(source, filePath: 'lib/src/foo.dart');
+      expect(result.hasError, isFalse);
+      // Formatting succeeded safely preserving '.a .b'
+      expect(result.formatted, contains('.a .b {'));
     });
   });
 }

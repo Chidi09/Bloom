@@ -29,6 +29,11 @@ class FormatCommand extends Command<int> {
         'check',
         negatable: false,
         help: 'Report files that would change without writing them (CI mode).',
+      )
+      ..addFlag(
+        'css',
+        negatable: false,
+        help: 'Also reformat CSS inside Dart string literals (off by default)',
       );
   }
 
@@ -46,7 +51,8 @@ class FormatCommand extends Command<int> {
 
     final project = BloomProject.find(projectDir);
     if (project == null) {
-      print(Ansi.error('Not a valid Bloom project directory: ${projectDir.path}'));
+      print(Ansi.error(
+          'Not a valid Bloom project directory: ${projectDir.path}'));
       return 1;
     }
 
@@ -63,6 +69,7 @@ class FormatCommand extends Command<int> {
     }
 
     final checkMode = argResults?['check'] as bool? ?? false;
+    final cssMode = argResults?['css'] as bool? ?? false;
     final excluded = _excludedDirs.map((d) => p.join(root, d)).toList();
 
     final filesToFormat = <String>[];
@@ -70,7 +77,8 @@ class FormatCommand extends Command<int> {
       final dir = Directory(target);
       for (final entity in dir.listSync(recursive: true, followLinks: false)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        if (excluded.any((ex) => p.isWithin(ex, entity.path) || entity.path == ex)) continue;
+        if (excluded.any(
+            (ex) => p.isWithin(ex, entity.path) || entity.path == ex)) continue;
         filesToFormat.add(entity.path);
       }
     }
@@ -80,7 +88,7 @@ class FormatCommand extends Command<int> {
       return 0;
     }
 
-    final formatter = BloomFormatter();
+    final formatter = BloomFormatter(formatCss: cssMode);
     final changedFiles = <String>[];
     var reformattedCount = 0;
     var unchangedCount = 0;
@@ -89,16 +97,15 @@ class FormatCommand extends Command<int> {
     for (final filePath in filesToFormat) {
       final file = File(filePath);
       final content = file.readAsStringSync();
-      final result = formatter.format(content);
+      final rel = p.relative(filePath, from: root).replaceAll('\\', '/');
+      final result = formatter.format(content, filePath: rel);
 
       if (result.hasError) {
-        final rel = p.relative(filePath, from: root).replaceAll('\\', '/');
         print(Ansi.error('Error formatting $rel: ${result.errorMessage}'));
         errorCount++;
         continue;
       }
 
-      final rel = p.relative(filePath, from: root).replaceAll('\\', '/');
       if (result.changed) {
         changedFiles.add(rel);
         if (!checkMode) {
@@ -115,7 +122,8 @@ class FormatCommand extends Command<int> {
         for (final file in changedFiles) {
           print('Would reformat: $file');
         }
-        print(Ansi.warn('Some files are not formatted. Run `bloom format` to fix.'));
+        print(Ansi.warn(
+            'Some files are not formatted. Run `bloom format` to fix.'));
         return 1;
       }
       print(Ansi.success('All files formatted correctly.'));
@@ -126,7 +134,8 @@ class FormatCommand extends Command<int> {
       return 1;
     }
 
-    print(Ansi.success('$reformattedCount file(s) reformatted, $unchangedCount unchanged.'));
+    print(Ansi.success(
+        '$reformattedCount file(s) reformatted, $unchangedCount unchanged.'));
     return 0;
   }
 }

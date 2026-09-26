@@ -30,10 +30,11 @@ class BloomFormatResult {
 /// 3. Run `dart_style` once more on the rewritten source to produce consistent indentation.
 class BloomFormatter {
   final int pageWidth;
+  final bool formatCss;
 
-  BloomFormatter({this.pageWidth = 80});
+  BloomFormatter({this.pageWidth = 80, this.formatCss = false});
 
-  BloomFormatResult format(String source) {
+  BloomFormatResult format(String source, {String? filePath}) {
     final String base;
     try {
       base = DartFormatter(
@@ -61,6 +62,8 @@ class BloomFormatter {
       source: base,
       lineInfo: parseResult.lineInfo,
       pageWidth: pageWidth,
+      enableCssFormat: formatCss,
+      filePath: filePath,
     );
     parseResult.unit.accept(collector);
 
@@ -75,7 +78,9 @@ class BloomFormatter {
     collector.replacements.sort((a, b) => b.offset.compareTo(a.offset));
     var rewritten = base;
     for (final r in collector.replacements) {
-      rewritten = rewritten.substring(0, r.offset) + r.text + rewritten.substring(r.end);
+      rewritten = rewritten.substring(0, r.offset) +
+          r.text +
+          rewritten.substring(r.end);
     }
 
     final String finalFormatted;
@@ -115,12 +120,16 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
   final String source;
   final LineInfo lineInfo;
   final int pageWidth;
+  final bool enableCssFormat;
+  final String? filePath;
   final List<_SourceReplacement> replacements = [];
 
   _BloomFormatVisitor({
     required this.source,
     required this.lineInfo,
     required this.pageWidth,
+    this.enableCssFormat = false,
+    this.filePath,
   });
 
   @override
@@ -137,7 +146,9 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
     final lineNumber = lineInfo.getLocation(expr.offset).lineNumber;
     final lineStarts = lineInfo.lineStarts;
     final lineStart = lineStarts[lineNumber - 1];
-    final lineEnd = lineNumber < lineStarts.length ? lineStarts[lineNumber] - 1 : source.length;
+    final lineEnd = lineNumber < lineStarts.length
+        ? lineStarts[lineNumber] - 1
+        : source.length;
     final lineLength = lineEnd - lineStart;
 
     if (lineLength <= pageWidth) return;
@@ -149,7 +160,8 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
     var current = StringBuffer();
 
     for (final word in words) {
-      final candidateLen = current.isEmpty ? word.length : current.length + 1 + word.length;
+      final candidateLen =
+          current.isEmpty ? word.length : current.length + 1 + word.length;
       if (candidateLen > budget && current.isNotEmpty) {
         chunks.add('${current.toString()} ');
         current = StringBuffer(word);
@@ -177,6 +189,7 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
   void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
     super.visitTopLevelVariableDeclaration(node);
 
+    if (!enableCssFormat) return;
     if (!node.variables.isConst) return;
 
     for (final v in node.variables.variables) {
@@ -185,15 +198,7 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
       if (init is! SimpleStringLiteral) continue;
       if (!init.isRaw || !init.isMultiline) continue;
 
-      final formattedCss = formatCss(init.value);
-      if (formattedCss != init.value) {
-        final quote = init.isSingleQuoted ? "'''" : '"""';
-        replacements.add(_SourceReplacement(
-          offset: init.offset,
-          end: init.end,
-          text: 'r$quote$formattedCss$quote',
-        ));
-      }
+      _tryFormatCssLiteral(init);
     }
   }
 
@@ -201,6 +206,7 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
     super.visitInstanceCreationExpression(node);
 
+    if (!enableCssFormat) return;
     final typeName = node.constructorName.type.name2.lexeme;
     if (typeName == 'Style') {
       _checkStyleCall(node.argumentList);
@@ -211,6 +217,7 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
   void visitMethodInvocation(MethodInvocation node) {
     super.visitMethodInvocation(node);
 
+    if (!enableCssFormat) return;
     if (node.methodName.name == 'Style') {
       _checkStyleCall(node.argumentList);
     }
@@ -223,14 +230,31 @@ class _BloomFormatVisitor extends RecursiveAstVisitor<void> {
     if (arg is! SimpleStringLiteral) return;
     if (!arg.isRaw || !arg.isMultiline) return;
 
-    final formattedCss = formatCss(arg.value);
-    if (formattedCss != arg.value) {
-      final quote = arg.isSingleQuoted ? "'''" : '"""';
-      replacements.add(_SourceReplacement(
-        offset: arg.offset,
-        end: arg.end,
-        text: 'r$quote$formattedCss$quote',
-      ));
+    _tryFormatCssLiteral(arg);
+  }
+
+  void _tryFormatCssLiteral(SimpleStringLiteral literal) {
+    final original = literal.value;
+    final formattedCss = formatCss(original);
+    if (formattedCss == original) return;
+
+    final originalNorm = normalizeCssSemantics(original);
+    final formattedNorm = normalizeCssSemantics(formattedCss);
+
+    if (originalNorm != formattedNorm) {
+      final loc = lineInfo.getLocation(literal.offset);
+      final fileDisplay = filePath ?? '<unknown>';
+      print(
+        'bloom format: skipped CSS in $fileDisplay:${loc.lineNumber} because formatting would change its meaning',
+      );
+      return;
     }
+
+    final quote = literal.isSingleQuoted ? "'''" : '"""';
+    replacements.add(_SourceReplacement(
+      offset: literal.offset,
+      end: literal.end,
+      text: 'r$quote$formattedCss$quote',
+    ));
   }
 }
