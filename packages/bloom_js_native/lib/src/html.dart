@@ -83,6 +83,7 @@ String escapeHtml(String input) {
 /// - **[RefNode]**: Renders its `child`; DOM references are not attached during SSR.
 /// - **[ContextProviderNode]**: Provides ambient context values down the subtree using Dart Zones.
 /// - **[PortalNode]**: Emits `<template data-bloom-portal="...">` enclosing the portal subtree.
+/// - **[RawHtmlNode] / [Raw]**: Emits trusted HTML wrapped in `<!--bloom:raw-->` markers for hydration.
 ///
 /// ### Tag and Attribute Validation & Security
 /// - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
@@ -138,12 +139,39 @@ final Set<String> _emittedKeyframeNames = {};
 typedef _SuspenseHook = void Function(
     SuspenseNode<dynamic> node, StringBuffer buf);
 
-void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
+class _TextContext {
+  bool lastEmittedText = false;
+  final bool isRawText;
+  _TextContext({this.isRawText = false});
+}
+
+bool _isRawTextTag(String tag) {
+  final lower = tag.toLowerCase();
+  return lower == 'script' ||
+      lower == 'style' ||
+      lower == 'textarea' ||
+      lower == 'title';
+}
+
+void _render(BloomNode node, StringBuffer buf,
+    [_SuspenseHook? onSuspense, _TextContext? textCtx]) {
+  textCtx ??= _TextContext();
   switch (node) {
     case HmrComponentNode(:final child):
-      _render(child, buf, onSuspense);
+      _render(child, buf, onSuspense, textCtx);
 
     case TextNode(:final text):
+      if (!textCtx.isRawText) {
+        if (text.isEmpty) {
+          buf.write(ssrTextSeparator);
+          textCtx.lastEmittedText = false;
+          return;
+        }
+        if (textCtx.lastEmittedText) {
+          buf.write(ssrTextSeparator);
+        }
+        textCtx.lastEmittedText = true;
+      }
       buf.write(escapeHtml(text));
 
     case SvgNode(
@@ -155,6 +183,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         :final children
       ):
       _validateTagName(tag);
+      textCtx.lastEmittedText = false;
       buf.write('<$tag');
       if (className != null && className.isNotEmpty) {
         buf.write(' class="${escapeHtml(className)}"');
@@ -170,11 +199,21 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         }
       }
       buf.write('>');
-      if (text != null) buf.write(escapeHtml(text));
+      final childCtx = _TextContext();
+      if (text != null) {
+        if (text.isEmpty) {
+          buf.write(ssrTextSeparator);
+          childCtx.lastEmittedText = false;
+        } else {
+          buf.write(escapeHtml(text));
+          childCtx.lastEmittedText = true;
+        }
+      }
       for (final c in children) {
-        _render(c, buf, onSuspense);
+        _render(c, buf, onSuspense, childCtx);
       }
       buf.write('</$tag>');
+      textCtx.lastEmittedText = false;
 
     case ElNode(
         :final tag,
@@ -185,6 +224,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         :final children
       ):
       _validateTagName(tag);
+      textCtx.lastEmittedText = false;
       buf.write('<$tag');
 
       if (className != null && className.isNotEmpty) {
@@ -210,31 +250,46 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
 
       buf.write('>');
 
-      if (text != null) buf.write(escapeHtml(text));
+      final childCtx = _TextContext(isRawText: _isRawTextTag(tag));
+      if (text != null) {
+        if (!childCtx.isRawText && text.isEmpty) {
+          buf.write(ssrTextSeparator);
+          childCtx.lastEmittedText = false;
+        } else {
+          buf.write(escapeHtml(text));
+          childCtx.lastEmittedText = !childCtx.isRawText;
+        }
+      }
       for (final c in children) {
-        _render(c, buf, onSuspense);
+        _render(c, buf, onSuspense, childCtx);
       }
 
       buf.write('</$tag>');
+      textCtx.lastEmittedText = false;
 
     case FragmentNode(:final children):
       for (final c in children) {
-        _render(c, buf, onSuspense);
+        _render(c, buf, onSuspense, textCtx);
       }
 
     case LiveNode(:final builder):
+      textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerLive));
       final inner = builder();
       _render(inner, buf, onSuspense);
       buf.write(ssrCloseMarker(hydrationMarkerLive));
+      textCtx.lastEmittedText = false;
 
     case MemoNode():
+      textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerMemo));
       final value = node.dependencyErased();
       _render(node.builderErased(value), buf, onSuspense);
       buf.write(ssrCloseMarker(hydrationMarkerMemo));
+      textCtx.lastEmittedText = false;
 
     case ShowNode(:final child, :final fallback):
+      textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerShow));
       if (node.when()) {
         _render(child, buf, onSuspense);
@@ -242,8 +297,10 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         _render(fallback, buf, onSuspense);
       }
       buf.write(ssrCloseMarker(hydrationMarkerShow));
+      textCtx.lastEmittedText = false;
 
     case ForEachNode():
+      textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerForEach));
       final keyFn = node.keyFnErased;
       if (keyFn != null) {
@@ -269,8 +326,10 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         }
       }
       buf.write(ssrCloseMarker(hydrationMarkerForEach));
+      textCtx.lastEmittedText = false;
 
     case StyleNode(:final css):
+      textCtx.lastEmittedText = false;
       // CSS must not be HTML-escaped (quotes are valid inside it); only the
       // `</style>` close sequence is dangerous. HTML tag names are
       // case-insensitive, so neutralize every case variant of `</`.
@@ -278,32 +337,38 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
           '<style>${css.replaceAll(RegExp(r'</', caseSensitive: false), r'<\/')}</style>');
 
     case RawHtmlNode(:final html):
+      textCtx.lastEmittedText = false;
+      buf.write(ssrOpenMarker(hydrationMarkerRaw));
       // Trusted HTML passthrough — never feed this user input.
       buf.write(html);
+      buf.write(ssrCloseMarker(hydrationMarkerRaw));
 
     case AnimatedNode(:final child, :final animation):
+      textCtx.lastEmittedText = false;
       if (_activeKeyframeNames.add(animation.name)) {
         buf.write('<style>${animation.toKeyframesCSS()}</style>');
       }
       buf.write('<div style="${animation.toInlineStyle()}">');
       _render(child, buf, onSuspense);
       buf.write('</div>');
+      textCtx.lastEmittedText = false;
 
     case MountNode(:final child):
       // SSR: render child only; lifecycle callbacks intentionally skipped.
-      _render(child, buf, onSuspense);
+      _render(child, buf, onSuspense, textCtx);
 
     case RefNode(:final child):
       // SSR: render child; ref remains unmounted (no DOM).
-      _render(child, buf, onSuspense);
+      _render(child, buf, onSuspense, textCtx);
 
     case ContextProviderNode(:final context, :final value, :final child):
       runZoned(
-        () => _render(child, buf, onSuspense),
+        () => _render(child, buf, onSuspense, textCtx),
         zoneValues: {context.zoneKey: value},
       );
 
     case ErrorBoundaryNode(:final builder, :final fallback):
+      textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerErrorBoundary));
       try {
         final inner = builder();
@@ -313,13 +378,17 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         _render(fallbackNode, buf, onSuspense);
       }
       buf.write(ssrCloseMarker(hydrationMarkerErrorBoundary));
+      textCtx.lastEmittedText = false;
 
     case PortalNode(:final child, :final targetSelector):
+      textCtx.lastEmittedText = false;
       buf.write('<template data-bloom-portal="${escapeHtml(targetSelector)}">');
       _render(child, buf, onSuspense);
       buf.write('</template>');
+      textCtx.lastEmittedText = false;
 
     case SuspenseNode(:final fallback):
+      textCtx.lastEmittedText = false;
       if (onSuspense != null) {
         onSuspense(node, buf);
       } else {
@@ -327,6 +396,7 @@ void _render(BloomNode node, StringBuffer buf, [_SuspenseHook? onSuspense]) {
         _render(fallback, buf, onSuspense);
         buf.write(ssrCloseMarker(hydrationMarkerSuspense));
       }
+      textCtx.lastEmittedText = false;
   }
 }
 

@@ -94,6 +94,36 @@ void main() {
       expect(chunks.first, contains('id="bloom-suspense-0"'));
       expect(suspenseStreamId(0), 'bloom-suspense-0');
     });
+
+    test('adjacent Text nodes emit ssrTextSeparator', () {
+      final html = renderToHtml(Div(children: [
+        const TextNode('a'),
+        const TextNode('b'),
+      ]));
+      expect(html, '<div>a<!---->b</div>');
+    });
+
+    test('empty TextNode emits ssrTextSeparator', () {
+      final html = renderToHtml(Div(children: [
+        const TextNode(''),
+      ]));
+      expect(html, '<div><!----></div>');
+    });
+
+    test('Raw emits inside bloom:raw markers', () {
+      final html = renderToHtml(Div(children: [
+        Raw('<b>hello</b>'),
+      ]));
+      expect(html, '<div><!--bloom:raw--><b>hello</b><!--/bloom:raw--></div>');
+    });
+
+    test('separators are NOT emitted inside Style or Script content', () {
+      final styleHtml = renderToHtml(StyleNode('body{color:red}'));
+      expect(styleHtml, isNot(contains('<!---->')));
+
+      final scriptHtml = renderToHtml(ElNode('script', text: 'var a = 1;'));
+      expect(scriptHtml, isNot(contains('<!---->')));
+    });
   });
 
   group('hydration key escaping', () {

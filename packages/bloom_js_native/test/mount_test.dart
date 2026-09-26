@@ -112,6 +112,21 @@ void main() {
       expect(container.children.item(2)!.textContent, 'C');
     });
 
+    test('RawHtmlNode mounts directly without extra wrapper span', () {
+      final node = Div(children: [
+        Raw('<b>bold</b><i>italic</i>'),
+      ]);
+
+      final handle = mountToElement(node, container);
+      addTearDown(handle.dispose);
+
+      final div = container.firstElementChild as web.HTMLDivElement;
+      expect(div.querySelector('span'), isNull);
+      expect(div.querySelector('b'), isNotNull);
+      expect(div.querySelector('i'), isNotNull);
+      expect(div.childNodes.length, 2);
+    });
+
     test('Live region updates its DOM when its signal changes', () {
       final count = signal(0);
       final node = Live(() => P(text: 'Count: ${count.value}'));

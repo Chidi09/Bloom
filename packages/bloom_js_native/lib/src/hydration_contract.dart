@@ -50,6 +50,12 @@ const String hydrationMarkerErrorBoundary = 'bloom:error-boundary';
 /// Boundary label for [SuspenseNode] in synchronous SSR output.
 const String hydrationMarkerSuspense = 'bloom:suspense';
 
+/// Boundary label for [RawHtmlNode].
+const String hydrationMarkerRaw = 'bloom:raw';
+
+/// SSR separator comment emitted between adjacent text outputs and in place of empty text nodes.
+const String ssrTextSeparator = '<!---->';
+
 /// Marker label prefix for keyed `ForEach` items (`bloom:key=<escaped>`).
 const String hydrationMarkerKeyPrefix = 'bloom:key=';
 

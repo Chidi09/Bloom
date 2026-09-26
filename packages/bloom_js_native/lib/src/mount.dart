@@ -13,6 +13,9 @@ import 'framework.dart';
 import 'hydration_contract.dart';
 import '_signal_scope.dart';
 
+const String _svgNamespace = 'http://www.w3.org/2000/svg';
+bool _currentSvgScope = false;
+
 /// When `true`, uncaught errors thrown while mounting or rendering a tree display
 /// a full-screen visual error overlay ([renderDevErrorOverlay]) in the browser DOM
 /// instead of propagating and throwing.
@@ -600,9 +603,16 @@ List<web.Node> _mountNode(
 
     case RawHtmlNode(:final html):
       // Trusted-HTML escape hatch. Never pass user input here.
-      final host = web.document.createElement('span');
-      host.innerHTML = html.toJS;
-      return [host];
+      final template =
+          web.document.createElement('template') as web.HTMLTemplateElement;
+      template.innerHTML = html.toJS;
+      final content = template.content;
+      final out = <web.Node>[];
+      final kids = content.childNodes;
+      for (var i = 0; i < kids.length; i++) {
+        out.add(kids.item(i)!);
+      }
+      return out;
 
     case ElNode(
         :final tag,
@@ -613,8 +623,29 @@ List<web.Node> _mountNode(
         :final on,
         :final children
       ):
-      final el = web.document.createElement(tag);
-      if (className != null) el.className = className;
+      final bool inSvg;
+      if (node is SvgNode) {
+        inSvg = true;
+      } else if (_currentSvgScope) {
+        inSvg = tag.toLowerCase() != 'foreignobject';
+      } else {
+        inSvg = false;
+      }
+
+      final web.Element el;
+      if (inSvg) {
+        el = web.document.createElementNS(_svgNamespace, tag);
+      } else {
+        el = web.document.createElement(tag);
+      }
+
+      if (className != null) {
+        if (inSvg) {
+          el.setAttribute('class', className);
+        } else {
+          el.className = className;
+        }
+      }
       if (style != null) el.setAttribute('style', style);
       if (attrs != null) {
         for (final e in attrs.entries) {
@@ -630,11 +661,17 @@ List<web.Node> _mountNode(
       if (text != null) {
         el.appendChild(web.document.createTextNode(text));
       }
-      for (final child in children) {
-        final childNodes = _mountNode(child, region);
-        for (final cn in childNodes) {
-          el.appendChild(cn);
+      final prevSvgScope = _currentSvgScope;
+      _currentSvgScope = inSvg;
+      try {
+        for (final child in children) {
+          final childNodes = _mountNode(child, region);
+          for (final cn in childNodes) {
+            el.appendChild(cn);
+          }
         }
+      } finally {
+        _currentSvgScope = prevSvgScope;
       }
       return [el];
 
@@ -1207,10 +1244,19 @@ bool _patchNode(
 
     // className: if changed, set class attribute; if new is null, remove class
     if (oldDesc.className != newDesc.className) {
+      final isSvg = el.namespaceURI == _svgNamespace;
       if (newDesc.className != null) {
-        el.className = newDesc.className!;
+        if (isSvg) {
+          el.setAttribute('class', newDesc.className!);
+        } else {
+          el.className = newDesc.className!;
+        }
       } else {
-        el.removeAttribute('class');
+        if (isSvg) {
+          el.removeAttribute('class');
+        } else {
+          el.removeAttribute('class');
+        }
       }
     }
 
@@ -2094,6 +2140,18 @@ typedef HydrationMismatchHandler = void Function(HydrationMismatch mismatch);
 /// Null by default (mismatches still reach DevTools).
 HydrationMismatchHandler? bloomHydrationMismatchHandler;
 
+/// Whether hydration mismatches are logged to the browser console. Null (the default) means "log in debug builds only".
+bool? bloomLogHydrationMismatches;
+
+bool _isDebugBuild() {
+  var isDebug = false;
+  assert(() {
+    isDebug = true;
+    return true;
+  }());
+  return isDebug;
+}
+
 /// When `true` (default), hydration preserves pre-hydration form-control
 /// state: `value`/`checked` attributes from SSR never overwrite what the
 /// user typed, checked, or selected before hydration ran. Conflicts are
@@ -2129,6 +2187,7 @@ BloomMountHandle hydrateToElement(
   } catch (e) {
     if (e is _HydrationAbort) {
       hctx.report(
+        path: hctx.deepestPath,
         boundary: 'root',
         expected: e.expected,
         actual: e.actual,
@@ -2136,6 +2195,7 @@ BloomMountHandle hydrateToElement(
       );
     } else {
       hctx.report(
+        path: hctx.deepestPath,
         boundary: 'root',
         expected: 'hydratable DOM',
         actual: '${e.runtimeType}: $e',
@@ -2157,13 +2217,19 @@ class _HydrationContext {
   final HydrationMismatchHandler? onMismatch;
   final List<String> _path = [];
   final List<String> _boundaries = ['root'];
+  String _deepestPath = 'root';
 
   _HydrationContext({this.onMismatch});
 
   String get path => _path.isEmpty ? 'root' : _path.join('/');
+  String get deepestPath => _deepestPath;
   String get boundary => _boundaries.isEmpty ? 'root' : _boundaries.last;
 
-  void push(String segment) => _path.add(segment);
+  void push(String segment) {
+    _path.add(segment);
+    _deepestPath = path;
+  }
+
   void pop() {
     if (_path.isNotEmpty) _path.removeLast();
   }
@@ -2178,18 +2244,27 @@ class _HydrationContext {
   }
 
   void report({
+    String? path,
     required String boundary,
     required String expected,
     required String actual,
     required String recovery,
   }) {
     final mismatch = HydrationMismatch(
-      path: path,
+      path: path ?? this.path,
       boundary: boundary,
       expected: expected,
       actual: actual,
       recovery: recovery,
     );
+    final shouldLog = bloomLogHydrationMismatches ?? _isDebugBuild();
+    if (shouldLog) {
+      try {
+        web.console.warn(
+            '[bloom] hydration mismatch: ${formatHydrationMismatch(mismatch)}'
+                .toJS);
+      } catch (_) {}
+    }
     try {
       onMismatch?.call(mismatch);
     } catch (_) {}
@@ -2322,13 +2397,49 @@ int _hydrateNode(
           throw _HydrationAbort('text node', 'missing node');
         }
         final existing = sibs[index];
+        // (a) If sibs[index] is an empty comment (separator) and expected text is '',
+        // replace that comment with an empty DOM text node and consume 1.
+        if (_isCommentNode(existing) &&
+            (existing as web.Comment).data.isEmpty &&
+            text.isEmpty) {
+          final emptyTextNode = web.document.createTextNode('');
+          existing.parentNode?.replaceChild(emptyTextNode, existing);
+          return 1;
+        }
+
         if (existing.nodeType != web.Node.TEXT_NODE) {
           throw _HydrationAbort('text node', _describeDom(existing));
         }
-        if (existing.textContent != text) existing.textContent = text;
+
+        final domText = existing as web.Text;
+        final currentContent = domText.data;
+
+        // (c) Legacy SSR without separators: if the DOM text node's content is longer
+        // than the expected text and starts with it, split it with splitText(expected.length).
+        if (currentContent.length > text.length &&
+            currentContent.startsWith(text)) {
+          final remainder = domText.splitText(text.length);
+          sibs.insert(index + 1, remainder);
+        } else if (currentContent != text) {
+          domText.data = text;
+        }
+
+        // (b) Claim it; if the NEXT sibling is an empty-data comment separator, remove it from DOM.
+        if (index + 1 < sibs.length) {
+          final nextSib = sibs[index + 1];
+          if (_isCommentNode(nextSib) &&
+              (nextSib as web.Comment).data.isEmpty) {
+            nextSib.parentNode?.removeChild(nextSib);
+            sibs.removeAt(index + 1);
+          }
+        }
         return 1;
 
       case RawHtmlNode():
+        final span = _findMarkerSpan(sibs, index, hydrationMarkerRaw);
+        if (span != null) {
+          return span.close - span.open + 1;
+        }
         if (index >= sibs.length) {
           throw _HydrationAbort('raw-html host', 'missing node');
         }
@@ -2548,7 +2659,19 @@ int _hydrateElement(
     throw _HydrationAbort('element <$tag>', _describeDom(existing));
   }
 
-  if ((className ?? '') != el.className) el.className = className ?? '';
+  if (el.namespaceURI == _svgNamespace) {
+    final currentClass = el.getAttribute('class') ?? '';
+    final desiredClass = className ?? '';
+    if (currentClass != desiredClass) {
+      if (desiredClass.isNotEmpty) {
+        el.setAttribute('class', desiredClass);
+      } else {
+        el.removeAttribute('class');
+      }
+    }
+  } else {
+    if ((className ?? '') != el.className) el.className = className ?? '';
+  }
   if (style != null) {
     if (el.getAttribute('style') != style) el.setAttribute('style', style);
   } else if (el.hasAttribute('style')) {
@@ -2578,12 +2701,56 @@ int _hydrateElement(
   final kids = _liveChildren(el);
   var consumed = 0;
   if (text != null) {
-    if (kids.isEmpty || kids[0].nodeType != web.Node.TEXT_NODE) {
-      throw _HydrationAbort(
-          'text "$text"', kids.isEmpty ? 'no children' : _describeDom(kids[0]));
+    if (text.isEmpty) {
+      if (kids.isEmpty || kids[0].nodeType != web.Node.TEXT_NODE) {
+        // If kids has a comment separator, replace it with an empty text node
+        if (kids.isNotEmpty &&
+            _isCommentNode(kids[0]) &&
+            (kids[0] as web.Comment).data.isEmpty) {
+          final emptyTextNode = web.document.createTextNode('');
+          el.replaceChild(emptyTextNode, kids[0]);
+          kids[0] = emptyTextNode;
+          consumed = 1;
+        } else {
+          // ElNode(text: '') with no text node present: create an empty text node instead of aborting.
+          final emptyTextNode = web.document.createTextNode('');
+          if (kids.isEmpty) {
+            el.appendChild(emptyTextNode);
+            kids.add(emptyTextNode);
+          } else {
+            el.insertBefore(emptyTextNode, kids[0]);
+            kids.insert(0, emptyTextNode);
+          }
+          consumed = 1;
+        }
+      } else {
+        if (kids[0].textContent != text) kids[0].textContent = text;
+        consumed = 1;
+      }
+    } else {
+      if (kids.isEmpty || kids[0].nodeType != web.Node.TEXT_NODE) {
+        throw _HydrationAbort('text "$text"',
+            kids.isEmpty ? 'no children' : _describeDom(kids[0]));
+      }
+      final domText = kids[0] as web.Text;
+      final currentContent = domText.data;
+      if (currentContent.length > text.length &&
+          currentContent.startsWith(text)) {
+        final remainder = domText.splitText(text.length);
+        kids.insert(1, remainder);
+      } else if (currentContent != text) {
+        domText.data = text;
+      }
+      consumed = 1;
     }
-    if (kids[0].textContent != text) kids[0].textContent = text;
-    consumed = 1;
+
+    if (consumed < kids.length) {
+      final nextSib = kids[consumed];
+      if (_isCommentNode(nextSib) && (nextSib as web.Comment).data.isEmpty) {
+        nextSib.parentNode?.removeChild(nextSib);
+        kids.removeAt(consumed);
+      }
+    }
   }
   for (final child in children) {
     consumed += _hydrateNode(child, kids, consumed, el, region, hctx);

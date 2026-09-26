@@ -413,6 +413,85 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(container.textContent, contains('got fast'));
     });
+
+    test(
+        'SSR adjacent and empty Text nodes hydrate without mismatch and preserve DOM identity',
+        () {
+      BloomNode page() => Div(children: [
+            const TextNode('hello'),
+            const TextNode(' '),
+            const TextNode(''),
+            const TextNode('world'),
+          ]);
+      setSsrHtml(container, renderToHtml(page()));
+      final rootBefore = container.firstElementChild;
+      expect(rootBefore, isNotNull);
+
+      final handle = hydrateElement(page(), container, onMismatch: collect());
+      addTearDown(handle.dispose);
+
+      expect(mismatches, isEmpty);
+      expect(container.firstElementChild, same(rootBefore));
+      expect(container.textContent, 'hello world');
+    });
+
+    test(
+        'hydrating legacy HTML "ab" without separator for Text("a"), Text("b") succeeds without mismatch',
+        () {
+      BloomNode page() => Div(children: [
+            const TextNode('a'),
+            const TextNode('b'),
+          ]);
+      // Legacy server HTML without <!-- --> separator
+      setSsrHtml(container, '<div>ab</div>');
+      final rootBefore = container.firstElementChild;
+
+      final handle = hydrateElement(page(), container, onMismatch: collect());
+      addTearDown(handle.dispose);
+
+      expect(mismatches, isEmpty);
+      expect(container.firstElementChild, same(rootBefore));
+      expect(container.textContent, 'ab');
+    });
+
+    test('Raw hydrates without a wrapper span', () {
+      BloomNode page() => Div(children: [
+            Raw('<em>emphasized</em>'),
+          ]);
+      setSsrHtml(container, renderToHtml(page()));
+      final rootBefore = container.firstElementChild;
+
+      final handle = hydrateElement(page(), container, onMismatch: collect());
+      addTearDown(handle.dispose);
+
+      expect(mismatches, isEmpty);
+      expect(container.firstElementChild, same(rootBefore));
+      expect(container.querySelector('span'), isNull);
+      expect(container.querySelector('em'), isNotNull);
+      expect(container.querySelector('em')!.textContent, 'emphasized');
+    });
+
+    test(
+        'hydrate() accepts onMismatch and a forced root mismatch reports a path deeper than root',
+        () {
+      final forcedMismatches = <HydrationMismatch>[];
+      container.id = 'test-forced-app';
+      // Server rendered HTML has a span inside div
+      setSsrHtml(container, '<div><span>hello</span></div>');
+
+      // Client descriptor expects a p inside div, causing structural mismatch deeper than root
+      final node = Div(children: [P(text: 'hello')]);
+
+      final handle = hydrate(node, '#test-forced-app',
+          onMismatch: (m) => forcedMismatches.add(m));
+      addTearDown(handle.dispose);
+
+      expect(forcedMismatches, isNotEmpty);
+      final mismatch = forcedMismatches.first;
+      expect(mismatch.boundary, 'root');
+      expect(mismatch.path, isNot('root'));
+      expect(mismatch.path, contains('div'));
+    });
   });
 
   group('island activation semantics', () {

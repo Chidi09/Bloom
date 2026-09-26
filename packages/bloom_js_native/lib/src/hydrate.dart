@@ -26,12 +26,16 @@ import 'mount.dart';
 ///   );
 /// }
 /// ```
-BloomMountHandle hydrate(BloomNode root, String selector) {
+BloomMountHandle hydrate(
+  BloomNode root,
+  String selector, {
+  HydrationMismatchHandler? onMismatch,
+}) {
   final el = web.document.querySelector(selector);
   if (el == null) {
     throw StateError('Bloom hydrate: selector "$selector" matched no element.');
   }
-  return hydrateElement(root, el);
+  return hydrateElement(root, el, onMismatch: onMismatch);
 }
 
 /// Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
