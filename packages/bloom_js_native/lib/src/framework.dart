@@ -152,6 +152,127 @@ sealed class BloomNode {
   const BloomNode();
 }
 
+/// A platform-neutral handle to a mounted DOM element, safe to reference from
+/// shared (VM) code.
+///
+/// `raw` exposes the browser element when browser-specific interop is needed.
+///
+/// ```dart
+/// Mount(Input(), onMountElement: (element) => element.focus());
+/// ```
+abstract interface class BloomElement {
+  /// The element tag name, as reported by the browser.
+  String get tagName;
+
+  /// Returns the current value for [name], or `null` when absent.
+  String? getAttribute(String name);
+
+  /// Sets an attribute after Bloom's DOM attribute safety checks.
+  void setAttribute(String name, String value);
+
+  /// Removes the attribute named [name].
+  void removeAttribute(String name);
+
+  /// Adds [name] to the element's class list.
+  void addClass(String name);
+
+  /// Removes [name] from the element's class list.
+  void removeClass(String name);
+
+  /// Whether the class list contains [name].
+  bool hasClass(String name);
+
+  /// Toggles [name], or sets it to [force] when provided.
+  void toggleClass(String name, [bool? force]);
+
+  /// Gives the element keyboard focus when the browser supports it.
+  void focus();
+
+  /// Removes keyboard focus from the element when supported.
+  void blur();
+
+  /// Scrolls the element into view, optionally using smooth scrolling.
+  void scrollIntoView({bool smooth = false});
+
+  /// The underlying platform object (a `package:web` Element in the browser).
+  Object get raw;
+}
+
+/// Sets the document title when mounted, and restores it when unmounted.
+///
+/// ```dart
+/// const Title('Products');
+/// ```
+class Title extends BloomNode {
+  /// The plain text title.
+  final String text;
+
+  /// Creates a document title descriptor.
+  const Title(this.text);
+}
+
+/// Sets a document metadata entry when mounted or rendered into a document.
+///
+/// ```dart
+/// const Meta(name: 'description', content: 'A product catalog.');
+/// ```
+class Meta extends BloomNode {
+  /// The metadata `name` key, when used.
+  final String? name;
+
+  /// The Open Graph or other metadata `property` key, when used.
+  final String? property;
+
+  /// The metadata `http-equiv` key, when used.
+  final String? httpEquiv;
+
+  /// The metadata content value.
+  final String content;
+
+  /// Creates metadata identified by [name], [property], or [httpEquiv].
+  const Meta({this.name, this.property, this.httpEquiv, required this.content});
+}
+
+/// Adds a `<link>` descriptor to the document head.
+///
+/// ```dart
+/// const HeadLink(rel: 'icon', href: '/favicon.ico');
+/// ```
+class HeadLink extends BloomNode {
+  /// The link relation, such as `'icon'` or `'preload'`.
+  final String rel;
+
+  /// The link URL.
+  final String href;
+
+  /// Additional link attributes.
+  final Map<String, String>? attrs;
+
+  /// Creates a document link with optional additional attributes.
+  const HeadLink({required this.rel, required this.href, this.attrs});
+}
+
+/// Loads a CSS file from a component or page.
+///
+/// Use [StylesheetLink] as the way to load CSS files, including copied
+/// multi-file design systems under `web/css/`, from the component that needs
+/// them.
+///
+/// ```dart
+/// const StylesheetLink('/css/design-system.css');
+/// ```
+class StylesheetLink extends HeadLink {
+  /// The media query the stylesheet applies to, e.g. `'print'`.
+  final String? media;
+
+  /// Creates a stylesheet link, optionally limited to [media].
+  const StylesheetLink(String href, {this.media})
+      : super(rel: 'stylesheet', href: href);
+
+  @override
+  Map<String, String>? get attrs => media == null ? null : {'media': media!};
+}
+
 /// A source-stable boundary around a Bloom component during DDC development.
 ///
 /// [id] is derived from the declaring library and component method by Bloom's
@@ -902,6 +1023,12 @@ class Ref<T extends Object> {
 /// - **SSR (`renderToHtml`)**: Renders [child] only. Lifecycle callbacks [onMount]
 ///   and [onUnmount] are intentionally ignored on the server.
 ///
+/// Use [onMountElement] for simple DOM work without importing browser APIs:
+///
+/// ```dart
+/// Mount(Input(placeholder: 'Search'), onMountElement: (el) => el.focus());
+/// ```
+///
 /// Usually created using the DSL sugar [Mount].
 class MountNode extends BloomNode {
   /// Stable compiler-provided scope for signals created by lifecycle callbacks.
@@ -914,12 +1041,21 @@ class MountNode extends BloomNode {
   /// Callback executed asynchronously in a microtask after [child] is inserted into the DOM.
   final void Function()? onMount;
 
+  /// Callback invoked in the same microtask after [onMount] with the first
+  /// element produced by [child].
+  final void Function(BloomElement element)? onMountElement;
+
   /// Callback executed synchronously when [child] is removed from the DOM.
   final void Function()? onUnmount;
 
   /// Creates a lifecycle boundary descriptor wrapping [child] with optional [onMount] and [onUnmount].
-  const MountNode(this.child,
-      {this.onMount, this.onUnmount, this.hotReloadScopeId});
+  const MountNode(
+    this.child, {
+    this.onMount,
+    this.onMountElement,
+    this.onUnmount,
+    this.hotReloadScopeId,
+  });
 }
 
 /// DSL sugar for [MountNode].
@@ -939,8 +1075,13 @@ class MountNode extends BloomNode {
 /// ```
 class Mount extends MountNode {
   /// Creates a lifecycle boundary wrapping [child] with optional [onMount] and [onUnmount] hooks.
-  const Mount(super.child,
-      {super.onMount, super.onUnmount, super.hotReloadScopeId});
+  const Mount(
+    super.child, {
+    super.onMount,
+    super.onMountElement,
+    super.onUnmount,
+    super.hotReloadScopeId,
+  });
 }
 
 /// Attaches a [Ref] to the first `web.Element` created by [child].

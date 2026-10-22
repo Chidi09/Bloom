@@ -77,6 +77,7 @@ npm_packages:
         bloomYamlPath: bloomYaml.path,
         title: 'Default Title',
         titleFor: (path) => path == '/about' ? 'About Us' : 'Default Title',
+        stylesheets: ['/css/reset.css', '/css/design-system.css'],
       );
 
       expect(result.pageCount, 2);
@@ -97,6 +98,14 @@ npm_packages:
       final homeHtml = File('${distDir.path}/index.html').readAsStringSync();
       expect(homeHtml, isNot(contains('<html>dev index</html>')));
       expect(homeHtml, contains('<title>Default Title</title>'));
+      expect(
+        homeHtml,
+        contains('<link rel="stylesheet" href="/css/reset.css">'),
+      );
+      expect(
+        homeHtml,
+        contains('<link rel="stylesheet" href="/css/design-system.css">'),
+      );
       expect(homeHtml, contains('<h1>Home Page</h1>'));
       expect(homeHtml, contains('<div id="app">'));
 

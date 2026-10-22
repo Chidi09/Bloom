@@ -90,6 +90,23 @@ class BloomJsDevTools {
   /// ```
   static Map<String, dynamic> snapshotTree(BloomNode node) {
     return switch (node) {
+      Title(:final text) => {
+          'kind': 'title',
+          'text': text,
+        },
+      Meta(:final name, :final property, :final httpEquiv, :final content) => {
+          'kind': 'meta',
+          if (name != null) 'name': name,
+          if (property != null) 'property': property,
+          if (httpEquiv != null) 'httpEquiv': httpEquiv,
+          'content': content,
+        },
+      HeadLink(:final rel, :final href, :final attrs) => {
+          'kind': 'head-link',
+          'rel': rel,
+          'href': href,
+          if (attrs != null && attrs.isNotEmpty) 'attrs': attrs,
+        },
       HmrComponentNode(:final id, :final child) => {
           'kind': 'component',
           'id': id,

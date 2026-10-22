@@ -15,6 +15,202 @@ import '_signal_scope.dart';
 
 const String _svgNamespace = 'http://www.w3.org/2000/svg';
 bool _currentSvgScope = false;
+String? _titleBeforeBloomMounts;
+final List<_MountedTitle> _mountedTitles = [];
+
+class _MountedTitle {
+  final String text;
+
+  const _MountedTitle(this.text);
+}
+
+class _BrowserBloomElement implements BloomElement {
+  final web.Element _element;
+
+  const _BrowserBloomElement(this._element);
+
+  @override
+  String get tagName => _element.tagName;
+
+  @override
+  String? getAttribute(String name) => _element.getAttribute(name);
+
+  @override
+  void setAttribute(String name, String value) {
+    _validateDomAttributeName(name);
+    validateBloomAttribute(name, value);
+    _element.setAttribute(name, value);
+  }
+
+  @override
+  void removeAttribute(String name) => _element.removeAttribute(name);
+
+  @override
+  void addClass(String name) => _element.classList.add(name);
+
+  @override
+  void removeClass(String name) => _element.classList.remove(name);
+
+  @override
+  bool hasClass(String name) => _element.classList.contains(name);
+
+  @override
+  void toggleClass(String name, [bool? force]) {
+    if (force == null) {
+      _element.classList.toggle(name);
+    } else {
+      _element.classList.toggle(name, force);
+    }
+  }
+
+  @override
+  void focus() {
+    if (_element.isA<web.HTMLElement>()) {
+      (_element as web.HTMLElement).focus();
+    }
+  }
+
+  @override
+  void blur() {
+    if (_element.isA<web.HTMLElement>()) {
+      (_element as web.HTMLElement).blur();
+    }
+  }
+
+  @override
+  void scrollIntoView({bool smooth = false}) {
+    if (smooth) {
+      _element.scrollIntoView(web.ScrollIntoViewOptions(behavior: 'smooth'));
+    } else {
+      _element.scrollIntoView();
+    }
+  }
+
+  @override
+  Object get raw => _element;
+}
+
+web.Element? _firstElement(List<web.Node> nodes) {
+  for (final node in nodes) {
+    if (node.isA<web.Element>()) return node as web.Element;
+  }
+  return null;
+}
+
+String? _metaIdentity(Meta node) {
+  if (node.name != null) return 'name';
+  if (node.property != null) return 'property';
+  if (node.httpEquiv != null) return 'http-equiv';
+  return null;
+}
+
+bool _sameMeta(web.Element element, Meta node) {
+  if (node.name != null) return element.getAttribute('name') == node.name;
+  if (node.property != null) {
+    return element.getAttribute('property') == node.property;
+  }
+  if (node.httpEquiv != null) {
+    return element.getAttribute('http-equiv') == node.httpEquiv;
+  }
+  return false;
+}
+
+void _mountTitle(Title node, _Region region) {
+  _titleBeforeBloomMounts ??= web.document.title;
+  final record = _MountedTitle(node.text);
+  _mountedTitles.add(record);
+  web.document.title = node.text;
+  region.add(() {
+    final wasTop =
+        _mountedTitles.isNotEmpty && identical(_mountedTitles.last, record);
+    _mountedTitles.remove(record);
+    if (_mountedTitles.isEmpty) {
+      web.document.title = _titleBeforeBloomMounts!;
+      _titleBeforeBloomMounts = null;
+    } else if (wasTop) {
+      web.document.title = _mountedTitles.last.text;
+    }
+  });
+}
+
+void _mountMeta(Meta node, _Region region) {
+  for (final entry in [
+    if (node.name != null) MapEntry('name', node.name!),
+    if (node.property != null) MapEntry('property', node.property!),
+    if (node.httpEquiv != null) MapEntry('http-equiv', node.httpEquiv!),
+    MapEntry('content', node.content),
+  ]) {
+    _validateDomAttributeName(entry.key);
+    validateBloomAttribute(entry.key, entry.value);
+  }
+  final identity = _metaIdentity(node);
+  web.Element? existing;
+  if (identity != null) {
+    final metas = web.document.head?.querySelectorAll('meta');
+    if (metas != null) {
+      for (var i = 0; i < metas.length; i++) {
+        final candidate = metas.item(i) as web.Element?;
+        if (candidate != null && _sameMeta(candidate, node)) {
+          existing = candidate;
+          break;
+        }
+      }
+    }
+  }
+  final element = existing ?? web.document.createElement('meta');
+  final previousContent = element.getAttribute('content');
+  if (node.name != null) element.setAttribute('name', node.name!);
+  if (node.property != null) element.setAttribute('property', node.property!);
+  if (node.httpEquiv != null) {
+    element.setAttribute('http-equiv', node.httpEquiv!);
+  }
+  validateBloomAttribute('content', node.content);
+  element.setAttribute('content', node.content);
+  if (existing == null) web.document.head?.appendChild(element);
+  region.add(() {
+    if (existing == null) {
+      element.remove();
+    } else if (previousContent == null) {
+      element.removeAttribute('content');
+    } else {
+      element.setAttribute('content', previousContent);
+    }
+  });
+}
+
+void _mountHeadLink(HeadLink node, _Region region) {
+  _validateDomAttributeName('rel');
+  validateBloomAttribute('rel', node.rel);
+  _validateDomAttributeName('href');
+  validateBloomAttribute('href', node.href);
+  final links = web.document.head?.querySelectorAll('link');
+  web.Element? existing;
+  if (links != null) {
+    for (var i = 0; i < links.length; i++) {
+      final candidate = links.item(i) as web.Element?;
+      if (candidate != null &&
+          candidate.getAttribute('rel') == node.rel &&
+          candidate.getAttribute('href') == node.href) {
+        existing = candidate;
+        break;
+      }
+    }
+  }
+  if (existing != null) return;
+  final element = web.document.createElement('link');
+  element.setAttribute('rel', node.rel);
+  element.setAttribute('href', node.href);
+  for (final entry
+      in node.attrs?.entries ?? const <MapEntry<String, String>>[]) {
+    _validateDomAttributeName(entry.key);
+    validateBloomAttribute(entry.key, entry.value);
+    element.setAttribute(entry.key, entry.value);
+  }
+  web.document.head?.appendChild(element);
+  region.add(() {
+    element.remove();
+  });
+}
 
 /// When `true`, uncaught errors thrown while mounting or rendering a tree display
 /// a full-screen visual error overlay ([renderDevErrorOverlay]) in the browser DOM
@@ -662,6 +858,15 @@ List<web.Node> _mountNode(
   _Region region,
 ) {
   switch (node) {
+    case Title():
+      _mountTitle(node, region);
+      return const [];
+    case Meta():
+      _mountMeta(node, region);
+      return const [];
+    case HeadLink():
+      _mountHeadLink(node, region);
+      return const [];
     case HmrComponentNode(:final id, :final child):
       if (!_isHotReloadTrackingActive()) return _mountNode(child, region);
       final componentRegion = _Region();
@@ -887,6 +1092,7 @@ List<web.Node> _mountNode(
     case MountNode(
         :final child,
         :final onMount,
+        :final onMountElement,
         :final onUnmount,
         :final hotReloadScopeId
       ):
@@ -895,9 +1101,19 @@ List<web.Node> _mountNode(
       final unmountSignalScope =
           _captureBranchSignalScope(hotReloadScopeId, 'onUnmount');
       final nodes = _mountNode(child, region);
-      if (onMount != null) {
-        Future.microtask(
-            () => _withCapturedBloomSignalScope(mountSignalScope, onMount));
+      if (onMount != null || onMountElement != null) {
+        final firstElement = _firstElement(nodes);
+        Future.microtask(() {
+          if (onMount != null) {
+            _withCapturedBloomSignalScope(mountSignalScope, onMount);
+          }
+          if (onMountElement != null && firstElement != null) {
+            _withCapturedBloomSignalScope(
+              mountSignalScope,
+              () => onMountElement(_BrowserBloomElement(firstElement)),
+            );
+          }
+        });
       }
       if (onUnmount != null) {
         region.add(
@@ -2496,6 +2712,12 @@ String _commentText(web.Node n) => (n as web.Comment).data;
 
 String _describeNode(BloomNode node) {
   switch (node) {
+    case Title():
+      return 'Title';
+    case Meta():
+      return 'Meta';
+    case HeadLink():
+      return 'HeadLink';
     case HmrComponentNode():
       return 'HMR component';
     case TextNode():
@@ -2619,6 +2841,18 @@ int _hydrateNode(
         if (existing.textContent != css) existing.textContent = css;
         return 1;
 
+      case Title():
+        _mountTitle(desc, region);
+        return 0;
+
+      case Meta():
+        _mountMeta(desc, region);
+        return 0;
+
+      case HeadLink():
+        _mountHeadLink(desc, region);
+        return 0;
+
       case FragmentNode(:final children):
         var consumed = 0;
         for (final child in children) {
@@ -2734,6 +2968,7 @@ int _hydrateNode(
       case MountNode(
           :final child,
           :final onMount,
+          :final onMountElement,
           :final onUnmount,
           :final hotReloadScopeId
         ):
@@ -2743,9 +2978,25 @@ int _hydrateNode(
             _captureBranchSignalScope(hotReloadScopeId, 'onUnmount');
         final consumed =
             _hydrateNode(child, sibs, index, parentLive, region, hctx);
-        if (onMount != null) {
-          Future.microtask(
-              () => _withCapturedBloomSignalScope(mountSignalScope, onMount));
+        web.Element? firstElement;
+        for (var i = index; i < index + consumed && i < sibs.length; i++) {
+          if (sibs[i].isA<web.Element>()) {
+            firstElement = sibs[i] as web.Element;
+            break;
+          }
+        }
+        if (onMount != null || onMountElement != null) {
+          Future.microtask(() {
+            if (onMount != null) {
+              _withCapturedBloomSignalScope(mountSignalScope, onMount);
+            }
+            if (onMountElement != null && firstElement != null) {
+              _withCapturedBloomSignalScope(
+                mountSignalScope,
+                () => onMountElement(_BrowserBloomElement(firstElement!)),
+              );
+            }
+          });
         }
         if (onUnmount != null) {
           region.add(() =>

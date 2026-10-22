@@ -54,9 +54,8 @@ class BloomTestRenderer {
   ///
   /// Returns `null` if no matching element is found.
   ElNode? queryByTestId(String testId) {
-    final found =
-        _find(root, (n) =>
-            n is ElNode && _attributeValue(n, 'data-testid') == testId);
+    final found = _find(root,
+        (n) => n is ElNode && _attributeValue(n, 'data-testid') == testId);
     return found as ElNode?;
   }
 
@@ -211,6 +210,9 @@ BloomNode? _find(BloomNode node, bool Function(BloomNode) predicate) {
 
 List<BloomNode> _childrenOf(BloomNode node) {
   return switch (node) {
+    Title() => const [],
+    Meta() => const [],
+    HeadLink() => const [],
     HmrComponentNode(:final child) => [child],
     ElNode(:final children) => children,
     FragmentNode(:final children) => children,

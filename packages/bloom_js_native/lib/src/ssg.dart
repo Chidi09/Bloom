@@ -34,6 +34,7 @@ class SsgResult {
 ///       '/about': () => Div(text: 'About page'),
 ///     },
 ///     title: 'My Bloom App',
+///     stylesheets: ['/css/reset.css', '/css/design-system.css'],
 ///     titleFor: (path) => path == '/about' ? 'About Us' : 'Home',
 ///   );
 ///   print('Rendered ${result.pageCount} pages (${result.writtenFiles.length} files total).');
@@ -46,6 +47,9 @@ Future<SsgResult> generateStaticSite({
   String? title,
   String Function(String path)? titleFor,
   List<BloomNode> head = const [],
+
+  /// Stylesheets shared by every generated page.
+  List<String> stylesheets = const [],
   String lang = 'en',
   String appElementId = 'app',
   String mainScript = 'main.js',
@@ -170,6 +174,7 @@ Future<SsgResult> generateStaticSite({
       lang: lang,
       title: pageTitle,
       head: combinedHead,
+      stylesheets: stylesheets,
     );
 
     final String destRelPath;

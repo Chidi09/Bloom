@@ -157,6 +157,11 @@ void _render(BloomNode node, StringBuffer buf,
     [_SuspenseHook? onSuspense, _TextContext? textCtx]) {
   textCtx ??= _TextContext();
   switch (node) {
+    case Title():
+    case Meta():
+    case HeadLink():
+      break;
+
     case HmrComponentNode(:final child):
       _render(child, buf, onSuspense, textCtx);
 
@@ -602,25 +607,69 @@ String renderToDocument(
   List<DocumentScript> scriptTags = const [],
 }) {
   return runZoned(() {
+    final headNodes = <BloomNode>[];
+    _collectDocumentHead(body, headNodes);
+    for (final node in head) {
+      _collectDocumentHead(node, headNodes);
+    }
+    final titles = headNodes.whereType<Title>().toList();
+    final documentTitle = titles.isEmpty ? title : titles.last.text;
+    final metas = <Meta>[];
+    final metaIndexes = <String, int>{};
+    final links = <HeadLink>[];
+    final linkIndexes = <String, int>{};
+    for (final node in headNodes) {
+      if (node is Meta) {
+        final key = _metaKey(node);
+        if (key != null && metaIndexes.containsKey(key)) {
+          metas[metaIndexes[key]!] = node;
+        } else {
+          if (key != null) metaIndexes[key] = metas.length;
+          metas.add(node);
+        }
+      } else if (node is HeadLink) {
+        final key = '${node.rel}\u0000${node.href}';
+        if (linkIndexes.containsKey(key)) {
+          links[linkIndexes[key]!] = node;
+        } else {
+          linkIndexes[key] = links.length;
+          links.add(node);
+        }
+      }
+    }
+    final allLinks = <HeadLink>[
+      for (final url in stylesheets) HeadLink(rel: 'stylesheet', href: url),
+      ...links,
+    ];
+    final uniqueLinks = <HeadLink>[];
+    final seenLinks = <String>{};
+    for (final link in allLinks) {
+      final key = '${link.rel}\u0000${link.href}';
+      if (seenLinks.add(key)) uniqueLinks.add(link);
+    }
     final buf = StringBuffer();
     buf.write('<!DOCTYPE html>\n<html lang="${escapeHtml(lang)}">\n<head>\n');
     buf.write('<meta charset="${escapeHtml(charset)}">\n');
     buf.write(
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n');
-    if (title != null) {
-      buf.write('<title>${escapeHtml(title)}</title>\n');
+    if (documentTitle != null) {
+      buf.write('<title>${escapeHtml(documentTitle)}</title>\n');
+    }
+    for (final meta in metas) {
+      _writeHeadMeta(meta, buf);
     }
     if (importMapJson != null) {
       buf.write(
           '<script type="importmap">${escapeBloomJsonForScript(importMapJson)}</script>\n');
     }
-    for (final url in stylesheets) {
-      validateBloomAttribute('href', url);
-      buf.write('<link rel="stylesheet" href="${escapeHtml(url)}">\n');
+    for (final link in uniqueLinks) {
+      _writeHeadLink(link, buf);
     }
     for (final node in head) {
-      _render(node, buf);
-      buf.write('\n');
+      if (node is! Title && node is! Meta && node is! HeadLink) {
+        _render(node, buf);
+        buf.write('\n');
+      }
     }
     for (final script in scriptTags) {
       validateBloomAttribute('src', script.src);
@@ -644,6 +693,105 @@ String renderToDocument(
     buf.write('</body>\n</html>');
     return buf.toString();
   }, zoneValues: {_keyframesZoneKey: <String>{}});
+}
+
+String? _metaKey(Meta node) {
+  if (node.name != null) return 'name:${node.name}';
+  if (node.property != null) return 'property:${node.property}';
+  if (node.httpEquiv != null) return 'http-equiv:${node.httpEquiv}';
+  return null;
+}
+
+void _writeHeadMeta(Meta node, StringBuffer buf) {
+  buf.write('<meta');
+  if (node.name != null) _writeHeadAttribute('name', node.name!, buf);
+  if (node.property != null) {
+    _writeHeadAttribute('property', node.property!, buf);
+  }
+  if (node.httpEquiv != null) {
+    _writeHeadAttribute('http-equiv', node.httpEquiv!, buf);
+  }
+  _writeHeadAttribute('content', node.content, buf);
+  buf.write('>\n');
+}
+
+void _writeHeadLink(HeadLink node, StringBuffer buf) {
+  buf.write('<link');
+  _writeHeadAttribute('rel', node.rel, buf);
+  _writeHeadAttribute('href', node.href, buf);
+  for (final entry
+      in node.attrs?.entries ?? const <MapEntry<String, String>>[]) {
+    if (entry.key == 'rel' || entry.key == 'href') continue;
+    _writeHeadAttribute(entry.key, entry.value, buf);
+  }
+  buf.write('>\n');
+}
+
+void _writeHeadAttribute(String name, String value, StringBuffer buf) {
+  _validateAttributeName(name);
+  validateBloomAttribute(name, value);
+  buf.write(' $name="${escapeHtml(value)}"');
+}
+
+void _collectDocumentHead(BloomNode node, List<BloomNode> found) {
+  switch (node) {
+    case Title():
+    case Meta():
+    case HeadLink():
+      found.add(node);
+    case HmrComponentNode(:final child):
+      _collectDocumentHead(child, found);
+    case ElNode(:final children):
+      for (final child in children) {
+        _collectDocumentHead(child, found);
+      }
+    case FragmentNode(:final children):
+      for (final child in children) {
+        _collectDocumentHead(child, found);
+      }
+    case AnimatedNode(:final child):
+      _collectDocumentHead(child, found);
+    case LiveNode(:final builder):
+      _collectDocumentHead(builder(), found);
+    case MemoNode():
+      _collectDocumentHead(
+        node.builderErased(node.dependencyErased()),
+        found,
+      );
+    case ShowNode(:final child, :final fallback):
+      if (node.when()) {
+        _collectDocumentHead(child, found);
+      } else if (fallback != null) {
+        _collectDocumentHead(fallback, found);
+      }
+    case ForEachNode():
+      for (final child in node.buildChildren()) {
+        _collectDocumentHead(child, found);
+      }
+    case MountNode(:final child):
+      _collectDocumentHead(child, found);
+    case RefNode(:final child):
+      _collectDocumentHead(child, found);
+    case ContextProviderNode(:final context, :final value, :final child):
+      runZoned(
+        () => _collectDocumentHead(child, found),
+        zoneValues: {context.zoneKey: value},
+      );
+    case ErrorBoundaryNode(:final builder, :final fallback):
+      try {
+        _collectDocumentHead(builder(), found);
+      } catch (error, stack) {
+        _collectDocumentHead(fallback(error, stack), found);
+      }
+    case PortalNode(:final child):
+      _collectDocumentHead(child, found);
+    case SuspenseNode(:final fallback):
+      _collectDocumentHead(fallback, found);
+    case TextNode():
+    case RawHtmlNode():
+    case StyleNode():
+      break;
+  }
 }
 
 /// Synchronously renders [node] to an HTML string and streams the output in fixed 4KB chunks.

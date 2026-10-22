@@ -127,6 +127,17 @@ void main() {
       expect(html, '<style>a{color:red}</style>');
     });
 
+    test('head descriptors render no body HTML', () {
+      expect(
+        renderToHtml(Fragment(children: const [
+          Title('Page title'),
+          Meta(name: 'description', content: 'A page'),
+          HeadLink(rel: 'icon', href: '/favicon.ico'),
+        ])),
+        isEmpty,
+      );
+    });
+
     test('Style node neutralizes mixed-case HTML closing tags', () {
       final html = renderToHtml(Style('a{color:red}</STYLE><script>alert(1)'));
       expect(html, contains(r'<\/STYLE>'));
@@ -318,9 +329,12 @@ void main() {
             name: 'roles', required: true, multiple: true, disabled: true)),
         contains('name="roles"'),
       );
-      expect(renderToHtml(Select(required: true)), contains('required="required"'));
-      expect(renderToHtml(Select(multiple: true)), contains('multiple="multiple"'));
-      expect(renderToHtml(Select(disabled: true)), contains('disabled="disabled"'));
+      expect(renderToHtml(Select(required: true)),
+          contains('required="required"'));
+      expect(renderToHtml(Select(multiple: true)),
+          contains('multiple="multiple"'));
+      expect(renderToHtml(Select(disabled: true)),
+          contains('disabled="disabled"'));
       expect(renderToHtml(Button(type: ButtonType.reset, disabled: true)),
           '<button type="reset" disabled="disabled"></button>');
       expect(InputType.datetimeLocal, 'datetime-local');
@@ -445,6 +459,92 @@ void main() {
     test('includes stylesheets', () {
       final html = renderToDocument(Div(), stylesheets: ['/app.css']);
       expect(html, contains('<link rel="stylesheet" href="/app.css">'));
+    });
+
+    test('hoists stylesheet links from the body and includes media', () {
+      final html = renderToDocument(
+        Fragment(children: const [
+          StylesheetLink('/css/site.css'),
+          StylesheetLink('/css/print.css', media: 'print'),
+        ]),
+      );
+      expect(html, contains('<link rel="stylesheet" href="/css/site.css">'));
+      expect(
+        html,
+        contains(
+          '<link rel="stylesheet" href="/css/print.css" media="print">',
+        ),
+      );
+      expect(
+        RegExp('<link rel="stylesheet" href="/css/site.css"')
+            .allMatches(html)
+            .length,
+        1,
+      );
+      final body = html.substring(html.indexOf('<body>'));
+      expect(body, isNot(contains('/css/site.css')));
+    });
+
+    test('hoists and deduplicates title, metadata, and links safely', () {
+      final html = renderToDocument(
+        Fragment(children: [
+          const Title('Old'),
+          const Meta(name: 'description', content: 'old'),
+          const Meta(property: 'og:title', content: 'Old metadata title'),
+          const Meta(httpEquiv: 'refresh', content: '1;url=/old'),
+          const HeadLink(rel: 'icon', href: '/icon?a=1&b=2'),
+          Live(() => Fragment(children: [
+                const Title('New <title>'),
+                const Meta(name: 'description', content: 'last & best'),
+                const Meta(property: 'og:title', content: 'New & title'),
+                const Meta(httpEquiv: 'refresh', content: '5;url=/new'),
+                const HeadLink(rel: 'icon', href: '/icon?a=1&b=2'),
+              ])),
+        ]),
+        title: 'Parameter title',
+      );
+
+      expect(html, contains('<title>New &lt;title&gt;</title>'));
+      expect(html, isNot(contains('<title>Old</title>')));
+      expect(html, isNot(contains('Parameter title')));
+      expect(
+        html,
+        contains('<meta name="description" content="last &amp; best">'),
+      );
+      expect(
+        html,
+        contains('<meta property="og:title" content="New &amp; title">'),
+      );
+      expect(
+        html,
+        contains('<meta http-equiv="refresh" content="5;url=/new">'),
+      );
+      expect(html, contains('<link rel="icon" href="/icon?a=1&amp;b=2">'));
+      expect(RegExp('<meta name="description"').allMatches(html).length, 1);
+      expect(RegExp('<meta property="og:title"').allMatches(html).length, 1);
+      expect(RegExp('<meta http-equiv="refresh"').allMatches(html).length, 1);
+      expect(RegExp('<link rel="icon"').allMatches(html).length, 1);
+      final body = html.substring(html.indexOf('<body>'));
+      expect(body, isNot(contains('New')));
+    });
+
+    test('validates head descriptor attributes before rendering', () {
+      expect(
+        () => renderToDocument(
+          const HeadLink(rel: 'stylesheet', href: 'javascript:alert(1)'),
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => renderToDocument(
+          const HeadLink(
+            rel: 'stylesheet',
+            href: '/safe.css',
+            attrs: {'onload': 'alert(1)'},
+          ),
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('includes head nodes', () {

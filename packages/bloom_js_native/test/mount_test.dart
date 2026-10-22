@@ -1,6 +1,8 @@
 @TestOn('browser')
 library;
 
+import 'dart:js_interop';
+
 import 'package:bloom_js_native/bloom_js_native.dart';
 import 'package:bloom_js_native/browser.dart';
 import 'package:test/test.dart';
@@ -19,6 +21,170 @@ void main() {
   });
 
   group('mountToElement DOM rendering', () {
+    test('Mount exposes its first element through BloomElement', () async {
+      BloomElement? mountedElement;
+      final handle = mountToElement(
+        Mount(
+          Input(),
+          onMountElement: (element) => mountedElement = element,
+        ),
+        container,
+      );
+      addTearDown(handle.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      expect(mountedElement, isNotNull);
+      expect(mountedElement!.tagName.toLowerCase(), 'input');
+      mountedElement!.focus();
+      expect(web.document.activeElement, equals(mountedElement!.raw));
+    });
+
+    test('Mount exposes its first element during hydration', () async {
+      BloomElement? mountedElement;
+      final tree = Mount(
+        Input(),
+        onMountElement: (element) => mountedElement = element,
+      );
+      container.innerHTML = renderToHtml(tree).toJS;
+      final handle = hydrateToElement(tree, container);
+      addTearDown(handle.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      expect(mountedElement, isNotNull);
+      expect(mountedElement!.tagName.toLowerCase(), 'input');
+      mountedElement!.focus();
+      expect(web.document.activeElement, equals(mountedElement!.raw));
+    });
+
+    test('BloomElement rejects executable href attributes', () async {
+      Object? failure;
+      final handle = mountToElement(
+        Mount(
+          A(href: '/safe'),
+          onMountElement: (element) {
+            try {
+              element.setAttribute('href', 'javascript:alert(1)');
+            } catch (error) {
+              failure = error;
+            }
+          },
+        ),
+        container,
+      );
+      addTearDown(handle.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      expect(failure, isA<ArgumentError>());
+      expect(container.querySelector('a')!.getAttribute('href'), '/safe');
+    });
+
+    test('Title sets and restores document.title', () {
+      final previous = web.document.title;
+      final handle = mountToElement(Title('Mounted title'), container);
+      expect(web.document.title, 'Mounted title');
+      handle.dispose();
+      expect(web.document.title, previous);
+    });
+
+    test('Meta upserts and restores an existing meta content', () {
+      final meta = web.document.createElement('meta');
+      meta.setAttribute('name', 'bloom-test-description');
+      meta.setAttribute('content', 'before');
+      web.document.head!.appendChild(meta);
+      addTearDown(() {
+        meta.remove();
+      });
+
+      final handle = mountToElement(
+        const Meta(name: 'bloom-test-description', content: 'during'),
+        container,
+      );
+      expect(meta.getAttribute('content'), 'during');
+      expect(
+        web.document.head!
+            .querySelectorAll('meta[name="bloom-test-description"]')
+            .length,
+        1,
+      );
+      handle.dispose();
+      expect(meta.getAttribute('content'), 'before');
+    });
+
+    test('Meta removes an element it created when unmounted', () {
+      final handle = mountToElement(
+        const Meta(property: 'bloom-test-property', content: 'Mounted'),
+        container,
+      );
+      expect(
+        web.document.head!
+            .querySelectorAll('meta[property="bloom-test-property"]')
+            .length,
+        1,
+      );
+      handle.dispose();
+      expect(
+        web.document.head!
+            .querySelectorAll('meta[property="bloom-test-property"]')
+            .length,
+        0,
+      );
+    });
+
+    test('HeadLink adds and removes its link when unmounted', () {
+      final handle = mountToElement(
+        const HeadLink(rel: 'icon', href: '/mounted-icon.ico'),
+        container,
+      );
+      expect(
+          web.document.head!
+              .querySelectorAll('link[rel="icon"][href="/mounted-icon.ico"]')
+              .length,
+          1);
+      handle.dispose();
+      expect(
+          web.document.head!
+              .querySelectorAll('link[rel="icon"][href="/mounted-icon.ico"]')
+              .length,
+          0);
+    });
+
+    test('HeadLink reuses an identical existing link', () {
+      final existing = web.document.createElement('link');
+      existing.setAttribute('rel', 'icon');
+      existing.setAttribute('href', '/existing-icon.ico');
+      web.document.head!.appendChild(existing);
+      addTearDown(() {
+        existing.remove();
+      });
+
+      final handle = mountToElement(
+        const HeadLink(rel: 'icon', href: '/existing-icon.ico'),
+        container,
+      );
+      expect(
+        web.document.head!
+            .querySelectorAll('link[rel="icon"][href="/existing-icon.ico"]')
+            .length,
+        1,
+      );
+      handle.dispose();
+      expect(existing.parentNode, isNotNull);
+    });
+
+    test('Live updates document.title and restores it on unmount', () {
+      final previous = web.document.title;
+      final count = signal(1);
+      final handle = mountToElement(
+        Live(() => Title('Cart (${count.value})')),
+        container,
+      );
+      expect(web.document.title, 'Cart (1)');
+      count.value = 2;
+      expect(web.document.title, 'Cart (2)');
+      handle.dispose();
+      expect(web.document.title, previous);
+    });
+
     test('rejects executable attributes before inserting the element', () {
       expect(
         () => mountToElement(
