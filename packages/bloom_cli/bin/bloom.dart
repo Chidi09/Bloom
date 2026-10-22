@@ -37,6 +37,7 @@ import '../lib/src/commands/typegen_command.dart';
 import '../lib/src/commands/ui_command.dart';
 import '../lib/src/commands/update_command.dart';
 import '../lib/src/commands/upgrade_command.dart';
+import '../lib/src/upgrade/update_notifier.dart';
 import '../lib/src/commands/why_command.dart';
 import '../lib/src/commands/workspace_command.dart';
 import '../lib/src/utils/ansi.dart';
@@ -104,17 +105,30 @@ Future<void> main(List<String> args) async {
     exit(0);
   }
 
+  final notifier = UpdateNotifier.forCli();
+  final notify = UpdateNotifier.shouldRun(
+    args,
+    Platform.environment,
+    hasTerminal: stderr.hasTerminal,
+  );
+  if (notify) notifier.start();
+
+  var code = 0;
   try {
-    final exitCode = await runner.run(args);
-    exit(exitCode ?? 0);
+    code = await runner.run(args) ?? 0;
   } on UsageException catch (e) {
     print(Ansi.error(e.message));
     print('');
     print(e.usage);
-    exit(64);
+    code = 64;
   } catch (e, st) {
     print(Ansi.error('Unexpected error: $e'));
     print(st);
-    exit(1);
+    code = 1;
   }
+  if (notify) {
+    final notice = await notifier.finish();
+    if (notice != null) stderr.writeln(notice);
+  }
+  exit(code);
 }

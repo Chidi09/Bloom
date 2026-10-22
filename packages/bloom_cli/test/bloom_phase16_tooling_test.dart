@@ -3,10 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:bloom_cli/src/commands/doctor_command.dart';
 import 'package:bloom_cli/src/commands/graph_command.dart';
-import 'package:bloom_cli/src/commands/upgrade_command.dart';
 import 'package:bloom_cli/src/explain/explain_engine.dart';
 import 'package:bloom_cli/src/registry/package_registry.dart';
-import 'package:bloom_cli/src/upgrade/breaking_change_analyzer.dart';
 import 'package:bloom_cli/src/utils/project.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -26,7 +24,7 @@ void main() {
     }
   });
 
-  Directory _createTestProject(Directory parentDir, {bool withDeprecatedApis = false, bool withSecret = false}) {
+  Directory _createTestProject(Directory parentDir, {bool withSecret = false}) {
     final projDir = Directory(p.join(parentDir.path, 'upgrade_app'))..createSync(recursive: true);
 
     File(p.join(projDir.path, 'pubspec.yaml')).writeAsStringSync('''
@@ -87,24 +85,6 @@ class UserProfileScreen extends StatelessWidget {
 }
 ''');
 
-    if (withDeprecatedApis) {
-      File(p.join(projDir.path, 'lib', 'legacy_service.dart')).writeAsStringSync('''
-import 'package:bloom_framework/bloom.dart';
-
-class CustomGuard extends RouteGuard {
-  bool canActivate() => true;
-}
-
-class AuthService {
-  void checkUser() {
-    final user = BloomAuth.currentUser;
-    print(user);
-    BloomRouter.pushNamed('/dashboard');
-  }
-}
-''');
-    }
-
     if (withSecret) {
       File(p.join(projDir.path, 'lib', 'config_secrets.dart')).writeAsStringSync('''
 const awsKey = 'AKIAIOSFODNN7EXAMPLE';
@@ -113,74 +93,6 @@ const awsKey = 'AKIAIOSFODNN7EXAMPLE';
 
     return projDir;
   }
-
-  group('Phase 16: Automated Framework Upgrades (bloom upgrade) (C1, C2)', () {
-    test('bloom upgrade --dry-run computes real diffs without altering files (C1)', () async {
-      final projectDir = _createTestProject(tempDir, withDeprecatedApis: true);
-      final pubspecBefore = File(p.join(projectDir.path, 'pubspec.yaml')).readAsStringSync();
-      final yamlBefore = File(p.join(projectDir.path, 'bloom.yaml')).readAsStringSync();
-      final legacyBefore = File(p.join(projectDir.path, 'lib', 'legacy_service.dart')).readAsStringSync();
-
-      final runner = CommandRunner<int>('bloom', 'Bloom CLI')
-        ..addCommand(UpgradeCommand());
-
-      final exitCode = await runner.run(['upgrade', '--project-dir', projectDir.path, '--dry-run', '--target', '2.0.0']);
-      expect(exitCode, 0);
-
-      // Verify files remain byte-identical after dry-run
-      expect(File(p.join(projectDir.path, 'pubspec.yaml')).readAsStringSync(), equals(pubspecBefore));
-      expect(File(p.join(projectDir.path, 'bloom.yaml')).readAsStringSync(), equals(yamlBefore));
-      expect(File(p.join(projectDir.path, 'lib', 'legacy_service.dart')).readAsStringSync(), equals(legacyBefore));
-    });
-
-    test('bloom upgrade applies real migrations to pubspec, bloom.yaml and AST code (C2)', () async {
-      final projectDir = _createTestProject(tempDir, withDeprecatedApis: true);
-
-      final runner = CommandRunner<int>('bloom', 'Bloom CLI')
-        ..addCommand(UpgradeCommand());
-
-      final exitCode = await runner.run(['upgrade', '--project-dir', projectDir.path, '--target', '2.0.0']);
-      expect(exitCode, 0);
-
-      // 1. Check pubspec.yaml updated
-      final pubspecAfter = File(p.join(projectDir.path, 'pubspec.yaml')).readAsStringSync();
-      expect(pubspecAfter, contains('bloom_framework: ^2.0.0'));
-      expect(pubspecAfter, contains('version: 2.0.0'));
-
-      // 2. Check bloom.yaml updated
-      final yamlAfter = File(p.join(projectDir.path, 'bloom.yaml')).readAsStringSync();
-      expect(yamlAfter, contains('version: 2.0.0'));
-      expect(yamlAfter, contains('schema: 2'));
-
-      // 3. Check AST code rewrites
-      final legacyAfter = File(p.join(projectDir.path, 'lib', 'legacy_service.dart')).readAsStringSync();
-      expect(legacyAfter, contains('Bloom.auth.currentUser'));
-      expect(legacyAfter, contains('BloomRouter.go('));
-      expect(legacyAfter, contains('class CustomGuard implements BloomGuard'));
-    });
-  });
-
-  group('Phase 16: Breaking-Change Analyzer (bloom doctor --upgrade) (C3)', () {
-    test('Detects deprecated symbols with file:line and remediation (C3)', () async {
-      final projectDir = _createTestProject(tempDir, withDeprecatedApis: true);
-      final project = BloomProject.find(projectDir)!;
-
-      final analyzer = BreakingChangeAnalyzer(project);
-      final report = analyzer.analyze(targetVersion: '2.0.0');
-
-      expect(report.isCompatible, isFalse);
-      expect(report.findings.length, greaterThanOrEqualTo(3));
-
-      final routeGuardFinding = report.findings.firstWhere((f) => f.deprecatedSymbol == 'RouteGuard');
-      expect(routeGuardFinding.filePath, 'lib/legacy_service.dart');
-      expect(routeGuardFinding.lineNumber, 3);
-      expect(routeGuardFinding.remediation, contains('BloomGuard'));
-
-      final authFinding = report.findings.firstWhere((f) => f.deprecatedSymbol == 'BloomAuth.currentUser');
-      expect(authFinding.filePath, 'lib/legacy_service.dart');
-      expect(authFinding.lineNumber, 9);
-    });
-  });
 
   group('Phase 16: Continuous CI Doctor Agent (bloom doctor --ci) (C4)', () {
     test('bloom doctor --ci returns non-zero when problem is seeded (C4)', () async {

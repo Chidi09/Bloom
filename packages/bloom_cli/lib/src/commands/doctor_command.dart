@@ -1,5 +1,4 @@
 // lib/src/commands/doctor_command.dart
-import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../commands/audit_command.dart';
@@ -7,7 +6,8 @@ import '../deployment/deployment_doctor_check.dart';
 import '../dev/mdns_discovery.dart';
 import '../native/autolink_engine.dart';
 import '../security/secret_scanner.dart';
-import '../upgrade/breaking_change_analyzer.dart';
+import '../upgrade/upgrade_engine.dart';
+import '../upgrade/update_notifier.dart';
 import '../utils/ansi.dart';
 import '../utils/manifest_validator.dart';
 import '../utils/project.dart';
@@ -16,7 +16,7 @@ import '../version.dart';
 /// Command that validates environment, toolchain, project configuration, and CI health.
 ///
 /// Inspects Dart and Flutter SDKs, native mobile toolchains, mDNS network interfaces,
-/// dependency CVEs, secret leaks, upgrade breaking-change compatibility, and Docker deployment readiness.
+/// dependency CVEs, secret leaks, package upgrade previews, and Docker deployment readiness.
 ///
 /// Example:
 /// ```
@@ -25,16 +25,19 @@ import '../version.dart';
 /// bloom doctor --upgrade
 /// ```
 class DoctorCommand extends Command<int> {
+  final UpgradeEnvironment? _upgradeEnvironment;
+
   @override
   final String name = 'doctor';
   @override
   final String description =
       'Validates environment, toolchain, project configuration, and CI health.';
 
-  DoctorCommand() {
+  DoctorCommand({UpgradeEnvironment? upgradeEnvironment})
+      : _upgradeEnvironment = upgradeEnvironment {
     argParser.addFlag(
       'upgrade',
-      help: 'Performs upgrade breaking-change compatibility analysis.',
+      help: 'Preview `bloom upgrade` (outdated Bloom packages and pending code fixes).',
       defaultsTo: false,
     );
     argParser.addFlag(
@@ -64,9 +67,11 @@ class DoctorCommand extends Command<int> {
             '✖ Not a valid Bloom project directory: ${projectDir.path}'));
         return 1;
       }
-      final analyzer = BreakingChangeAnalyzer(project);
-      final report = analyzer.analyze();
-      return report.isCompatible ? 0 : 1;
+      final result = await ProjectUpgrader(
+        project.rootDir,
+        _upgradeEnvironment ?? UpgradeEnvironment.real(),
+      ).run(dryRun: true);
+      return result.hasNewerVersion ? 1 : 0;
     }
 
     // 2. Check if --ci flag was requested
@@ -249,42 +254,17 @@ class DoctorCommand extends Command<int> {
 
   Future<void> _checkBloomCliVersion() async {
     stdout.write('  Checking bloom_cli version... ');
-    try {
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 3);
-      try {
-        final request = await client
-            .getUrl(Uri.parse('https://pub.dev/api/packages/bloom_cli'))
-            .timeout(const Duration(seconds: 3));
-        final response =
-            await request.close().timeout(const Duration(seconds: 3));
-        if (response.statusCode == 200) {
-          final body = await response
-              .transform(utf8.decoder)
-              .join()
-              .timeout(const Duration(seconds: 3));
-          final data = jsonDecode(body);
-          if (data is Map<String, dynamic>) {
-            final latest = data['latest'];
-            if (latest is Map<String, dynamic>) {
-              final latestVersion = latest['version'] as String?;
-              if (latestVersion != null && latestVersion.isNotEmpty) {
-                if (latestVersion == bloomCliVersion) {
-                  print(
-                      '${Ansi.green}✔ Up to date${Ansi.reset} ${Ansi.dimText('(v$bloomCliVersion)')}');
-                } else {
-                  print(
-                      '${Ansi.yellow}⚠ Update available${Ansi.reset} ${Ansi.dimText('(installed v$bloomCliVersion, latest v$latestVersion)')}');
-                }
-                return;
-              }
-            }
-          }
-        }
-      } finally {
-        client.close(force: true);
+    final latestVersion = await fetchLatestPubVersion('bloom_cli');
+    if (latestVersion != null) {
+      if (latestVersion == bloomCliVersion) {
+        print(
+            '${Ansi.green}✔ Up to date${Ansi.reset} ${Ansi.dimText('(v$bloomCliVersion)')}');
+      } else {
+        print(
+            '${Ansi.yellow}⚠ Update available${Ansi.reset} ${Ansi.dimText('(installed v$bloomCliVersion, latest v$latestVersion)')}');
       }
-    } catch (_) {}
+      return;
+    }
     print(Ansi.dimText(
         'ℹ Unable to check for updates (offline or not published) (installed v$bloomCliVersion)'));
   }

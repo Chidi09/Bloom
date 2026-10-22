@@ -1,5 +1,6 @@
 // lib/src/templates/templates.dart
 import '../utils/project.dart';
+import '../upgrade/agents_guide.dart';
 
 class BloomTemplates {
   /// Default `bloom.yaml` template
@@ -523,7 +524,8 @@ void main() {
   /// for AI coding agents (and humans) so they read the cookbook and the
   /// two-entry-point rule before writing code, instead of guessing.
   static String jsNativeAgentsMd({required String projectName}) {
-    return '''# $projectName — Bloom JS Native
+    return '''$agentsGuideStart
+# $projectName — Bloom JS Native
 
 This is a **Bloom JS Native** project: pure Dart, compiles to native
 JavaScript, no Flutter. Read this file before writing or editing any code.
@@ -869,6 +871,15 @@ Do not guess component parameter names or signatures. Core descriptors and
 UI primitives imported from `package:bloom_js_native/ui.dart` have real,
 verified signatures in COOKBOOK.md Section 19 ("UI Component Primitives") —
 read the relevant recipe before using one you haven't used before in this repo.
+
+## Upgrading
+
+Run `bloom upgrade` to update the CLI, bump Bloom packages across minor
+versions, fix known breaking changes, and refresh this guide. Run
+`bloom upgrade --dry-run` to preview the changes.
+$agentsGuideEnd
+
+<!-- Your own notes below this line are kept by `bloom upgrade`. -->
 ''';
   }
 

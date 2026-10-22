@@ -84,7 +84,7 @@ class UpdateCommand extends Command<int> {
   @override
   final String name = 'update';
   @override
-  final String description = 'Enterprise OTA update platform management (publish, rollout, rollback, fingerprint, check).';
+  final String description = 'Manage OTA patch updates for shipped apps (publish, rollout, rollback, check). To update Bloom itself, run `bloom upgrade`.';
 
   UpdateCommand() {
     addSubcommand(_UpdateCheckCommand());

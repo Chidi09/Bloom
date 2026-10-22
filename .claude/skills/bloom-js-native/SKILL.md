@@ -88,6 +88,7 @@ For UI component primitives (buttons, dialogs, selects, and so on), always read 
 - **Use `mountApp` for SSR or an empty client target.** It hydrates pre-rendered HTML in place and mounts when the target is empty. `mount` always appends a fresh app tree, so don't call it after SSR. Use `hydrate` when hydration of existing content is specifically required. Don't rely on `Raw('<script>…')` for required behavior: mismatch recovery can recreate DOM and inserted scripts don't reliably run.
 - **Dispose what holds external resources.** Mount handles, router controllers, virtualizers, island orchestrators, controllers, and queries all have `dispose`/`unmount`.
 - **Use the CLI for npm packages.** `bloom add npm:<pkg>` vendors the ESM bundle, generates a typed binding under `lib/src/plugins/`, and wires the import map. Never hand-write vendor files or `<script>` tags.
+- **Upgrade with `bloom upgrade`, not by editing version constraints.** It updates the CLI and the `bloom_*` packages across `0.x` minor versions, fixes known breaking changes (such as the `ui.dart` import 0.4.0 needs), and refreshes `AGENTS.md`. Run `bloom upgrade --dry-run` to preview. If code written from older docs fails with "Undefined name 'button'" or similar, the project probably needs this.
 
 ### Hot reload (`bloom js dev`)
 

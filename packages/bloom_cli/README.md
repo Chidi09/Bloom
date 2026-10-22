@@ -17,6 +17,12 @@ dart pub global activate bloom_cli
 
 Make sure your pub cache `bin` directory is added to your system `PATH`.
 
+To upgrade later, run `bloom upgrade`. Inside a project it also upgrades the
+project's Bloom packages and fixes known breaking changes; `--dry-run`
+previews, `--skip-cli` leaves the CLI alone. A one-line notice appears when a
+new release is out (`BLOOM_NO_UPDATE_CHECK=1` turns it off; it never runs in
+CI).
+
 ---
 
 ## 🛠️ Commands Overview
@@ -61,9 +67,9 @@ bloom graph
 # Package registry search
 bloom registry search
 
-# Automated framework upgrades & AST migrations
+# Upgrade the CLI and this project's Bloom packages, fixing breaking changes
 bloom upgrade
-bloom doctor --upgrade
+bloom upgrade --dry-run   # preview; same report as `bloom doctor --upgrade`
 ```
 
 ---

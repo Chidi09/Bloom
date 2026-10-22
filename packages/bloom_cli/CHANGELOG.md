@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 - 2026-10-22
+
+### Added
+* `bloom upgrade` now upgrades everything in one step: it updates the globally activated CLI when pub.dev has a newer release, then moves every hosted `bloom_*` dependency to its newest release with `pub upgrade --major-versions` (so `^0.x` constraints cross minor versions), applies code fixes for known breaking changes, reports remaining `dart analyze` errors, and refreshes `AGENTS.md`. `--dry-run` previews the plan and `--skip-cli` leaves the CLI alone.
+* Code fixes for bloom_js_native 0.4.0: files that use UI primitives get the `package:bloom_js_native/ui.dart` import (mirroring an `as` prefix), and quoted numeric `strokeWidth` arguments become numbers. Fixes only touch code the analyzer flags.
+* Generated `AGENTS.md` files have a managed block that `bloom upgrade` refreshes while keeping your own notes below it. Guides from older scaffolds are replaced and backed up to `AGENTS.md.bak`.
+* The CLI prints a one-line notice when a newer Bloom release is available, checking pub.dev at most once a day. It is off in CI and non-interactive shells, and `BLOOM_NO_UPDATE_CHECK=1` turns it off.
+
+### Changed
+* `bloom doctor --upgrade` previews `bloom upgrade` and exits 1 when Bloom packages are outdated.
+* `bloom update` describes itself as the OTA patch command and points to `bloom upgrade` for updating Bloom.
+
+### Fixed
+* The `bloom js dev` DevTools button shows the Bloom petal logo instead of a placeholder gradient square.
+
+### Removed
+* The previous `bloom upgrade --target` flow, which rewrote the app's own `version:` fields and applied migrations for APIs that do not exist.
+
 ## 0.8.0 - 2026-10-22
 
 ### Added

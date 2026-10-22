@@ -48,6 +48,10 @@ The scaffold includes `web/index.html`, the browser entry point, a smoke test,
 and the `bloom_js_native` dependency. Open the local URL printed by the dev
 server. Use `bloom js build` for an optimized production bundle.
 
+To move to a new Bloom release, run `bloom upgrade` in the project. It updates
+the CLI and `bloom_js_native` (across minor versions), adds imports and other
+fixes that breaking changes need, and refreshes `AGENTS.md`.
+
 For a custom `lib/main.dart`, import the pure-Dart API and browser API
 separately. `mountApp()` is browser-only and comes from `browser.dart`:
 

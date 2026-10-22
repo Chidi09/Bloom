@@ -48,7 +48,7 @@ With Bloom, you get:
 * 🔒 **Errors & Validation** (`bloom_errors`, `bloom_validate`) — Structured exception-to-response mapping and input validation.
 
 **Tooling**
-* 🚀 **CLI** (`bloom_cli`) — `bloom create`, `bloom dev`, `bloom doctor`, `bloom server create/startapp/run`, `bloom format`, `bloom lint`, and automated AST migrations (`bloom upgrade`).
+* 🚀 **CLI** (`bloom_cli`) — `bloom create`, `bloom dev`, `bloom doctor`, `bloom server create/startapp/run`, `bloom format`, `bloom lint`, and one-command upgrades (`bloom upgrade`).
 * 🔍 **Observability** — Automatic uncaught crash capture, breadcrumb logging timeline, and source map / dSYM symbol uploaders.
 
 ---
@@ -104,6 +104,9 @@ Bloom/
 dart pub global activate bloom_cli
 ```
 
+Already installed? `bloom upgrade` updates the CLI and the Bloom packages of
+the project you run it in, in one step (see [Upgrading](#upgrading)).
+
 ### 2. Create a New Application
 ```bash
 # Flutter application
@@ -143,6 +146,33 @@ bloom doctor --ci
 
 ---
 
+## Upgrading
+
+One command upgrades everything:
+
+```bash
+bloom upgrade            # run inside your project
+bloom upgrade --dry-run  # preview first; changes nothing
+```
+
+It:
+
+1. updates the `bloom` CLI itself when pub.dev has a newer release,
+2. bumps every hosted `bloom_*` dependency to the newest compatible release,
+   across minor versions too (a plain `dart pub upgrade` stays inside
+   `^0.x` and never moves you from 0.3 to 0.4),
+3. fixes known breaking changes in your code (for example, adding the
+   `package:bloom_js_native/ui.dart` import that 0.4.0 requires) and reports
+   anything `dart analyze` still flags,
+4. refreshes the Bloom-managed block of `AGENTS.md` so coding agents see the
+   current API.
+
+Your app's own `version:`, path/git dependencies and your notes in `AGENTS.md`
+are left alone. The CLI prints a one-line notice when a newer Bloom is out;
+set `BLOOM_NO_UPDATE_CHECK=1` to silence it (it is always off in CI).
+
+---
+
 ## 🛠️ CLI Commands Master Catalog
 
 | Command | Purpose |
@@ -151,7 +181,7 @@ bloom doctor --ci
 | `bloom server create <app>` / `startapp <name>` / `run` | Scaffolds and runs a Flutter-free Bloom backend project on `bloom_server` |
 | `bloom format` / `bloom lint` | Formats and lints Bloom JS-native projects |
 | `bloom dev` | Launches local development orchestrator with LAN discovery, hot reload, and TUI shortcuts |
-| `bloom doctor [--ci] [--upgrade]` | Runs system diagnostics, strict CI health checks, and breaking-change deprecation audits |
+| `bloom doctor [--ci] [--upgrade]` | Runs system diagnostics and strict CI health checks; `--upgrade` previews `bloom upgrade` |
 | `bloom add <plugin>` / `bloom remove <plugin>` | Adds or removes native plugins with zero-config autolinking |
 | `bloom deps` / `bloom why <pkg>` | Inspects the native dependency tree and explains why packages are included |
 | `bloom workspace [info\|sync]` | Inspects and syncs monorepo workspace dependencies |
@@ -162,7 +192,7 @@ bloom doctor --ci
 | `bloom explain route <path>` | Explains route hierarchy, dynamic URL parameters, layout nesting, and auth guards |
 | `bloom graph` | Generates visual dependency graphs in ASCII or Mermaid markdown formats |
 | `bloom registry search\|info` | Queries Bloom ecosystem package registry with CI verification badges |
-| `bloom upgrade [--dry-run]` | Upgrades dependencies and automatically executes AST code refactorings |
+| `bloom upgrade [--dry-run] [--skip-cli]` | Upgrades the CLI and the project's Bloom packages (across minor versions), fixes known breaking changes, and refreshes `AGENTS.md` |
 | `bloom symbols package\|upload` | Packages debug symbol maps and dSYMs and uploads to observability backend |
 | `bloom templates list` | Lists all official starter templates (`starter`, `ecommerce`, `social`, `fullstack`) |
 | `bloom analyze` | Executes strict framework linting and architectural convention checks |
