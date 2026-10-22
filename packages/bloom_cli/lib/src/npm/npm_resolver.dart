@@ -48,7 +48,8 @@ class NpmResolver {
   static const String _npmRegistryBase = 'https://registry.npmjs.org';
 
   final http.Client _client;
-  NpmResolver({http.Client? httpClient}) : _client = httpClient ?? http.Client();
+  NpmResolver({http.Client? httpClient})
+      : _client = httpClient ?? http.Client();
 
   /// Fetches comprehensive package metadata directly from the live NPM Registry API.
   Future<NpmPackageInfo?> fetchPackageMetadata(String packageName) async {
@@ -77,7 +78,18 @@ class NpmResolver {
         final versions = data['versions'] as Map<String, dynamic>?;
         if (versions != null && versions.containsKey(latestVersion)) {
           final verData = versions[latestVersion] as Map<String, dynamic>;
-          typesEntry = verData['types']?.toString() ?? verData['typings']?.toString();
+          typesEntry =
+              verData['types']?.toString() ?? verData['typings']?.toString();
+          if (typesEntry == null &&
+              verData['exports'] is Map<String, dynamic>) {
+            final exportsMap = verData['exports'] as Map<String, dynamic>;
+            final dotExport = exportsMap['.'];
+            if (dotExport is Map<String, dynamic>) {
+              typesEntry = dotExport['types']?.toString();
+            } else if (dotExport is String && dotExport.endsWith('.d.ts')) {
+              typesEntry = dotExport;
+            }
+          }
         }
 
         return NpmPackageInfo(
@@ -98,7 +110,8 @@ class NpmResolver {
   /// Searches the live NPM Registry API for packages matching [query].
   Future<List<NpmSearchResult>> search(String query, {int limit = 15}) async {
     try {
-      final uri = Uri.parse('$_npmRegistryBase/-/v1/search?text=${Uri.encodeQueryComponent(query)}&size=$limit');
+      final uri = Uri.parse(
+          '$_npmRegistryBase/-/v1/search?text=${Uri.encodeQueryComponent(query)}&size=$limit');
       final response = await _client.get(uri, headers: {
         'Accept': 'application/json',
         'User-Agent': 'Bloom-CLI/0.2.3',
@@ -109,14 +122,17 @@ class NpmResolver {
         final objects = data['objects'] as List<dynamic>? ?? [];
 
         return objects.map((obj) {
-          final pkg = (obj as Map<String, dynamic>)['package'] as Map<String, dynamic>;
-          final score = (obj['score'] as Map<String, dynamic>?)?['final'] as num? ?? 0.0;
+          final pkg =
+              (obj as Map<String, dynamic>)['package'] as Map<String, dynamic>;
+          final score =
+              (obj['score'] as Map<String, dynamic>?)?['final'] as num? ?? 0.0;
 
           return NpmSearchResult(
             name: pkg['name']?.toString() ?? '',
             version: pkg['version']?.toString() ?? 'latest',
             description: pkg['description']?.toString() ?? '',
-            author: (pkg['publisher'] as Map<String, dynamic>?)?['username']?.toString(),
+            author: (pkg['publisher'] as Map<String, dynamic>?)?['username']
+                ?.toString(),
             score: score.toDouble(),
           );
         }).toList();
@@ -129,14 +145,18 @@ class NpmResolver {
 
   /// Resolves 'latest' or semver tags to an exact version via NPM registry.
   Future<String> resolveVersion(String packageName, String version) async {
-    if (version != 'latest' && !version.contains('^') && !version.contains('~')) {
+    if (version != 'latest' &&
+        !version.contains('^') &&
+        !version.contains('~')) {
       return version;
     }
     final meta = await fetchPackageMetadata(packageName);
     if (meta != null && meta.version.isNotEmpty && meta.version != 'latest') {
       return meta.version;
     }
-    return version == 'latest' ? 'latest' : version.replaceAll('^', '').replaceAll('~', '');
+    return version == 'latest'
+        ? 'latest'
+        : version.replaceAll('^', '').replaceAll('~', '');
   }
 
   /// Matches esm.sh's thin re-export shim, e.g.
@@ -168,11 +188,13 @@ class NpmResolver {
     });
 
     if (response.statusCode != 200 && response.statusCode != 302) {
-      throw Exception('Failed to download from esm.sh: $esmUrl (HTTP ${response.statusCode})');
+      throw Exception(
+          'Failed to download from esm.sh: $esmUrl (HTTP ${response.statusCode})');
     }
 
     var body = response.body;
-    final targets = _shimReexport.allMatches(body).map((m) => m.group(1)!).toSet();
+    final targets =
+        _shimReexport.allMatches(body).map((m) => m.group(1)!).toSet();
 
     // If the response is (or starts with) a shim pointing elsewhere, follow
     // the first reference and vendor that content instead. esm.sh's shims

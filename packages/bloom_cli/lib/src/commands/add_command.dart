@@ -23,7 +23,8 @@ class AddCommand extends Command<int> {
   @override
   final String name = 'add';
   @override
-  final String description = 'Adds and configures a Bloom plugin or native NPM web package.\n'
+  final String description =
+      'Adds and configures a Bloom plugin or native NPM web package.\n'
       'Usage:\n'
       '  bloom add camera             # Native mobile plugin\n'
       '  bloom add motion             # Curated web plugin alias (@formkit/auto-animate)\n'
@@ -34,7 +35,8 @@ class AddCommand extends Command<int> {
   Future<int> run() async {
     final rest = argResults?.rest ?? [];
     if (rest.isEmpty) {
-      print(Ansi.error('Please specify a plugin or package name (e.g. "motion", "camera", "npm:three").'));
+      print(Ansi.error(
+          'Please specify a plugin or package name (e.g. "motion", "camera", "npm:three").'));
       return 1;
     }
 
@@ -48,7 +50,8 @@ class AddCommand extends Command<int> {
     final config = project.loadBloomConfig();
     final isWebProject = config['target'] == 'web_dom' ||
         config['target'] == 'web' ||
-        (config['platforms'] is Map && (config['platforms'] as Map).containsKey('web'));
+        (config['platforms'] is Map &&
+            (config['platforms'] as Map).containsKey('web'));
 
     final isNpmRequest = input.startsWith('npm:') || isWebProject;
 
@@ -60,23 +63,27 @@ class AddCommand extends Command<int> {
   }
 
   /// Adds a native mobile plugin via prebuild engine.
-  Future<int> _addNativePlugin(BloomProject project, String input, Map config) async {
+  Future<int> _addNativePlugin(
+      BloomProject project, String input, Map config) async {
     final pluginName = input.toLowerCase();
     final descriptor = BloomPluginCatalog.resolve(pluginName);
     if (descriptor == null) {
       print(Ansi.error('Unknown native plugin: "$pluginName".'));
-      print(Ansi.error('Supported native plugins: ${BloomPluginCatalog.supportedIds.join(', ')}.'));
+      print(Ansi.error(
+          'Supported native plugins: ${BloomPluginCatalog.supportedIds.join(', ')}.'));
       print(Ansi.info('To add an NPM web package, use: bloom add npm:$input'));
       return 1;
     }
 
     final canonicalName = descriptor.id;
-    print(Ansi.boldText('\n➕ Adding Bloom native plugin: ${Ansi.cyan}$canonicalName${Ansi.reset}\n'));
+    print(Ansi.boldText(
+        '\n➕ Adding Bloom native plugin: ${Ansi.cyan}$canonicalName${Ansi.reset}\n'));
 
     final yamlContent = project.bloomYamlFile.readAsStringSync();
     final editor = YamlEditor(yamlContent);
 
-    final plugins = config['plugins'] is List ? List.from(config['plugins'] as List) : [];
+    final plugins =
+        config['plugins'] is List ? List.from(config['plugins'] as List) : [];
 
     bool alreadyPresent = false;
     for (final p in plugins) {
@@ -92,7 +99,8 @@ class AddCommand extends Command<int> {
       project.bloomYamlFile.writeAsStringSync(editor.toString());
       print(Ansi.success('Updated bloom.yaml with plugin "$canonicalName".'));
     } else {
-      print(Ansi.info('Plugin "$canonicalName" already present in bloom.yaml.'));
+      print(
+          Ansi.info('Plugin "$canonicalName" already present in bloom.yaml.'));
     }
 
     final engine = PrebuildEngine(project);
@@ -102,8 +110,10 @@ class AddCommand extends Command<int> {
 
   /// Adds an NPM package dynamically from the official live NPM registry,
   /// downloads vendor ESM bundle, generates Dart @JS() interop, and updates importmap.
-  Future<int> _addNpmPackage(BloomProject project, String input, Map config) async {
-    final String packageSpec = input.startsWith('npm:') ? input.substring(4) : input;
+  Future<int> _addNpmPackage(
+      BloomProject project, String input, Map config) async {
+    final String packageSpec =
+        input.startsWith('npm:') ? input.substring(4) : input;
 
     final String pkgName;
     final String pkgVersion;
@@ -118,7 +128,8 @@ class AddCommand extends Command<int> {
       pkgVersion = parts.length > 1 ? parts[1] : 'latest';
     }
 
-    print(Ansi.boldText('\n📦 Resolving NPM package: ${Ansi.cyan}$pkgName${Ansi.reset} ($pkgVersion)...\n'));
+    print(Ansi.boldText(
+        '\n📦 Resolving NPM package: ${Ansi.cyan}$pkgName${Ansi.reset} ($pkgVersion)...\n'));
 
     final resolver = NpmResolver();
     final meta = await resolver.fetchPackageMetadata(pkgName);
@@ -126,11 +137,13 @@ class AddCommand extends Command<int> {
       print(Ansi.info('ℹ ${meta.description}'));
     }
 
-    final resolvedVersion = meta?.version ?? await resolver.resolveVersion(pkgName, pkgVersion);
+    final resolvedVersion =
+        meta?.version ?? await resolver.resolveVersion(pkgName, pkgVersion);
     final vendorFileName = _toVendorFilename(pkgName);
     final vendorPath = 'web/vendor/$vendorFileName';
 
-    print(Ansi.info('⬇️  Downloading ESM bundle ($resolvedVersion) into $vendorPath...'));
+    print(Ansi.info(
+        '⬇️  Downloading ESM bundle ($resolvedVersion) into $vendorPath...'));
     final esmUrl = await resolver.downloadVendorBundle(
       pkgName,
       resolvedVersion,
@@ -143,16 +156,20 @@ class AddCommand extends Command<int> {
     // a <style> tag on import) — there's no JS API surface to bind, so
     // skip Dart interop codegen for it entirely rather than emit a useless
     // guessed-member binding file nobody will import.
-    final isTailwindBrowser = pkgName == 'tailwindcss/browser' || pkgName == '@tailwindcss/browser';
+    final isTailwindBrowser =
+        pkgName == 'tailwindcss/browser' || pkgName == '@tailwindcss/browser';
     String? dartBindingPath;
     if (!isTailwindBrowser) {
       dartBindingPath = _toDartBindingPath(pkgName);
-      print(Ansi.info('⚡ Generating Dart 3.5+ @JS() extension types into $dartBindingPath...'));
+      print(Ansi.info(
+          '⚡ Generating Dart 3.5+ @JS() extension types into $dartBindingPath...'));
       final codegen = DtsCodegen();
       await codegen.generate(
         packageName: pkgName,
         version: resolvedVersion,
         outputPath: '${project.rootDir.path}/$dartBindingPath',
+        typesEntry: meta?.typesEntry,
+        bundlePath: '${project.rootDir.path}/$vendorPath',
       );
       print(Ansi.success('✓ Dart interop binding generated: $dartBindingPath'));
     }
@@ -166,15 +183,20 @@ class AddCommand extends Command<int> {
         ? '✓ Updated web/index.html: importmap entry + self-executing <script type="module"> that runs the Tailwind JIT engine.'
         : '✓ Updated <script type="importmap"> in web/index.html'));
 
-    _updateBloomYaml(project, pkgName, resolvedVersion, esmUrl, vendorPath, dartBindingPath ?? '');
+    _updateBloomYaml(project, pkgName, resolvedVersion, esmUrl, vendorPath,
+        dartBindingPath ?? '');
     print(Ansi.success('✓ Recorded in bloom.yaml'));
 
     if (isTailwindBrowser) {
-      print(Ansi.boldText('\n🚀 Tailwind CSS is live — no build step, no CDN.'));
-      print('   Use utility classes directly in any BloomNode\'s className: `Div(className: \'flex items-center gap-2\', ...)`.');
-      print('   The engine scans the DOM at runtime and injects styles automatically.\n');
+      print(
+          Ansi.boldText('\n🚀 Tailwind CSS is live — no build step, no CDN.'));
+      print(
+          '   Use utility classes directly in any BloomNode\'s className: `Div(className: \'flex items-center gap-2\', ...)`.');
+      print(
+          '   The engine scans the DOM at runtime and injects styles automatically.\n');
     } else {
-      print(Ansi.boldText('\n🚀 Successfully installed $pkgName! Import in Dart:'));
+      print(Ansi.boldText(
+          '\n🚀 Successfully installed $pkgName! Import in Dart:'));
       print('   import \'$dartBindingPath\';\n');
     }
     return 0;
@@ -184,7 +206,11 @@ class AddCommand extends Command<int> {
       '${pkg.replaceAll('@', '').replaceAll('/', '-').replaceAll(' ', '-').replaceAll('.', '-')}.min.js';
 
   String _toDartBindingPath(String pkg) {
-    final clean = pkg.replaceAll('@', '').replaceAll('/', '_').replaceAll('-', '_').replaceAll('.', '_');
+    final clean = pkg
+        .replaceAll('@', '')
+        .replaceAll('/', '_')
+        .replaceAll('-', '_')
+        .replaceAll('.', '_');
     return 'lib/src/plugins/$clean.dart';
   }
 
