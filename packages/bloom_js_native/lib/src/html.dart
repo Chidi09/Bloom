@@ -340,6 +340,17 @@ void _render(BloomNode node, StringBuffer buf,
       buf.write(ssrCloseMarker(hydrationMarkerShow));
       textCtx.lastEmittedText = false;
 
+    case RevealNode(:final child, :final hiddenClass):
+      _render(
+        Div(className: hiddenClass, children: [child]),
+        buf,
+        onSuspense,
+        textCtx,
+      );
+
+    case InViewNode(:final child):
+      _render(child, buf, onSuspense, textCtx);
+
     case ForEachNode():
       textCtx.lastEmittedText = false;
       buf.write(ssrOpenMarker(hydrationMarkerForEach));
@@ -750,6 +761,10 @@ void _collectDocumentHead(BloomNode node, List<BloomNode> found) {
         _collectDocumentHead(child, found);
       }
     case AnimatedNode(:final child):
+      _collectDocumentHead(child, found);
+    case RevealNode(:final child):
+      _collectDocumentHead(child, found);
+    case InViewNode(:final child):
       _collectDocumentHead(child, found);
     case LiveNode(:final builder):
       _collectDocumentHead(builder(), found);

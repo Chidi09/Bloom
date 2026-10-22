@@ -8,6 +8,32 @@ void main() {
       expect(html, '<div class="foo">hello</div>');
     });
 
+    test('Reveal SSR starts with its hidden class', () {
+      expect(
+        renderToHtml(Reveal(child: Div(text: 'Seen'))),
+        '<div class="bloom-reveal"><div>Seen</div></div>',
+      );
+    });
+
+    test('Show enter and exit options do not change SSR output', () {
+      const animation = BloomAnimation(
+        name: 'show-transition-test',
+        keyframes: [
+          BloomKeyframe(offset: 0, styles: {'opacity': '0'})
+        ],
+      );
+      final plain = renderToHtml(Show(() => true, child: Div(text: 'Shown')));
+      final transitioned = renderToHtml(
+        Show(
+          () => true,
+          child: Div(text: 'Shown'),
+          enter: animation,
+          exit: animation,
+        ),
+      );
+      expect(transitioned, plain);
+    });
+
     test('escapes text XSS', () {
       final html = renderToHtml(P(text: '<script>alert(1)</script>'));
       expect(html, '<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');

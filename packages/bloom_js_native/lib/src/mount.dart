@@ -6,6 +6,7 @@ import 'package:meta/meta.dart' show internal;
 import 'package:web/web.dart' as web;
 
 import 'attribute_safety.dart';
+import 'animate.dart';
 import 'dev_error_overlay.dart';
 import 'devtools.dart';
 import 'events.dart';
@@ -95,6 +96,50 @@ web.Element? _firstElement(List<web.Node> nodes) {
     if (node.isA<web.Element>()) return node as web.Element;
   }
   return null;
+}
+
+void Function()? _observeViewport(
+  web.Element element, {
+  required String rootMargin,
+  required double threshold,
+  bool once = false,
+  required void Function(bool isIntersecting) onChange,
+}) {
+  try {
+    late final web.IntersectionObserver observer;
+    observer = web.IntersectionObserver(
+      ((JSArray<web.IntersectionObserverEntry> entries,
+          web.IntersectionObserver observer) {
+        for (final entry in entries.toDart) {
+          if (entry.target == element) {
+            onChange(entry.isIntersecting);
+            if (once && entry.isIntersecting) observer.disconnect();
+          }
+        }
+      }).toJS,
+      web.IntersectionObserverInit(
+        rootMargin: rootMargin,
+        threshold: threshold.toJS,
+      ),
+    );
+    observer.observe(element);
+    return () {
+      observer.disconnect();
+    };
+  } catch (_) {
+    onChange(true);
+    return null;
+  }
+}
+
+void _injectAnimation(BloomAnimation animation) {
+  if (!_injectedAnimationNames.add(animation.name)) return;
+  final styleEl = web.document.createElement('style');
+  if (bloomStyleNonce != null) {
+    styleEl.setAttribute('nonce', bloomStyleNonce!);
+  }
+  styleEl.textContent = animation.toKeyframesCSS();
+  web.document.head?.appendChild(styleEl);
 }
 
 String? _metaIdentity(Meta node) {
@@ -1049,14 +1094,81 @@ List<web.Node> _mountNode(
 
     case ShowNode(:final child, :final fallback, :final hotReloadScopeId):
       final sentinel = _Sentinel('show');
-      final initial = _bindSentinelRegion(
+      final initial = _bindShowRegion(
         sentinel,
         region,
-        () => node.when() ? child : (fallback ?? FragmentNode(const [])),
+        node.when,
+        child,
+        fallback,
+        node.enter,
+        node.exit,
         signalScopeId:
             hotReloadScopeId == null ? null : '$hotReloadScopeId#when',
       );
       return [sentinel.start, ...initial, sentinel.end];
+
+    case RevealNode(
+        :final child,
+        :final hiddenClass,
+        :final visibleClass,
+        :final once,
+        :final rootMargin,
+        :final threshold
+      ):
+      final wrapper = Div(className: hiddenClass, children: [child]);
+      validateBloomAttribute('class', '$hiddenClass $visibleClass');
+      final nodes = _mountNode(wrapper, region);
+      final element = _firstElement(nodes);
+      if (element != null) {
+        var stop = _observeViewport(
+          element,
+          rootMargin: rootMargin,
+          threshold: threshold,
+          once: once,
+          onChange: (visible) {
+            if (visible) {
+              element.classList.add(visibleClass);
+            } else if (!once) {
+              element.classList.remove(visibleClass);
+            }
+          },
+        );
+        if (once && element.classList.contains(visibleClass)) {
+          stop?.call();
+          stop = null;
+        }
+        if (stop != null) region.add(stop);
+      }
+      return nodes;
+
+    case InViewNode(
+        :final child,
+        :final onEnter,
+        :final onExit,
+        :final rootMargin,
+        :final threshold
+      ):
+      final nodes = _mountNode(child, region);
+      final element = _firstElement(nodes);
+      if (element != null) {
+        var wasVisible = false;
+        final stop = _observeViewport(
+          element,
+          rootMargin: rootMargin,
+          threshold: threshold,
+          onChange: (visible) {
+            if (visible == wasVisible) return;
+            wasVisible = visible;
+            if (visible) {
+              onEnter?.call();
+            } else {
+              onExit?.call();
+            }
+          },
+        );
+        if (stop != null) region.add(stop);
+      }
+      return nodes;
 
     case ForEachNode():
       final sentinel = _Sentinel('foreach');
@@ -1133,14 +1245,7 @@ List<web.Node> _mountNode(
       return nodes;
 
     case AnimatedNode(:final child, :final animation):
-      if (_injectedAnimationNames.add(animation.name)) {
-        final styleEl = web.document.createElement('style');
-        if (bloomStyleNonce != null) {
-          styleEl.setAttribute('nonce', bloomStyleNonce!);
-        }
-        styleEl.textContent = animation.toKeyframesCSS();
-        web.document.head?.appendChild(styleEl);
-      }
+      _injectAnimation(animation);
       final wrapper = web.document.createElement('div');
       wrapper.setAttribute('style', animation.toInlineStyle());
       final childNodes = _mountNode(child, region);
@@ -2182,6 +2287,157 @@ void Function() _effectInCapturedBloomSignalScope(
 
 /// Shared sentinel reactive-region binding: re-renders between comments
 /// whenever signals read inside [build] change.
+List<web.Node> _bindShowRegion(
+  _Sentinel sentinel,
+  _Region parentRegion,
+  bool Function() when,
+  BloomNode child,
+  BloomNode? fallback,
+  BloomAnimation? enter,
+  BloomAnimation? exit, {
+  String? signalScopeId,
+}) {
+  final inner = _Region();
+  final capturedSignalScope = _captureBloomSignalScope(signalScopeId);
+  final boundary =
+      Zone.current[_errorBoundaryZoneKey] as _ErrorBoundaryHandler?;
+  var firstRun = true;
+  var shown = false;
+  var exiting = false;
+  Timer? removalTimer;
+  web.Element? animatedElement;
+  JSFunction? animationEndListener;
+  String? previousAnimationStyle;
+  List<web.Node> initialNodes = const [];
+
+  void cancelExit() {
+    removalTimer?.cancel();
+    removalTimer = null;
+    final element = animatedElement;
+    final listener = animationEndListener;
+    if (element != null && listener != null) {
+      element.removeEventListener('animationend', listener);
+    }
+    if (element != null) {
+      final previous = previousAnimationStyle;
+      if (previous == null || previous.isEmpty) {
+        element.removeAttribute('style');
+      } else {
+        validateBloomAttribute('style', previous);
+        element.setAttribute('style', previous);
+      }
+    }
+    previousAnimationStyle = null;
+    animatedElement = null;
+    animationEndListener = null;
+    exiting = false;
+  }
+
+  void replace(bool next) {
+    inner.reset();
+    sentinel.clear();
+    final branch = next ? child : (fallback ?? const FragmentNode([]));
+    final nodes = _withCapturedBloomSignalScope(
+      capturedSignalScope,
+      () => runZoned(
+        () => _mountNode(branch, inner),
+        zoneValues: {_errorBoundaryZoneKey: boundary},
+      ),
+    );
+    if (firstRun) {
+      initialNodes = nodes;
+    } else {
+      sentinel.appendAll(nodes);
+    }
+    if (next && !firstRun && enter != null) {
+      final element = _firstElement(nodes);
+      if (element != null) {
+        _injectAnimation(enter);
+        previousAnimationStyle = element.getAttribute('style');
+        final style = _combinedStyleValue(
+          previousAnimationStyle,
+          enter.toInlineStyle(),
+        );
+        validateBloomAttribute('style', style);
+        element.setAttribute('style', style);
+      }
+    }
+    shown = next;
+  }
+
+  void finishExit() {
+    if (!exiting) return;
+    cancelExit();
+    replace(false);
+  }
+
+  void render() {
+    try {
+      final next = _withCapturedBloomSignalScope(capturedSignalScope, when);
+      if (firstRun) {
+        replace(next);
+        return;
+      }
+      if (next == shown && !exiting) return;
+      if (next && exiting) {
+        cancelExit();
+        shown = true;
+        return;
+      }
+      if (!next && exiting) return;
+      if (!next && shown && exit != null) {
+        final element = _firstElement(sentinel.childNodes);
+        if (element == null) {
+          replace(false);
+          return;
+        }
+        _injectAnimation(exit);
+        previousAnimationStyle = element.getAttribute('style');
+        final style = _combinedStyleValue(
+          previousAnimationStyle,
+          exit.toInlineStyle(),
+        );
+        validateBloomAttribute('style', style);
+        element.setAttribute('style', style);
+        animatedElement = element;
+        exiting = true;
+        final listener = ((web.Event event) {
+          if (event.target == element) finishExit();
+        }).toJS;
+        animationEndListener = listener;
+        element.addEventListener('animationend', listener);
+        removalTimer = Timer(
+          exit.duration + exit.delay + const Duration(milliseconds: 50),
+          finishExit,
+        );
+        shown = false;
+        return;
+      }
+      replace(next);
+    } catch (error, stack) {
+      inner.reset();
+      if (firstRun) rethrow;
+      sentinel.clear();
+      if (boundary != null) {
+        boundary.handleError(error, stack);
+      } else {
+        _reportUnhandledError(error, stack);
+      }
+    }
+  }
+
+  final stop = _effectInCapturedBloomSignalScope(() {
+    render();
+    firstRun = false;
+  });
+  parentRegion.add(() {
+    cancelExit();
+    stop();
+    inner.disposeAll();
+  });
+  return initialNodes;
+}
+
 List<web.Node> _bindSentinelRegion<T>(
   _Sentinel sentinel,
   _Region parentRegion,
@@ -2738,6 +2994,10 @@ String _describeNode(BloomNode node) {
       return 'Memo';
     case ShowNode():
       return 'Show';
+    case RevealNode():
+      return 'Reveal';
+    case InViewNode():
+      return 'InView';
     case ForEachNode():
       return 'ForEach';
     case MountNode():
@@ -2955,6 +3215,73 @@ int _hydrateNode(
             parentLive: parentLive,
             region: region,
             hctx: hctx);
+
+      case RevealNode(
+          :final child,
+          :final hiddenClass,
+          :final visibleClass,
+          :final once,
+          :final rootMargin,
+          :final threshold
+        ):
+        final wrapper = Div(className: hiddenClass, children: [child]);
+        validateBloomAttribute('class', '$hiddenClass $visibleClass');
+        final consumed =
+            _hydrateNode(wrapper, sibs, index, parentLive, region, hctx);
+        if (index < sibs.length && sibs[index].isA<web.Element>()) {
+          final element = sibs[index] as web.Element;
+          final stop = _observeViewport(
+            element,
+            rootMargin: rootMargin,
+            threshold: threshold,
+            once: once,
+            onChange: (visible) {
+              if (visible) {
+                element.classList.add(visibleClass);
+              } else if (!once) {
+                element.classList.remove(visibleClass);
+              }
+            },
+          );
+          if (stop != null) region.add(stop);
+        }
+        return consumed;
+
+      case InViewNode(
+          :final child,
+          :final onEnter,
+          :final onExit,
+          :final rootMargin,
+          :final threshold
+        ):
+        final consumed =
+            _hydrateNode(child, sibs, index, parentLive, region, hctx);
+        web.Element? element;
+        for (var i = index; i < index + consumed && i < sibs.length; i++) {
+          if (sibs[i].isA<web.Element>()) {
+            element = sibs[i] as web.Element;
+            break;
+          }
+        }
+        if (element != null) {
+          var wasVisible = false;
+          final stop = _observeViewport(
+            element,
+            rootMargin: rootMargin,
+            threshold: threshold,
+            onChange: (visible) {
+              if (visible == wasVisible) return;
+              wasVisible = visible;
+              if (visible) {
+                onEnter?.call();
+              } else {
+                onExit?.call();
+              }
+            },
+          );
+          if (stop != null) region.add(stop);
+        }
+        return consumed;
 
       case ForEachNode():
         return _hydrateForEach(

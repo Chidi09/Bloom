@@ -127,6 +127,62 @@ class Animated extends AnimatedNode {
   const Animated({required super.animation, required super.child});
 }
 
+/// Reveals [child] when it enters the viewport.
+///
+/// SSR includes [hiddenClass], so add [revealCss] to a stylesheet to prevent
+/// content from flashing before the browser observer runs.
+///
+/// ```dart
+/// Reveal(child: const P(text: 'Hello'));
+/// ```
+class Reveal extends RevealNode {
+  /// Creates a scroll reveal wrapper around [child].
+  const Reveal({
+    required super.child,
+    super.hiddenClass,
+    super.visibleClass,
+    super.once,
+    super.rootMargin,
+    super.threshold,
+  });
+}
+
+/// CSS for the default [Reveal] classes.
+const String revealCss = '''
+.bloom-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 500ms ease-out, transform 500ms ease-out;
+}
+.bloom-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bloom-reveal,
+  .bloom-reveal.is-visible {
+    transform: none;
+    transition: none;
+  }
+}
+''';
+
+/// Calls callbacks when [child] enters and exits the viewport.
+///
+/// ```dart
+/// InView(child: const Div(), onEnter: () => print('visible'));
+/// ```
+class InView extends InViewNode {
+  /// Creates an intersection observer callback boundary.
+  const InView({
+    required super.child,
+    super.onEnter,
+    super.onExit,
+    super.rootMargin,
+    super.threshold,
+  });
+}
+
 /// Ready-to-use [BloomAnimation] presets for common UI transitions.
 ///
 /// Access preset instances via [BloomAnimationPresets.fadeIn], [BloomAnimationPresets.scaleIn], etc.
@@ -159,8 +215,7 @@ class BloomAnimationPresets {
           offset: 0.0,
           styles: {'transform': 'translateX(-100%)', 'opacity': '0'}),
       BloomKeyframe(
-          offset: 1.0,
-          styles: {'transform': 'translateX(0)', 'opacity': '1'}),
+          offset: 1.0, styles: {'transform': 'translateX(0)', 'opacity': '1'}),
     ],
   );
 
@@ -172,8 +227,7 @@ class BloomAnimationPresets {
           offset: 0.0,
           styles: {'transform': 'translateX(100%)', 'opacity': '0'}),
       BloomKeyframe(
-          offset: 1.0,
-          styles: {'transform': 'translateX(0)', 'opacity': '1'}),
+          offset: 1.0, styles: {'transform': 'translateX(0)', 'opacity': '1'}),
     ],
   );
 
@@ -200,4 +254,3 @@ class BloomAnimationPresets {
     easing: 'ease-in-out',
   );
 }
-

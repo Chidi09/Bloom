@@ -569,6 +569,8 @@ class MemoNode<T> extends BloomNode {
 /// between `true` and `false`, the previous branch's scoped region is disposed
 /// and the active branch ([child] or [fallback]) is mounted between the sentinels.
 /// If [fallback] is null and [when] is `false`, an empty fragment is mounted.
+/// [enter] and [exit] animate the first element of [child] on later visibility
+/// changes; the initial render is never animated. SSR ignores both options.
 ///
 /// ### SSR Behavior
 /// During SSR (`renderToHtml`), [when] is evaluated once synchronously. If `true`,
@@ -589,12 +591,20 @@ class ShowNode extends BloomNode {
   /// Optional descriptor tree rendered when [when] evaluates to `false`.
   final BloomNode? fallback;
 
+  /// Animation played on the child's first element when it becomes visible.
+  final BloomAnimation? enter;
+
+  /// Animation played before the child is removed when it becomes hidden.
+  final BloomAnimation? exit;
+
   /// Creates a conditional rendering descriptor with predicate [when], primary
-  /// [child], and optional [fallback].
+  /// [child], optional [fallback], and optional [enter] and [exit] animations.
   const ShowNode(
     this.when, {
     required this.child,
     this.fallback,
+    this.enter,
+    this.exit,
     this.hotReloadScopeId,
   });
 }
@@ -721,6 +731,75 @@ class RawHtmlNode extends BloomNode {
 
   /// Creates a raw HTML passthrough descriptor with [html].
   const RawHtmlNode(this.html);
+}
+
+/// Reveals [child] when it enters the viewport.
+///
+/// Use [Reveal]. SSR includes [hiddenClass], so add [revealCss] to a stylesheet to prevent
+/// content from flashing before the browser observer runs.
+///
+/// ```dart
+/// Reveal(child: const P(text: 'Hello'));
+/// ```
+class RevealNode extends BloomNode {
+  /// Content observed for visibility.
+  final BloomNode child;
+
+  /// Class applied by default CSS while the child is outside the viewport.
+  final String hiddenClass;
+
+  /// Class added when the child enters the viewport.
+  final String visibleClass;
+
+  /// Whether to stop observing after the first entry.
+  final bool once;
+
+  /// Intersection observer root margin.
+  final String rootMargin;
+
+  /// Intersection ratio required to count as visible.
+  final double threshold;
+
+  /// Creates a scroll reveal wrapper around [child].
+  const RevealNode({
+    required this.child,
+    this.hiddenClass = 'bloom-reveal',
+    this.visibleClass = 'is-visible',
+    this.once = true,
+    this.rootMargin = '0px',
+    this.threshold = 0.1,
+  });
+}
+
+/// Use [InView]. Calls callbacks when [child] enters and exits the viewport.
+///
+/// ```dart
+/// InView(child: const Div(), onEnter: () => print('visible'));
+/// ```
+class InViewNode extends BloomNode {
+  /// Content whose first element is observed.
+  final BloomNode child;
+
+  /// Called when the child enters the viewport.
+  final void Function()? onEnter;
+
+  /// Called when the child leaves the viewport.
+  final void Function()? onExit;
+
+  /// Intersection observer root margin.
+  final String rootMargin;
+
+  /// Intersection ratio required to count as visible.
+  final double threshold;
+
+  /// Creates an intersection observer callback boundary.
+  const InViewNode({
+    required this.child,
+    this.onEnter,
+    this.onExit,
+    this.rootMargin = '0px',
+    this.threshold = 0,
+  });
 }
 
 /// AST node that wraps [child] with a CSS animation described by [animation].
@@ -863,11 +942,13 @@ class Memo<T> extends MemoNode<T> {
 /// ```
 class Show extends ShowNode {
   /// Creates a conditional rendering boundary with predicate [when], [child],
-  /// and optional [fallback].
+  /// optional [fallback], and optional [enter] and [exit] animations.
   const Show(
     super.when, {
     required super.child,
     super.fallback,
+    super.enter,
+    super.exit,
     super.hotReloadScopeId,
   });
 }

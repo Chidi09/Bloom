@@ -217,6 +217,8 @@ List<BloomNode> _childrenOf(BloomNode node) {
     ElNode(:final children) => children,
     FragmentNode(:final children) => children,
     AnimatedNode(:final child) => [child],
+    RevealNode(:final child) => [child],
+    InViewNode(:final child) => [child],
     ShowNode(:final child, :final fallback) =>
       node.when() ? [child] : (fallback != null ? [fallback] : const []),
     ForEachNode() => node.buildChildren(),
