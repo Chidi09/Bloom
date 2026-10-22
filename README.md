@@ -168,7 +168,12 @@ It:
    current API.
 
 Your app's own `version:`, path/git dependencies and your notes in `AGENTS.md`
-are left alone. The CLI prints a one-line notice when a newer Bloom is out;
+are left alone.
+
+> [!IMPORTANT]
+> On bloom_cli 0.8.0 or older, run `dart pub global activate bloom_cli` once
+> first. The `bloom upgrade` in those versions is the old command and must not
+> be used. The CLI prints a one-line notice when a newer Bloom is out;
 set `BLOOM_NO_UPDATE_CHECK=1` to silence it (it is always off in CI).
 
 ---
