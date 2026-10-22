@@ -2,8 +2,89 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart' show internal;
+
 import 'events.dart';
 import 'framework.dart';
+import 'signals.dart' show ReadonlySignal;
+
+/// What a [RouterLink] needs from a router. [BloomRouterController]
+/// implements it; tests can pass a fake.
+///
+/// ```dart
+/// RouterLink(controller: navigator, href: '/settings', text: 'Settings')
+/// ```
+abstract interface class BloomNavigator {
+  ReadonlySignal<String> get currentPath;
+  Future<void> navigate(String path);
+  Future<void> replace(String path);
+  Future<void> navigateFragment(String fragment);
+}
+
+/// Whether a click on a link to [href] should be handled by client-side
+/// navigation.
+///
+/// ```dart
+/// final handled = shouldInterceptLinkClick(
+///   href: '/about',
+///   event: BloomEvent.fakeClick(),
+///   currentLocation: Uri.parse('https://example.com/'),
+/// );
+/// ```
+bool shouldInterceptLinkClick({
+  required String href,
+  required BloomEvent event,
+  String? target,
+  bool download = false,
+  required Uri currentLocation,
+}) =>
+    linkClickDecision(
+      href: href,
+      button: event.button,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      defaultPrevented: event.defaultPrevented,
+      target: target,
+      download: download,
+      currentLocation: currentLocation,
+    );
+
+/// Primitive form of [shouldInterceptLinkClick], shared with the browser
+/// router's document-level link interception.
+@internal
+bool linkClickDecision({
+  required String href,
+  required int? button,
+  required bool metaKey,
+  required bool ctrlKey,
+  required bool shiftKey,
+  required bool altKey,
+  required bool defaultPrevented,
+  required String? target,
+  required bool download,
+  required Uri currentLocation,
+}) {
+  if (defaultPrevented || (button != null && button != 0)) return false;
+  if (metaKey || ctrlKey || shiftKey || altKey || download) return false;
+  if (target != null && target.isNotEmpty && target != '_self') return false;
+  if (href.isEmpty) return false;
+  try {
+    final parsed = Uri.parse(href);
+    if (parsed.hasScheme &&
+        parsed.scheme != 'http' &&
+        parsed.scheme != 'https') {
+      return false;
+    }
+    final resolved = currentLocation.resolveUri(parsed);
+    return resolved.scheme == currentLocation.scheme &&
+        resolved.host == currentLocation.host &&
+        resolved.port == currentLocation.port;
+  } on FormatException {
+    return false;
+  }
+}
 
 /// Represents the result of evaluating a route navigation guard.
 ///
@@ -869,7 +950,7 @@ class Link extends ElNode {
               'data-bloom-prefetch': 'visible',
             if (attrs != null) ...attrs,
           },
-          on: _buildHandlers(
+          on: _buildLinkHandlers(
             href: href,
             prefetch: prefetch,
             on: on,
@@ -887,32 +968,138 @@ class Link extends ElNode {
     super.children = const [],
     this.prefetch = PrefetchMode.off,
   }) : super('a');
+}
 
-  static Map<String, BloomEventHandler>? _buildHandlers({
-    required String href,
-    required PrefetchMode prefetch,
-    Map<String, BloomEventHandler>? on,
-    BloomEventHandler? onClick,
-  }) {
-    final handlers = <String, BloomEventHandler>{
-      if (on != null) ...on,
-      if (onClick != null) 'click': onClick,
+Map<String, BloomEventHandler>? _buildLinkHandlers({
+  required String href,
+  required PrefetchMode prefetch,
+  Map<String, BloomEventHandler>? on,
+  BloomEventHandler? onClick,
+}) {
+  final handlers = <String, BloomEventHandler>{
+    if (on != null) ...on,
+    if (onClick != null) 'click': onClick,
+  };
+
+  if (prefetch == PrefetchMode.hover) {
+    final existingPointerEnter = handlers['pointerenter'];
+    handlers['pointerenter'] = (e) {
+      BloomRouter.prefetch(href);
+      existingPointerEnter?.call(e);
     };
 
-    if (prefetch == PrefetchMode.hover) {
-      final existingPointerEnter = handlers['pointerenter'];
-      handlers['pointerenter'] = (e) {
-        BloomRouter.prefetch(href);
-        existingPointerEnter?.call(e);
-      };
-
-      final existingMouseEnter = handlers['mouseenter'];
-      handlers['mouseenter'] = (e) {
-        BloomRouter.prefetch(href);
-        existingMouseEnter?.call(e);
-      };
-    }
-
-    return handlers.isEmpty ? null : handlers;
+    final existingMouseEnter = handlers['mouseenter'];
+    handlers['mouseenter'] = (e) {
+      BloomRouter.prefetch(href);
+      existingMouseEnter?.call(e);
+    };
   }
+
+  return handlers.isEmpty ? null : handlers;
+}
+
+/// A router-aware anchor that intercepts eligible same-origin clicks.
+///
+/// ```dart
+/// RouterLink(
+///   controller: router,
+///   href: '/docs',
+///   activeClassName: 'active',
+///   text: 'Docs',
+/// )
+/// RouterLink(controller: router, href: '#details', text: 'Details')
+/// RouterLink(controller: router, href: '/login', replace: true, text: 'Login')
+/// ```
+class RouterLink extends ElNode {
+  /// Creates a router-aware link to [href].
+  RouterLink({
+    required BloomNavigator controller,
+    required String href,
+    bool replace = false,
+    String? activeClassName,
+    bool exact = false,
+    PrefetchMode prefetch = PrefetchMode.off,
+    String? target,
+    super.text,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    Map<String, BloomEventHandler>? on,
+    BloomEventHandler? onClick,
+  }) : super(
+          'a',
+          attrs: {
+            if (attrs != null) ...attrs,
+            'href': href,
+            if (target != null) 'target': target,
+            if (prefetch == PrefetchMode.visible)
+              'data-bloom-prefetch': 'visible',
+          },
+          classIf: activeClassName == null
+              ? null
+              : {
+                  activeClassName: () => _isRouterLinkActive(
+                        href,
+                        controller.currentPath.value,
+                        exact: exact,
+                      ),
+                },
+          reactiveAttrs: {
+            'aria-current': () => _isRouterLinkActive(
+                  href,
+                  controller.currentPath.value,
+                  exact: exact,
+                )
+                    ? 'page'
+                    : null,
+          },
+          on: _buildLinkHandlers(
+            href: href,
+            prefetch: prefetch,
+            on: on,
+            onClick: (event) {
+              onClick?.call(event);
+              on?['click']?.call(event);
+              if (!shouldInterceptLinkClick(
+                href: href,
+                event: event,
+                target: target ?? attrs?['target'],
+                download: attrs?.containsKey('download') ?? false,
+                currentLocation: Uri.base,
+              )) {
+                return;
+              }
+              event.preventDefault();
+              if (href.startsWith('#')) {
+                unawaited(controller.navigateFragment(href.substring(1)));
+              } else if (replace) {
+                unawaited(controller.replace(_routerLinkTarget(href)));
+              } else {
+                unawaited(controller.navigate(_routerLinkTarget(href)));
+              }
+            },
+          ),
+        );
+}
+
+/// The in-app location for a same-origin [href]: absolute URLs are reduced to
+/// their path, query and fragment so the router receives a route path.
+String _routerLinkTarget(String href) {
+  final uri = Uri.base.resolve(href);
+  if (!Uri.parse(href).hasScheme && !href.startsWith('//')) return href;
+  final query = uri.hasQuery ? '?${uri.query}' : '';
+  final fragment = uri.hasFragment ? '#${uri.fragment}' : '';
+  return '${uri.path}$query$fragment';
+}
+
+bool _isRouterLinkActive(
+  String href,
+  String currentPath, {
+  required bool exact,
+}) {
+  final hrefPath = _routerLinkTarget(href).split('?').first.split('#').first;
+  if (hrefPath == currentPath) return true;
+  if (exact || hrefPath == '/') return false;
+  return currentPath.startsWith('$hrefPath/');
 }

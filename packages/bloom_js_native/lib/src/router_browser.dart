@@ -51,7 +51,7 @@ external JSAny? _reflectGet(JSAny target, String key);
 ///
 /// BloomNode app() => Live(() => controller.resolve());
 /// ```
-class BloomRouterController {
+class BloomRouterController implements BloomNavigator {
   final BloomRouter _router;
 
   /// Whether automatic scroll position restoration is enabled.
@@ -84,6 +84,7 @@ class BloomRouterController {
   /// Updates automatically on [navigate], [replace], or browser back/forward `popstate` events.
   /// Reading `currentPath.value` inside a [Live] or [Show] boundary triggers a re-render
   /// whenever navigation occurs.
+  @override
   late final Signal<String> currentPath;
 
   /// Reactive signal tracking the current URL query parameters (single value per key, last wins).
@@ -300,6 +301,7 @@ class BloomRouterController {
   ///   text: 'Go to Dashboard',
   /// )
   /// ```
+  @override
   Future<void> navigate(String path) async {
     await _handleNavigation(path, replaceState: false);
   }
@@ -314,6 +316,7 @@ class BloomRouterController {
   /// ```dart
   /// await controller.replace('/search?q=shoes&page=2');
   /// ```
+  @override
   Future<void> replace(String path) async {
     await _handleNavigation(path, replaceState: true);
   }
@@ -372,6 +375,7 @@ class BloomRouterController {
   /// ```dart
   /// await controller.navigateFragment('section-2');
   /// ```
+  @override
   Future<void> navigateFragment(String fragment) async {
     await setFragment(fragment, replace: false);
   }
@@ -629,6 +633,66 @@ class BloomRouterController {
 
   web.HTMLDivElement? _liveRegion;
   final List<void Function()> _liveRegionDisposers = [];
+  final List<void Function()> _linkInterceptionDisposers = [];
+
+  /// Handles clicks on plain `<a href>` elements inside [root] (default:
+  /// document) with client-side navigation, using the same rules as
+  /// [RouterLink]. Links with `data-bloom-reload` or `rel="external"` are
+  /// skipped. Returns a function that removes the listener; it is also
+  /// removed by [dispose].
+  void Function() interceptLinks({web.Element? root}) {
+    final web.EventTarget eventRoot = root ?? web.document;
+    late final web.EventListener listener;
+    listener = ((web.Event event) {
+      if (!event.isA<web.MouseEvent>()) return;
+      final mouse = event as web.MouseEvent;
+      final targetNode = event.target;
+      if (targetNode == null || !targetNode.isA<web.Element>()) return;
+      final anchor = (targetNode as web.Element).closest('a[href]');
+      if (anchor == null ||
+          anchor.hasAttribute('data-bloom-reload') ||
+          anchor
+                  .getAttribute('rel')
+                  ?.split(RegExp(r'\s+'))
+                  .contains('external') ==
+              true) {
+        return;
+      }
+      final href = anchor.getAttribute('href');
+      if (href == null) return;
+      if (!linkClickDecision(
+        href: href,
+        button: mouse.button,
+        metaKey: mouse.metaKey,
+        ctrlKey: mouse.ctrlKey,
+        shiftKey: mouse.shiftKey,
+        altKey: mouse.altKey,
+        defaultPrevented: mouse.defaultPrevented,
+        target: anchor.getAttribute('target'),
+        download: anchor.hasAttribute('download'),
+        currentLocation: Uri.base,
+      )) {
+        return;
+      }
+      mouse.preventDefault();
+      if (href.startsWith('#')) {
+        unawaited(navigateFragment(href.substring(1)));
+      } else {
+        unawaited(navigate(href));
+      }
+    }).toJS;
+    eventRoot.addEventListener('click', listener);
+    var removed = false;
+    late final void Function() cleanup;
+    cleanup = () {
+      if (removed) return;
+      removed = true;
+      eventRoot.removeEventListener('click', listener);
+      _linkInterceptionDisposers.remove(cleanup);
+    };
+    _linkInterceptionDisposers.add(cleanup);
+    return cleanup;
+  }
 
   void _manageFocus() {
     if (!autoFocus) return;
@@ -746,6 +810,12 @@ class BloomRouterController {
     }
     _intersectionObserver?.disconnect();
     _intersectionObserver = null;
+
+    for (final cleanup in List<void Function()>.of(
+      _linkInterceptionDisposers,
+    )) {
+      cleanup();
+    }
 
     for (final d in _liveRegionDisposers) {
       try {
