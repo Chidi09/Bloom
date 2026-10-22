@@ -607,6 +607,23 @@ String _combinedStyleValue(String? base, String? extra) {
   return '$first; $second';
 }
 
+Map<String, String>? _descriptorAttributes(ElNode node) {
+  final generated = <String, String>{
+    if (node.id != null) 'id': node.id!,
+    if (node.role != null) 'role': node.role!,
+    if (node.hidden == true) 'hidden': '',
+    if (node.title != null) 'title': node.title!,
+    if (node.tabIndex != null) 'tabindex': '${node.tabIndex}',
+    if (node.data != null)
+      for (final entry in node.data!.entries) 'data-${entry.key}': entry.value,
+    if (node.aria != null)
+      for (final entry in node.aria!.entries)
+        if (entry.value != null) 'aria-${entry.key}': entry.value.toString(),
+  };
+  if (node.attrs != null) generated.addAll(node.attrs!);
+  return generated.isEmpty ? null : generated;
+}
+
 void _applyReactiveAttrs(
   web.Element el,
   Map<String, Object? Function()> reactiveAttrs,
@@ -688,7 +705,6 @@ List<web.Node> _mountNode(
         :final text,
         :final className,
         :final style,
-        :final attrs,
         :final reactiveClass,
         :final reactiveStyle,
         :final reactiveAttrs,
@@ -728,8 +744,10 @@ List<web.Node> _mountNode(
           untracked(() => _combinedStyleValue(style, reactiveStyle?.call()));
       validateBloomAttribute('style', renderedStyle);
       if (renderedStyle.isNotEmpty) el.setAttribute('style', renderedStyle);
-      if (attrs != null) {
-        for (final e in attrs.entries) {
+      final renderedAttrs = _descriptorAttributes(node);
+      if (renderedAttrs != null) {
+        for (final e in renderedAttrs.entries) {
+          _validateDomAttributeName(e.key);
           validateBloomAttribute(e.key, e.value);
           el.setAttribute(e.key, e.value);
         }
@@ -1391,9 +1409,10 @@ bool _patchNode(
     }
 
     // attrs: set new/changed attrs, remove deleted attrs
-    final oldAttrs = oldDesc.attrs ?? const <String, String>{};
-    final newAttrs = newDesc.attrs ?? const <String, String>{};
+    final oldAttrs = _descriptorAttributes(oldDesc) ?? const <String, String>{};
+    final newAttrs = _descriptorAttributes(newDesc) ?? const <String, String>{};
     for (final entry in newAttrs.entries) {
+      _validateDomAttributeName(entry.key);
       validateBloomAttribute(entry.key, entry.value);
     }
     for (final key in oldAttrs.keys) {
@@ -2613,7 +2632,6 @@ int _hydrateNode(
           :final text,
           :final className,
           :final style,
-          :final attrs,
           :final reactiveClass,
           :final reactiveStyle,
           :final reactiveAttrs,
@@ -2625,7 +2643,7 @@ int _hydrateNode(
           text,
           className,
           style,
-          attrs,
+          _descriptorAttributes(desc),
           null,
           reactiveClass,
           reactiveStyle,
@@ -2644,7 +2662,6 @@ int _hydrateNode(
           :final text,
           :final className,
           :final style,
-          :final attrs,
           :final reactiveClass,
           :final reactiveStyle,
           :final reactiveAttrs,
@@ -2657,7 +2674,7 @@ int _hydrateNode(
           text,
           className,
           style,
-          attrs,
+          _descriptorAttributes(desc),
           on,
           reactiveClass,
           reactiveStyle,
@@ -2875,6 +2892,7 @@ int _hydrateElement(
   }
   if (attrs != null) {
     for (final entry in attrs.entries) {
+      _validateDomAttributeName(entry.key);
       validateBloomAttribute(entry.key, entry.value);
     }
     final preserve = bloomHydrationPreserveFormState && _isFormControlTag(tag);

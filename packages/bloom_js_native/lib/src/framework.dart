@@ -4,6 +4,7 @@ import 'package:meta/meta.dart' show internal;
 
 import 'events.dart';
 import 'animate.dart';
+import 'image.dart' show FetchPriority, ImageDecoding, ImageLoading;
 
 /// Token representing an ambient context value of type [T].
 ///
@@ -223,6 +224,27 @@ class ElNode extends BloomNode {
   /// Arbitrary HTML attributes (id, href, placeholder, etc.).
   final Map<String, String>? attrs;
 
+  /// Element ID rendered as the `id` attribute.
+  final String? id;
+
+  /// Accessibility role rendered as the `role` attribute.
+  final String? role;
+
+  /// Data attributes keyed without the `data-` prefix.
+  final Map<String, String>? data;
+
+  /// Whether the element is hidden. `true` emits the boolean attribute.
+  final bool? hidden;
+
+  /// Advisory text rendered as the `title` attribute.
+  final String? title;
+
+  /// Keyboard tab order rendered as the `tabindex` attribute.
+  final int? tabIndex;
+
+  /// Accessible attributes keyed without the `aria-` prefix.
+  final Map<String, Object?>? aria;
+
   /// Event handlers keyed by DOM event name (click, input, change...).
   final Map<String, BloomEventHandler>? on;
 
@@ -292,6 +314,13 @@ class ElNode extends BloomNode {
     this.className,
     this.style,
     this.attrs,
+    this.id,
+    this.role,
+    this.data,
+    this.hidden,
+    this.title,
+    this.tabIndex,
+    this.aria,
     this.on,
     this.children = const [],
     this.reactiveClass,
@@ -1316,6 +1345,13 @@ class El extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           on: _mergeEvents(on,
               onClick: onClick,
@@ -1358,10 +1394,57 @@ class El extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   });
 }
 
 // ── HTML Element Subclasses ───────────────────────────────────────────
+
+/// Standard HTML input type names for [Input.type].
+///
+/// ```dart
+/// Input(type: InputType.email);
+/// ```
+abstract final class InputType {
+  static const String text = 'text';
+  static const String email = 'email';
+  static const String password = 'password';
+  static const String number = 'number';
+  static const String tel = 'tel';
+  static const String url = 'url';
+  static const String search = 'search';
+  static const String date = 'date';
+  static const String time = 'time';
+  static const String datetimeLocal = 'datetime-local';
+  static const String month = 'month';
+  static const String week = 'week';
+  static const String color = 'color';
+  static const String range = 'range';
+  static const String checkbox = 'checkbox';
+  static const String radio = 'radio';
+  static const String file = 'file';
+  static const String hidden = 'hidden';
+  static const String submit = 'submit';
+  static const String reset = 'reset';
+  static const String button = 'button';
+}
+
+/// Standard HTML button type names for [Button.type].
+///
+/// ```dart
+/// Button(type: ButtonType.button);
+/// ```
+abstract final class ButtonType {
+  static const String submit = 'submit';
+  static const String button = 'button';
+  static const String reset = 'reset';
+}
 
 /// `<div>` — generic division / block layout container.
 class Div extends ElNode {
@@ -1396,6 +1479,13 @@ class Div extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'div',
           on: _mergeEvents(on,
@@ -1431,6 +1521,13 @@ class Div extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('div');
 }
 
@@ -1453,6 +1550,13 @@ class Span extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'span',
           on: _mergeEvents(on,
@@ -1474,6 +1578,13 @@ class Span extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('span');
 }
 
@@ -1493,6 +1604,13 @@ class P extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'p',
           on: _mergeEvents(on, onClick: onClick),
@@ -1510,6 +1628,13 @@ class P extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('p');
 }
 
@@ -1528,6 +1653,13 @@ class H1 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h1',
           on: _mergeEvents(on, onClick: onClick),
@@ -1545,6 +1677,13 @@ class H1 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h1');
 }
 
@@ -1563,6 +1702,13 @@ class H2 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h2',
           on: _mergeEvents(on, onClick: onClick),
@@ -1580,6 +1726,13 @@ class H2 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h2');
 }
 
@@ -1598,6 +1751,13 @@ class H3 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h3',
           on: _mergeEvents(on, onClick: onClick),
@@ -1615,6 +1775,13 @@ class H3 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h3');
 }
 
@@ -1633,6 +1800,13 @@ class H4 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h4',
           on: _mergeEvents(on, onClick: onClick),
@@ -1650,6 +1824,13 @@ class H4 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h4');
 }
 
@@ -1668,6 +1849,13 @@ class H5 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h5',
           on: _mergeEvents(on, onClick: onClick),
@@ -1685,6 +1873,13 @@ class H5 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h5');
 }
 
@@ -1703,6 +1898,13 @@ class H6 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'h6',
           on: _mergeEvents(on, onClick: onClick),
@@ -1720,20 +1922,29 @@ class H6 extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('h6');
 }
 
 /// `<button>` — interactive clickable button element.
 ///
 /// **Note**: Standard HTML buttons default to `type="submit"` when placed inside
-/// a `<form>`. To prevent unintended form submissions, specify `attrs: {'type': 'button'}`.
+/// a `<form>`. Use `type: ButtonType.button` to prevent unintended submissions.
 class Button extends ElNode {
   /// Creates a `<button>` element descriptor with event listener shorthands.
   Button({
     super.text,
     super.className,
     super.style,
-    super.attrs,
+    Map<String, String>? attrs,
+    String? type,
+    bool? disabled,
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
@@ -1750,8 +1961,19 @@ class Button extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'button',
+          attrs: _mergeAttrs(attrs, {
+            if (type != null) 'type': type,
+            if (disabled == true) 'disabled': 'disabled',
+          }),
           on: _mergeEvents(on,
               onClick: onClick,
               onDblClick: onDblClick,
@@ -1777,6 +1999,13 @@ class Button extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('button');
 }
 
@@ -1809,6 +2038,19 @@ class Input extends ElNode {
     bool? checked,
     bool? disabled,
     String? name,
+    bool? required,
+    bool? readOnly,
+    bool? autofocus,
+    bool? multiple,
+    Object? min,
+    Object? max,
+    num? step,
+    int? minLength,
+    int? maxLength,
+    String? pattern,
+    String? autocomplete,
+    String? accept,
+    String? inputMode,
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onInput,
     BloomEventHandler? onChange,
@@ -1822,6 +2064,13 @@ class Input extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'input',
           attrs: _mergeAttrs(attrs, {
@@ -1831,6 +2080,19 @@ class Input extends ElNode {
             if (checked == true) 'checked': 'checked',
             if (disabled == true) 'disabled': 'disabled',
             if (name != null) 'name': name,
+            if (required == true) 'required': 'required',
+            if (readOnly == true) 'readonly': 'readonly',
+            if (autofocus == true) 'autofocus': 'autofocus',
+            if (multiple == true) 'multiple': 'multiple',
+            if (min != null) 'min': min.toString(),
+            if (max != null) 'max': max.toString(),
+            if (step != null) 'step': step.toString(),
+            if (minLength != null) 'minlength': '$minLength',
+            if (maxLength != null) 'maxlength': '$maxLength',
+            if (pattern != null) 'pattern': pattern,
+            if (autocomplete != null) 'autocomplete': autocomplete,
+            if (accept != null) 'accept': accept,
+            if (inputMode != null) 'inputmode': inputMode,
           }),
           on: _mergeEvents(on,
               onInput: onInput,
@@ -1853,6 +2115,13 @@ class Input extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('input');
 }
 
@@ -1881,6 +2150,11 @@ class Textarea extends ElNode {
     String? name,
     int? rows,
     int? cols,
+    bool? required,
+    bool? readOnly,
+    bool? autofocus,
+    int? minLength,
+    int? maxLength,
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onInput,
     BloomEventHandler? onChange,
@@ -1892,6 +2166,13 @@ class Textarea extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'textarea',
           attrs: _mergeAttrs(attrs, {
@@ -1900,6 +2181,11 @@ class Textarea extends ElNode {
             if (name != null) 'name': name,
             if (rows != null) 'rows': '$rows',
             if (cols != null) 'cols': '$cols',
+            if (required == true) 'required': 'required',
+            if (readOnly == true) 'readonly': 'readonly',
+            if (autofocus == true) 'autofocus': 'autofocus',
+            if (minLength != null) 'minlength': '$minLength',
+            if (maxLength != null) 'maxlength': '$maxLength',
           }),
           on: _mergeEvents(on,
               onInput: onInput,
@@ -1920,6 +2206,13 @@ class Textarea extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('textarea');
 }
 
@@ -1945,6 +2238,7 @@ class A extends ElNode {
     String? href,
     String? target,
     String? rel,
+    bool? download,
     super.children = const [],
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onClick,
@@ -1956,12 +2250,20 @@ class A extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'a',
           attrs: _mergeAttrs(attrs, {
             if (href != null) 'href': href,
             if (target != null) 'target': target,
             if (rel != null) 'rel': rel,
+            if (download == true) 'download': 'download',
           }),
           on: _mergeEvents(on,
               onClick: onClick,
@@ -1983,6 +2285,13 @@ class A extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('a');
 }
 
@@ -2006,6 +2315,11 @@ class Img extends ElNode {
     String? alt,
     int? width,
     int? height,
+    ImageLoading? loading,
+    ImageDecoding? decoding,
+    FetchPriority? fetchPriority,
+    String? srcset,
+    String? sizes,
     super.className,
     super.style,
     Map<String, String>? attrs,
@@ -2015,6 +2329,13 @@ class Img extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'img',
           attrs: _mergeAttrs(attrs, {
@@ -2022,6 +2343,11 @@ class Img extends ElNode {
             if (alt != null) 'alt': alt,
             if (width != null) 'width': '$width',
             if (height != null) 'height': '$height',
+            if (loading != null) 'loading': loading.name,
+            if (decoding != null) 'decoding': decoding.name,
+            if (fetchPriority != null) 'fetchpriority': fetchPriority.name,
+            if (srcset != null) 'srcset': srcset,
+            if (sizes != null) 'sizes': sizes,
           }),
           on: _mergeEvents(on, onClick: onClick),
         );
@@ -2036,6 +2362,13 @@ class Img extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('img');
 }
 
@@ -2052,6 +2385,13 @@ class Ul extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('ul');
 
   /// Const constructor for `<ul>`.
@@ -2065,6 +2405,13 @@ class Ul extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('ul');
 }
 
@@ -2081,6 +2428,13 @@ class Ol extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('ol');
 
   /// Const constructor for `<ol>`.
@@ -2094,6 +2448,13 @@ class Ol extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('ol');
 }
 
@@ -2112,6 +2473,13 @@ class Li extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'li',
           on: _mergeEvents(on, onClick: onClick),
@@ -2129,7 +2497,149 @@ class Li extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('li');
+}
+
+/// `<dl>` — description list element.
+class Dl extends ElNode {
+  /// Creates a `<dl>` description list descriptor.
+  Dl({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dl');
+
+  /// Const constructor for `<dl>`.
+  const Dl.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dl');
+}
+
+/// `<dt>` — term or name in a description list.
+class Dt extends ElNode {
+  /// Creates a `<dt>` description term descriptor.
+  Dt({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    Map<String, BloomEventHandler>? on,
+    super.children = const [],
+    BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dt', on: _mergeEvents(on, onClick: onClick));
+
+  /// Const constructor for `<dt>` without event listener shorthand.
+  const Dt.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dt');
+}
+
+/// `<dd>` — description or value in a description list.
+class Dd extends ElNode {
+  /// Creates a `<dd>` description value descriptor.
+  Dd({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    Map<String, BloomEventHandler>? on,
+    super.children = const [],
+    BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dd', on: _mergeEvents(on, onClick: onClick));
+
+  /// Const constructor for `<dd>` without event listener shorthand.
+  const Dd.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('dd');
 }
 
 /// `<form>` — interactive form submission container.
@@ -2148,6 +2658,13 @@ class Form extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'form',
           on: _mergeEvents(on, onSubmit: onSubmit),
@@ -2164,6 +2681,13 @@ class Form extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('form');
 }
 
@@ -2184,6 +2708,13 @@ class Label extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'label',
           attrs: _mergeAttrs(attrs, {
@@ -2203,6 +2734,13 @@ class Label extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('label');
 }
 
@@ -2219,6 +2757,13 @@ class Header extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('header');
 
   /// Const constructor for `<header>`.
@@ -2232,6 +2777,13 @@ class Header extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('header');
 }
 
@@ -2248,6 +2800,13 @@ class Footer extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('footer');
 
   /// Const constructor for `<footer>`.
@@ -2261,6 +2820,13 @@ class Footer extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('footer');
 }
 
@@ -2277,6 +2843,13 @@ class Main extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('main');
 
   /// Const constructor for `<main>`.
@@ -2290,6 +2863,13 @@ class Main extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('main');
 }
 
@@ -2306,6 +2886,13 @@ class Nav extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('nav');
 
   /// Const constructor for `<nav>`.
@@ -2319,6 +2906,13 @@ class Nav extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('nav');
 }
 
@@ -2335,6 +2929,13 @@ class Section extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('section');
 
   /// Const constructor for `<section>`.
@@ -2348,6 +2949,13 @@ class Section extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('section');
 }
 
@@ -2364,6 +2972,13 @@ class Article extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('article');
 
   /// Const constructor for `<article>`.
@@ -2377,6 +2992,13 @@ class Article extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('article');
 }
 
@@ -2393,6 +3015,13 @@ class Aside extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('aside');
 
   /// Const constructor for `<aside>`.
@@ -2406,6 +3035,13 @@ class Aside extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('aside');
 }
 
@@ -2423,6 +3059,13 @@ class Strong extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('strong');
 
   /// Const constructor for `<strong>`.
@@ -2437,6 +3080,13 @@ class Strong extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('strong');
 }
 
@@ -2454,6 +3104,13 @@ class Em extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('em');
 
   /// Const constructor for `<em>`.
@@ -2468,6 +3125,13 @@ class Em extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('em');
 }
 
@@ -2485,6 +3149,13 @@ class Code extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('code');
 
   /// Const constructor for `<code>`.
@@ -2499,6 +3170,13 @@ class Code extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('code');
 }
 
@@ -2516,6 +3194,13 @@ class Pre extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('pre');
 
   /// Const constructor for `<pre>`.
@@ -2530,6 +3215,13 @@ class Pre extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('pre');
 }
 
@@ -2545,6 +3237,13 @@ class Br extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('br');
 }
 
@@ -2561,6 +3260,13 @@ class Hr extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('hr');
 }
 
@@ -2578,6 +3284,13 @@ class Blockquote extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('blockquote');
 
   /// Const constructor for `<blockquote>`.
@@ -2592,6 +3305,13 @@ class Blockquote extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('blockquote');
 }
 
@@ -2609,6 +3329,13 @@ class Cite extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('cite');
 }
 
@@ -2629,6 +3356,13 @@ class TimeEl extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('time',
             attrs: _mergeAttrs(
                 attrs, {if (dateTime != null) 'datetime': dateTime}));
@@ -2645,6 +3379,13 @@ class TimeEl extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('time');
 }
 
@@ -2662,6 +3403,13 @@ class Mark extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('mark');
 }
 
@@ -2679,6 +3427,13 @@ class Small extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('small');
 }
 
@@ -2696,6 +3451,13 @@ class Sub extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('sub');
 }
 
@@ -2713,6 +3475,13 @@ class Sup extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('sup');
 }
 
@@ -2733,6 +3502,12 @@ class Abbr extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.tabIndex,
+    super.aria,
   }) : super('abbr',
             attrs: _mergeAttrs(attrs, {if (title != null) 'title': title}));
 
@@ -2748,6 +3523,13 @@ class Abbr extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('abbr');
 }
 
@@ -2765,6 +3547,13 @@ class KbdEl extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('kbd');
 }
 
@@ -2781,6 +3570,13 @@ class Figure extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('figure');
 
   /// Const constructor for `<figure>`.
@@ -2794,6 +3590,13 @@ class Figure extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('figure');
 }
 
@@ -2811,6 +3614,13 @@ class Figcaption extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('figcaption');
 }
 
@@ -2830,6 +3640,13 @@ class Details extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('details',
             attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
@@ -2844,6 +3661,13 @@ class Details extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('details');
 }
 
@@ -2861,6 +3685,13 @@ class Summary extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('summary');
 }
 
@@ -2880,6 +3711,13 @@ class Dialog extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('dialog',
             attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
@@ -2894,6 +3732,13 @@ class Dialog extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('dialog');
 }
 
@@ -2913,6 +3758,13 @@ class Canvas extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('canvas',
             attrs: _mergeAttrs(attrs, {
               if (width != null) 'width': '$width',
@@ -2929,6 +3781,13 @@ class Canvas extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('canvas');
 }
 
@@ -2948,6 +3807,12 @@ class IFrame extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.tabIndex,
+    super.aria,
   }) : super('iframe',
             attrs: _mergeAttrs(attrs, {
               if (src != null) 'src': src,
@@ -2966,6 +3831,13 @@ class IFrame extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('iframe');
 }
 
@@ -2984,6 +3856,13 @@ class Table extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('table');
 
   /// Const constructor for `<table>`.
@@ -2997,6 +3876,13 @@ class Table extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('table');
 }
 
@@ -3014,6 +3900,13 @@ class Caption extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('caption');
 }
 
@@ -3030,6 +3923,13 @@ class Thead extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('thead');
 
   /// Const constructor for `<thead>`.
@@ -3043,6 +3943,13 @@ class Thead extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('thead');
 }
 
@@ -3059,6 +3966,13 @@ class Tbody extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tbody');
 
   /// Const constructor for `<tbody>`.
@@ -3072,6 +3986,13 @@ class Tbody extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tbody');
 }
 
@@ -3088,6 +4009,13 @@ class Tfoot extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tfoot');
 
   /// Const constructor for `<tfoot>`.
@@ -3101,6 +4029,13 @@ class Tfoot extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tfoot');
 }
 
@@ -3117,6 +4052,13 @@ class Tr extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tr');
 
   /// Const constructor for `<tr>`.
@@ -3130,6 +4072,13 @@ class Tr extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('tr');
 }
 
@@ -3152,6 +4101,13 @@ class Th extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'th',
           attrs: _mergeAttrs(attrs, {
@@ -3173,6 +4129,13 @@ class Th extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('th');
 }
 
@@ -3194,6 +4157,13 @@ class Td extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'td',
           attrs: _mergeAttrs(attrs, {
@@ -3214,6 +4184,13 @@ class Td extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('td');
 }
 
@@ -3243,6 +4220,7 @@ class Select extends ElNode {
     String? name,
     bool? multiple,
     bool? disabled,
+    bool? required,
     super.className,
     super.style,
     Map<String, String>? attrs,
@@ -3255,12 +4233,20 @@ class Select extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'select',
           attrs: _mergeAttrs(attrs, {
             if (name != null) 'name': name,
             if (multiple == true) 'multiple': 'multiple',
             if (disabled == true) 'disabled': 'disabled',
+            if (required == true) 'required': 'required',
           }),
           on: _mergeEvents(on,
               onChange: onChange, onFocus: onFocus, onBlur: onBlur),
@@ -3277,6 +4263,13 @@ class Select extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('select');
 }
 
@@ -3297,6 +4290,13 @@ class Option extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'option',
           attrs: _mergeAttrs(attrs, {
@@ -3316,6 +4316,13 @@ class Option extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('option');
 }
 
@@ -3333,6 +4340,13 @@ class Optgroup extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super(
           'optgroup',
           attrs: _mergeAttrs(attrs, {'label': label}),
@@ -3347,10 +4361,37 @@ class Optgroup extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('optgroup');
 }
 
 // ── SVG Descriptors ───────────────────────────────────────────────────
+
+Map<String, String>? _svgPresentationAttrs(
+  Map<String, String>? attrs,
+  String? fill,
+  String? stroke,
+  num? strokeWidth,
+  String? strokeLinecap,
+  String? strokeLinejoin,
+  num? opacity,
+  String? transform,
+) =>
+    _mergeAttrs(attrs, {
+      if (fill != null) 'fill': fill,
+      if (stroke != null) 'stroke': stroke,
+      if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+      if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+      if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+      if (opacity != null) 'opacity': '$opacity',
+      if (transform != null) 'transform': transform,
+    });
 
 /// SVG element node base class.
 ///
@@ -3371,12 +4412,23 @@ class SvgNode extends ElNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   });
 }
 
 /// `<svg>` — root SVG graphics viewport container element.
 ///
-/// Supports [viewBox], [width], and [height] attribute shorthands.
+/// Supports [viewBox], [width], and [height] attribute shorthands. Width and
+/// height accept a number or a CSS length string. Presentation attributes
+/// [fill], [stroke], [strokeWidth], [strokeLinecap], [strokeLinejoin],
+/// [opacity], and [transform] are also supported. [strokeWidth] and [opacity]
+/// accept numbers.
 ///
 /// ```dart
 /// Svg(
@@ -3392,8 +4444,15 @@ class Svg extends SvgNode {
   /// Creates an `<svg>` viewport container descriptor.
   Svg({
     String? viewBox,
-    String? width,
-    String? height,
+    Object? width,
+    Object? height,
+    String? fill,
+    String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     super.style,
     Map<String, String>? attrs,
@@ -3403,11 +4462,25 @@ class Svg extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('svg',
             attrs: _mergeAttrs(attrs, {
               if (viewBox != null) 'viewBox': viewBox,
-              if (width != null) 'width': width,
-              if (height != null) 'height': height,
+              if (width != null) 'width': width.toString(),
+              if (height != null) 'height': height.toString(),
+              if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 
   /// Const constructor for `<svg>` without attribute shorthands.
@@ -3421,23 +4494,49 @@ class Svg extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('svg');
 }
 
 /// `<g>` — SVG grouping container element.
+///
+/// Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+/// [strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
 class SvgG extends SvgNode {
   /// Creates an SVG `<g>` group descriptor.
   SvgG({
     super.className,
     super.style,
-    super.attrs,
+    Map<String, String>? attrs,
+    String? fill,
+    String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.children = const [],
     super.on,
     super.reactiveClass,
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
-  }) : super('g');
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
+  }) : super('g',
+            attrs: _svgPresentationAttrs(attrs, fill, stroke, strokeWidth,
+                strokeLinecap, strokeLinejoin, opacity, transform));
 
   /// Const constructor for SVG `<g>`.
   const SvgG.raw({
@@ -3450,20 +4549,32 @@ class SvgG extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('g');
 }
 
 /// `<path>` — SVG vector shape path element.
 ///
 /// Requires the [d] path data definition string. Supports [fill], [stroke],
-/// and [strokeWidth] (`stroke-width`) shorthands.
+/// numeric [strokeWidth] and [opacity], [strokeLinecap], [strokeLinejoin], and
+/// [transform] presentation shorthands.
 class SvgPath extends SvgNode {
   /// Creates an SVG `<path>` shape descriptor.
   SvgPath({
     required String d,
     String? fill,
     String? stroke,
-    String? strokeWidth,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3471,12 +4582,23 @@ class SvgPath extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('path',
             attrs: _mergeAttrs(attrs, {
               'd': d,
               if (fill != null) 'fill': fill,
               if (stroke != null) 'stroke': stroke,
-              if (strokeWidth != null) 'stroke-width': strokeWidth,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 
   /// Const constructor for SVG `<path>` without attribute shorthands.
@@ -3488,12 +4610,21 @@ class SvgPath extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('path');
 }
 
 /// `<circle>` — SVG circle shape element.
 ///
-/// Requires center coordinates [cx], [cy], and radius [r].
+/// Requires center coordinates [cx], [cy], and radius [r]. Supports [fill],
+/// [stroke], numeric [strokeWidth] and [opacity], [strokeLinecap],
+/// [strokeLinejoin], and [transform] presentation shorthands.
 class SvgCircle extends SvgNode {
   /// Creates an SVG `<circle>` shape descriptor.
   SvgCircle({
@@ -3502,6 +4633,11 @@ class SvgCircle extends SvgNode {
     required num r,
     String? fill,
     String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3509,6 +4645,13 @@ class SvgCircle extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('circle',
             attrs: _mergeAttrs(attrs, {
               'cx': '$cx',
@@ -3516,6 +4659,11 @@ class SvgCircle extends SvgNode {
               'r': '$r',
               if (fill != null) 'fill': fill,
               if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 
   /// Const constructor for SVG `<circle>` without attribute shorthands.
@@ -3527,13 +4675,21 @@ class SvgCircle extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('circle');
 }
 
 /// `<rect>` — SVG rectangle shape element.
 ///
 /// Requires [width] and [height]. Supports [x], [y], corner radius [rx],
-/// [fill], and [stroke] shorthands.
+/// [fill], [stroke], numeric [strokeWidth] and [opacity], [strokeLinecap],
+/// [strokeLinejoin], and [transform] presentation shorthands.
 class SvgRect extends SvgNode {
   /// Creates an SVG `<rect>` rectangle shape descriptor.
   SvgRect({
@@ -3544,6 +4700,11 @@ class SvgRect extends SvgNode {
     num? rx,
     String? fill,
     String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3551,6 +4712,13 @@ class SvgRect extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('rect',
             attrs: _mergeAttrs(attrs, {
               if (x != null) 'x': '$x',
@@ -3560,6 +4728,11 @@ class SvgRect extends SvgNode {
               if (rx != null) 'rx': '$rx',
               if (fill != null) 'fill': fill,
               if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 
   /// Const constructor for SVG `<rect>` without attribute shorthands.
@@ -3571,12 +4744,21 @@ class SvgRect extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('rect');
 }
 
 /// `<line>` — SVG straight line element.
 ///
 /// Requires start coordinates [x1], [y1] and end coordinates [x2], [y2].
+/// Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+/// [strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
 class SvgLine extends SvgNode {
   /// Creates an SVG `<line>` segment descriptor.
   SvgLine({
@@ -3585,6 +4767,12 @@ class SvgLine extends SvgNode {
     required num x2,
     required num y2,
     String? stroke,
+    String? fill,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3592,6 +4780,13 @@ class SvgLine extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('line',
             attrs: _mergeAttrs(attrs, {
               'x1': '$x1',
@@ -3599,10 +4794,19 @@ class SvgLine extends SvgNode {
               'x2': '$x2',
               'y2': '$y2',
               if (stroke != null) 'stroke': stroke,
+              if (fill != null) 'fill': fill,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 }
 
 /// `<text>` — SVG graphical text element.
+///
+/// Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+/// [strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
 class SvgText extends SvgNode {
   /// Creates an SVG `<text>` element descriptor with [x], [y], and [fill] shorthands.
   SvgText({
@@ -3610,6 +4814,12 @@ class SvgText extends SvgNode {
     num? x,
     num? y,
     String? fill,
+    String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3618,23 +4828,45 @@ class SvgText extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('text',
             attrs: _mergeAttrs(attrs, {
               if (x != null) 'x': '$x',
               if (y != null) 'y': '$y',
               if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 }
 
 /// `<use>` — SVG element instance reuse element.
 ///
-/// Requires the [href] target reference URI string.
+/// Requires the [href] target reference URI string. Supports [fill], [stroke],
+/// numeric [strokeWidth] and [opacity], [strokeLinecap], [strokeLinejoin], and
+/// [transform] presentation shorthands.
 class SvgUse extends SvgNode {
   /// Creates an SVG `<use>` instance reuse descriptor.
   SvgUse({
     required String href,
     num? x,
     num? y,
+    String? fill,
+    String? stroke,
+    num? strokeWidth,
+    String? strokeLinecap,
+    String? strokeLinejoin,
+    num? opacity,
+    String? transform,
     super.className,
     Map<String, String>? attrs,
     super.on,
@@ -3642,10 +4874,24 @@ class SvgUse extends SvgNode {
     super.reactiveStyle,
     super.reactiveAttrs,
     super.classIf,
+    super.id,
+    super.role,
+    super.data,
+    super.hidden,
+    super.title,
+    super.tabIndex,
+    super.aria,
   }) : super('use',
             attrs: _mergeAttrs(attrs, {
               'href': href,
               if (x != null) 'x': '$x',
               if (y != null) 'y': '$y',
+              if (fill != null) 'fill': fill,
+              if (stroke != null) 'stroke': stroke,
+              if (strokeWidth != null) 'stroke-width': '$strokeWidth',
+              if (strokeLinecap != null) 'stroke-linecap': strokeLinecap,
+              if (strokeLinejoin != null) 'stroke-linejoin': strokeLinejoin,
+              if (opacity != null) 'opacity': '$opacity',
+              if (transform != null) 'transform': transform,
             }));
 }

@@ -222,6 +222,200 @@ void main() {
       final html = renderToHtml(SvgCircle(cx: 12, cy: 12, r: 5));
       expect(html, '<circle cx="12" cy="12" r="5"></circle>');
     });
+
+    test('typed common attributes merge with attrs', () {
+      final html = renderToHtml(Div(
+        id: 'typed-id',
+        role: 'button',
+        data: {'user-id': '7'},
+        hidden: true,
+        title: 'Help',
+        tabIndex: 2,
+        aria: {'label': 'Close', 'expanded': false, 'ignored': null},
+        attrs: {
+          'id': 'attrs-id',
+          'role': 'link',
+          'title': 'Override',
+          'data-user-id': '8',
+          'aria-label': 'Dismiss',
+        },
+      ));
+      expect(
+        html,
+        '<div id="attrs-id" role="link" hidden="" title="Override" '
+        'tabindex="2" data-user-id="8" aria-label="Dismiss" '
+        'aria-expanded="false"></div>',
+      );
+      expect(
+        () => renderToHtml(Div(data: {'bad name': 'x'})),
+        throwsArgumentError,
+      );
+    });
+
+    test('form descriptors render typed attributes', () {
+      final input = renderToHtml(Input(
+        type: InputType.email,
+        required: true,
+        readOnly: true,
+        autofocus: true,
+        multiple: true,
+        min: 1,
+        max: '2030-01-01',
+        step: 0.5,
+        minLength: 2,
+        maxLength: 12,
+        pattern: '.+',
+        autocomplete: 'email',
+        accept: 'image/*',
+        inputMode: 'email',
+      ));
+      for (final attribute in [
+        'type="email"',
+        'required="required"',
+        'readonly="readonly"',
+        'autofocus="autofocus"',
+        'multiple="multiple"',
+        'min="1"',
+        'max="2030-01-01"',
+        'step="0.5"',
+        'minlength="2"',
+        'maxlength="12"',
+        'pattern=".+"',
+        'autocomplete="email"',
+        'accept="image/*"',
+        'inputmode="email"',
+      ]) {
+        expect(input, contains(attribute));
+      }
+
+      final textarea = renderToHtml(Textarea(
+        required: true,
+        readOnly: true,
+        autofocus: true,
+        minLength: 3,
+        maxLength: 20,
+        rows: 4,
+        cols: 30,
+        placeholder: 'Notes',
+        name: 'notes',
+      ));
+      for (final attribute in [
+        'required="required"',
+        'readonly="readonly"',
+        'autofocus="autofocus"',
+        'minlength="3"',
+        'maxlength="20"',
+        'rows="4"',
+        'cols="30"',
+        'placeholder="Notes"',
+        'name="notes"',
+      ]) {
+        expect(textarea, contains(attribute));
+      }
+
+      expect(
+        renderToHtml(Select(
+            name: 'roles', required: true, multiple: true, disabled: true)),
+        contains('name="roles"'),
+      );
+      expect(renderToHtml(Select(required: true)), contains('required="required"'));
+      expect(renderToHtml(Select(multiple: true)), contains('multiple="multiple"'));
+      expect(renderToHtml(Select(disabled: true)), contains('disabled="disabled"'));
+      expect(renderToHtml(Button(type: ButtonType.reset, disabled: true)),
+          '<button type="reset" disabled="disabled"></button>');
+      expect(InputType.datetimeLocal, 'datetime-local');
+      expect(ButtonType.button, 'button');
+    });
+
+    test('image and anchor descriptors render typed attributes', () {
+      final image = renderToHtml(Img(
+        src: '/image.png',
+        alt: 'An image',
+        width: 32,
+        height: 16,
+        loading: ImageLoading.lazy,
+        decoding: ImageDecoding.async,
+        fetchPriority: FetchPriority.high,
+        srcset: '/image-2x.png 2x',
+        sizes: '32px',
+      ));
+      for (final attribute in [
+        'loading="lazy"',
+        'decoding="async"',
+        'fetchpriority="high"',
+        'width="32"',
+        'height="16"',
+        'srcset="/image-2x.png 2x"',
+        'sizes="32px"',
+      ]) {
+        expect(image, contains(attribute));
+      }
+      expect(renderToHtml(A(href: '/download', download: true)),
+          contains('download="download"'));
+    });
+
+    test('description list descriptors render', () {
+      expect(
+        renderToHtml(Dl(children: [Dt(text: 'Term'), Dd(text: 'Meaning')])),
+        '<dl><dt>Term</dt><dd>Meaning</dd></dl>',
+      );
+    });
+
+    test('SVG presentation shorthands accept numeric stroke widths', () {
+      expect(
+        renderToHtml(SvgCircle(
+          cx: 2,
+          cy: 3,
+          r: 4,
+          fill: 'red',
+          stroke: 'black',
+          strokeWidth: 2,
+          opacity: 0.5,
+          transform: 'scale(2)',
+        )),
+        contains('stroke-width="2"'),
+      );
+      expect(
+        renderToHtml(SvgRect(
+          width: 10,
+          height: 8,
+          strokeWidth: 4,
+          opacity: 0.6,
+          transform: 'rotate(2)',
+        )),
+        allOf(
+          contains('stroke-width="4"'),
+          contains('opacity="0.6"'),
+          contains('transform="rotate(2)"'),
+        ),
+      );
+      expect(
+          renderToHtml(SvgLine(
+              x1: 0,
+              y1: 1,
+              x2: 2,
+              y2: 3,
+              strokeWidth: 3,
+              opacity: 0.7,
+              transform: 'translate(1)')),
+          allOf(contains('stroke-width="3"'), contains('opacity="0.7"'),
+              contains('transform="translate(1)"')));
+      expect(
+        renderToHtml(Svg(
+          width: 24,
+          strokeWidth: 5,
+          opacity: 0.8,
+          transform: 'scale(1.5)',
+        )),
+        allOf(
+          contains('<svg width="24"'),
+          contains('stroke-width="5"'),
+          contains('opacity="0.8"'),
+          contains('transform="scale(1.5)"'),
+        ),
+      );
+      expect(renderToHtml(Svg(width: '100%')), contains('<svg width="100%">'));
+    });
   });
 
   group('renderToDocument', () {
@@ -261,6 +455,38 @@ void main() {
         ],
       );
       expect(html, contains('<meta name="description" content="test">'));
+    });
+
+    test('orders explicit and legacy scripts after head nodes', () {
+      final html = renderToDocument(
+        Div(),
+        head: [ElNode('title', text: 'head node')],
+        scriptTags: const [
+          DocumentScript('/bootstrap.js', module: true),
+          DocumentScript('/classic.js', defer: false, async: true),
+        ],
+        scripts: ['/main.js'],
+      );
+      final headNodeIndex = html.indexOf('<title>head node</title>');
+      final moduleIndex =
+          html.indexOf('<script type="module" src="/bootstrap.js"></script>');
+      final classicIndex =
+          html.indexOf('<script async src="/classic.js"></script>');
+      final legacyIndex =
+          html.indexOf('<script defer src="/main.js"></script>');
+      expect(headNodeIndex, lessThan(moduleIndex));
+      expect(moduleIndex, lessThan(classicIndex));
+      expect(classicIndex, lessThan(legacyIndex));
+      expect(legacyIndex, lessThan(html.indexOf('</head>')));
+    });
+
+    test('rejects executable URLs in descriptor script tags', () {
+      expect(
+        () => renderToDocument(Div(), scriptTags: const [
+          DocumentScript('javascript:run()'),
+        ]),
+        throwsArgumentError,
+      );
     });
   });
 

@@ -180,6 +180,13 @@ void _render(BloomNode node, StringBuffer buf,
         :final className,
         :final style,
         :final attrs,
+        :final id,
+        :final role,
+        :final data,
+        :final hidden,
+        :final title,
+        :final tabIndex,
+        :final aria,
         :final reactiveClass,
         :final reactiveStyle,
         :final reactiveAttrs,
@@ -197,7 +204,11 @@ void _render(BloomNode node, StringBuffer buf,
       if (combinedStyle.isNotEmpty) {
         buf.write(' style="${escapeHtml(combinedStyle)}"');
       }
-      final renderedAttrs = _combinedAttrs(attrs, reactiveAttrs);
+      final renderedAttrs = _combinedAttrs(
+        _descriptorAttributes(
+            attrs, id, role, data, hidden, title, tabIndex, aria),
+        reactiveAttrs,
+      );
       if (renderedAttrs.isNotEmpty) {
         for (final entry in renderedAttrs.entries) {
           _validateAttributeName(entry.key);
@@ -228,6 +239,13 @@ void _render(BloomNode node, StringBuffer buf,
         :final className,
         :final style,
         :final attrs,
+        :final id,
+        :final role,
+        :final data,
+        :final hidden,
+        :final title,
+        :final tabIndex,
+        :final aria,
         :final reactiveClass,
         :final reactiveStyle,
         :final reactiveAttrs,
@@ -246,7 +264,11 @@ void _render(BloomNode node, StringBuffer buf,
       if (combinedStyle.isNotEmpty) {
         buf.write(' style="${escapeHtml(combinedStyle)}"');
       }
-      final renderedAttrs = _combinedAttrs(attrs, reactiveAttrs);
+      final renderedAttrs = _combinedAttrs(
+        _descriptorAttributes(
+            attrs, id, role, data, hidden, title, tabIndex, aria),
+        reactiveAttrs,
+      );
       if (renderedAttrs.isNotEmpty) {
         for (final entry in renderedAttrs.entries) {
           _validateAttributeName(entry.key);
@@ -444,6 +466,32 @@ String _combinedStyle(String? style, String Function()? reactiveStyle) {
   return '$base; $extra';
 }
 
+Map<String, String>? _descriptorAttributes(
+  Map<String, String>? attrs,
+  String? id,
+  String? role,
+  Map<String, String>? data,
+  bool? hidden,
+  String? title,
+  int? tabIndex,
+  Map<String, Object?>? aria,
+) {
+  final generated = <String, String>{
+    if (id != null) 'id': id,
+    if (role != null) 'role': role,
+    if (hidden == true) 'hidden': '',
+    if (title != null) 'title': title,
+    if (tabIndex != null) 'tabindex': '$tabIndex',
+    if (data != null)
+      for (final entry in data.entries) 'data-${entry.key}': entry.value,
+    if (aria != null)
+      for (final entry in aria.entries)
+        if (entry.value != null) 'aria-${entry.key}': entry.value.toString(),
+  };
+  if (attrs != null) generated.addAll(attrs);
+  return generated.isEmpty ? null : generated;
+}
+
 Map<String, String> _combinedAttrs(
   Map<String, String>? attrs,
   Map<String, Object? Function()>? reactiveAttrs,
@@ -452,8 +500,10 @@ Map<String, String> _combinedAttrs(
   reactiveAttrs?.forEach((name, getter) {
     final value = getter();
     final normalizedName = name.toLowerCase();
-    if (value == null || (value is bool && value == false &&
-        !normalizedName.startsWith('aria-'))) {
+    if (value == null ||
+        (value is bool &&
+            value == false &&
+            !normalizedName.startsWith('aria-'))) {
       result.remove(name);
     } else if (value is bool && !normalizedName.startsWith('aria-')) {
       result[name] = '';
@@ -486,6 +536,33 @@ String renderToHtmlAll(List<BloomNode> nodes) {
   }, zoneValues: {_keyframesZoneKey: <String>{}});
 }
 
+/// A script tag for [renderToDocument].
+///
+/// ```dart
+/// const DocumentScript('/bootstrap.js', module: true);
+/// ```
+class DocumentScript {
+  /// Script URL validated before it is written to the document.
+  final String src;
+
+  /// Whether the script is an ES module.
+  final bool module;
+
+  /// Whether a classic script is deferred until document parsing completes.
+  final bool defer;
+
+  /// Whether the script loads asynchronously.
+  final bool async;
+
+  /// Creates a document script descriptor.
+  const DocumentScript(
+    this.src, {
+    this.module = false,
+    this.defer = true,
+    this.async = false,
+  });
+}
+
 /// Renders a complete HTML5 document wrapping [body] with standard boilerplate.
 ///
 /// Produces a complete `<!DOCTYPE html><html lang="...">...</html>` string with
@@ -498,7 +575,12 @@ String renderToHtmlAll(List<BloomNode> nodes) {
 /// - [head]: Additional [BloomNode] descriptors rendered directly inside `<head>`.
 /// - [importMapJson]: Optional JSON string emitted inside `<script type="importmap">` in `<head>`.
 /// - [stylesheets]: List of CSS stylesheet URLs emitted as `<link rel="stylesheet">` tags in `<head>`.
-/// - [scripts]: List of JavaScript URLs emitted as `<script src="...">` tags at the bottom of `<body>`.
+/// - [scriptTags]: Script descriptors emitted in `<head>` after head nodes.
+/// - [scripts]: Legacy JavaScript URLs emitted in `<head>` after [scriptTags],
+///   each with `defer`. This keeps classic app bundles behind module bootstraps.
+///
+/// Head output is ordered as charset and viewport, title, import map,
+/// stylesheets, [head] nodes, [scriptTags], then legacy [scripts].
 ///
 /// ```dart
 /// final html = renderToDocument(
@@ -517,6 +599,7 @@ String renderToDocument(
   String? importMapJson,
   List<String> stylesheets = const [],
   List<String> scripts = const [],
+  List<DocumentScript> scriptTags = const [],
 }) {
   return runZoned(() {
     final buf = StringBuffer();
@@ -539,13 +622,25 @@ String renderToDocument(
       _render(node, buf);
       buf.write('\n');
     }
+    for (final script in scriptTags) {
+      validateBloomAttribute('src', script.src);
+      buf.write('<script');
+      if (script.module) {
+        buf.write(' type="module"');
+        if (script.async) buf.write(' async');
+      } else {
+        if (script.defer) buf.write(' defer');
+        if (script.async) buf.write(' async');
+      }
+      buf.write(' src="${escapeHtml(script.src)}"></script>\n');
+    }
+    for (final url in scripts) {
+      validateBloomAttribute('src', url);
+      buf.write('<script defer src="${escapeHtml(url)}"></script>\n');
+    }
     buf.write('</head>\n<body>\n');
     _render(body, buf);
     buf.write('\n');
-    for (final url in scripts) {
-      validateBloomAttribute('src', url);
-      buf.write('<script src="${escapeHtml(url)}"></script>\n');
-    }
     buf.write('</body>\n</html>');
     return buf.toString();
   }, zoneValues: {_keyframesZoneKey: <String>{}});
@@ -777,6 +872,7 @@ String renderToDocumentInScope(
   String? importMapJson,
   List<String> stylesheets = const [],
   List<String> scripts = const [],
+  List<DocumentScript> scriptTags = const [],
 }) =>
     BloomData.runWithScope(
       scope,
@@ -789,6 +885,7 @@ String renderToDocumentInScope(
         importMapJson: importMapJson,
         stylesheets: stylesheets,
         scripts: scripts,
+        scriptTags: scriptTags,
       ),
     );
 

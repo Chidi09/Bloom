@@ -8,7 +8,7 @@ export 'src/html.dart';
 export 'src/hydration_contract.dart';
 export 'src/events.dart';
 export 'src/npm.dart';
-export 'src/router.dart';
+export 'src/router.dart' hide linkClickDecision;
 export 'src/signals.dart';
 export 'src/devtools.dart';
 export 'src/data.dart';
@@ -32,4 +32,3 @@ export 'src/island_node.dart';
 export 'src/rpc.dart';
 export 'src/i18n.dart';
 export 'src/image.dart';
-
