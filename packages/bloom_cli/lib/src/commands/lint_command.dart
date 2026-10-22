@@ -35,15 +35,17 @@ class LintCommand extends Command<int> {
 
     final project = BloomProject.find(projectDir);
     if (project == null) {
-      print(Ansi.error('✖ Not a valid Bloom project directory: ${projectDir.path}'));
+      print(Ansi.error(
+          '✖ Not a valid Bloom project directory: ${projectDir.path}'));
       return 1;
     }
 
     final linter = BloomLinter(project);
-    final result = linter.lint();
+    final result = await linter.lint();
 
     if (result.hasFindings) {
-      print(Ansi.error('\n✖ Bloom Lint Issues Detected! Found ${result.findings.length} issue(s):'));
+      print(Ansi.error(
+          '\n✖ Bloom Lint Issues Detected! Found ${result.findings.length} issue(s):'));
 
       // Group findings by file
       final byFile = <String, List<LintFinding>>{};
@@ -54,9 +56,11 @@ class LintCommand extends Command<int> {
       for (final entry in byFile.entries) {
         print('\n📄 ${entry.key}:');
         for (final f in entry.value) {
-          print(Ansi.warn('  • [${f.ruleName}] line ${f.lineNumber}: ${f.message}'));
+          print(Ansi.warn(
+              '  • [${f.ruleName}] line ${f.lineNumber}: ${f.message}'));
           if (f.snippet.isNotEmpty) {
-            print('    Line ${f.lineNumber}: ${f.snippet.length > 100 ? '${f.snippet.substring(0, 100)}...' : f.snippet}');
+            print(
+                '    Line ${f.lineNumber}: ${f.snippet.length > 100 ? '${f.snippet.substring(0, 100)}...' : f.snippet}');
           }
         }
       }
@@ -64,7 +68,8 @@ class LintCommand extends Command<int> {
       return 1;
     }
 
-    print(Ansi.success('✔ Clean! 0 Bloom lint issues found across ${result.scannedFilesCount} file(s).\n'));
+    print(Ansi.success(
+        '✔ Clean! 0 Bloom lint issues found across ${result.scannedFilesCount} file(s).\n'));
     return 0;
   }
 }
