@@ -40,12 +40,7 @@ import '../lib/src/commands/upgrade_command.dart';
 import '../lib/src/commands/why_command.dart';
 import '../lib/src/commands/workspace_command.dart';
 import '../lib/src/utils/ansi.dart';
-
-// Must match the `version:` field in pubspec.yaml — this is compiled into
-// the executable snapshot, so it cannot be read from pubspec.yaml at
-// runtime once `dart pub global activate` has installed it. Bump this on
-// every release alongside pubspec.yaml.
-const String bloomVersion = '0.7.5';
+import '../lib/src/version.dart';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<int>(
@@ -99,12 +94,12 @@ Future<void> main(List<String> args) async {
   );
 
   if (args.contains('--version') || args.contains('-v')) {
-    print('Bloom CLI version $bloomVersion');
+    print('Bloom CLI version $bloomCliVersion');
     exit(0);
   }
 
   if (args.isEmpty) {
-    printBloomBanner(version: bloomVersion);
+    printBloomBanner(version: bloomCliVersion);
     runner.printUsage();
     exit(0);
   }

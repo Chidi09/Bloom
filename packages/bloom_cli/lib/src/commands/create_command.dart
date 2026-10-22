@@ -277,6 +277,7 @@ class CreateCommand extends Command<int> {
     Directory(p.join(targetDir.path, 'lib')).createSync(recursive: true);
     Directory(p.join(targetDir.path, 'web')).createSync(recursive: true);
     Directory(p.join(targetDir.path, 'test')).createSync(recursive: true);
+    Directory(p.join(targetDir.path, 'bin')).createSync(recursive: true);
 
     print(Ansi.step('2/4 Generating manifests and entry point...'));
     File(p.join(targetDir.path, 'bloom.yaml')).writeAsStringSync(
@@ -297,6 +298,12 @@ class CreateCommand extends Command<int> {
     );
     File(p.join(targetDir.path, 'lib', 'main.dart')).writeAsStringSync(
       BloomTemplates.jsNativeMainDart(projectName: appName),
+    );
+    File(p.join(targetDir.path, 'lib', 'app.dart')).writeAsStringSync(
+      BloomTemplates.jsNativeAppDart(projectName: appName),
+    );
+    File(p.join(targetDir.path, 'bin', 'ssg.dart')).writeAsStringSync(
+      BloomTemplates.jsNativeSsgDart(projectName: appName),
     );
     File(p.join(targetDir.path, 'test', 'smoke_test.dart')).writeAsStringSync(
       BloomTemplates.jsNativeSmokeTest(projectName: appName),
@@ -324,7 +331,7 @@ class CreateCommand extends Command<int> {
     print(
         '  ${Ansi.cyan}bloom js dev${Ansi.reset}     (Launch dev server with fast DDC live reload)');
     print(
-        '  ${Ansi.cyan}bloom js build${Ansi.reset}   (Compile a production bundle)\n');
+        '  ${Ansi.cyan}bloom js build --ssg${Ansi.reset} (Build and render dist/)\n');
 
     return 0;
   }

@@ -11,8 +11,7 @@ import '../upgrade/breaking_change_analyzer.dart';
 import '../utils/ansi.dart';
 import '../utils/manifest_validator.dart';
 import '../utils/project.dart';
-
-const _bloomCliVersion = '0.4.0';
+import '../version.dart';
 
 /// Command that validates environment, toolchain, project configuration, and CI health.
 ///
@@ -270,12 +269,12 @@ class DoctorCommand extends Command<int> {
             if (latest is Map<String, dynamic>) {
               final latestVersion = latest['version'] as String?;
               if (latestVersion != null && latestVersion.isNotEmpty) {
-                if (latestVersion == _bloomCliVersion) {
+                if (latestVersion == bloomCliVersion) {
                   print(
-                      '${Ansi.green}✔ Up to date${Ansi.reset} ${Ansi.dimText('(v$_bloomCliVersion)')}');
+                      '${Ansi.green}✔ Up to date${Ansi.reset} ${Ansi.dimText('(v$bloomCliVersion)')}');
                 } else {
                   print(
-                      '${Ansi.yellow}⚠ Update available${Ansi.reset} ${Ansi.dimText('(installed v$_bloomCliVersion, latest v$latestVersion)')}');
+                      '${Ansi.yellow}⚠ Update available${Ansi.reset} ${Ansi.dimText('(installed v$bloomCliVersion, latest v$latestVersion)')}');
                 }
                 return;
               }
@@ -287,7 +286,7 @@ class DoctorCommand extends Command<int> {
       }
     } catch (_) {}
     print(Ansi.dimText(
-        'ℹ Unable to check for updates (offline or not published) (installed v$_bloomCliVersion)'));
+        'ℹ Unable to check for updates (offline or not published) (installed v$bloomCliVersion)'));
   }
 
   Future<int> _runCiDoctor(BloomProject? project, Directory projectDir) async {

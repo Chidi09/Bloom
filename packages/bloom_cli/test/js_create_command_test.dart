@@ -237,7 +237,7 @@ void main() {
       final projectDir = Directory(p.join(tempDir.path, 'brand_app'));
       final favicon = File(p.join(projectDir.path, 'web', 'favicon.svg'));
       final index = File(p.join(projectDir.path, 'web', 'index.html'));
-      final main = File(p.join(projectDir.path, 'lib', 'main.dart'));
+      final app = File(p.join(projectDir.path, 'lib', 'app.dart'));
 
       expect(favicon.existsSync(), isTrue);
       expect(
@@ -247,7 +247,70 @@ void main() {
           index.readAsStringSync(),
           contains(
               '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'));
-      expect(main.readAsStringSync(), contains("Img(src: '/favicon.svg'"));
+      expect(app.readAsStringSync(), contains("Img(src: '/favicon.svg'"));
+    });
+
+    test('js-native scaffold includes app, SSG, smoke test, and accurate guide',
+        () async {
+      final runner = CommandRunner<int>('bloom', 'Bloom CLI')
+        ..addCommand(CreateCommand());
+      final previousDir = Directory.current;
+      Directory.current = tempDir;
+
+      int? exitCode;
+      try {
+        exitCode = await runner.run(['create', 'starter_app', '--js-native']);
+      } finally {
+        Directory.current = previousDir;
+      }
+
+      expect(exitCode, 0);
+      final projectDir = Directory(p.join(tempDir.path, 'starter_app'));
+      final app = File(p.join(projectDir.path, 'lib', 'app.dart'));
+      final main = File(p.join(projectDir.path, 'lib', 'main.dart'));
+      final ssg = File(p.join(projectDir.path, 'bin', 'ssg.dart'));
+      final smokeTest =
+          File(p.join(projectDir.path, 'test', 'smoke_test.dart'));
+      final pubspec = File(p.join(projectDir.path, 'pubspec.yaml'));
+      final agents = File(p.join(projectDir.path, 'AGENTS.md'));
+
+      expect(app.existsSync(), isTrue);
+      expect(app.readAsStringSync(), contains('BloomNode app()'));
+      expect(
+        app.readAsStringSync(),
+        contains("import 'package:bloom_js_native/bloom_js_native.dart'"),
+      );
+      expect(main.readAsStringSync(), contains('mountApp('));
+      expect(main.readAsStringSync(), contains("mountApp(app(), '#app')"));
+      expect(
+        main.readAsStringSync(),
+        isNot(contains('mount(app,')),
+      );
+      expect(ssg.existsSync(), isTrue);
+      expect(ssg.readAsStringSync(), contains('generateStaticSite('));
+      expect(ssg.readAsStringSync(), contains("pages: {'/': app}"));
+      expect(
+        smokeTest.readAsStringSync(),
+        contains('renderToHtml(app())'),
+      );
+      expect(
+        smokeTest.readAsStringSync(),
+        contains('Welcome to starter_app'),
+      );
+      expect(
+        pubspec.readAsStringSync(),
+        contains("sdk: '^3.6.0'"),
+      );
+      expect(
+        agents.readAsStringSync(),
+        isNot(contains('remount on dynamic sentinels')),
+      );
+      expect(agents.readAsStringSync(), contains('reactiveAttrs'));
+      expect(agents.readAsStringSync(), contains('bloom js build --ssg'));
+      expect(
+        File(p.join(projectDir.path, '.gitignore')).readAsStringSync(),
+        contains('dist/'),
+      );
     });
   });
 }

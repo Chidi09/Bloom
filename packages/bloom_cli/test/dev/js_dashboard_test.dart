@@ -27,8 +27,8 @@ void main() {
 
   setUp(() {
     projectDir = Directory.systemTemp.createTempSync('bloom_js_dash_');
-    Directory(p.join(projectDir.path, 'lib', 'routes')).createSync(
-        recursive: true);
+    Directory(p.join(projectDir.path, 'lib', 'routes'))
+        .createSync(recursive: true);
     File(p.join(projectDir.path, 'lib', 'routes', 'index.dart'))
         .writeAsStringSync('void indexRoute() {}');
     File(p.join(projectDir.path, 'lib', 'routes', 'about.dart'))
@@ -78,6 +78,19 @@ void main() {
     });
     expect(out, contains('dart2js -O0'));
     expect(out, isNot(contains('DDC fast dev-loop')));
+  });
+
+  test('startup panel identifies a single-page app with no routes', () async {
+    Directory(p.join(projectDir.path, 'lib', 'routes'))
+        .deleteSync(recursive: true);
+
+    final out = await _render(() {
+      makeDash().renderStartup();
+    });
+
+    expect(out, contains('Routes: single-page app (lib/main.dart)'));
+    expect(out, isNot(contains('Routes (0)')));
+    expect(out, isNot(contains('none yet')));
   });
 
   test('live build status increments compiles and prints counts', () async {

@@ -422,7 +422,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '^3.6.0'
 
 dependencies:
   bloom_js_native: ^$bloomJsNativeVersion
@@ -454,18 +454,14 @@ dev_dependencies:
 ''';
   }
 
-  /// `lib/main.dart` for a Bloom JS Native project. Imports `browser.dart`
-  /// (not the bare `bloom_js_native.dart` entry point) since `mount()` is
-  /// browser-only — a common mistake that fails with
-  /// "Error: Method not found: 'mount'." if omitted.
-  static String jsNativeMainDart({required String projectName}) {
+  /// `lib/app.dart` for a Bloom JS Native project.
+  static String jsNativeAppDart({required String projectName}) {
     return '''import 'package:bloom_js_native/bloom_js_native.dart';
-import 'package:bloom_js_native/browser.dart';
 
-void main() {
+BloomNode app() {
   final count = signal(0);
 
-  final app = Div(
+  return Div(
     className: 'app',
     children: [
       Img(src: '/favicon.svg', alt: 'Bloom logo', width: 72, height: 72),
@@ -477,8 +473,32 @@ void main() {
       ),
     ],
   );
+}
+''';
+  }
 
-  mount(app, '#app');
+  /// `lib/main.dart` hydrates rendered HTML or mounts into an empty root.
+  static String jsNativeMainDart({required String projectName}) {
+    return '''import 'package:bloom_js_native/browser.dart';
+import 'app.dart';
+
+// Mounts into an empty #app in dev, and hydrates the pre-rendered #app of a
+// static build (`bloom js build --ssg`).
+void main() => mountApp(app(), '#app');
+''';
+  }
+
+  /// `bin/ssg.dart` renders the app's static home page into `dist/`.
+  static String jsNativeSsgDart({required String projectName}) {
+    return '''import 'package:bloom_js_native/ssg.dart';
+import 'package:$projectName/app.dart';
+
+Future<void> main() async {
+  // Add more route paths here as the app grows.
+  await generateStaticSite(
+    pages: {'/': app},
+    title: '$projectName',
+  );
 }
 ''';
   }
@@ -487,14 +507,13 @@ void main() {
   /// test` unit test against the SSR-safe core, not a browser test.
   static String jsNativeSmokeTest({required String projectName}) {
     return '''import 'package:bloom_js_native/bloom_js_native.dart';
+import '../lib/app.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('count signal starts at 0 and increments', () {
-    final count = signal(0);
-    expect(count.value, 0);
-    count.value++;
-    expect(count.value, 1);
+  test('app renders its welcome heading', () {
+    final html = renderToHtml(app());
+    expect(html, contains('Welcome to $projectName'));
   });
 }
 ''';
@@ -524,22 +543,22 @@ check `.dart_tool/package_config.json` for its path). It is task-oriented
   (`Div`, `Button`, `Live`, `Show`, `ForEach`), signals (`signal`, `computed`,
   `effect`), forms, routing, i18n. Pure Dart — safe on the server, in tests,
   in any shared/universal file.
-- `package:bloom_js_native/browser.dart` — browser-only. `mount()`,
-  `mountToElement()`, `hydrate()`, `BloomRouterController`, Web Component
+- `package:bloom_js_native/browser.dart` — browser-only. `mountApp()`,
+  `mount()`, `mountToElement()`, `hydrate()`, `BloomRouterController`, Web Component
   interop. Depends on `package:web` and real DOM APIs.
 
-**`mount()` only exists in `browser.dart`.** If you import only
-`bloom_js_native.dart` and call `mount()`, you get
-`Error: Method not found: 'mount'.` Only `lib/main.dart` (the client entry
-point) should import `browser.dart`; every other file — components, routes,
-shared state — imports the base `bloom_js_native.dart`.
+**`mountApp()`, `mount()`, and `hydrate()` only exist in `browser.dart`.** If
+you import only `bloom_js_native.dart` and call one of them, you get a
+"method not found" error. Only `lib/main.dart` (the client entry point)
+should import `browser.dart`; every other file — components, routes, shared
+state — imports the base `bloom_js_native.dart`.
 
 ## Project layout
 
 ```
 lib/
-  main.dart          # entry point: builds the router, calls mount() — imports browser.dart
-  app.dart            # top-level shell + BloomRouter route list
+  main.dart          # browser entry point: calls mountApp() — imports browser.dart
+  app.dart            # shared BloomNode app shell, imported by main.dart and SSG
   routes/
     <page>.dart          # one BloomNode-returning function per route
   components/
@@ -548,6 +567,8 @@ lib/
     <domain>.dart           # shared Signal<T> instances
   design/
     tokens.dart               # designTokensCss const, injected via Style()
+bin/
+  ssg.dart                    # static site entry point for bloom js build --ssg
 ```
 
 See COOKBOOK.md Section 3 ("Project Structure & Multi-File Apps") for the
@@ -558,13 +579,11 @@ anything already in `lib/components/` before writing a new descriptor.
 ## Commands
 
 - `bloom js dev` — fast dev server with DDC live reload and hot remount, compiles `lib/main.dart`. Pass `--legacy-dart2js` to opt out to a whole-program `dart2js -O0` dev build instead.
-- `bloom js build` — production bundle.
-- `dart run bin/ssg.dart` — renders the static site to `dist/`. Run it only
-  **after** `bloom js build`; the SSG must copy `web/main.js` to
-  `dist/main.js`, plus vendor/assets and `lib/generated/fonts` to the served
-  paths. A page that references `/main.js` without that output file has no
-  hydration: links may navigate, but buttons, menus, dialogs, signals, and
-  theme controls are inert. Verify `curl -I <preview>/main.js` returns 200.
+- `bloom js build --ssg` — builds the production bundle and renders `dist/`
+  via `bin/ssg.dart`. It generates static Tailwind CSS when Tailwind is
+  installed and verifies `dist/main.js` exists.
+- `bloom format` — formats Dart and embedded HTML; pass `--css` to format CSS
+  inside strings.
 - `bloom lint` — flags framework-specific bugs `dart analyze` can't see,
   including `untracked_signal_read`: a `.value` read directly inside
   UI-building code, outside `Live`/`Show`/`ForEach`/`effect`/`computed` (see
@@ -633,6 +652,15 @@ version so you don't have to open it for every edit.
   rebuilds all child DOM nodes.
 - `Show(...)` with no `fallback` renders nothing when `when()` is false —
   pass `fallback:` explicitly if you need placeholder content.
+- Update attributes and classes in place with `reactiveAttrs`, `reactiveClass`,
+  `reactiveStyle`, and `classIf` instead of re-creating the element in `Live`
+  (which drops focus):
+  ```dart
+  Button(reactiveAttrs: {'aria-pressed': () => selected.value},
+    classIf: {'active': () => selected.value})
+  Div(reactiveClass: () => visible.value ? 'shown' : '',
+    reactiveStyle: () => 'opacity: \${visible.value ? 1 : 0}')
+  ```
 - Reading a signal inside a plain Dart helper function (not a widget
   builder) still needs a reactive wrapper at the call site. Prefer
   `computed(() => ...)` for a derived value used in multiple places over
@@ -674,10 +702,10 @@ version so you don't have to open it for every edit.
 ### The two entry points
 - `package:bloom_js_native/bloom_js_native.dart` — pure Dart, safe
   everywhere (SSR, tests, shared files).
-- `package:bloom_js_native/browser.dart` — `mount()`, hydration, router
-  controller, Web Component interop. **Only `lib/main.dart` should import
-  this.** Importing only the base package and calling `mount()` fails with
-  `Error: Method not found: 'mount'.`
+- `package:bloom_js_native/browser.dart` — `mountApp()`, `mount()`, `hydrate()`,
+  router controller, Web Component interop. **Only `lib/main.dart` should
+  import this.** `mountApp()` is the default entry point; `hydrate()` and
+  `mount()` remain available for explicit control.
 
 ### SSR / hydration
 - Reactive builders run exactly once, synchronously, under `renderToHtml()`
@@ -685,21 +713,16 @@ version so you don't have to open it for every edit.
 - Event handlers, `Mount.onMount`/`onUnmount`, `Ref`, router listeners, and
   `effect()` all silently do nothing under SSR. Server-side logic (data
   fetching, redirects) belongs in loader/route-guard hooks, not these.
-- For SSG/SSR output, call `hydrate(app, '#app')` in `lib/main.dart` — never
-  `mount(app, '#app')`. `mount` appends a duplicate app beside the HTML;
-  duplicate IDs cause double navbars, command palettes, and toast viewports.
-  `hydrate` attaches in place or performs one clean remount for dynamic
-  sentinels. Mount every global overlay exactly once at the app root.
-- Reactive root trees currently remount on dynamic sentinels (`Live`, `Show`,
-  `ForEach`). Avoid screenshot comparisons during initial font/CSS/animation
-  startup, and mount browser-only state (global modals, toasts, theme listeners)
-  cleanly at root.
+- `mountApp()` adopts server-rendered DOM in place, including `Live`, `Show`,
+  and `ForEach`. A mismatch is repaired inside its boundary and logged to the
+  console in debug builds; only an unrecoverable root mismatch remounts.
+  Mount every global overlay exactly once at the app root.
 - Responsive UI is CSS-first: use mobile-first media/container queries and
   responsive images (`bloomImage`, `bloomPicture`). Do not branch ordinary layout
   in Dart based on viewport; `HydrationStrategy.media` is for deferring
   interaction, not layout.
 - Do not place required browser logic in a `Raw('<script>…</script>')` node
-  emitted by SSR. A dynamic hydration remount recreates it and inserted
+  emitted by SSR. Hydration mismatch recovery may recreate it, and inserted
   scripts do not reliably run. Register browser listeners, focus work,
   observers, clipboard/theme bridges, and cleanup in `lib/main.dart` or
   `Mount.onMount`/`onUnmount` instead.
@@ -737,6 +760,9 @@ teardown: `BloomMountHandle.unmount()`, `BloomRouterController.dispose()`,
   insertion. Close on Escape/backdrop and test Cmd/Ctrl+K in a real browser.
 
 ### Styling and design tokens
+- Import UI primitives separately with
+  `import 'package:bloom_js_native/ui.dart';` so they never clash with your
+  own function names.
 - Define your design tokens (colors, radii, fonts) as a `const String` of
   raw CSS in `lib/design/tokens.dart`, injected once via `Style(tokensCss)`
   as the first child of your app shell — not pasted into `web/index.html`.
@@ -810,10 +836,10 @@ teardown: `BloomMountHandle.unmount()`, `BloomRouterController.dispose()`,
 
 ## Anti-fabrication note for AI agents
 
-Do not guess component parameter names or signatures. Every UI primitive
-(`button`, `dialog`, `select`, etc.) is documented with real, verified
-signatures in COOKBOOK.md Section 19 ("UI Component Primitives") — read the
-relevant recipe there before using one you haven't used before in this repo.
+Do not guess component parameter names or signatures. Core descriptors and
+UI primitives imported from `package:bloom_js_native/ui.dart` have real,
+verified signatures in COOKBOOK.md Section 19 ("UI Component Primitives") —
+read the relevant recipe before using one you haven't used before in this repo.
 ''';
   }
 
@@ -827,6 +853,7 @@ web/main.js.map
 web/main.js.deps
 web/vendor/
 web/importmap.json
+dist/
 ''';
   }
 }

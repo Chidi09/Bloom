@@ -78,10 +78,10 @@ class JsDevDashboard {
     }
 
     final routes = project.scanRoutes();
-    print('  ${Ansi.boldText('Routes (${routes.length}):')}');
     if (routes.isEmpty) {
-      print('    ${Ansi.dimText('(none yet — create lib/routes/*.dart)')}');
+      print('  Routes: single-page app (lib/main.dart)');
     } else {
+      print('  ${Ansi.boldText('Routes (${routes.length}):')}');
       for (final r in routes) {
         print('    ${Ansi.cyan}•${Ansi.reset} '
             '${r.routePath.padRight(20)} ${Ansi.dimText(r.relativeFilePath)}${Ansi.reset}');
@@ -123,15 +123,13 @@ class JsDevDashboard {
     if (success) {
       _compiles++;
       final label = note ?? 'build ok';
-      final line =
-          '  ${Ansi.green}✔${Ansi.reset} $label in ${_fmtMs(ms)}  '
+      final line = '  ${Ansi.green}✔${Ansi.reset} $label in ${_fmtMs(ms)}  '
           '${Ansi.dimText('($_compiles builds, $_errors errors) [$_lastMode]')}';
       print(line);
     } else {
       _errors++;
       _lastMode = isDdcMode ? 'DDC' : 'dart2js';
-      print(
-          '  ${Ansi.red}✖${Ansi.reset} build failed in ${_fmtMs(ms)}  '
+      print('  ${Ansi.red}✖${Ansi.reset} build failed in ${_fmtMs(ms)}  '
           '${Ansi.dimText('($_compiles builds, $_errors errors) [$_lastMode]')}');
       if (errorText != null && errorText.trim().isNotEmpty) {
         print(
@@ -141,8 +139,6 @@ class JsDevDashboard {
   }
 
   static String _fmtMs(int ms) {
-    return ms >= 1000
-        ? '${(ms / 1000).toStringAsFixed(2)}s'
-        : '$ms ms';
+    return ms >= 1000 ? '${(ms / 1000).toStringAsFixed(2)}s' : '$ms ms';
   }
 }
