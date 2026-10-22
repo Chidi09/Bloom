@@ -1,5 +1,4 @@
-import 'package:bloom_js_native/bloom_js_native.dart'
-    hide showToast; // local site toast system takes precedence
+import 'package:bloom_js_native/bloom_js_native.dart';
 import '../components/huge_icons.dart';
 import '../components/toast_system.dart';
 import '../data/blocks_data.dart';

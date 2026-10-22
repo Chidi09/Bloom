@@ -2525,9 +2525,9 @@ Future<void> handleUserLogin(
 
 ## 19. UI Component Primitives
 
-Bloom provides a comprehensive, 47-component UI primitives library (`package:bloom_js_native/bloom_js_native.dart`) inspired by modern design systems like shadcn/ui. Every primitive is built on pure Dart AST descriptors (`BloomNode`), styled with CSS custom property design tokens (`var(--primary)`, `var(--card)`, etc.), and adheres to strict accessibility semantics (`role`, `aria-*`).
+Bloom provides a comprehensive UI primitives library (`package:bloom_js_native/ui.dart`) inspired by modern design systems like shadcn/ui. Import it next to `package:bloom_js_native/bloom_js_native.dart`; UI primitives are a separate import so their names never clash with your own functions. Every primitive is built on pure Dart AST descriptors (`BloomNode`), styled with CSS custom property design tokens (`var(--primary)`, `var(--card)`, etc.), and adheres to strict accessibility semantics (`role`, `aria-*`).
 
-Because components are pure `BloomNode` descriptor trees, they render identically during Server-Side Rendering (SSR) and in client browsers. All UI primitives are exported directly from `package:bloom_js_native/bloom_js_native.dart`.
+Because components are pure `BloomNode` descriptor trees, they render identically during Server-Side Rendering (SSR) and in client browsers. UI primitives are exported from `package:bloom_js_native/ui.dart`.
 
 ### State Ownership Model in Bloom UI
 Before using the components, understand how state is partitioned across three categories of primitives:
@@ -2545,6 +2545,7 @@ Consuming applications can inject `uiTokensCss` into their root document or over
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Inject default Bloom UI design tokens into your root HTML template
 String renderRootDocument(BloomNode bodyContent) {
@@ -2618,6 +2619,7 @@ Inject it once, as the first child returned by your app's root/shell component â
 ```dart
 // lib/app.dart (or wherever your shell/layout component lives)
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 import 'design/tokens.dart';
 
 BloomNode appShell(BloomNode content) {
@@ -2665,6 +2667,7 @@ Then reference the generated stylesheet the same way you reference design tokens
 ```dart
 // lib/app.dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 import 'design/tokens.dart';
 
 BloomNode appShell(BloomNode content) {
@@ -2684,10 +2687,11 @@ If you generated the stylesheet somewhere other than the default path, pass it e
 ---
 
 ### How do I render vector SVG icons and combine dynamic classes?
-Bloom avoids toy emojis and external icon font dependencies by providing clean, built-in vector SVG icons via `uiIcon()` and `iconSvgString()`. Class names can be dynamically merged using `cn()`, which strips null and false values.
+Bloom avoids toy emojis and external icon font dependencies by providing clean, built-in vector SVG icons via `uiIcon()` and `iconSvgString()`. Class names can be dynamically merged using `cn()`, which skips null, false, empty and whitespace-only values, trims entries, and joins them with one space. For known exclusive utility groups, the last matching class wins within the same variant prefix (such as `md:hover:`), in its original position. This covers display, position, visibility, flex direction, text alignment, font weight and size, plus matching value classes in each `p-`, `px-`, `py-`, `pt-`, `pr-`, `pb-`, `pl-`, `m-`, `mx-`, `my-`, `mt-`, `mr-`, `mb-`, `ml-`, `w-`, `h-`, `gap-` and `rounded-` family. Classes outside these groups are retained.
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode iconAndClassDemo({required bool isActive, required bool isPending}) {
   return Div(
@@ -2723,6 +2727,7 @@ You can also use `buttonClasses()` directly if you need to apply the button styl
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode buttonDemo(Signal<bool> isSaving) {
   return Div(
@@ -2774,6 +2779,7 @@ The `badge()` primitive provides compact status indicators supporting seven visu
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode badgeDemo(Signal<List<String>> tags) {
   return Div(
@@ -2817,6 +2823,7 @@ The `avatar()` primitive displays user profile images with automatic fallback te
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode avatarDemo() {
   return Div(
@@ -2855,6 +2862,7 @@ Use `skeleton()` for pulse-animated loading placeholders, `separator()` for hori
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode displayHelpersDemo() {
   return Div(
@@ -2893,6 +2901,7 @@ The `card()` primitive provides a composite container decomposed into `cardHeade
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode cardDemo() {
   return card(
@@ -2931,6 +2940,7 @@ The `table()` component family (`table`, `tableHeader`, `tableBody`, `tableFoote
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode tableDemo() {
   final invoices = [
@@ -2999,6 +3009,7 @@ The `breadcrumb()` primitive renders an accessible `<nav aria-label="Breadcrumb"
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode breadcrumbDemo() {
   return breadcrumb([
@@ -3017,6 +3028,7 @@ Use `textInput()` for single-line text/password/email fields (supporting leading
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode textInputsDemo(Signal<String> query, Signal<String> notes) {
   return Div(
@@ -3066,6 +3078,7 @@ Use `label()` for standalone accessible form labels, `formField()` to bind a con
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode formStructureDemo({
   required Signal<String> email,
@@ -3107,6 +3120,7 @@ The `checkbox()`, `switchToggle()`, and `radioGroup()` primitives are controlled
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode selectionControlsDemo({
   required Signal<bool> agreeTerms,
@@ -3158,6 +3172,7 @@ Use `selectInput()` for styled native `<select>` dropdowns and `slider()` for ac
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode selectAndSliderDemo({
   required Signal<String> region,
@@ -3210,6 +3225,7 @@ The `inputOtp()` primitive creates individual segmented numeric input slots with
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode otpVerificationDemo(Signal<String> pin) {
   return Div(
@@ -3241,6 +3257,7 @@ Modal dialogs in Bloom use a decoupled viewport architecture: mount `dialogViewp
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Mount dialogViewport() once at the root of your app
 BloomNode appRootWithDialogs() {
@@ -3292,6 +3309,7 @@ Slide-over panels and mobile drawers use `openSheet()` / `closeSheet()` and `ope
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Mount sheetViewport() once at application root
 BloomNode appRootWithSheets() {
@@ -3339,6 +3357,7 @@ BloomNode appRootWithSheets() {
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode overlaysDemo() {
   return Div(
@@ -3387,6 +3406,7 @@ Both `dropdownMenu()` and `contextMenu()` take a list of `MenuItemConfig` items 
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode menusDemo() {
   final menuItems = [
@@ -3435,6 +3455,7 @@ The `tabs()` primitive renders a segmented tablist and renders the active panel 
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode tabsDemo(Signal<String> activeTab) {
   return Live(() => tabs(
@@ -3463,6 +3484,7 @@ BloomNode tabsDemo(Signal<String> activeTab) {
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode navigationAndMenubarDemo() {
   return Div(
@@ -3516,6 +3538,7 @@ The `paginationBar()` component renders previous/next links and page position su
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode paginationDemo({
   required String currentPath,
@@ -3542,6 +3565,7 @@ The `alert()` primitive displays static inline banners across four semantic vari
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode alertBannersDemo() {
   return Div(
@@ -3575,6 +3599,7 @@ Use `progress()` for linear horizontal progress bars and `circularProgress()` fo
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode progressIndicatorsDemo(Signal<double> uploadProgress) {
   return Div(
@@ -3618,6 +3643,7 @@ Bloom UI provides a global toast notification system (Sonner-style). Mount `toas
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Mount toastViewport() once at application root
 BloomNode rootAppWithToasts() {
@@ -3659,6 +3685,7 @@ The `accordion()` primitive renders expandable FAQ-style disclosure sections. It
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Accordion manages its own open/close state internally
 BloomNode accordionDemo() {
@@ -3688,6 +3715,7 @@ Use `toggle()` for two-state buttons (`aria-pressed`), `toggleGroupSingle<T>()` 
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode toggleGroupsDemo({
   required Signal<bool> isBold,
@@ -3736,6 +3764,7 @@ Command palettes provide searchable, keyboard-navigable action lists. Mount `com
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 // Mount commandViewport() once at root
 BloomNode rootAppWithCommandPalette() {
@@ -3786,6 +3815,7 @@ The `calendar()` primitive renders a month-grid date selector. The caller owns b
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode calendarDemo({
   required Signal<DateTime> activeMonth,
@@ -3814,6 +3844,7 @@ Bloom includes lightweight, dependency-free SVG data visualization primitives:
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode dataChartsDemo() {
   final chartData = <ChartDataPoint>[
@@ -3869,6 +3900,7 @@ BloomNode dataChartsDemo() {
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 
 BloomNode splitLayoutDemo() {
   return Div(

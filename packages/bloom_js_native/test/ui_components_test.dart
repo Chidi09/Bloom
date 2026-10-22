@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -7,13 +8,28 @@ void main() {
       expect(cn(['foo', null, false, '', 'bar', '   ', 'baz']), 'foo bar baz');
     });
 
+    test('cn resolves exclusive utility conflicts and preserves order', () {
+      expect(cn(['hidden', 'inline-flex']), 'inline-flex');
+      expect(cn(['md:hidden', 'flex']), 'md:hidden flex');
+      expect(cn(['p-2', 'p-4']), 'p-4');
+      expect(cn(['p-2', 'px-4']), 'p-2 px-4');
+      expect(cn(['keep', 'hidden', 'middle', 'flex', 'last']),
+          'keep middle flex last');
+      expect(cn(['text-red-500', 'custom-class']), 'text-red-500 custom-class');
+      expect(cn(['rounded-t-lg rounded-b-none', 'gap-x-2 gap-4']),
+          'rounded-t-lg rounded-b-none gap-x-2 gap-4');
+      expect(cn(['rounded-md', 'rounded-lg']), 'rounded-lg');
+    });
+
     test('button renders button and link properly', () {
-      final btnHtml = renderToHtml(button(text: 'Click me', variant: ButtonVariant.primary));
+      final btnHtml = renderToHtml(
+          button(text: 'Click me', variant: ButtonVariant.primary));
       expect(btnHtml, contains('<button'));
       expect(btnHtml, contains('Click me'));
       expect(btnHtml, contains('bg-[var(--primary)]'));
 
-      final linkBtnHtml = renderToHtml(button(text: 'Visit', href: '/dashboard', variant: ButtonVariant.outline));
+      final linkBtnHtml = renderToHtml(button(
+          text: 'Visit', href: '/dashboard', variant: ButtonVariant.outline));
       expect(linkBtnHtml, contains('<a'));
       expect(linkBtnHtml, contains('href="/dashboard"'));
       expect(linkBtnHtml, contains('Visit'));
@@ -21,7 +37,8 @@ void main() {
     });
 
     test('input renders with placeholder and error state', () {
-      final inputHtml = renderToHtml(textInput(id: 'email', placeholder: 'user@example.com', hasError: true));
+      final inputHtml = renderToHtml(textInput(
+          id: 'email', placeholder: 'user@example.com', hasError: true));
       expect(inputHtml, contains('id="email"'));
       expect(inputHtml, contains('placeholder="user@example.com"'));
       expect(inputHtml, contains('border-[var(--destructive)]'));
@@ -29,7 +46,8 @@ void main() {
     });
 
     test('label renders correctly with required indicator', () {
-      final lblHtml = renderToHtml(label(text: 'Username', htmlFor: 'uname', required: true));
+      final lblHtml = renderToHtml(
+          label(text: 'Username', htmlFor: 'uname', required: true));
       expect(lblHtml, contains('<label'));
       expect(lblHtml, contains('for="uname"'));
       expect(lblHtml, contains('Username'));
@@ -42,7 +60,8 @@ void main() {
           cardHeader(
             children: [
               cardTitle(text: 'Account Settings'),
-              cardDescription(text: 'Manage your profile and security preferences.'),
+              cardDescription(
+                  text: 'Manage your profile and security preferences.'),
             ],
           ),
           cardContent(
@@ -66,23 +85,27 @@ void main() {
     });
 
     test('badge renders semantic variants', () {
-      final b1 = renderToHtml(badge(label: 'Active', variant: BadgeVariant.success));
+      final b1 =
+          renderToHtml(badge(label: 'Active', variant: BadgeVariant.success));
       expect(b1, contains('Active'));
       expect(b1, contains('bg-[var(--success)]'));
 
-      final b2 = renderToHtml(badge(label: 'Destructive', variant: BadgeVariant.destructive));
+      final b2 = renderToHtml(
+          badge(label: 'Destructive', variant: BadgeVariant.destructive));
       expect(b2, contains('bg-[var(--destructive)]'));
     });
 
     test('checkbox renders with label', () {
-      final cbHtml = renderToHtml(checkbox(id: 'agree', checked: true, label: 'I agree'));
+      final cbHtml =
+          renderToHtml(checkbox(id: 'agree', checked: true, label: 'I agree'));
       expect(cbHtml, contains('type="checkbox"'));
       expect(cbHtml, contains('checked="checked"'));
       expect(cbHtml, contains('I agree'));
     });
 
     test('textarea renders rows and error class', () {
-      final taHtml = renderToHtml(textarea(id: 'bio', rows: 6, value: 'Hello world', hasError: true));
+      final taHtml = renderToHtml(
+          textarea(id: 'bio', rows: 6, value: 'Hello world', hasError: true));
       expect(taHtml, contains('rows="6"'));
       expect(taHtml, contains('border-[var(--destructive)]'));
       expect(taHtml, contains('Hello world'));
@@ -113,7 +136,8 @@ void main() {
     });
 
     test('avatar renders image when src provided and fallback when not', () {
-      final imgAv = renderToHtml(avatar(src: 'https://example.com/pic.png', alt: 'Jane'));
+      final imgAv =
+          renderToHtml(avatar(src: 'https://example.com/pic.png', alt: 'Jane'));
       expect(imgAv, contains('<img'));
       expect(imgAv, contains('src="https://example.com/pic.png"'));
 
@@ -136,7 +160,8 @@ void main() {
       expect(tabsHtml, contains('Active panel: billing'));
     });
 
-    test('dialog and alert dialog work with activeDialog signal and viewport', () {
+    test('dialog and alert dialog work with activeDialog signal and viewport',
+        () {
       openConfirmDialog(
         title: 'Delete Item',
         description: 'Are you sure?',
@@ -166,7 +191,8 @@ void main() {
     });
 
     test('tooltip wraps child element', () {
-      final ttHtml = renderToHtml(tooltip(label: 'Help text', child: button(text: 'Hover me')));
+      final ttHtml = renderToHtml(
+          tooltip(label: 'Help text', child: button(text: 'Hover me')));
       expect(ttHtml, contains('Hover me'));
       expect(ttHtml, contains('Help text'));
       expect(ttHtml, contains('group/tt'));
@@ -192,7 +218,8 @@ void main() {
     });
 
     test('progress renders percentage track', () {
-      final progHtml = renderToHtml(progress(value: 65, max: 100, label: 'Uploading', showValue: true));
+      final progHtml = renderToHtml(
+          progress(value: 65, max: 100, label: 'Uploading', showValue: true));
       expect(progHtml, contains('role="progressbar"'));
       expect(progHtml, contains('Uploading'));
       expect(progHtml, contains('65%'));
@@ -206,7 +233,8 @@ void main() {
     });
 
     test('switchToggle renders switch button with checked state', () {
-      final swHtml = renderToHtml(switchToggle(checked: true, onChange: (_) {}));
+      final swHtml =
+          renderToHtml(switchToggle(checked: true, onChange: (_) {}));
       expect(swHtml, contains('role="switch"'));
       expect(swHtml, contains('aria-checked="true"'));
       expect(swHtml, contains('translate-x-4'));
@@ -305,7 +333,8 @@ void main() {
         children: [
           inputGroupAddon(children: [inputGroupText(text: 'https://')]),
           textInput(id: 'subdomain', placeholder: 'acme'),
-          inputGroupAddon(align: 'right', children: [inputGroupText(text: '.bloom.dev')]),
+          inputGroupAddon(
+              align: 'right', children: [inputGroupText(text: '.bloom.dev')]),
         ],
       ));
       expect(igHtml, contains('https://'));
@@ -316,8 +345,16 @@ void main() {
     test('accordion renders collapsible sections and initially open items', () {
       final accHtml = renderToHtml(accordion(
         items: [
-          (id: 'faq-1', title: 'What is Bloom?', content: Div(text: 'Bloom is a reactive framework.')),
-          (id: 'faq-2', title: 'Is it fast?', content: Div(text: 'Yes, sub-millisecond SSR.')),
+          (
+            id: 'faq-1',
+            title: 'What is Bloom?',
+            content: Div(text: 'Bloom is a reactive framework.')
+          ),
+          (
+            id: 'faq-2',
+            title: 'Is it fast?',
+            content: Div(text: 'Yes, sub-millisecond SSR.')
+          ),
         ],
         initialOpen: {'faq-1'},
       ));
@@ -358,13 +395,15 @@ void main() {
       expect(barHtml, contains('Jan'));
       expect(barHtml, contains('Feb'));
 
-      final sparkHtml = renderToHtml(sparkline(values: [10, 25, 15, 30, 45, 20]));
+      final sparkHtml =
+          renderToHtml(sparkline(values: [10, 25, 15, 30, 45, 20]));
       expect(sparkHtml, contains('data-slot="sparkline"'));
       expect(sparkHtml, contains('<polyline'));
       expect(sparkHtml, contains('points="'));
     });
 
-    test('command palette works with openCommandPalette and commandViewport', () {
+    test('command palette works with openCommandPalette and commandViewport',
+        () {
       openCommandPalette([
         (label: 'Open Settings', group: 'Navigation', onSelect: () {}),
         (label: 'Create Project', group: 'Actions', onSelect: () {}),
@@ -442,8 +481,20 @@ void main() {
     test('menubar renders horizontal row of menu triggers', () {
       final mbHtml = renderToHtml(menubar(
         menus: [
-          (label: 'File', items: [const MenuItemConfig(label: 'New Tab'), const MenuItemConfig(label: 'Close')]),
-          (label: 'Edit', items: [const MenuItemConfig(label: 'Undo'), const MenuItemConfig(label: 'Redo')]),
+          (
+            label: 'File',
+            items: [
+              const MenuItemConfig(label: 'New Tab'),
+              const MenuItemConfig(label: 'Close')
+            ]
+          ),
+          (
+            label: 'Edit',
+            items: [
+              const MenuItemConfig(label: 'Undo'),
+              const MenuItemConfig(label: 'Redo')
+            ]
+          ),
         ],
       ));
       expect(mbHtml, contains('role="menubar"'));
@@ -517,8 +568,16 @@ void main() {
         onChange: (_) {},
         items: [
           (value: 'left', child: Span(text: 'Left'), ariaLabel: 'Left align'),
-          (value: 'center', child: Span(text: 'Center'), ariaLabel: 'Center align'),
-          (value: 'right', child: Span(text: 'Right'), ariaLabel: 'Right align'),
+          (
+            value: 'center',
+            child: Span(text: 'Center'),
+            ariaLabel: 'Center align'
+          ),
+          (
+            value: 'right',
+            child: Span(text: 'Right'),
+            ariaLabel: 'Right align'
+          ),
         ],
       ));
       expect(singleGroup, contains('data-slot="toggle-group"'));
@@ -589,15 +648,17 @@ void main() {
       expect(cpHtml, contains('stroke-dashoffset'));
     });
 
-    test('fontStylesheetLink renders stylesheet link element with default and custom href', () {
+    test(
+        'fontStylesheetLink renders stylesheet link element with default and custom href',
+        () {
       final defaultLinkHtml = renderToHtml(fontStylesheetLink());
       expect(defaultLinkHtml, contains('<link'));
       expect(defaultLinkHtml, contains('rel="stylesheet"'));
       expect(defaultLinkHtml, contains('href="/generated/fonts/fonts.g.css"'));
 
-      final customLinkHtml = renderToHtml(fontStylesheetLink(href: '/assets/custom-fonts.css'));
+      final customLinkHtml =
+          renderToHtml(fontStylesheetLink(href: '/assets/custom-fonts.css'));
       expect(customLinkHtml, contains('href="/assets/custom-fonts.css"'));
     });
   });
 }
-

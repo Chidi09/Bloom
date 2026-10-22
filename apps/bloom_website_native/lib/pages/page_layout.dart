@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 import '../components/back_to_top.dart';
 import '../components/footer.dart';
 import '../components/navbar.dart';

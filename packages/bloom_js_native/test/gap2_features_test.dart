@@ -240,6 +240,33 @@ void main() {
       expect(srcset, contains('1200w'));
     });
 
+    test('uses a responsive URL for the img src fallback', () {
+      final withWidth = renderToHtml(bloomImage(
+        src: '/hero.jpg',
+        width: 640,
+        widths: const [320, 1280],
+        urlBuilder: (src, width) => '$src?w=$width',
+      ));
+      expect(withWidth, contains('src="/hero.jpg?w=640"'));
+
+      final largestWidth = renderToHtml(bloomImage(
+        src: '/hero.jpg',
+        widths: const [320, 1280, 640],
+        urlBuilder: (src, width) => '$src?w=$width',
+      ));
+      expect(largestWidth, contains('src="/hero.jpg?w=1280"'));
+    });
+
+    test('uses a responsive URL for the picture fallback img src', () {
+      final html = renderToHtml(bloomPicture(
+        sources: const [],
+        fallbackSrc: '/fallback.jpg',
+        fallbackWidths: const [320, 1280],
+        urlBuilder: (src, width) => '$src?w=$width',
+      ));
+      expect(html, contains('src="/fallback.jpg?w=1280"'));
+    });
+
     test('lazy and async by default, eager when priority', () {
       final lazy = renderToHtml(bloomImage(src: '/a.jpg', alt: 'a'));
       expect(lazy, contains('loading="lazy"'));

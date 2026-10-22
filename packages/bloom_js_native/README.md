@@ -62,6 +62,15 @@ void main() {
 }
 ```
 
+UI primitives are a separate import so their names never clash with functions
+in your app. Add it next to the core import when using components such as
+`button()` or `card()`:
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
+```
+
 Run `bloom js dev` while developing, then run `bloom js build` before
 deployment. The generated `web/index.html` already provides the `#app` mount
 target and script entry point.

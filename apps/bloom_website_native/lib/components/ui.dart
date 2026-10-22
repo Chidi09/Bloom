@@ -1,4 +1,5 @@
 import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
 import 'huge_icons.dart';
 
 /// Semantic Button component for Bloom marketing pages

@@ -334,6 +334,8 @@ class PictureSource {
 ///
 /// Composes a standard `<img>` element with performance and accessibility best practices:
 /// - **Responsive sources**: Generates `srcset` and `sizes` automatically from [widths] and [urlBuilder].
+///   When [urlBuilder] is provided, `src` uses [width] if set, otherwise the
+///   largest entry in [widths]; without either, the original [src] is retained.
 /// - **Lazy loading by default**: Defaults to [ImageLoading.lazy] and [ImageDecoding.async] to avoid
 ///   wasting network bandwidth and main-thread CPU cycles on offscreen images during initial load.
 /// - **LCP Hero Image Optimization**: Pass `priority: true` for above-the-fold hero images. This emits
@@ -524,6 +526,9 @@ class BloomImage extends ElNode {
 /// matching format or media query, and apply dimensions and styling from the inner `<img>`.
 /// This enables serving modern formats (AVIF, WebP) with automatic fallback to standard formats
 /// (JPEG, PNG) on older browsers.
+/// When [urlBuilder] is provided, the fallback `<img>` `src` uses [width] when
+/// set, otherwise the largest entry in [fallbackWidths]; with neither, it uses
+/// [fallbackSrc] unchanged. The fallback `srcset` is generated as before.
 ///
 /// ### SSR and Browser Compatibility
 /// In SSR (`renderToHtml`), outputs a `<picture>` tag enclosing all `<source>` elements
@@ -752,7 +757,13 @@ Map<String, String> _buildImageAttrs({
 }) {
   final out = <String, String>{};
 
-  out['src'] = src;
+  final srcWidth = width ??
+      (widths == null || widths.isEmpty
+          ? null
+          : widths.reduce((a, b) => a > b ? a : b));
+  out['src'] = urlBuilder != null && srcWidth != null
+      ? urlBuilder(src, srcWidth)
+      : src;
 
   // Accessibility: alt and presentation semantics
   if (decorative) {
