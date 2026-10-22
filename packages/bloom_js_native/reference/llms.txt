@@ -117,6 +117,12 @@ does not exist.
       Immutable CSS animation descriptor defining `@keyframes` rules and timing properties.
   class Animated extends AnimatedNode
       DSL widget that wraps [child] with the CSS keyframe animation described by [animation].
+  class Reveal extends RevealNode
+      Reveals [child] when it enters the viewport.
+  const String revealCss = ''' .bloom-reveal
+      CSS for the default [Reveal] classes.
+  class InView extends InViewNode
+      Calls callbacks when [child] enters and exits the viewport.
   class BloomAnimationPresets
       Ready-to-use [BloomAnimation] presets for common UI transitions.
 
@@ -304,6 +310,16 @@ does not exist.
       AST node that injects context [value] into its descendant [child] tree.
   sealed class BloomNode
       The core descriptor tree root — pure Dart, zero DOM dependency.
+  abstract interface class BloomElement
+      A platform-neutral handle to a mounted DOM element, safe to reference from
+  class Title extends BloomNode
+      Sets the document title when mounted, and restores it when unmounted.
+  class Meta extends BloomNode
+      Sets a document metadata entry when mounted or rendered into a document.
+  class HeadLink extends BloomNode
+      Adds a `<link>` descriptor to the document head.
+  class StylesheetLink extends HeadLink
+      Loads a CSS file from a component or page.
   class HmrComponentNode extends BloomNode
       A source-stable boundary around a Bloom component during DDC development.
   BloomNode bloomHmrComponent(String id, BloomNode Function() builder) =>
@@ -326,6 +342,10 @@ does not exist.
       Style element helper — emits `<style>css</style>`.
   class RawHtmlNode extends BloomNode
       Trusted raw HTML passthrough — rendered verbatim by both backends.
+  class RevealNode extends BloomNode
+      Reveals [child] when it enters the viewport.
+  class InViewNode extends BloomNode
+      Use [InView]. Calls callbacks when [child] enters and exits the viewport.
   class AnimatedNode extends BloomNode
       AST node that wraps [child] with a CSS animation described by [animation].
   class Text extends TextNode
@@ -368,6 +388,10 @@ does not exist.
       Conditional className builder — clsx-style utility.
   class El extends ElNode
       Generic HTML / custom element constructor.
+  abstract final class InputType
+      Standard HTML input type names for [Input.type].
+  abstract final class ButtonType
+      Standard HTML button type names for [Button.type].
   class Div extends ElNode
       `<div>` — generic division / block layout container.
   class Span extends ElNode
@@ -402,6 +426,12 @@ does not exist.
       `<ol>` — ordered list element.
   class Li extends ElNode
       `<li>` — list item element.
+  class Dl extends ElNode
+      `<dl>` — description list element.
+  class Dt extends ElNode
+      `<dt>` — term or name in a description list.
+  class Dd extends ElNode
+      `<dd>` — description or value in a description list.
   class Form extends ElNode
       `<form>` — interactive form submission container.
   class Label extends ElNode
@@ -512,6 +542,8 @@ does not exist.
       Renders a [BloomNode] descriptor tree synchronously to an HTML string.
   String renderToHtmlAll(List<BloomNode> nodes)
       Renders multiple [BloomNode] root fragments sequentially into a single HTML string.
+  class DocumentScript
+      A script tag for [renderToDocument].
   String renderToDocument( BloomNode body,
       Renders a complete HTML5 document wrapping [body] with standard boilerplate.
   Stream<String> renderToStream(BloomNode node)
@@ -546,8 +578,10 @@ does not exist.
       High-level HTTP client with base URL resolution, JSON encoding/decoding, Bearer auth token injection,
 
 ## hydrate.dart  [browser-only (package:bloom_js_native/browser.dart)]
-  BloomMountHandle hydrate(BloomNode root, String selector)
+  BloomMountHandle hydrate( BloomNode root, String selector,
       Hydrates a server-rendered DOM tree matching [selector] with event listeners in place.
+  BloomMountHandle mountApp( BloomNode root, String selector,
+      Starts a Bloom app in the element matching [selector]. Hydrates when the
   BloomMountHandle hydrateElement( BloomNode root, web.Element element,
       Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
 
@@ -564,6 +598,10 @@ does not exist.
       Boundary label for [ErrorBoundaryNode].
   const String hydrationMarkerSuspense = 'bloom:suspense'
       Boundary label for [SuspenseNode] in synchronous SSR output.
+  const String hydrationMarkerRaw = 'bloom:raw'
+      Boundary label for [RawHtmlNode].
+  const String ssrTextSeparator = '<!---->'
+      SSR separator comment emitted between adjacent text outputs and in place of empty text nodes.
   const String hydrationMarkerKeyPrefix = 'bloom:key='
       Marker label prefix for keyed `ForEach` items (`bloom:key=<escaped>`).
   const String hydrationMarkerKeyClose = '/bloom:key'
@@ -762,6 +800,8 @@ does not exist.
       Reports a [HydrationMismatch] observed while hydrating.
   HydrationMismatchHandler? bloomHydrationMismatchHandler
       Global mismatch handler invoked alongside any per-call `onMismatch`.
+  bool? bloomLogHydrationMismatches
+      Whether hydration mismatches are logged to the browser console. Null (the default) means "log in debug builds only".
   bool bloomHydrationPreserveFormState = true
       When `true` (default), hydration preserves pre-hydration form-control
   BloomMountHandle hydrateToElement( BloomNode root, web.Element container,
@@ -828,6 +868,12 @@ does not exist.
       Creates a [BloomReducer] with the given [reducerFn] and [initialState].
 
 ## router.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  abstract interface class BloomNavigator
+      What a [RouterLink] needs from a router. [BloomRouterController]
+  bool shouldInterceptLinkClick({ required String href, required BloomEvent event, String? target, bool download = false, required Uri currentLocation, }) =>
+      Whether a click on a link to [href] should be handled by client-side
+  bool linkClickDecision({ required String href, required int? button, required bool metaKey, required bool ctrlKey, required bool shiftKey, required bool altKey, required bool defaultPrevented, required String? target, required bool download, required Uri currentLocation, })
+      Primitive form of [shouldInterceptLinkClick], shared with the browser
   class GuardResult
       Represents the result of evaluating a route navigation guard.
   class GuardResolution
@@ -856,9 +902,11 @@ does not exist.
       Pure Dart route matching and navigation guard evaluation engine.
   class Link extends ElNode
       Hyperlink element (`<a>`) with built-in client-side routing and prefetch capabilities.
+  class RouterLink extends ElNode
+      A router-aware anchor that intercepts eligible same-origin clicks.
 
 ## router_browser.dart  [browser-only (package:bloom_js_native/browser.dart)]
-  class BloomRouterController
+  class BloomRouterController implements BloomNavigator
       Client-side router controller using the HTML5 History API.
 
 ## rpc.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
@@ -926,6 +974,112 @@ does not exist.
       Runs [compute] reactively and returns a function that stops the effect.
   s.ReadonlySignal<T> readonly<T>(s.Signal<T> signal)
       Creates a read-only view of [signal] to prevent external mutation.
+
+## ssg.dart  [not exported]
+  class SsgResult
+      Summary of static site generation execution.
+  Future<SsgResult> generateStaticSite({ required Map<String, BloomNode Function()> pages, String outDir = 'dist', String webDir = 'web', String? title, String Function(String path)? titleFor, List<BloomNode> head = const [], /// Stylesheets shared by every generated page. List<String> stylesheets = const [], String lang = 'en', String appElementId = 'app', String mainScript = 'main.js', bool includeNpm = true, String bloomYamlPath = 'bloom.yaml', }) async
+      Generates a static site into [outDir] from the supplied [pages] map and [webDir] assets.
+
+## tags.dart  [not exported]
+  List<BloomNode> nodes(List<Object?> children)
+      Converts nested child values into Bloom nodes.
+  ElNode div(List<Object?> children,
+      Builds a `<div>` from concise child values.
+  ElNode span(List<Object?> children,
+      Builds a `<span>` element.
+  ElNode p(List<Object?> children,
+      Builds a `<p>` element.
+  ElNode section(List<Object?> children,
+      Builds a `<section>` element.
+  ElNode article(List<Object?> children,
+      Builds an `<article>` element.
+  ElNode header(List<Object?> children,
+      Builds a `<header>` element.
+  ElNode footer(List<Object?> children,
+      Builds a `<footer>` element.
+  ElNode nav(List<Object?> children,
+      Builds a `<nav>` element.
+  ElNode main(List<Object?> children,
+      Builds a `<main>` element.
+  ElNode aside(List<Object?> children,
+      Builds an `<aside>` element.
+  ElNode h1(List<Object?> children,
+      Builds an `<h1>` element.
+  ElNode h2(List<Object?> children,
+      Builds an `<h2>` element.
+  ElNode h3(List<Object?> children,
+      Builds an `<h3>` element.
+  ElNode h4(List<Object?> children,
+      Builds an `<h4>` element.
+  ElNode h5(List<Object?> children,
+      Builds an `<h5>` element.
+  ElNode h6(List<Object?> children,
+      Builds an `<h6>` element.
+  ElNode ul(List<Object?> children,
+      Builds a `<ul>` element.
+  ElNode ol(List<Object?> children,
+      Builds an `<ol>` element.
+  ElNode li(List<Object?> children,
+      Builds an `<li>` element.
+  ElNode dl(List<Object?> children,
+      Builds a `<dl>` element.
+  ElNode dt(List<Object?> children,
+      Builds a `<dt>` element.
+  ElNode dd(List<Object?> children,
+      Builds a `<dd>` element.
+  ElNode strong(List<Object?> children,
+      Builds a `<strong>` element.
+  ElNode em(List<Object?> children,
+      Builds an `<em>` element.
+  ElNode small(List<Object?> children,
+      Builds a `<small>` element.
+  ElNode code(List<Object?> children,
+      Builds a `<code>` element.
+  ElNode pre(List<Object?> children,
+      Builds a `<pre>` element.
+  ElNode blockquote(List<Object?> children,
+      Builds a `<blockquote>` element.
+  ElNode figure(List<Object?> children,
+      Builds a `<figure>` element.
+  ElNode figcaption(List<Object?> children,
+      Builds a `<figcaption>` element.
+  ElNode label(List<Object?> children,
+      Builds a `<label>` element.
+  ElNode form(List<Object?> children,
+      Builds a `<form>` element.
+  ElNode table(List<Object?> children,
+      Builds a `<table>` element.
+  ElNode thead(List<Object?> children,
+      Builds a `<thead>` element.
+  ElNode tbody(List<Object?> children,
+      Builds a `<tbody>` element.
+  ElNode tfoot(List<Object?> children,
+      Builds a `<tfoot>` element.
+  ElNode tr(List<Object?> children,
+      Builds a `<tr>` element.
+  ElNode th(List<Object?> children,
+      Builds a `<th>` element.
+  ElNode td(List<Object?> children,
+      Builds a `<td>` element.
+  ElNode a(List<Object?> children,
+      Builds an `<a>` element.
+  ElNode button(List<Object?> children,
+      Builds a `<button>` element.
+  ElNode select(List<Object?> children,
+      Builds a `<select>` element.
+  ElNode option(List<Object?> children,
+      Builds an `<option>` element.
+  ElNode textarea(List<Object?> children,
+      Builds a `<textarea>` element.
+  ElNode img({required String src, required String alt, String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('img',
+      Builds an `<img>` element.
+  ElNode input({String? type, String? name, String? value, String? placeholder, String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('input',
+      Builds an `<input>` element.
+  ElNode br({String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('br', const
+      Builds a `<br>` element.
+  ElNode hr({String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('hr', const
+      Builds an `<hr>` element.
 
 ## transition.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   enum TaskPriority

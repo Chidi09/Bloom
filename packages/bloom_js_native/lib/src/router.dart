@@ -444,7 +444,7 @@ String _extractQueryString(String location) {
 ///   '/users/:id',
 ///   null,
 ///   loader: (params) => fetchUserProfile(params['id']!),
-///   loadingFallback: () => const Div(text: 'Loading user...'),
+///   loadingFallback: () => Div(text: 'Loading user...'),
 ///   dataBuilder: (params, user) => Div(
 ///     children: [
 ///       H1(text: 'User: ${(user as User).name}'),
@@ -507,13 +507,13 @@ class BloomRoute {
   ///   layout: (child, params) => Div(
   ///     className: 'app-container',
   ///     children: [
-  ///       const Nav(text: 'Header'),
+  ///       Nav(text: 'Header'),
   ///       child,
   ///     ],
   ///   ),
   ///   routes: [
-  ///     BloomRoute('/home', (params) => const Div(text: 'Home')),
-  ///     BloomRoute('/profile', (params) => const Div(text: 'Profile')),
+  ///     BloomRoute('/home', (params) => Div(text: 'Home')),
+  ///     BloomRoute('/profile', (params) => Div(text: 'Profile')),
   ///   ],
   /// );
   /// ```
@@ -607,9 +607,9 @@ class BloomRouteMatch {
 ///
 /// ```dart
 /// final router = BloomRouter([
-///   BloomRoute('/', (params) => const Div(text: 'Home')),
+///   BloomRoute('/', (params) => Div(text: 'Home')),
 ///   BloomRoute('/users/:id', (params) => Div(text: 'User ${params['id']}')),
-/// ], notFound: BloomRoute('*', (params) => const Div(text: '404 Not Found')));
+/// ], notFound: BloomRoute('*', (params) => Div(text: '404 Not Found')));
 ///
 /// final match = router.match('/users/42?tab=profile#bio');
 /// if (match != null) {
@@ -922,8 +922,8 @@ class BloomRouter {
 ///   href: '/pricing',
 ///   prefetch: PrefetchMode.visible,
 ///   children: [
-///     const Span(className: 'icon', text: 'tag'),
-///     const Span(text: 'View Pricing'),
+///     Span(className: 'icon', text: 'tag'),
+///     Span(text: 'View Pricing'),
 ///   ],
 /// )
 /// ```

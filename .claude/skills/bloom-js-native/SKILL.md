@@ -58,15 +58,34 @@ For UI component primitives (buttons, dialogs, selects, and so on), always read 
 
 ## Step 3: Write code that respects the framework's model
 
+### Current API cheatsheet (0.4)
+
+- **Reactive attributes:** Use `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, and `classIf` to
+  update element attributes and styles in place, preserving focus.
+- **Mounting:** Use browser-only `mountApp(root, selector)` to hydrate or mount.
+- **UI primitives:** Import UI primitives and `cn()` from `package:bloom_js_native/ui.dart`.
+- **Routing:** Use `RouterLink` for app links; `interceptLinks()` handles plain anchors.
+- **Markup:** Import `package:bloom_js_native/tags.dart` as `h` for concise markup.
+- **Widget helpers:** Import `package:bloom_js_native/widgets.dart` for optional Flutter-shaped
+  Bloom descriptors.
+- **SSG:** Use `generateStaticSite(pages: ..., stylesheets: [...])` and `bloom js build --ssg`.
+- **Typed attributes:** Prefer typed element parameters and use `InputType`, `ButtonType`, image
+  enums, `Dl`/`Dt`/`Dd`, and `DocumentScript` where applicable.
+- **Head and lifecycle:** Put `Title`, `Meta`, `HeadLink`, and `StylesheetLink` anywhere in the tree; `renderToDocument` and SSG hoist them into `<head>`. `Mount(onMountElement:)` receives a `BloomElement`.
+- **Transitions:** `Show` accepts `enter:` and `exit:` animations; `Reveal`, `InView`, and `revealCss` handle viewport reveals.
+- **Tooling:** `bloom lint` includes `conflicting_classes`, `missing_stylesheet`, and
+  precise `untracked_signal_read`; valid stylesheet links are allowed.
+  `bloom format --css` is opt-in, and `bloom add` follows type re-exports.
+
 `AGENTS.md` and COOKBOOK section 20 have the full checklist. These are the rules that cause most breakage, with the reason behind each so you can handle cases the list doesn't cover:
 
-- **Two entry points.** `package:bloom_js_native/bloom_js_native.dart` is pure Dart: descriptors, signals, router, forms, SSR. It's safe on the server and in VM tests. `package:bloom_js_native/browser.dart` adds `mount`, `hydrate`, `BloomRouterController`, islands, and web components, and depends on real DOM. Only the client entry (`lib/main.dart`) should import `browser.dart`. Anything shared must stay importable on the VM, or SSR and tests break. The symptom is `Method not found: 'mount'`, or a VM test that fails to compile.
+- **Two entry points.** `package:bloom_js_native/bloom_js_native.dart` is pure Dart: descriptors, signals, router, forms, SSR. It's safe on the server and in VM tests. `package:bloom_js_native/browser.dart` adds `mountApp`, `mount`, `hydrate`, `BloomRouterController`, islands, and web components, and depends on real DOM. Only the client entry (`lib/main.dart`) should import `browser.dart`. Anything shared must stay importable on the VM, or SSR and tests break. The symptom is `Method not found: 'mountApp'`, or a VM test that fails to compile.
 - **Reactivity is scoped by wrappers, not by components.** A `signal.value` read only updates the screen if it happens inside `Live`, `Show`, `ForEach`, `Memo`, `computed`, or `effect`. A bare read in a builder captures a one-time snapshot. `bloom lint` (rule `untracked_signal_read`) catches this. For a derived value used in several places, prefer `computed()` over scattering `Live` wrappers.
 - **Signals notify on assignment, not mutation.** Use `todos.value = [...todos.value, item]`, never `todos.value.add(item)`.
 - **Key every dynamic list.** `ForEach(..., key: (t) => t.id)`. Without a key, every update rebuilds all rows, which drops focus and input state. Hydration and hot reload also match rows by key.
 - **Keep inputs outside the `Live` region they drive.** Rebuilding an `<input>` on each keystroke destroys focus.
 - **SSR runs builders once and runs no browser code.** Event handlers, `Mount.onMount`/`onUnmount`, `Ref`, router listeners, and `effect()` don't run under `renderToHtml()`. Server data belongs in route loaders or guards. Timers, observers, and focus work go in `Mount.onMount` and are cleaned up in `onUnmount`, never started while building nodes, because builders also run during SSG and that can hang the process.
-- **Server-rendered pages hydrate; they don't mount.** Call `hydrate(app, '#app')` for SSR/SSG output. `mount` appends a second copy of the app. Don't rely on `Raw('<script>…')` for required behavior: a hydration fallback can recreate DOM and inserted scripts don't reliably run.
+- **Use `mountApp` for SSR or an empty client target.** It hydrates pre-rendered HTML in place and mounts when the target is empty. `mount` always appends a fresh app tree, so don't call it after SSR. Use `hydrate` when hydration of existing content is specifically required. Don't rely on `Raw('<script>…')` for required behavior: mismatch recovery can recreate DOM and inserted scripts don't reliably run.
 - **Dispose what holds external resources.** Mount handles, router controllers, virtualizers, island orchestrators, controllers, and queries all have `dispose`/`unmount`.
 - **Use the CLI for npm packages.** `bloom add npm:<pkg>` vendors the ESM bundle, generates a typed binding under `lib/src/plugins/`, and wires the import map. Never hand-write vendor files or `<script>` tags.
 

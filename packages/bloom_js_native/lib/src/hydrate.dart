@@ -15,7 +15,7 @@ import 'mount.dart';
 ///     Div(
 ///       className: 'interactive-card',
 ///       children: [
-///         const H1(text: 'Server Rendered Title'),
+///         H1(text: 'Server Rendered Title'),
 ///         Button(
 ///           text: 'Activate',
 ///           on: {'click': (e) => print('Activated')},
@@ -106,7 +106,7 @@ BloomMountHandle mountApp(
 ///   Div(
 ///     className: 'container',
 ///     children: [
-///       const H1(text: 'Welcome'),
+///       H1(text: 'Welcome'),
 ///       Button(
 ///         text: 'Submit',
 ///         on: {'click': (e) => submitForm()},

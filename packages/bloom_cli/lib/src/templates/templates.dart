@@ -553,6 +553,35 @@ you import only `bloom_js_native.dart` and call one of them, you get a
 should import `browser.dart`; every other file — components, routes, shared
 state — imports the base `bloom_js_native.dart`.
 
+## Current API cheatsheet (0.4)
+
+- **Reactive attributes:** Use `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, and `classIf` to
+  update existing elements in place and preserve focus.
+- **Mounting:** Use browser-only `mountApp(root, selector)` to hydrate existing HTML or
+  mount into an empty target.
+- **UI primitives:** Import UI primitives and `cn()` from `package:bloom_js_native/ui.dart`.
+- **Routing:** Use `RouterLink(controller: router, href: '/about', text: 'About')`;
+  `interceptLinks()` handles existing plain anchors and returns a disposer.
+- **Markup:** Import `package:bloom_js_native/tags.dart` as `h` for concise markup.
+- **Widget helpers:** Import `package:bloom_js_native/widgets.dart` for optional Flutter-shaped
+  Bloom descriptors.
+- **SSG:** Use `generateStaticSite(pages: ..., stylesheets: [...])` and `bloom js build --ssg`.
+- **Typed attributes:** Prefer typed attributes (`InputType`, `ButtonType`, image enums, `aria`,
+  `tabIndex`) and `DocumentScript` over untyped maps when available.
+- **Head and lifecycle:** Put `Title`, `Meta`, `HeadLink`, and `StylesheetLink` anywhere in the tree; `renderToDocument` and SSG hoist them into `<head>`. Use `Mount(onMountElement:)` for safe element helpers through `BloomElement`.
+- **Transitions:** `Show` accepts `enter:` and `exit:` animations; `Reveal`, `InView`, and `revealCss` handle viewport reveals.
+- **Tooling:** `bloom lint` includes `conflicting_classes`, `missing_stylesheet`, and
+  precise `untracked_signal_read` (valid stylesheet links are allowed);
+  `bloom format --css` is opt-in, and `bloom add` follows type re-exports.
+
+Optional imports:
+
+```dart
+import 'package:bloom_js_native/ui.dart';
+import 'package:bloom_js_native/tags.dart' as h;
+import 'package:bloom_js_native/widgets.dart';
+```
+
 ## Project layout
 
 ```

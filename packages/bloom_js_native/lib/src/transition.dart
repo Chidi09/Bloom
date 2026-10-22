@@ -458,8 +458,8 @@ final Signal<bool> _isTransitionPending = signal(false);
 /// Div(
 ///   children: [
 ///     Live(() => isTransitionPending.value
-///         ? const Span(className: 'spinner', text: 'Updating list...')
-///         : const Span(text: 'Up to date')),
+///         ? Span(className: 'spinner', text: 'Updating list...')
+///         : Span(text: 'Up to date')),
 ///   ],
 /// )
 /// ```

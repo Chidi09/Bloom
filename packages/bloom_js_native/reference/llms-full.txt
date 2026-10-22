@@ -932,7 +932,7 @@ the calculated `animation` inline style.
 ```dart
 Animated(
   animation: BloomAnimationPresets.fadeIn,
-  child: const Div(
+  child: Div(
     className: 'notification-toast',
     text: 'Changes saved successfully',
   ),
@@ -941,6 +941,41 @@ Animated(
 
 Members:
   - `const Animated({required super.animation, required super.child})`  -- Creates an [Animated] wrapper node applying [animation] to [child].
+
+### Reveal  [class]
+```dart
+class Reveal extends RevealNode
+```
+Reveals [child] when it enters the viewport.
+
+SSR includes [hiddenClass], so add [revealCss] to a stylesheet to prevent
+content from flashing before the browser observer runs.
+
+```dart
+Reveal(child: P(text: 'Hello'));
+```
+
+Members:
+  - `const Reveal({ required super.child, super.hiddenClass, super.visibleClass, super.once, super.rootMargin, super.threshold, })`  -- Creates a scroll reveal wrapper around [child].
+
+### revealCss  [constant]
+```dart
+const String revealCss = ''' .bloom-reveal
+```
+CSS for the default [Reveal] classes.
+
+### InView  [class]
+```dart
+class InView extends InViewNode
+```
+Calls callbacks when [child] enters and exits the viewport.
+
+```dart
+InView(child: Div(), onEnter: () => print('visible'));
+```
+
+Members:
+  - `const InView({ required super.child, super.onEnter, super.onExit, super.rootMargin, super.threshold, })`  -- Creates an intersection observer callback boundary.
 
 ### BloomAnimationPresets  [class]
 ```dart
@@ -2959,6 +2994,99 @@ descriptor trees to be constructed and evaluated anywhere Dart runs:
 Members:
   - `const BloomNode()`  -- Base const constructor for all [BloomNode] descriptors.
 
+### BloomElement  [abstract interface class]
+```dart
+abstract interface class BloomElement
+```
+A platform-neutral handle to a mounted DOM element, safe to reference from
+shared (VM) code.
+
+`raw` exposes the browser element when browser-specific interop is needed.
+
+```dart
+Mount(Input(), onMountElement: (element) => element.focus());
+```
+
+Members:
+  - `String get tagName`  -- The element tag name, as reported by the browser.
+  - `String? getAttribute(String name)`  -- Returns the current value for [name], or `null` when absent.
+  - `void setAttribute(String name, String value)`  -- Sets an attribute after Bloom's DOM attribute safety checks.
+  - `void removeAttribute(String name)`  -- Removes the attribute named [name].
+  - `void addClass(String name)`  -- Adds [name] to the element's class list.
+  - `void removeClass(String name)`  -- Removes [name] from the element's class list.
+  - `bool hasClass(String name)`  -- Whether the class list contains [name].
+  - `void toggleClass(String name, [bool? force])`  -- Toggles [name], or sets it to [force] when provided.
+  - `void focus()`  -- Gives the element keyboard focus when the browser supports it.
+  - `void blur()`  -- Removes keyboard focus from the element when supported.
+  - `void scrollIntoView({bool smooth = false})`  -- Scrolls the element into view, optionally using smooth scrolling.
+  - `Object get raw`  -- The underlying platform object (a `package:web` Element in the browser).
+
+### Title  [class]
+```dart
+class Title extends BloomNode
+```
+Sets the document title when mounted, and restores it when unmounted.
+
+```dart
+const Title('Products');
+```
+
+Members:
+  - `final String text`  -- The plain text title.
+  - `const Title(this.text)`  -- Creates a document title descriptor.
+
+### Meta  [class]
+```dart
+class Meta extends BloomNode
+```
+Sets a document metadata entry when mounted or rendered into a document.
+
+```dart
+const Meta(name: 'description', content: 'A product catalog.');
+```
+
+Members:
+  - `final String? name`  -- The metadata `name` key, when used.
+  - `final String? property`  -- The Open Graph or other metadata `property` key, when used.
+  - `final String? httpEquiv`  -- The metadata `http-equiv` key, when used.
+  - `final String content`  -- The metadata content value.
+  - `const Meta({this.name, this.property, this.httpEquiv, required this.content})`  -- Creates metadata identified by [name], [property], or [httpEquiv].
+
+### HeadLink  [class]
+```dart
+class HeadLink extends BloomNode
+```
+Adds a `<link>` descriptor to the document head.
+
+```dart
+const HeadLink(rel: 'icon', href: '/favicon.ico');
+```
+
+Members:
+  - `final String rel`  -- The link relation, such as `'icon'` or `'preload'`.
+  - `final String href`  -- The link URL.
+  - `final Map<String, String>? attrs`  -- Additional link attributes.
+  - `const HeadLink({required this.rel, required this.href, this.attrs})`  -- Creates a document link with optional additional attributes.
+
+### StylesheetLink  [class]
+```dart
+class StylesheetLink extends HeadLink
+```
+Loads a CSS file from a component or page.
+
+Use [StylesheetLink] as the way to load CSS files, including copied
+multi-file design systems under `web/css/`, from the component that needs
+them.
+
+```dart
+const StylesheetLink('/css/design-system.css');
+```
+
+Members:
+  - `final String? media`  -- The media query the stylesheet applies to, e.g. `'print'`.
+  - `const StylesheetLink(String href,`  -- Creates a stylesheet link, optionally limited to [media].
+  - `Map<String, String>? get attrs => media == null ? null :`
+
 ### HmrComponentNode  [class]
 ```dart
 class HmrComponentNode extends BloomNode
@@ -3025,8 +3153,19 @@ Members:
   - `final String? className`  -- CSS class attribute applied to the element.
   - `final String? style`  -- Inline style — raw CSS string (e.g. "color: red; display: flex;").
   - `final Map<String, String>? attrs`  -- Arbitrary HTML attributes (id, href, placeholder, etc.).
+  - `final String? id`  -- Element ID rendered as the `id` attribute.
+  - `final String? role`  -- Accessibility role rendered as the `role` attribute.
+  - `final Map<String, String>? data`  -- Data attributes keyed without the `data-` prefix.
+  - `final bool? hidden`  -- Whether the element is hidden. `true` emits the boolean attribute.
+  - `final String? title`  -- Advisory text rendered as the `title` attribute.
+  - `final int? tabIndex`  -- Keyboard tab order rendered as the `tabindex` attribute.
+  - `final Map<String, Object?>? aria`  -- Accessible attributes keyed without the `aria-` prefix.
   - `final Map<String, BloomEventHandler>? on`  -- Event handlers keyed by DOM event name (click, input, change...).
   - `final List<BloomNode> children`  -- Child descriptors nested within this element.
+  - `final String Function()? reactiveClass`  -- Extra CSS classes, appended after [className].
+  - `final String Function()? reactiveStyle`  -- Extra inline CSS style string, appended after [style] with "; ".
+  - `final Map<String, Object? Function()>? reactiveAttrs`  -- Reactive attribute getters evaluated dynamically in place.
+  - `final Map<String, bool Function()>? classIf`  -- Conditional class inclusion mapping class names to boolean predicates.
   - `const ElNode( this.tag,`  -- Creates an element descriptor with [tag] and optional styling, attributes,
 
 ### FragmentNode  [class]
@@ -3127,6 +3266,8 @@ Evaluates [when] inside a signal effect. When the boolean result transitions
 between `true` and `false`, the previous branch's scoped region is disposed
 and the active branch ([child] or [fallback]) is mounted between the sentinels.
 If [fallback] is null and [when] is `false`, an empty fragment is mounted.
+[enter] and [exit] animate the first element of [child] on later visibility
+changes; the initial render is never animated. SSR ignores both options.
 
 ### SSR Behavior
 During SSR (`renderToHtml`), [when] is evaluated once synchronously. If `true`,
@@ -3139,6 +3280,8 @@ Members:
   - `final bool Function() when`  -- Reactive predicate — called inside a signals effect (browser) or once (SSR).
   - `final BloomNode child`  -- The descriptor tree rendered when [when] evaluates to `true`.
   - `final BloomNode? fallback`  -- Optional descriptor tree rendered when [when] evaluates to `false`.
+  - `final BloomAnimation? enter`  -- Animation played on the child's first element when it becomes visible.
+  - `final BloomAnimation? exit`  -- Animation played before the child is removed when it becomes hidden.
   - `const ShowNode( this.when,`  -- Creates a conditional rendering descriptor with predicate [when], primary
 
 ### ForEachNode  [class]
@@ -3224,6 +3367,46 @@ Usually created using the DSL sugar [Raw].
 Members:
   - `final String html`  -- The raw HTML string to insert.
   - `const RawHtmlNode(this.html)`  -- Creates a raw HTML passthrough descriptor with [html].
+
+### RevealNode  [class]
+```dart
+class RevealNode extends BloomNode
+```
+Reveals [child] when it enters the viewport.
+
+Use [Reveal]. SSR includes [hiddenClass], so add [revealCss] to a stylesheet to prevent
+content from flashing before the browser observer runs.
+
+```dart
+Reveal(child: P(text: 'Hello'));
+```
+
+Members:
+  - `final BloomNode child`  -- Content observed for visibility.
+  - `final String hiddenClass`  -- Class applied by default CSS while the child is outside the viewport.
+  - `final String visibleClass`  -- Class added when the child enters the viewport.
+  - `final bool once`  -- Whether to stop observing after the first entry.
+  - `final String rootMargin`  -- Intersection observer root margin.
+  - `final double threshold`  -- Intersection ratio required to count as visible.
+  - `const RevealNode({ required this.child, this.hiddenClass = 'bloom-reveal', this.visibleClass = 'is-visible', this.once = true, this.rootMargin = '0px', this.threshold = 0.1, })`  -- Creates a scroll reveal wrapper around [child].
+
+### InViewNode  [class]
+```dart
+class InViewNode extends BloomNode
+```
+Use [InView]. Calls callbacks when [child] enters and exits the viewport.
+
+```dart
+InView(child: Div(), onEnter: () => print('visible'));
+```
+
+Members:
+  - `final BloomNode child`  -- Content whose first element is observed.
+  - `final void Function()? onEnter`  -- Called when the child enters the viewport.
+  - `final void Function()? onExit`  -- Called when the child leaves the viewport.
+  - `final String rootMargin`  -- Intersection observer root margin.
+  - `final double threshold`  -- Intersection ratio required to count as visible.
+  - `const InViewNode({ required this.child, this.onEnter, this.onExit, this.rootMargin = '0px', this.threshold = 0, })`  -- Creates an intersection observer callback boundary.
 
 ### AnimatedNode  [class]
 ```dart
@@ -3521,14 +3704,21 @@ Executes [onMount] after the child tree is attached to the DOM, and
 - **SSR (`renderToHtml`)**: Renders [child] only. Lifecycle callbacks [onMount]
   and [onUnmount] are intentionally ignored on the server.
 
+Use [onMountElement] for simple DOM work without importing browser APIs:
+
+```dart
+Mount(Input(placeholder: 'Search'), onMountElement: (el) => el.focus());
+```
+
 Usually created using the DSL sugar [Mount].
 
 Members:
   - `final String? hotReloadScopeId`  -- Stable compiler-provided scope for signals created by lifecycle callbacks.
   - `final BloomNode child`  -- The child descriptor tree enclosed by this lifecycle boundary.
   - `final void Function()? onMount`  -- Callback executed asynchronously in a microtask after [child] is inserted into the DOM.
+  - `final void Function(BloomElement element)? onMountElement`  -- Callback invoked in the same microtask after [onMount] with the first
   - `final void Function()? onUnmount`  -- Callback executed synchronously when [child] is removed from the DOM.
-  - `const MountNode(this.child,`  -- Creates a lifecycle boundary descriptor wrapping [child] with optional [onMount] and [onUnmount].
+  - `const MountNode( this.child,`  -- Creates a lifecycle boundary descriptor wrapping [child] with optional [onMount] and [onUnmount].
 
 ### Mount  [class]
 ```dart
@@ -3551,7 +3741,7 @@ BloomNode timerWidget() => Mount(
 ```
 
 Members:
-  - `const Mount(super.child,`  -- Creates a lifecycle boundary wrapping [child] with optional [onMount] and [onUnmount] hooks.
+  - `const Mount( super.child,`  -- Creates a lifecycle boundary wrapping [child] with optional [onMount] and [onUnmount] hooks.
 
 ### RefNode  [class]
 ```dart
@@ -3792,6 +3982,54 @@ Members:
   - `El( super.tag,`  -- Creates an element with [tag] and optional styling, attributes, event handlers,
   - `const El.raw( super.tag,`  -- Const constructor for [El] when no event callback shorthand is needed.
 
+### InputType  [abstract final class]
+```dart
+abstract final class InputType
+```
+Standard HTML input type names for [Input.type].
+
+```dart
+Input(type: InputType.email);
+```
+
+Members:
+  - `static const String text = 'text'`
+  - `static const String email = 'email'`
+  - `static const String password = 'password'`
+  - `static const String number = 'number'`
+  - `static const String tel = 'tel'`
+  - `static const String url = 'url'`
+  - `static const String search = 'search'`
+  - `static const String date = 'date'`
+  - `static const String time = 'time'`
+  - `static const String datetimeLocal = 'datetime-local'`
+  - `static const String month = 'month'`
+  - `static const String week = 'week'`
+  - `static const String color = 'color'`
+  - `static const String range = 'range'`
+  - `static const String checkbox = 'checkbox'`
+  - `static const String radio = 'radio'`
+  - `static const String file = 'file'`
+  - `static const String hidden = 'hidden'`
+  - `static const String submit = 'submit'`
+  - `static const String reset = 'reset'`
+  - `static const String button = 'button'`
+
+### ButtonType  [abstract final class]
+```dart
+abstract final class ButtonType
+```
+Standard HTML button type names for [Button.type].
+
+```dart
+Button(type: ButtonType.button);
+```
+
+Members:
+  - `static const String submit = 'submit'`
+  - `static const String button = 'button'`
+  - `static const String reset = 'reset'`
+
 ### Div  [class]
 ```dart
 class Div extends ElNode
@@ -3799,8 +4037,8 @@ class Div extends ElNode
 `<div>` — generic division / block layout container.
 
 Members:
-  - `Div({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onSubmit, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onMouseDown, BloomEventHandler? onMouseUp, BloomEventHandler? onMouseMove, BloomEventHandler? onScroll, BloomEventHandler? onContextMenu, BloomEventHandler? onDrop, BloomEventHandler? onDragOver, }) : super( 'div', on: _mergeEvents(on, onClick: onClick, onDblClick: onDblClick, onInput: onInput, onChange: onChange, onSubmit: onSubmit, onKeyDown: onKeyDown, onKeyUp: onKeyUp, onFocus: onFocus, onBlur: onBlur, onMouseEnter: onMouseEnter, onMouseLeave: onMouseLeave, onMouseDown: onMouseDown,`  -- Creates a `<div>` element descriptor with optional styling, attributes,
-  - `const Div.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('div')`  -- Const constructor for `<div>` without event listener shorthand.
+  - `Div({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onSubmit, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onMouseDown, BloomEventHandler? onMouseUp, BloomEventHandler? onMouseMove, BloomEventHandler? onScroll, BloomEventHandler? onContextMenu, BloomEventHandler? onDrop, BloomEventHandler? onDragOver, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'div', on: _mergeEvents(on, onClick: onClick,`  -- Creates a `<div>` element descriptor with optional styling, attributes,
+  - `const Div.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('div')`  -- Const constructor for `<div>` without event listener shorthand.
 
 ### Span  [class]
 ```dart
@@ -3809,8 +4047,8 @@ class Span extends ElNode
 `<span>` — generic inline phrasing content container.
 
 Members:
-  - `Span({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, }) : super( 'span', on: _mergeEvents(on, onClick: onClick, onDblClick: onDblClick, onMouseEnter: onMouseEnter, onMouseLeave: onMouseLeave), )`  -- Creates a `<span>` element descriptor with optional styling, attributes,
-  - `const Span.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('span')`  -- Const constructor for `<span>` without event listener shorthand.
+  - `Span({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'span', on: _mergeEvents(on, onClick: onClick, onDblClick: onDblClick, onMouseEnter: onMouseEnter, onMouseLeave: onMouseLeave), )`  -- Creates a `<span>` element descriptor with optional styling, attributes,
+  - `const Span.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('span')`  -- Const constructor for `<span>` without event listener shorthand.
 
 ### P  [class]
 ```dart
@@ -3819,8 +4057,8 @@ class P extends ElNode
 `<p>` — paragraph block element.
 
 Members:
-  - `P({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'p', on: _mergeEvents(on, onClick: onClick), )`  -- Creates a `<p>` element descriptor with optional styling, attributes,
-  - `const P.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('p')`  -- Const constructor for `<p>` without event listener shorthand.
+  - `P({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'p', on: _mergeEvents(on, onClick: onClick), )`  -- Creates a `<p>` element descriptor with optional styling, attributes,
+  - `const P.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('p')`  -- Const constructor for `<p>` without event listener shorthand.
 
 ### H1  [class]
 ```dart
@@ -3829,8 +4067,8 @@ class H1 extends ElNode
 `<h1>` — highest-level section heading element.
 
 Members:
-  - `H1({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h1', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h1>` heading element descriptor.
-  - `const H1.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h1')`  -- Const constructor for `<h1>` without event listener shorthand.
+  - `H1({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h1', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h1>` heading element descriptor.
+  - `const H1.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h1')`  -- Const constructor for `<h1>` without event listener shorthand.
 
 ### H2  [class]
 ```dart
@@ -3839,8 +4077,8 @@ class H2 extends ElNode
 `<h2>` — second-level section heading element.
 
 Members:
-  - `H2({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h2', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h2>` heading element descriptor.
-  - `const H2.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h2')`  -- Const constructor for `<h2>` without event listener shorthand.
+  - `H2({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h2', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h2>` heading element descriptor.
+  - `const H2.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h2')`  -- Const constructor for `<h2>` without event listener shorthand.
 
 ### H3  [class]
 ```dart
@@ -3849,8 +4087,8 @@ class H3 extends ElNode
 `<h3>` — third-level section heading element.
 
 Members:
-  - `H3({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h3', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h3>` heading element descriptor.
-  - `const H3.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h3')`  -- Const constructor for `<h3>` without event listener shorthand.
+  - `H3({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h3', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h3>` heading element descriptor.
+  - `const H3.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h3')`  -- Const constructor for `<h3>` without event listener shorthand.
 
 ### H4  [class]
 ```dart
@@ -3859,8 +4097,8 @@ class H4 extends ElNode
 `<h4>` — fourth-level section heading element.
 
 Members:
-  - `H4({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h4', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h4>` heading element descriptor.
-  - `const H4.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h4')`  -- Const constructor for `<h4>` without event listener shorthand.
+  - `H4({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h4', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h4>` heading element descriptor.
+  - `const H4.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h4')`  -- Const constructor for `<h4>` without event listener shorthand.
 
 ### H5  [class]
 ```dart
@@ -3869,8 +4107,8 @@ class H5 extends ElNode
 `<h5>` — fifth-level section heading element.
 
 Members:
-  - `H5({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h5', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h5>` heading element descriptor.
-  - `const H5.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h5')`  -- Const constructor for `<h5>` without event listener shorthand.
+  - `H5({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h5', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h5>` heading element descriptor.
+  - `const H5.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h5')`  -- Const constructor for `<h5>` without event listener shorthand.
 
 ### H6  [class]
 ```dart
@@ -3879,8 +4117,8 @@ class H6 extends ElNode
 `<h6>` — sixth-level section heading element.
 
 Members:
-  - `H6({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'h6', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h6>` heading element descriptor.
-  - `const H6.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('h6')`  -- Const constructor for `<h6>` without event listener shorthand.
+  - `H6({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'h6', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<h6>` heading element descriptor.
+  - `const H6.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('h6')`  -- Const constructor for `<h6>` without event listener shorthand.
 
 ### Button  [class]
 ```dart
@@ -3889,11 +4127,11 @@ class Button extends ElNode
 `<button>` — interactive clickable button element.
 
 **Note**: Standard HTML buttons default to `type="submit"` when placed inside
-a `<form>`. To prevent unintended form submissions, specify `attrs: {'type': 'button'}`.
+a `<form>`. Use `type: ButtonType.button` to prevent unintended submissions.
 
 Members:
-  - `Button({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onMouseDown, BloomEventHandler? onMouseUp, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, }) : super( 'button', on: _mergeEvents(on, onClick: onClick, onDblClick: onDblClick, onFocus: onFocus, onBlur: onBlur, onMouseEnter: onMouseEnter, onMouseLeave: onMouseLeave, onMouseDown: onMouseDown, onMouseUp: onMouseUp, onKeyDown: onKeyDown, onKeyUp: onKeyUp), )`  -- Creates a `<button>` element descriptor with event listener shorthands.
-  - `const Button.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('button')`  -- Const constructor for `<button>` without event listener shorthand.
+  - `Button({ super.text, super.className, super.style, Map<String, String>? attrs, String? type, bool? disabled, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, BloomEventHandler? onDblClick, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onMouseDown, BloomEventHandler? onMouseUp, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'button', attrs: _mergeAttrs(attrs,`  -- Creates a `<button>` element descriptor with event listener shorthands.
+  - `const Button.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('button')`  -- Const constructor for `<button>` without event listener shorthand.
 
 ### Input  [class]
 ```dart
@@ -3918,8 +4156,8 @@ BloomNode searchInput() => Input(
 ```
 
 Members:
-  - `Input({ super.className, super.style, Map<String, String>? attrs, String? placeholder, String? value, String? type, bool? checked, bool? disabled, String? name, Map<String, BloomEventHandler>? on, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onClick, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, BloomEventHandler? onKeyPress, BloomEventHandler? onFocus, BloomEventHandler? onBlur, }) : super( 'input', attrs: _mergeAttrs(attrs,`  -- Creates an `<input>` element descriptor with attribute and event shorthands.
-  - `const Input.raw({ super.className, super.style, super.attrs, super.on, }) : super('input')`  -- Const constructor for `<input>` without attribute and event shorthands.
+  - `Input({ super.className, super.style, Map<String, String>? attrs, String? placeholder, String? value, String? type, bool? checked, bool? disabled, String? name, bool? required, bool? readOnly, bool? autofocus, bool? multiple, Object? min, Object? max, num? step, int? minLength, int? maxLength, String? pattern, String? autocomplete, String? accept, String? inputMode, Map<String, BloomEventHandler>? on, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onClick, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, BloomEventHandler? onKeyPress, BloomEventHandler? onFocus, BloomEventHandler? onBlur, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden,`  -- Creates an `<input>` element descriptor with attribute and event shorthands.
+  - `const Input.raw({ super.className, super.style, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('input')`  -- Const constructor for `<input>` without attribute and event shorthands.
 
 ### Textarea  [class]
 ```dart
@@ -3941,8 +4179,8 @@ BloomNode noteField() => Textarea(
 ```
 
 Members:
-  - `Textarea({ super.className, super.style, Map<String, String>? attrs, String? placeholder, String? value, String? name, int? rows, int? cols, Map<String, BloomEventHandler>? on, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, }) : super( 'textarea', attrs: _mergeAttrs(attrs,`  -- Creates a `<textarea>` element descriptor with attribute and event shorthands.
-  - `const Textarea.raw({ super.className, super.style, super.attrs, super.on, }) : super('textarea')`  -- Const constructor for `<textarea>` without attribute and event shorthands.
+  - `Textarea({ super.className, super.style, Map<String, String>? attrs, String? placeholder, String? value, String? name, int? rows, int? cols, bool? required, bool? readOnly, bool? autofocus, int? minLength, int? maxLength, Map<String, BloomEventHandler>? on, BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onFocus, BloomEventHandler? onBlur, BloomEventHandler? onKeyDown, BloomEventHandler? onKeyUp, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'textarea', attrs: _mergeAttrs(attrs,`  -- Creates a `<textarea>` element descriptor with attribute and event shorthands.
+  - `const Textarea.raw({ super.className, super.style, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('textarea')`  -- Const constructor for `<textarea>` without attribute and event shorthands.
 
 ### A  [class]
 ```dart
@@ -3962,8 +4200,8 @@ A(
 ```
 
 Members:
-  - `A({ super.text, super.className, super.style, Map<String, String>? attrs, String? href, String? target, String? rel, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onFocus, BloomEventHandler? onBlur, }) : super( 'a', attrs: _mergeAttrs(attrs,`  -- Creates an `<a>` anchor element descriptor with hyperlink shorthands.
-  - `const A.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('a')`  -- Const constructor for `<a>` without hyperlink shorthands.
+  - `A({ super.text, super.className, super.style, Map<String, String>? attrs, String? href, String? target, String? rel, bool? download, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, BloomEventHandler? onMouseEnter, BloomEventHandler? onMouseLeave, BloomEventHandler? onFocus, BloomEventHandler? onBlur, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'a', attrs: _mergeAttrs(attrs,`  -- Creates an `<a>` anchor element descriptor with hyperlink shorthands.
+  - `const A.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('a')`  -- Const constructor for `<a>` without hyperlink shorthands.
 
 ### Img  [class]
 ```dart
@@ -3984,8 +4222,8 @@ Img(
 ```
 
 Members:
-  - `Img({ required String src, String? alt, int? width, int? height, super.className, super.style, Map<String, String>? attrs, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, }) : super( 'img', attrs: _mergeAttrs(attrs,`  -- Creates an `<img>` element descriptor with image attribute shorthands.
-  - `const Img.raw({ super.className, super.style, super.attrs, super.on, }) : super('img')`  -- Const constructor for `<img>` without attribute shorthands.
+  - `Img({ required String src, String? alt, int? width, int? height, ImageLoading? loading, ImageDecoding? decoding, FetchPriority? fetchPriority, String? srcset, String? sizes, super.className, super.style, Map<String, String>? attrs, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'img', attrs: _mergeAttrs(attrs,`  -- Creates an `<img>` element descriptor with image attribute shorthands.
+  - `const Img.raw({ super.className, super.style, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('img')`  -- Const constructor for `<img>` without attribute shorthands.
 
 ### Ul  [class]
 ```dart
@@ -3994,8 +4232,8 @@ class Ul extends ElNode
 `<ul>` — unordered list element.
 
 Members:
-  - `Ul({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('ul')`  -- Creates an `<ul>` unordered list element descriptor.
-  - `const Ul.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('ul')`  -- Const constructor for `<ul>`.
+  - `Ul({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('ul')`  -- Creates an `<ul>` unordered list element descriptor.
+  - `const Ul.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('ul')`  -- Const constructor for `<ul>`.
 
 ### Ol  [class]
 ```dart
@@ -4004,8 +4242,8 @@ class Ol extends ElNode
 `<ol>` — ordered list element.
 
 Members:
-  - `Ol({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('ol')`  -- Creates an `<ol>` ordered list element descriptor.
-  - `const Ol.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('ol')`  -- Const constructor for `<ol>`.
+  - `Ol({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('ol')`  -- Creates an `<ol>` ordered list element descriptor.
+  - `const Ol.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('ol')`  -- Const constructor for `<ol>`.
 
 ### Li  [class]
 ```dart
@@ -4014,8 +4252,38 @@ class Li extends ElNode
 `<li>` — list item element.
 
 Members:
-  - `Li({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, }) : super( 'li', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<li>` list item element descriptor.
-  - `const Li.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('li')`  -- Const constructor for `<li>` without event listener shorthand.
+  - `Li({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'li', on: _mergeEvents(on, onClick: onClick), )`  -- Creates an `<li>` list item element descriptor.
+  - `const Li.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('li')`  -- Const constructor for `<li>` without event listener shorthand.
+
+### Dl  [class]
+```dart
+class Dl extends ElNode
+```
+`<dl>` — description list element.
+
+Members:
+  - `Dl({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dl')`  -- Creates a `<dl>` description list descriptor.
+  - `const Dl.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dl')`  -- Const constructor for `<dl>`.
+
+### Dt  [class]
+```dart
+class Dt extends ElNode
+```
+`<dt>` — term or name in a description list.
+
+Members:
+  - `Dt({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dt', on: _mergeEvents(on, onClick: onClick))`  -- Creates a `<dt>` description term descriptor.
+  - `const Dt.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dt')`  -- Const constructor for `<dt>` without event listener shorthand.
+
+### Dd  [class]
+```dart
+class Dd extends ElNode
+```
+`<dd>` — description or value in a description list.
+
+Members:
+  - `Dd({ super.text, super.className, super.style, super.attrs, Map<String, BloomEventHandler>? on, super.children = const [], BloomEventHandler? onClick, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dd', on: _mergeEvents(on, onClick: onClick))`  -- Creates a `<dd>` description value descriptor.
+  - `const Dd.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dd')`  -- Const constructor for `<dd>` without event listener shorthand.
 
 ### Form  [class]
 ```dart
@@ -4026,8 +4294,8 @@ class Form extends ElNode
 Provides a convenient [onSubmit] event callback parameter.
 
 Members:
-  - `Form({ super.className, super.style, super.attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onSubmit, }) : super( 'form', on: _mergeEvents(on, onSubmit: onSubmit), )`  -- Creates a `<form>` element descriptor with [onSubmit] event shorthand.
-  - `const Form.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('form')`  -- Const constructor for `<form>` without event listener shorthand.
+  - `Form({ super.className, super.style, super.attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onSubmit, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'form', on: _mergeEvents(on, onSubmit: onSubmit), )`  -- Creates a `<form>` element descriptor with [onSubmit] event shorthand.
+  - `const Form.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('form')`  -- Const constructor for `<form>` without event listener shorthand.
 
 ### Label  [class]
 ```dart
@@ -4038,8 +4306,8 @@ class Label extends ElNode
 Use [htmlFor] to associate this label with a target input ID (maps to `for` attribute).
 
 Members:
-  - `Label({ super.text, super.className, super.style, Map<String, String>? attrs, String? htmlFor, super.children = const [], super.on, }) : super( 'label', attrs: _mergeAttrs(attrs,`  -- Creates a `<label>` element descriptor with [htmlFor] attribute shorthand.
-  - `const Label.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('label')`  -- Const constructor for `<label>` without attribute shorthand.
+  - `Label({ super.text, super.className, super.style, Map<String, String>? attrs, String? htmlFor, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'label', attrs: _mergeAttrs(attrs,`  -- Creates a `<label>` element descriptor with [htmlFor] attribute shorthand.
+  - `const Label.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('label')`  -- Const constructor for `<label>` without attribute shorthand.
 
 ### Header  [class]
 ```dart
@@ -4048,8 +4316,8 @@ class Header extends ElNode
 `<header>` — introductory or navigational container for a page or section.
 
 Members:
-  - `Header({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('header')`  -- Creates a `<header>` element descriptor.
-  - `const Header.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('header')`  -- Const constructor for `<header>`.
+  - `Header({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('header')`  -- Creates a `<header>` element descriptor.
+  - `const Header.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('header')`  -- Const constructor for `<header>`.
 
 ### Footer  [class]
 ```dart
@@ -4058,8 +4326,8 @@ class Footer extends ElNode
 `<footer>` — footer container for a page or section.
 
 Members:
-  - `Footer({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('footer')`  -- Creates a `<footer>` element descriptor.
-  - `const Footer.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('footer')`  -- Const constructor for `<footer>`.
+  - `Footer({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('footer')`  -- Creates a `<footer>` element descriptor.
+  - `const Footer.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('footer')`  -- Const constructor for `<footer>`.
 
 ### Main  [class]
 ```dart
@@ -4068,8 +4336,8 @@ class Main extends ElNode
 `<main>` — dominant central content container of a document.
 
 Members:
-  - `Main({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('main')`  -- Creates a `<main>` element descriptor.
-  - `const Main.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('main')`  -- Const constructor for `<main>`.
+  - `Main({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('main')`  -- Creates a `<main>` element descriptor.
+  - `const Main.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('main')`  -- Const constructor for `<main>`.
 
 ### Nav  [class]
 ```dart
@@ -4078,8 +4346,8 @@ class Nav extends ElNode
 `<nav>` — section of navigation links.
 
 Members:
-  - `Nav({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('nav')`  -- Creates a `<nav>` element descriptor.
-  - `const Nav.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('nav')`  -- Const constructor for `<nav>`.
+  - `Nav({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('nav')`  -- Creates a `<nav>` element descriptor.
+  - `const Nav.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('nav')`  -- Const constructor for `<nav>`.
 
 ### Section  [class]
 ```dart
@@ -4088,8 +4356,8 @@ class Section extends ElNode
 `<section>` — standalone generic thematic section of a document.
 
 Members:
-  - `Section({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('section')`  -- Creates a `<section>` element descriptor.
-  - `const Section.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('section')`  -- Const constructor for `<section>`.
+  - `Section({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('section')`  -- Creates a `<section>` element descriptor.
+  - `const Section.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('section')`  -- Const constructor for `<section>`.
 
 ### Article  [class]
 ```dart
@@ -4098,8 +4366,8 @@ class Article extends ElNode
 `<article>` — self-contained, independently distributable composition.
 
 Members:
-  - `Article({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('article')`  -- Creates an `<article>` element descriptor.
-  - `const Article.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('article')`  -- Const constructor for `<article>`.
+  - `Article({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('article')`  -- Creates an `<article>` element descriptor.
+  - `const Article.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('article')`  -- Const constructor for `<article>`.
 
 ### Aside  [class]
 ```dart
@@ -4108,8 +4376,8 @@ class Aside extends ElNode
 `<aside>` — sidebar or tangentially related content container.
 
 Members:
-  - `Aside({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('aside')`  -- Creates an `<aside>` element descriptor.
-  - `const Aside.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('aside')`  -- Const constructor for `<aside>`.
+  - `Aside({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('aside')`  -- Creates an `<aside>` element descriptor.
+  - `const Aside.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('aside')`  -- Const constructor for `<aside>`.
 
 ### Strong  [class]
 ```dart
@@ -4118,8 +4386,8 @@ class Strong extends ElNode
 `<strong>` — content of strong importance, seriousness, or urgency.
 
 Members:
-  - `Strong({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('strong')`  -- Creates a `<strong>` element descriptor.
-  - `const Strong.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('strong')`  -- Const constructor for `<strong>`.
+  - `Strong({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('strong')`  -- Creates a `<strong>` element descriptor.
+  - `const Strong.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('strong')`  -- Const constructor for `<strong>`.
 
 ### Em  [class]
 ```dart
@@ -4128,8 +4396,8 @@ class Em extends ElNode
 `<em>` — text with emphatic stress.
 
 Members:
-  - `Em({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('em')`  -- Creates an `<em>` element descriptor.
-  - `const Em.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('em')`  -- Const constructor for `<em>`.
+  - `Em({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('em')`  -- Creates an `<em>` element descriptor.
+  - `const Em.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('em')`  -- Const constructor for `<em>`.
 
 ### Code  [class]
 ```dart
@@ -4138,8 +4406,8 @@ class Code extends ElNode
 `<code>` — inline code fragment or computer code snippet.
 
 Members:
-  - `Code({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('code')`  -- Creates a `<code>` element descriptor.
-  - `const Code.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('code')`  -- Const constructor for `<code>`.
+  - `Code({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('code')`  -- Creates a `<code>` element descriptor.
+  - `const Code.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('code')`  -- Const constructor for `<code>`.
 
 ### Pre  [class]
 ```dart
@@ -4148,8 +4416,8 @@ class Pre extends ElNode
 `<pre>` — preformatted text block preserving whitespace and formatting.
 
 Members:
-  - `Pre({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('pre')`  -- Creates a `<pre>` element descriptor.
-  - `const Pre.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('pre')`  -- Const constructor for `<pre>`.
+  - `Pre({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('pre')`  -- Creates a `<pre>` element descriptor.
+  - `const Pre.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('pre')`  -- Const constructor for `<pre>`.
 
 ### Br  [class]
 ```dart
@@ -4160,7 +4428,7 @@ class Br extends ElNode
 **Void element**: `<br>` cannot have children and is emitted without a closing tag.
 
 Members:
-  - `const Br({super.className, super.attrs}) : super('br')`  -- Creates a `<br>` line break descriptor.
+  - `const Br({ super.className, super.attrs, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('br')`  -- Creates a `<br>` line break descriptor.
 
 ### Hr  [class]
 ```dart
@@ -4171,7 +4439,7 @@ class Hr extends ElNode
 **Void element**: `<hr>` cannot have children and is emitted without a closing tag.
 
 Members:
-  - `const Hr({super.className, super.style, super.attrs}) : super('hr')`  -- Creates an `<hr>` horizontal rule descriptor.
+  - `const Hr({ super.className, super.style, super.attrs, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('hr')`  -- Creates an `<hr>` horizontal rule descriptor.
 
 ### Blockquote  [class]
 ```dart
@@ -4180,8 +4448,8 @@ class Blockquote extends ElNode
 `<blockquote>` — section quoted from another source.
 
 Members:
-  - `Blockquote(`  -- Creates a `<blockquote>` element descriptor.
-  - `const Blockquote.raw(`  -- Const constructor for `<blockquote>`.
+  - `Blockquote({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('blockquote')`  -- Creates a `<blockquote>` element descriptor.
+  - `const Blockquote.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('blockquote')`  -- Const constructor for `<blockquote>`.
 
 ### Cite  [class]
 ```dart
@@ -4190,7 +4458,7 @@ class Cite extends ElNode
 `<cite>` — title of a creative work or citation reference.
 
 Members:
-  - `const Cite(`  -- Creates a `<cite>` citation descriptor.
+  - `const Cite({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('cite')`  -- Creates a `<cite>` citation descriptor.
 
 ### TimeEl  [class]
 ```dart
@@ -4201,8 +4469,8 @@ class TimeEl extends ElNode
 Use [dateTime] to specify the ISO 8601 timestamp string (maps to `datetime` attribute).
 
 Members:
-  - `TimeEl(`  -- Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
-  - `const TimeEl.raw(`  -- Const constructor for `<time>` without attribute shorthand.
+  - `TimeEl({ super.text, String? dateTime, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('time', attrs: _mergeAttrs( attrs,`  -- Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
+  - `const TimeEl.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('time')`  -- Const constructor for `<time>` without attribute shorthand.
 
 ### Mark  [class]
 ```dart
@@ -4211,7 +4479,7 @@ class Mark extends ElNode
 `<mark>` — text highlighted for reference or relevance purposes.
 
 Members:
-  - `const Mark(`  -- Creates a `<mark>` highlight descriptor.
+  - `const Mark({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('mark')`  -- Creates a `<mark>` highlight descriptor.
 
 ### Small  [class]
 ```dart
@@ -4220,7 +4488,7 @@ class Small extends ElNode
 `<small>` — side-comments, small print, and legal disclaimers.
 
 Members:
-  - `const Small(`  -- Creates a `<small>` fine-print descriptor.
+  - `const Small({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('small')`  -- Creates a `<small>` fine-print descriptor.
 
 ### Sub  [class]
 ```dart
@@ -4229,7 +4497,7 @@ class Sub extends ElNode
 `<sub>` — subscript text.
 
 Members:
-  - `const Sub(`  -- Creates a `<sub>` subscript descriptor.
+  - `const Sub({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('sub')`  -- Creates a `<sub>` subscript descriptor.
 
 ### Sup  [class]
 ```dart
@@ -4238,7 +4506,7 @@ class Sup extends ElNode
 `<sup>` — superscript text.
 
 Members:
-  - `const Sup(`  -- Creates a `<sup>` superscript descriptor.
+  - `const Sup({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('sup')`  -- Creates a `<sup>` superscript descriptor.
 
 ### Abbr  [class]
 ```dart
@@ -4249,8 +4517,8 @@ class Abbr extends ElNode
 Use [title] to provide the expanded description shown on hover.
 
 Members:
-  - `Abbr(`  -- Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
-  - `const Abbr.raw(`  -- Const constructor for `<abbr>` without attribute shorthand.
+  - `Abbr({ super.text, String? title, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.tabIndex, super.aria, }) : super('abbr', attrs: _mergeAttrs(attrs,`  -- Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
+  - `const Abbr.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('abbr')`  -- Const constructor for `<abbr>` without attribute shorthand.
 
 ### KbdEl  [class]
 ```dart
@@ -4259,7 +4527,7 @@ class KbdEl extends ElNode
 `<kbd>` — keyboard input or key combination.
 
 Members:
-  - `const KbdEl(`  -- Creates a `<kbd>` keyboard input descriptor.
+  - `const KbdEl({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('kbd')`  -- Creates a `<kbd>` keyboard input descriptor.
 
 ### Figure  [class]
 ```dart
@@ -4268,8 +4536,8 @@ class Figure extends ElNode
 `<figure>` — self-contained figure content (images, charts, code blocks).
 
 Members:
-  - `Figure(`  -- Creates a `<figure>` element descriptor.
-  - `const Figure.raw(`  -- Const constructor for `<figure>`.
+  - `Figure({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('figure')`  -- Creates a `<figure>` element descriptor.
+  - `const Figure.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('figure')`  -- Const constructor for `<figure>`.
 
 ### Figcaption  [class]
 ```dart
@@ -4278,7 +4546,7 @@ class Figcaption extends ElNode
 `<figcaption>` — caption or legend for a parent `<figure>`.
 
 Members:
-  - `const Figcaption(`  -- Creates a `<figcaption>` element descriptor.
+  - `const Figcaption({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('figcaption')`  -- Creates a `<figcaption>` element descriptor.
 
 ### Details  [class]
 ```dart
@@ -4289,8 +4557,8 @@ class Details extends ElNode
 Use [open] to control whether disclosure is expanded initially.
 
 Members:
-  - `Details(`  -- Creates a `<details>` element descriptor with [open] attribute shorthand.
-  - `const Details.raw(`  -- Const constructor for `<details>` without attribute shorthand.
+  - `Details({ super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('details', attrs: _mergeAttrs(attrs,`  -- Creates a `<details>` element descriptor with [open] attribute shorthand.
+  - `const Details.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('details')`  -- Const constructor for `<details>` without attribute shorthand.
 
 ### Summary  [class]
 ```dart
@@ -4299,7 +4567,7 @@ class Summary extends ElNode
 `<summary>` — disclosure summary or caption heading for a parent `<details>`.
 
 Members:
-  - `const Summary(`  -- Creates a `<summary>` element descriptor.
+  - `const Summary({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('summary')`  -- Creates a `<summary>` element descriptor.
 
 ### Dialog  [class]
 ```dart
@@ -4310,8 +4578,8 @@ class Dialog extends ElNode
 Use [open] to control whether the dialog is open upon mounting.
 
 Members:
-  - `Dialog(`  -- Creates a `<dialog>` element descriptor with [open] attribute shorthand.
-  - `const Dialog.raw(`  -- Const constructor for `<dialog>` without attribute shorthand.
+  - `Dialog({ super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, bool? open, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dialog', attrs: _mergeAttrs(attrs,`  -- Creates a `<dialog>` element descriptor with [open] attribute shorthand.
+  - `const Dialog.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('dialog')`  -- Const constructor for `<dialog>` without attribute shorthand.
 
 ### Canvas  [class]
 ```dart
@@ -4322,8 +4590,8 @@ class Canvas extends ElNode
 [width] and [height] configure the coordinate space dimensions of the canvas.
 
 Members:
-  - `Canvas(`  -- Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
-  - `const Canvas.raw({super.className, super.style, super.attrs, super.on}) : super('canvas')`  -- Const constructor for `<canvas>` without dimension shorthands.
+  - `Canvas({ int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('canvas', attrs: _mergeAttrs(attrs,`  -- Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
+  - `const Canvas.raw({ super.className, super.style, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('canvas')`  -- Const constructor for `<canvas>` without dimension shorthands.
 
 ### IFrame  [class]
 ```dart
@@ -4332,8 +4600,8 @@ class IFrame extends ElNode
 `<iframe>` — inline frame embedding an external browsing context.
 
 Members:
-  - `IFrame(`  -- Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
-  - `const IFrame.raw({super.className, super.style, super.attrs, super.on}) : super('iframe')`  -- Const constructor for `<iframe>` without attribute shorthands.
+  - `IFrame({ String? src, String? title, int? width, int? height, super.className, super.style, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.tabIndex, super.aria, }) : super('iframe', attrs: _mergeAttrs(attrs,`  -- Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
+  - `const IFrame.raw({ super.className, super.style, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('iframe')`  -- Const constructor for `<iframe>` without attribute shorthands.
 
 ### Table  [class]
 ```dart
@@ -4342,8 +4610,8 @@ class Table extends ElNode
 `<table>` — tabular data container element.
 
 Members:
-  - `Table(`  -- Creates a `<table>` element descriptor.
-  - `const Table.raw(`  -- Const constructor for `<table>`.
+  - `Table({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('table')`  -- Creates a `<table>` element descriptor.
+  - `const Table.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('table')`  -- Const constructor for `<table>`.
 
 ### Caption  [class]
 ```dart
@@ -4352,7 +4620,7 @@ class Caption extends ElNode
 `<caption>` — title or accessibility description for a parent `<table>`.
 
 Members:
-  - `const Caption(`  -- Creates a `<caption>` table description descriptor.
+  - `const Caption({ super.text, super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('caption')`  -- Creates a `<caption>` table description descriptor.
 
 ### Thead  [class]
 ```dart
@@ -4361,8 +4629,8 @@ class Thead extends ElNode
 `<thead>` — group of header rows in a `<table>`.
 
 Members:
-  - `Thead(`  -- Creates a `<thead>` element descriptor.
-  - `const Thead.raw(`  -- Const constructor for `<thead>`.
+  - `Thead({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('thead')`  -- Creates a `<thead>` element descriptor.
+  - `const Thead.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('thead')`  -- Const constructor for `<thead>`.
 
 ### Tbody  [class]
 ```dart
@@ -4371,8 +4639,8 @@ class Tbody extends ElNode
 `<tbody>` — group of body data rows in a `<table>`.
 
 Members:
-  - `Tbody(`  -- Creates a `<tbody>` element descriptor.
-  - `const Tbody.raw(`  -- Const constructor for `<tbody>`.
+  - `Tbody({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tbody')`  -- Creates a `<tbody>` element descriptor.
+  - `const Tbody.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tbody')`  -- Const constructor for `<tbody>`.
 
 ### Tfoot  [class]
 ```dart
@@ -4381,8 +4649,8 @@ class Tfoot extends ElNode
 `<tfoot>` — group of summary footer rows in a `<table>`.
 
 Members:
-  - `Tfoot(`  -- Creates a `<tfoot>` element descriptor.
-  - `const Tfoot.raw(`  -- Const constructor for `<tfoot>`.
+  - `Tfoot({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tfoot')`  -- Creates a `<tfoot>` element descriptor.
+  - `const Tfoot.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tfoot')`  -- Const constructor for `<tfoot>`.
 
 ### Tr  [class]
 ```dart
@@ -4391,8 +4659,8 @@ class Tr extends ElNode
 `<tr>` — row of cells in a `<table>`.
 
 Members:
-  - `Tr(`  -- Creates a `<tr>` table row descriptor.
-  - `const Tr.raw(`  -- Const constructor for `<tr>`.
+  - `Tr({ super.className, super.style, super.attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tr')`  -- Creates a `<tr>` table row descriptor.
+  - `const Tr.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('tr')`  -- Const constructor for `<tr>`.
 
 ### Th  [class]
 ```dart
@@ -4403,8 +4671,8 @@ class Th extends ElNode
 Supports [scope], [colSpan] (`colspan`), and [rowSpan] (`rowspan`) shorthands.
 
 Members:
-  - `Th({ super.text, String? scope, int? colSpan, int? rowSpan, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, }) : super( 'th', attrs: _mergeAttrs(attrs,`  -- Creates a `<th>` table header cell descriptor.
-  - `const Th.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('th')`  -- Const constructor for `<th>` without attribute shorthands.
+  - `Th({ super.text, String? scope, int? colSpan, int? rowSpan, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'th', attrs: _mergeAttrs(attrs,`  -- Creates a `<th>` table header cell descriptor.
+  - `const Th.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('th')`  -- Const constructor for `<th>` without attribute shorthands.
 
 ### Td  [class]
 ```dart
@@ -4415,8 +4683,8 @@ class Td extends ElNode
 Supports [colSpan] (`colspan`) and [rowSpan] (`rowspan`) shorthands.
 
 Members:
-  - `Td({ super.text, int? colSpan, int? rowSpan, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, }) : super( 'td', attrs: _mergeAttrs(attrs,`  -- Creates a `<td>` table data cell descriptor.
-  - `const Td.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('td')`  -- Const constructor for `<td>` without attribute shorthands.
+  - `Td({ super.text, int? colSpan, int? rowSpan, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'td', attrs: _mergeAttrs(attrs,`  -- Creates a `<td>` table data cell descriptor.
+  - `const Td.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('td')`  -- Const constructor for `<td>` without attribute shorthands.
 
 ### Select  [class]
 ```dart
@@ -4442,8 +4710,8 @@ BloomNode roleSelector() => Select(
 ```
 
 Members:
-  - `Select({ String? name, bool? multiple, bool? disabled, super.className, super.style, Map<String, String>? attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onChange, BloomEventHandler? onFocus, BloomEventHandler? onBlur, }) : super( 'select', attrs: _mergeAttrs(attrs,`  -- Creates a `<select>` drop-down control descriptor.
-  - `const Select.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('select')`  -- Const constructor for `<select>` without attribute and event shorthands.
+  - `Select({ String? name, bool? multiple, bool? disabled, bool? required, super.className, super.style, Map<String, String>? attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onChange, BloomEventHandler? onFocus, BloomEventHandler? onBlur, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'select', attrs: _mergeAttrs(attrs,`  -- Creates a `<select>` drop-down control descriptor.
+  - `const Select.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('select')`  -- Const constructor for `<select>` without attribute and event shorthands.
 
 ### Option  [class]
 ```dart
@@ -4454,8 +4722,8 @@ class Option extends ElNode
 Requires the [value] parameter. Supports [selected] and [disabled] shorthands.
 
 Members:
-  - `Option({ required String value, super.text, bool? selected, bool? disabled, super.className, Map<String, String>? attrs, super.children = const [], }) : super( 'option', attrs: _mergeAttrs(attrs,`  -- Creates an `<option>` element descriptor with [value] and state shorthands.
-  - `const Option.raw({ super.text, super.className, super.attrs, super.children = const [], }) : super('option')`  -- Const constructor for `<option>` without attribute shorthands.
+  - `Option({ required String value, super.text, bool? selected, bool? disabled, super.className, Map<String, String>? attrs, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'option', attrs: _mergeAttrs(attrs,`  -- Creates an `<option>` element descriptor with [value] and state shorthands.
+  - `const Option.raw({ super.text, super.className, super.attrs, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('option')`  -- Const constructor for `<option>` without attribute shorthands.
 
 ### Optgroup  [class]
 ```dart
@@ -4466,8 +4734,8 @@ class Optgroup extends ElNode
 Requires the [label] parameter naming the option group.
 
 Members:
-  - `Optgroup({ required String label, super.className, Map<String, String>? attrs, super.children = const [], }) : super( 'optgroup', attrs: _mergeAttrs(attrs,`  -- Creates an `<optgroup>` element descriptor with [label] shorthand.
-  - `const Optgroup.raw({ super.className, super.attrs, super.children = const [], }) : super('optgroup')`  -- Const constructor for `<optgroup>` without attribute shorthand.
+  - `Optgroup({ required String label, super.className, Map<String, String>? attrs, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super( 'optgroup', attrs: _mergeAttrs(attrs,`  -- Creates an `<optgroup>` element descriptor with [label] shorthand.
+  - `const Optgroup.raw({ super.className, super.attrs, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('optgroup')`  -- Const constructor for `<optgroup>` without attribute shorthand.
 
 ### SvgNode  [class]
 ```dart
@@ -4488,7 +4756,11 @@ class Svg extends SvgNode
 ```
 `<svg>` — root SVG graphics viewport container element.
 
-Supports [viewBox], [width], and [height] attribute shorthands.
+Supports [viewBox], [width], and [height] attribute shorthands. Width and
+height accept a number or a CSS length string. Presentation attributes
+[fill], [stroke], [strokeWidth], [strokeLinecap], [strokeLinejoin],
+[opacity], and [transform] are also supported. [strokeWidth] and [opacity]
+accept numbers.
 
 ```dart
 Svg(
@@ -4502,8 +4774,8 @@ Svg(
 ```
 
 Members:
-  - `Svg({ String? viewBox, String? width, String? height, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, }) : super('svg', attrs: _mergeAttrs(attrs,`  -- Creates an `<svg>` viewport container descriptor.
-  - `const Svg.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('svg')`  -- Const constructor for `<svg>` without attribute shorthands.
+  - `Svg({ String? viewBox, Object? width, Object? height, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, super.style, Map<String, String>? attrs, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('svg', attrs: _mergeAttrs(attrs,`  -- Creates an `<svg>` viewport container descriptor.
+  - `const Svg.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('svg')`  -- Const constructor for `<svg>` without attribute shorthands.
 
 ### SvgG  [class]
 ```dart
@@ -4511,9 +4783,12 @@ class SvgG extends SvgNode
 ```
 `<g>` — SVG grouping container element.
 
+Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+[strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
+
 Members:
-  - `SvgG({ super.className, super.style, super.attrs, super.children = const [], super.on, }) : super('g')`  -- Creates an SVG `<g>` group descriptor.
-  - `const SvgG.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], }) : super('g')`  -- Const constructor for SVG `<g>`.
+  - `SvgG({ super.className, super.style, Map<String, String>? attrs, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.children = const [], super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('g', attrs: _svgPresentationAttrs(attrs, fill, stroke, strokeWidth, strokeLinecap, strokeLinejoin, opacity, transform))`  -- Creates an SVG `<g>` group descriptor.
+  - `const SvgG.raw({ super.className, super.style, super.attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('g')`  -- Const constructor for SVG `<g>`.
 
 ### SvgPath  [class]
 ```dart
@@ -4522,11 +4797,12 @@ class SvgPath extends SvgNode
 `<path>` — SVG vector shape path element.
 
 Requires the [d] path data definition string. Supports [fill], [stroke],
-and [strokeWidth] (`stroke-width`) shorthands.
+numeric [strokeWidth] and [opacity], [strokeLinecap], [strokeLinejoin], and
+[transform] presentation shorthands.
 
 Members:
-  - `SvgPath({ required String d, String? fill, String? stroke, String? strokeWidth, super.className, Map<String, String>? attrs, super.on, }) : super('path', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<path>` shape descriptor.
-  - `const SvgPath.raw({ super.className, super.attrs, super.on, }) : super('path')`  -- Const constructor for SVG `<path>` without attribute shorthands.
+  - `SvgPath({ required String d, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('path', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<path>` shape descriptor.
+  - `const SvgPath.raw({ super.className, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('path')`  -- Const constructor for SVG `<path>` without attribute shorthands.
 
 ### SvgCircle  [class]
 ```dart
@@ -4534,11 +4810,13 @@ class SvgCircle extends SvgNode
 ```
 `<circle>` — SVG circle shape element.
 
-Requires center coordinates [cx], [cy], and radius [r].
+Requires center coordinates [cx], [cy], and radius [r]. Supports [fill],
+[stroke], numeric [strokeWidth] and [opacity], [strokeLinecap],
+[strokeLinejoin], and [transform] presentation shorthands.
 
 Members:
-  - `SvgCircle({ required num cx, required num cy, required num r, String? fill, String? stroke, super.className, Map<String, String>? attrs, super.on, }) : super('circle', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<circle>` shape descriptor.
-  - `const SvgCircle.raw({ super.className, super.attrs, super.on, }) : super('circle')`  -- Const constructor for SVG `<circle>` without attribute shorthands.
+  - `SvgCircle({ required num cx, required num cy, required num r, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('circle', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<circle>` shape descriptor.
+  - `const SvgCircle.raw({ super.className, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('circle')`  -- Const constructor for SVG `<circle>` without attribute shorthands.
 
 ### SvgRect  [class]
 ```dart
@@ -4547,11 +4825,12 @@ class SvgRect extends SvgNode
 `<rect>` — SVG rectangle shape element.
 
 Requires [width] and [height]. Supports [x], [y], corner radius [rx],
-[fill], and [stroke] shorthands.
+[fill], [stroke], numeric [strokeWidth] and [opacity], [strokeLinecap],
+[strokeLinejoin], and [transform] presentation shorthands.
 
 Members:
-  - `SvgRect({ num? x, num? y, required num width, required num height, num? rx, String? fill, String? stroke, super.className, Map<String, String>? attrs, super.on, }) : super('rect', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<rect>` rectangle shape descriptor.
-  - `const SvgRect.raw({ super.className, super.attrs, super.on, }) : super('rect')`  -- Const constructor for SVG `<rect>` without attribute shorthands.
+  - `SvgRect({ num? x, num? y, required num width, required num height, num? rx, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('rect', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<rect>` rectangle shape descriptor.
+  - `const SvgRect.raw({ super.className, super.attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('rect')`  -- Const constructor for SVG `<rect>` without attribute shorthands.
 
 ### SvgLine  [class]
 ```dart
@@ -4560,9 +4839,11 @@ class SvgLine extends SvgNode
 `<line>` — SVG straight line element.
 
 Requires start coordinates [x1], [y1] and end coordinates [x2], [y2].
+Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+[strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
 
 Members:
-  - `SvgLine({ required num x1, required num y1, required num x2, required num y2, String? stroke, super.className, Map<String, String>? attrs, super.on, }) : super('line', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<line>` segment descriptor.
+  - `SvgLine({ required num x1, required num y1, required num x2, required num y2, String? stroke, String? fill, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('line', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<line>` segment descriptor.
 
 ### SvgText  [class]
 ```dart
@@ -4570,8 +4851,11 @@ class SvgText extends SvgNode
 ```
 `<text>` — SVG graphical text element.
 
+Supports [fill], [stroke], numeric [strokeWidth] and [opacity],
+[strokeLinecap], [strokeLinejoin], and [transform] presentation shorthands.
+
 Members:
-  - `SvgText({ super.text, num? x, num? y, String? fill, super.className, Map<String, String>? attrs, super.on, super.children = const [], }) : super('text', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<text>` element descriptor with [x], [y], and [fill] shorthands.
+  - `SvgText({ super.text, num? x, num? y, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.children = const [], super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('text', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<text>` element descriptor with [x], [y], and [fill] shorthands.
 
 ### SvgUse  [class]
 ```dart
@@ -4579,10 +4863,12 @@ class SvgUse extends SvgNode
 ```
 `<use>` — SVG element instance reuse element.
 
-Requires the [href] target reference URI string.
+Requires the [href] target reference URI string. Supports [fill], [stroke],
+numeric [strokeWidth] and [opacity], [strokeLinecap], [strokeLinejoin], and
+[transform] presentation shorthands.
 
 Members:
-  - `SvgUse({ required String href, num? x, num? y, super.className, Map<String, String>? attrs, super.on, }) : super('use', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<use>` instance reuse descriptor.
+  - `SvgUse({ required String href, num? x, num? y, String? fill, String? stroke, num? strokeWidth, String? strokeLinecap, String? strokeLinejoin, num? opacity, String? transform, super.className, Map<String, String>? attrs, super.on, super.reactiveClass, super.reactiveStyle, super.reactiveAttrs, super.classIf, super.id, super.role, super.data, super.hidden, super.title, super.tabIndex, super.aria, }) : super('use', attrs: _mergeAttrs(attrs,`  -- Creates an SVG `<use>` instance reuse descriptor.
 
 ------------------------------------------------------------------------------
 
@@ -4633,6 +4919,7 @@ It executes entirely in pure Dart and requires no browser DOM, Flutter runtime, 
 - **[RefNode]**: Renders its `child`; DOM references are not attached during SSR.
 - **[ContextProviderNode]**: Provides ambient context values down the subtree using Dart Zones.
 - **[PortalNode]**: Emits `<template data-bloom-portal="...">` enclosing the portal subtree.
+- **[RawHtmlNode] / [Raw]**: Emits trusted HTML wrapped in `<!--bloom:raw-->` markers for hydration.
 
 ### Tag and Attribute Validation & Security
 - Tag names and attribute names are strictly validated against alphanumeric identifier patterns
@@ -4647,7 +4934,7 @@ final html = renderToHtml(
   Div(
     className: 'user-profile',
     children: [
-      const H1(text: 'Account Details'),
+      H1(text: 'Account Details'),
       P(text: 'Welcome, Alice'),
     ],
   ),
@@ -4666,10 +4953,27 @@ in a single SSR pass. Clears animation keyframe deduplication state prior to ren
 ```dart
 final html = renderToHtmlAll([
   const StyleNode('body { margin: 0; }'),
-  const Header(text: 'Bloom Header'),
-  const Main(text: 'Main content'),
+  Header(text: 'Bloom Header'),
+  Main(text: 'Main content'),
 ]);
 ```
+
+### DocumentScript  [class]
+```dart
+class DocumentScript
+```
+A script tag for [renderToDocument].
+
+```dart
+const DocumentScript('/bootstrap.js', module: true);
+```
+
+Members:
+  - `final String src`  -- Script URL validated before it is written to the document.
+  - `final bool module`  -- Whether the script is an ES module.
+  - `final bool defer`  -- Whether a classic script is deferred until document parsing completes.
+  - `final bool async`  -- Whether the script loads asynchronously.
+  - `const DocumentScript( this.src,`  -- Creates a document script descriptor.
 
 ### renderToDocument  [function]
 ```dart
@@ -4687,7 +4991,12 @@ metadata tags, stylesheets, custom [head] elements, [body] content, and [scripts
 - [head]: Additional [BloomNode] descriptors rendered directly inside `<head>`.
 - [importMapJson]: Optional JSON string emitted inside `<script type="importmap">` in `<head>`.
 - [stylesheets]: List of CSS stylesheet URLs emitted as `<link rel="stylesheet">` tags in `<head>`.
-- [scripts]: List of JavaScript URLs emitted as `<script src="...">` tags at the bottom of `<body>`.
+- [scriptTags]: Script descriptors emitted in `<head>` after head nodes.
+- [scripts]: Legacy JavaScript URLs emitted in `<head>` after [scriptTags],
+  each with `defer`. This keeps classic app bundles behind module bootstraps.
+
+Head output is ordered as charset and viewport, title, import map,
+stylesheets, [head] nodes, [scriptTags], then legacy [scripts].
 
 ```dart
 final html = renderToDocument(
@@ -4736,10 +5045,10 @@ rendered and streamed; if no error builder is configured, the initial fallback e
 final stream = renderToStreamWithSuspense(
   Div(
     children: [
-      const H1(text: 'Live Dashboard'),
+      H1(text: 'Live Dashboard'),
       Suspense<UserProfile>(
         resource: fetchUserProfile,
-        fallback: const Div(text: 'Loading profile...'),
+        fallback: Div(text: 'Loading profile...'),
         builder: (profile) => Div(text: 'Hello, ${profile.name}'),
       ),
     ],
@@ -4933,7 +5242,7 @@ Availability: browser-only (package:bloom_js_native/browser.dart)
 
 ### hydrate  [function]
 ```dart
-BloomMountHandle hydrate(BloomNode root, String selector)
+BloomMountHandle hydrate( BloomNode root, String selector,
 ```
 Hydrates a server-rendered DOM tree matching [selector] with event listeners in place.
 
@@ -4946,7 +5255,7 @@ void main() {
     Div(
       className: 'interactive-card',
       children: [
-        const H1(text: 'Server Rendered Title'),
+        H1(text: 'Server Rendered Title'),
         Button(
           text: 'Activate',
           on: {'click': (e) => print('Activated')},
@@ -4956,6 +5265,17 @@ void main() {
     '#app',
   );
 }
+```
+
+### mountApp  [function]
+```dart
+BloomMountHandle mountApp( BloomNode root, String selector,
+```
+Starts a Bloom app in the element matching [selector]. Hydrates when the
+element already contains server-rendered content, otherwise mounts.
+
+```dart
+final handle = mountApp(App(), '#app');
 ```
 
 ### hydrateElement  [function]
@@ -5001,7 +5321,7 @@ final handle = hydrateElement(
   Div(
     className: 'container',
     children: [
-      const H1(text: 'Welcome'),
+      H1(text: 'Welcome'),
       Button(
         text: 'Submit',
         on: {'click': (e) => submitForm()},
@@ -5052,6 +5372,18 @@ Boundary label for [ErrorBoundaryNode].
 const String hydrationMarkerSuspense = 'bloom:suspense'
 ```
 Boundary label for [SuspenseNode] in synchronous SSR output.
+
+### hydrationMarkerRaw  [constant]
+```dart
+const String hydrationMarkerRaw = 'bloom:raw'
+```
+Boundary label for [RawHtmlNode].
+
+### ssrTextSeparator  [constant]
+```dart
+const String ssrTextSeparator = '<!---->'
+```
+SSR separator comment emitted between adjacent text outputs and in place of empty text nodes.
 
 ### hydrationMarkerKeyPrefix  [constant]
 ```dart
@@ -6119,6 +6451,8 @@ High-performance responsive image descriptor helper for Bloom JS Native.
 
 Composes a standard `<img>` element with performance and accessibility best practices:
 - **Responsive sources**: Generates `srcset` and `sizes` automatically from [widths] and [urlBuilder].
+  When [urlBuilder] is provided, `src` uses [width] if set, otherwise the
+  largest entry in [widths]; without either, the original [src] is retained.
 - **Lazy loading by default**: Defaults to [ImageLoading.lazy] and [ImageDecoding.async] to avoid
   wasting network bandwidth and main-thread CPU cycles on offscreen images during initial load.
 - **LCP Hero Image Optimization**: Pass `priority: true` for above-the-fold hero images. This emits
@@ -6198,6 +6532,9 @@ Browsers evaluate `<source>` children in top-to-bottom order, selecting the firs
 matching format or media query, and apply dimensions and styling from the inner `<img>`.
 This enables serving modern formats (AVIF, WebP) with automatic fallback to standard formats
 (JPEG, PNG) on older browsers.
+When [urlBuilder] is provided, the fallback `<img>` `src` uses [width] when
+set, otherwise the largest entry in [fallbackWidths]; with neither, it uses
+[fallbackSrc] unchanged. The fallback `srcset` is generated as before.
 
 ### SSR and Browser Compatibility
 In SSR (`renderToHtml`), outputs a `<picture>` tag enclosing all `<source>` elements
@@ -6379,7 +6716,7 @@ is hydrated into an active, interactive DOM subtree.
 BloomIsland(
   name: 'image-gallery',
   strategy: HydrationStrategy.visible,
-  child: const Div(text: 'Loading gallery...'),
+  child: Div(text: 'Loading gallery...'),
 )
 ```
 
@@ -6417,7 +6754,7 @@ BloomIsland(
   child: Div(
     className: 'counter-box',
     children: [
-      const Span(text: 'Count: 5'),
+      Span(text: 'Count: 5'),
       Button(text: '+1'),
     ],
   ),
@@ -6709,7 +7046,7 @@ call [reset].
 
 ```dart
 final lazySettings = BloomLazyComponent(() async {
-  return const Div(
+  return Div(
     className: 'settings-panel',
     text: 'Account Settings',
   );
@@ -6744,9 +7081,9 @@ BloomNode lazyEditor() => lazy(
   () async {
     // await editor.loadLibrary();
     // return editor.EditorView();
-    return const Div(className: 'editor', text: 'Editor Ready');
+    return Div(className: 'editor', text: 'Editor Ready');
   },
-  fallback: const Div(
+  fallback: Div(
     className: 'skeleton-placeholder',
     text: 'Loading editor...',
   ),
@@ -6877,7 +7214,7 @@ void main() {
     Div(
       className: 'container',
       children: [
-        const H1(text: 'Bloom Web App'),
+        H1(text: 'Bloom Web App'),
         Live(() => P(text: 'Current count: ${count.value}')),
       ],
     ),
@@ -6942,6 +7279,12 @@ HydrationMismatchHandler? bloomHydrationMismatchHandler
 ```
 Global mismatch handler invoked alongside any per-call `onMismatch`.
 Null by default (mismatches still reach DevTools).
+
+### bloomLogHydrationMismatches  [function]
+```dart
+bool? bloomLogHydrationMismatches
+```
+Whether hydration mismatches are logged to the browser console. Null (the default) means "log in debug builds only".
 
 ### bloomHydrationPreserveFormState  [function]
 ```dart
@@ -7212,9 +7555,11 @@ Members:
   - `final String cdn`  -- CDN base URL provider. Defaults to `'https://esm.sh'`.
   - `final String? integrity`  -- Sub-Resource Integrity (SRI) hash, e.g. `'sha384-abc...'`.
   - `final String? subPath`  -- Optional package sub-path specifier, e.g. `'icons'` for a `lucide/icons` scoped import.
+  - `final String? vendorPath`  -- Relative path to the local vendor bundle (e.g. `'web/vendor/foo.min.js'`).
+  - `final String? jsGlobal`  -- Optional JS global variable name to bridge onto `window`.
   - `const NpmDependency( this.name, this.version,`  -- Creates an [NpmDependency] descriptor.
   - `String get specifier => importAs ?? name`  -- The resolved import specifier key used in import statements and import maps.
-  - `String get url => '$cdn/$name@$version${subPath != null ? '/$subPath' : ''}'`  -- The fully resolved ESM CDN URL, e.g. `'https://esm.sh/zod@^3.23.0'`.
+  - `String get url`  -- The fully resolved ESM CDN URL or local vendor URL path.
   - `Map<String, dynamic> toJson() =>`  -- Serializes dependency metadata to a JSON-encodable map.
 
 ### NpmRegistry  [class]
@@ -7250,6 +7595,10 @@ Members:
   - `static String generateImportMapJson({bool pretty = false})`  -- Generates a standard W3C Import Map JSON string with `imports` and `scopes`.
   - `static String generateImportMapTag({bool pretty = false})`  -- Generates an HTML `<script type="importmap">` tag containing the generated import map JSON.
   - `static Map<String, dynamic> toMap() =>`  -- Returns the top-level import map as a Dart [Map] with an `'imports'` key.
+  - `static String safeAlias(String pkg) => pkg .replaceAll('@', '') .replaceAll('/', '_') .replaceAll('-', '_') .replaceAll('.', '_')`  -- Converts an npm package name to a safe identifier for imports and module aliases.
+  - `static String inferGlobal(String pkg) => safeAlias(pkg)`  -- Infers the default global name for an npm package.
+  - `List<BloomNode> headNodes()`  -- Generates head nodes containing the import map `<script type="importmap">`
+  - `static NpmRegistry fromBloomYaml(String yamlSource)`  -- Parses the `npm_packages` section from a `bloom.yaml` string and registers each dependency.
 
 ------------------------------------------------------------------------------
 
@@ -7632,6 +7981,45 @@ print(counter.state.value); // 1
 ## router.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
+### BloomNavigator  [abstract interface class]
+```dart
+abstract interface class BloomNavigator
+```
+What a [RouterLink] needs from a router. [BloomRouterController]
+implements it; tests can pass a fake.
+
+```dart
+RouterLink(controller: navigator, href: '/settings', text: 'Settings')
+```
+
+Members:
+  - `ReadonlySignal<String> get currentPath`
+  - `Future<void> navigate(String path)`
+  - `Future<void> replace(String path)`
+  - `Future<void> navigateFragment(String fragment)`
+
+### shouldInterceptLinkClick  [function]
+```dart
+bool shouldInterceptLinkClick({ required String href, required BloomEvent event, String? target, bool download = false, required Uri currentLocation, }) =>
+```
+Whether a click on a link to [href] should be handled by client-side
+navigation.
+
+```dart
+final handled = shouldInterceptLinkClick(
+  href: '/about',
+  event: BloomEvent.fakeClick(),
+  currentLocation: Uri.parse('https://example.com/'),
+);
+```
+
+### linkClickDecision  [function]
+```dart
+bool linkClickDecision({ required String href, required int? button, required bool metaKey, required bool ctrlKey, required bool shiftKey, required bool altKey, required bool defaultPrevented, required String? target, required bool download, required Uri currentLocation, })
+```
+Primitive form of [shouldInterceptLinkClick], shared with the browser
+router's document-level link interception.
+
 ### GuardResult  [class]
 ```dart
 class GuardResult
@@ -7866,7 +8254,7 @@ final userRoute = BloomRoute(
   '/users/:id',
   null,
   loader: (params) => fetchUserProfile(params['id']!),
-  loadingFallback: () => const Div(text: 'Loading user...'),
+  loadingFallback: () => Div(text: 'Loading user...'),
   dataBuilder: (params, user) => Div(
     children: [
       H1(text: 'User: ${(user as User).name}'),
@@ -7926,9 +8314,9 @@ evaluates [BloomRouteGuard] instances, and coordinates speculative route prefetc
 
 ```dart
 final router = BloomRouter([
-  BloomRoute('/', (params) => const Div(text: 'Home')),
+  BloomRoute('/', (params) => Div(text: 'Home')),
   BloomRoute('/users/:id', (params) => Div(text: 'User ${params['id']}')),
-], notFound: BloomRoute('*', (params) => const Div(text: '404 Not Found')));
+], notFound: BloomRoute('*', (params) => Div(text: '404 Not Found')));
 
 final match = router.match('/users/42?tab=profile#bio');
 if (match != null) {
@@ -7979,8 +8367,8 @@ Link(
   href: '/pricing',
   prefetch: PrefetchMode.visible,
   children: [
-    const Span(className: 'icon', text: 'tag'),
-    const Span(text: 'View Pricing'),
+    Span(className: 'icon', text: 'tag'),
+    Span(text: 'View Pricing'),
   ],
 )
 ```
@@ -7990,6 +8378,26 @@ Members:
   - `Link({ required String href, this.prefetch = PrefetchMode.off, super.text, super.className, super.style, Map<String, String>? attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, }) : super( 'a', attrs:`  -- Creates a hyperlink element targeting [href] with optional [prefetch] behavior.
   - `const Link.raw({ super.text, super.className, super.style, super.attrs, super.on, super.children = const [], this.prefetch = PrefetchMode.off, }) : super('a')`  -- Creates a const [Link] descriptor without dynamic event bindings.
 
+### RouterLink  [class]
+```dart
+class RouterLink extends ElNode
+```
+A router-aware anchor that intercepts eligible same-origin clicks.
+
+```dart
+RouterLink(
+  controller: router,
+  href: '/docs',
+  activeClassName: 'active',
+  text: 'Docs',
+)
+RouterLink(controller: router, href: '#details', text: 'Details')
+RouterLink(controller: router, href: '/login', replace: true, text: 'Login')
+```
+
+Members:
+  - `RouterLink({ required BloomNavigator controller, required String href, bool replace = false, String? activeClassName, bool exact = false, PrefetchMode prefetch = PrefetchMode.off, String? target, super.text, super.className, super.style, Map<String, String>? attrs, super.children = const [], Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, }) : super( 'a', attrs:`  -- Creates a router-aware link to [href].
+
 ------------------------------------------------------------------------------
 
 ## router_browser.dart
@@ -7997,7 +8405,7 @@ Availability: browser-only (package:bloom_js_native/browser.dart)
 
 ### BloomRouterController  [class]
 ```dart
-class BloomRouterController
+class BloomRouterController implements BloomNavigator
 ```
 Client-side router controller using the HTML5 History API.
 
@@ -8033,8 +8441,8 @@ browser `window.history.scrollRestoration` configuration.
 
 ```dart
 final router = BloomRouter([
-  BloomRoute('/', (params) => const Div(text: 'Home')),
-  BloomRoute('/search', (params) => const Div(text: 'Search')),
+  BloomRoute('/', (params) => Div(text: 'Home')),
+  BloomRoute('/search', (params) => Div(text: 'Search')),
 ]);
 
 final controller = BloomRouterController(router);
@@ -8061,6 +8469,7 @@ Members:
   - `Future<void> navigateFragment(String fragment) async`  -- Navigates to [fragment] on the current pathname by pushing a new history entry.
   - `Future<void> replaceFragment(String fragment) async`  -- Replaces the hash fragment on the current pathname in place without pushing a new history entry.
   - `Future<void> setFragment(String fragment,`  -- Updates the hash fragment on the current path, either pushing or replacing history.
+  - `void Function() interceptLinks({web.Element? root})`  -- Handles clicks on plain `<a href>` elements inside [root] (default:
   - `BloomNode resolve()`  -- Resolves the current URL path against the router and returns the matching [BloomNode] tree.
   - `void dispose()`  -- Removes the `popstate` window event listener, disconnects the link prefetch observer,
 
@@ -8133,7 +8542,7 @@ class Task {
   );
 }
 
-const createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
+final createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
   '/tasks',
   encodeInput: (input) => input.toJson(),
   decodeOutput: Task.fromJson,
@@ -8612,7 +9021,7 @@ matching incoming requests, extracting typed parameters, and invoking handlers.
 ### Server Integration Example
 ```dart
 // 1. Define shared contract
-const getTask = BloomRpcContract<void, Task>.get(
+final getTask = BloomRpcContract<void, Task>.get(
   '/tasks/:id',
   decodeOutput: Task.fromJson,
 );
@@ -8875,6 +9284,365 @@ final count = readonly(_count);
 
 ------------------------------------------------------------------------------
 
+## ssg.dart
+Availability: not exported
+
+### SsgResult  [class]
+```dart
+class SsgResult
+```
+Summary of static site generation execution.
+
+Members:
+  - `final List<String> writtenFiles`  -- All files written to the output directory during static site generation.
+  - `final int pageCount`  -- Total number of HTML route pages generated.
+  - `const SsgResult({ required this.writtenFiles, required this.pageCount, })`  -- Creates an [SsgResult] descriptor.
+
+### generateStaticSite  [function]
+```dart
+Future<SsgResult> generateStaticSite({ required Map<String, BloomNode Function()> pages, String outDir = 'dist', String webDir = 'web', String? title, String Function(String path)? titleFor, List<BloomNode> head = const [], /// Stylesheets shared by every generated page. List<String> stylesheets = const [], String lang = 'en', String appElementId = 'app', String mainScript = 'main.js', bool includeNpm = true, String bloomYamlPath = 'bloom.yaml', }) async
+```
+Generates a static site into [outDir] from the supplied [pages] map and [webDir] assets.
+
+Example `bin/ssg.dart` usage:
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ssg.dart';
+
+void main() async {
+  final result = await generateStaticSite(
+    pages: {
+      '/': () => Div(text: 'Home page'),
+      '/about': () => Div(text: 'About page'),
+    },
+    title: 'My Bloom App',
+    stylesheets: ['/css/reset.css', '/css/design-system.css'],
+    titleFor: (path) => path == '/about' ? 'About Us' : 'Home',
+  );
+  print('Rendered ${result.pageCount} pages (${result.writtenFiles.length} files total).');
+}
+```
+
+------------------------------------------------------------------------------
+
+## tags.dart
+Availability: not exported
+
+### nodes  [function]
+```dart
+List<BloomNode> nodes(List<Object?> children)
+```
+Converts nested child values into Bloom nodes.
+
+Strings and numbers become text, iterables are flattened, and null/false
+values are omitted. Other values throw [ArgumentError].
+
+```dart
+final children = nodes(['Hello ', Strong(text: 'world')]);
+```
+
+### div  [function]
+```dart
+ElNode div(List<Object?> children,
+```
+Builds a `<div>` from concise child values.
+
+```dart
+div([h2(['Title']), p(['Hello ', strong(['world'])])], cls: 'card');
+```
+
+### span  [function]
+```dart
+ElNode span(List<Object?> children,
+```
+Builds a `<span>` element.
+
+### p  [function]
+```dart
+ElNode p(List<Object?> children,
+```
+Builds a `<p>` element.
+
+### section  [function]
+```dart
+ElNode section(List<Object?> children,
+```
+Builds a `<section>` element.
+
+### article  [function]
+```dart
+ElNode article(List<Object?> children,
+```
+Builds an `<article>` element.
+
+### header  [function]
+```dart
+ElNode header(List<Object?> children,
+```
+Builds a `<header>` element.
+
+### footer  [function]
+```dart
+ElNode footer(List<Object?> children,
+```
+Builds a `<footer>` element.
+
+### nav  [function]
+```dart
+ElNode nav(List<Object?> children,
+```
+Builds a `<nav>` element.
+
+### main  [function]
+```dart
+ElNode main(List<Object?> children,
+```
+Builds a `<main>` element.
+
+### aside  [function]
+```dart
+ElNode aside(List<Object?> children,
+```
+Builds an `<aside>` element.
+
+### h1  [function]
+```dart
+ElNode h1(List<Object?> children,
+```
+Builds an `<h1>` element.
+
+### h2  [function]
+```dart
+ElNode h2(List<Object?> children,
+```
+Builds an `<h2>` element.
+
+### h3  [function]
+```dart
+ElNode h3(List<Object?> children,
+```
+Builds an `<h3>` element.
+
+### h4  [function]
+```dart
+ElNode h4(List<Object?> children,
+```
+Builds an `<h4>` element.
+
+### h5  [function]
+```dart
+ElNode h5(List<Object?> children,
+```
+Builds an `<h5>` element.
+
+### h6  [function]
+```dart
+ElNode h6(List<Object?> children,
+```
+Builds an `<h6>` element.
+
+### ul  [function]
+```dart
+ElNode ul(List<Object?> children,
+```
+Builds a `<ul>` element.
+
+### ol  [function]
+```dart
+ElNode ol(List<Object?> children,
+```
+Builds an `<ol>` element.
+
+### li  [function]
+```dart
+ElNode li(List<Object?> children,
+```
+Builds an `<li>` element.
+
+### dl  [function]
+```dart
+ElNode dl(List<Object?> children,
+```
+Builds a `<dl>` element.
+
+### dt  [function]
+```dart
+ElNode dt(List<Object?> children,
+```
+Builds a `<dt>` element.
+
+### dd  [function]
+```dart
+ElNode dd(List<Object?> children,
+```
+Builds a `<dd>` element.
+
+### strong  [function]
+```dart
+ElNode strong(List<Object?> children,
+```
+Builds a `<strong>` element.
+
+### em  [function]
+```dart
+ElNode em(List<Object?> children,
+```
+Builds an `<em>` element.
+
+### small  [function]
+```dart
+ElNode small(List<Object?> children,
+```
+Builds a `<small>` element.
+
+### code  [function]
+```dart
+ElNode code(List<Object?> children,
+```
+Builds a `<code>` element.
+
+### pre  [function]
+```dart
+ElNode pre(List<Object?> children,
+```
+Builds a `<pre>` element.
+
+### blockquote  [function]
+```dart
+ElNode blockquote(List<Object?> children,
+```
+Builds a `<blockquote>` element.
+
+### figure  [function]
+```dart
+ElNode figure(List<Object?> children,
+```
+Builds a `<figure>` element.
+
+### figcaption  [function]
+```dart
+ElNode figcaption(List<Object?> children,
+```
+Builds a `<figcaption>` element.
+
+### label  [function]
+```dart
+ElNode label(List<Object?> children,
+```
+Builds a `<label>` element.
+
+### form  [function]
+```dart
+ElNode form(List<Object?> children,
+```
+Builds a `<form>` element.
+
+### table  [function]
+```dart
+ElNode table(List<Object?> children,
+```
+Builds a `<table>` element.
+
+### thead  [function]
+```dart
+ElNode thead(List<Object?> children,
+```
+Builds a `<thead>` element.
+
+### tbody  [function]
+```dart
+ElNode tbody(List<Object?> children,
+```
+Builds a `<tbody>` element.
+
+### tfoot  [function]
+```dart
+ElNode tfoot(List<Object?> children,
+```
+Builds a `<tfoot>` element.
+
+### tr  [function]
+```dart
+ElNode tr(List<Object?> children,
+```
+Builds a `<tr>` element.
+
+### th  [function]
+```dart
+ElNode th(List<Object?> children,
+```
+Builds a `<th>` element.
+
+### td  [function]
+```dart
+ElNode td(List<Object?> children,
+```
+Builds a `<td>` element.
+
+### a  [function]
+```dart
+ElNode a(List<Object?> children,
+```
+Builds an `<a>` element.
+
+```dart
+a(['Read more'], href: '/story');
+```
+
+### button  [function]
+```dart
+ElNode button(List<Object?> children,
+```
+Builds a `<button>` element.
+
+### select  [function]
+```dart
+ElNode select(List<Object?> children,
+```
+Builds a `<select>` element.
+
+### option  [function]
+```dart
+ElNode option(List<Object?> children,
+```
+Builds an `<option>` element.
+
+### textarea  [function]
+```dart
+ElNode textarea(List<Object?> children,
+```
+Builds a `<textarea>` element.
+
+### img  [function]
+```dart
+ElNode img({required String src, required String alt, String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('img',
+```
+Builds an `<img>` element.
+
+```dart
+img(src: '/logo.svg', alt: 'Logo');
+```
+
+### input  [function]
+```dart
+ElNode input({String? type, String? name, String? value, String? placeholder, String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('input',
+```
+Builds an `<input>` element.
+
+### br  [function]
+```dart
+ElNode br({String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('br', const
+```
+Builds a `<br>` element.
+
+### hr  [function]
+```dart
+ElNode hr({String? cls, String? id, String? style, Map<String, String>? attrs, Map<String, String>? data, Map<String, BloomEventHandler>? on, BloomEventHandler? onClick, String Function()? reactiveClass, String Function()? reactiveStyle, Map<String, Object? Function()>? reactiveAttrs, Map<String, bool Function()>? classIf}) => _voidEl('hr', const
+```
+Builds an `<hr>` element.
+
+------------------------------------------------------------------------------
+
 ## transition.dart
 Availability: core (package:bloom_js_native/bloom_js_native.dart)
 
@@ -9063,8 +9831,8 @@ spinners, or dimmed opacities without blocking immediate user interactions.
 Div(
   children: [
     Live(() => isTransitionPending.value
-        ? const Span(className: 'spinner', text: 'Updating list...')
-        : const Span(text: 'Up to date')),
+        ? Span(className: 'spinner', text: 'Updating list...')
+        : Span(text: 'Up to date')),
   ],
 )
 ```
@@ -9545,6 +10313,7 @@ void main() {
   BloomDateTimeClientI18n -> i18n.dart
   BloomDevToolsEvent -> devtools.dart
   BloomEffectCallback -> signals.dart
+  BloomElement -> framework.dart
   BloomEnv -> env.dart
   BloomEnvironmentException -> env.dart
   BloomEnvironmentSchema -> env.dart
@@ -9578,6 +10347,7 @@ void main() {
   BloomLazyComponent -> lazy.dart
   BloomMountHandle -> mount.dart
   BloomMutation -> mutation.dart
+  BloomNavigator -> router.dart
   BloomNestedForm -> form.dart
   BloomNode -> framework.dart
   BloomPaginatedQuery -> data.dart
@@ -9622,6 +10392,7 @@ void main() {
   Br -> framework.dart
   BrowserRealtimeClient -> realtime_browser.dart
   Button -> framework.dart
+  ButtonType -> framework.dart
   Canvas -> framework.dart
   Caption -> framework.dart
   Cite -> framework.dart
@@ -9631,10 +10402,14 @@ void main() {
   CustomElementEvent -> web_components.dart
   CustomElementEventHandler -> web_components.dart
   DateFormatStyle -> i18n.dart
+  Dd -> framework.dart
   DefaultSchedulerHost -> transition.dart
   Details -> framework.dart
   Dialog -> framework.dart
   Div -> framework.dart
+  Dl -> framework.dart
+  DocumentScript -> html.dart
+  Dt -> framework.dart
   El -> framework.dart
   ElNode -> framework.dart
   Em -> framework.dart
@@ -9659,6 +10434,7 @@ void main() {
   H4 -> framework.dart
   H5 -> framework.dart
   H6 -> framework.dart
+  HeadLink -> framework.dart
   Header -> framework.dart
   HmrComponentNode -> framework.dart
   Hr -> framework.dart
@@ -9672,8 +10448,11 @@ void main() {
   ImageUrlBuilder -> image.dart
   Img -> framework.dart
   InMemoryLocaleStorage -> i18n.dart
+  InView -> animate.dart
+  InViewNode -> framework.dart
   InfiniteQueryFn -> data.dart
   Input -> framework.dart
+  InputType -> framework.dart
   IslandStatus -> islands.dart
   KbdEl -> framework.dart
   Label -> framework.dart
@@ -9688,6 +10467,7 @@ void main() {
   Mark -> framework.dart
   Memo -> framework.dart
   MemoNode -> framework.dart
+  Meta -> framework.dart
   Mount -> framework.dart
   MountNode -> framework.dart
   MutationFn -> mutation.dart
@@ -9721,6 +10501,9 @@ void main() {
   RequestInterceptor -> http.dart
   ResolvedLocale -> i18n.dart
   ResponseInterceptor -> http.dart
+  Reveal -> animate.dart
+  RevealNode -> framework.dart
+  RouterLink -> router.dart
   SchedulerHost -> transition.dart
   SchedulerTask -> transition.dart
   ScopedCss -> scoped_css.dart
@@ -9731,9 +10514,11 @@ void main() {
   Signal -> signals.dart (re-export)
   Small -> framework.dart
   Span -> framework.dart
+  SsgResult -> ssg.dart
   Strong -> framework.dart
   Style -> framework.dart
   StyleNode -> framework.dart
+  StylesheetLink -> framework.dart
   Sub -> framework.dart
   Summary -> framework.dart
   Sup -> framework.dart
@@ -9760,18 +10545,23 @@ void main() {
   Th -> framework.dart
   Thead -> framework.dart
   TimeEl -> framework.dart
+  Title -> framework.dart
   Tr -> framework.dart
   Ul -> framework.dart
   VisuallyHidden -> a11y.dart
   VisuallyHiddenStyle -> a11y.dart
+  a -> tags.dart
   allowedExtensions -> form.dart
   allowedMimeTypes -> form.dart
   aria -> a11y.dart
   ariaAttr -> a11y.dart
+  article -> tags.dart
+  aside -> tags.dart
   attachBloomListener -> mount.dart
   batch -> signals.dart (re-export)
   beginBloomSignalScopeTransition -> _signal_scope.dart
   beginSignalScopeTransition -> _signal_scope_registry_stub.dart
+  blockquote -> tags.dart
   bloomDevErrorOverlayEnabled -> mount.dart
   bloomDisposeActiveMount -> mount.dart
   bloomHmrComponent -> framework.dart
@@ -9783,6 +10573,7 @@ void main() {
   bloomImage -> image.dart
   bloomIsland -> island_node.dart
   bloomIslandAttribute -> island_node.dart
+  bloomLogHydrationMismatches -> mount.dart
   bloomMediaAttribute -> island_node.dart
   bloomPicture -> image.dart
   bloomPropsAttribute -> island_node.dart
@@ -9790,9 +10581,12 @@ void main() {
   bloomScriptNonce -> web_components.dart
   bloomStrategyAttribute -> island_node.dart
   bloomStyleNonce -> mount.dart
+  br -> tags.dart
   browserRealtimeClient -> realtime_browser.dart
   buildQueryString -> router.dart
   buildSrcSet -> image.dart
+  button -> tags.dart
+  code -> tags.dart
   composeBloomSignalScope -> _signal_scope.dart
   computed -> signals.dart (re-export)
   createContext -> framework.dart
@@ -9801,6 +10595,7 @@ void main() {
   customElement -> web_components.dart
   cx -> framework.dart
   dartToJsValue -> web_components.dart
+  dd -> tags.dart
   defaultImageUrlBuilder -> image.dart
   defaultRealtimeBackoffMultiplier -> realtime_browser.dart
   defaultRealtimeInitialReconnectDelay -> realtime_browser.dart
@@ -9810,21 +10605,29 @@ void main() {
   dirAttribute -> i18n.dart
   disposeBrowserHotEffects -> _signals_stub.dart
   disposePreviousBrowserHotEffects -> _signals_stub.dart
+  div -> tags.dart
+  dl -> tags.dart
+  dt -> tags.dart
   effect -> signals.dart
+  em -> tags.dart
   email -> form.dart
   escapeBloomHtml -> attribute_safety.dart
   escapeBloomJsonForScript -> attribute_safety.dart
   escapeHtml -> html.dart
   escapeHydrationKey -> hydration_contract.dart
   extractIslandProps -> islands.dart
+  figcaption -> tags.dart
+  figure -> tags.dart
   fileRequired -> form.dart
   finishBloomSignalScopeTransition -> _signal_scope.dart
   finishSignalScopeTransition -> _signal_scope_registry_stub.dart
   fireEvent -> bloom_test.dart
   firstLocaleTag -> i18n.dart
   fnv1a32 -> scoped_css.dart
+  footer -> tags.dart
   forgetBloomScopedSignal -> _signal_scope.dart
   forgetScopedSignal -> _signal_scope_registry_stub.dart
+  form -> tags.dart
   formatCurrency -> i18n.dart
   formatDate -> i18n.dart
   formatDateTime -> i18n.dart
@@ -9832,10 +10635,19 @@ void main() {
   formatNumber -> i18n.dart
   formatPercent -> i18n.dart
   formatRelativeTime -> i18n.dart
+  generateStaticSite -> ssg.dart
   getBrowserHotEffectRegistry -> _signals_stub.dart
   getBrowserSignalRegistry -> _signals_stub.dart
   getTextDirection -> i18n.dart
   globalContainer -> di.dart
+  h1 -> tags.dart
+  h2 -> tags.dart
+  h3 -> tags.dart
+  h4 -> tags.dart
+  h5 -> tags.dart
+  h6 -> tags.dart
+  header -> tags.dart
+  hr -> tags.dart
   hydrate -> hydrate.dart
   hydrateElement -> hydrate.dart
   hydrateToElement -> mount.dart
@@ -9845,11 +10657,14 @@ void main() {
   hydrationMarkerKeyPrefix -> hydration_contract.dart
   hydrationMarkerLive -> hydration_contract.dart
   hydrationMarkerMemo -> hydration_contract.dart
+  hydrationMarkerRaw -> hydration_contract.dart
   hydrationMarkerShow -> hydration_contract.dart
   hydrationMarkerSuspense -> hydration_contract.dart
+  img -> tags.dart
   infiniteQuery -> data.dart
   inject -> di.dart
   injectOrNull -> di.dart
+  input -> tags.dart
   isBrowserHotReloadActive -> _signals_stub.dart
   isHotReloadTrackingActive -> mount.dart
   isKeyMarkerClose -> hydration_contract.dart
@@ -9859,13 +10674,17 @@ void main() {
   isTransitionPending -> transition.dart
   jsToDartValue -> web_components.dart
   kMaxSignalRegistryEntries -> _signals_stub.dart
+  label -> tags.dart
   lazy -> lazy.dart
+  li -> tags.dart
+  linkClickDecision -> router.dart
   loadLocale -> i18n.dart
   localizedCurrency -> i18n.dart
   localizedDate -> i18n.dart
   localizedDateTime -> i18n.dart
   localizedNumber -> i18n.dart
   localizedRelativeTime -> i18n.dart
+  main -> tags.dart
   max -> form.dart
   maxFileSize -> form.dart
   maxFiles -> form.dart
@@ -9877,10 +10696,16 @@ void main() {
   minItems -> form.dart
   minLength -> form.dart
   mount -> mount.dart
+  mountApp -> hydrate.dart
   mountToElement -> mount.dart
   mutation -> mutation.dart
+  nav -> tags.dart
+  nodes -> tags.dart
   normalizeMarkerData -> hydration_contract.dart
+  ol -> tags.dart
+  option -> tags.dart
   orchestrateIslands -> islands.dart
+  p -> tags.dart
   paginatedQuery -> data.dart
   parseAcceptLanguage -> i18n.dart
   parseFragment -> router.dart
@@ -9888,6 +10713,7 @@ void main() {
   parseQueryString -> router.dart
   parseQueryStringAll -> router.dart
   pattern -> form.dart
+  pre -> tags.dart
   prepareBrowserHotReloadEffects -> _signals_stub.dart
   provide -> di.dart
   provideSingleton -> di.dart
@@ -9922,6 +10748,7 @@ void main() {
   requiredValue -> form.dart
   resetActiveContainer -> di.dart
   resolveLocale -> i18n.dart
+  revealCss -> animate.dart
   rpcContract -> rpc.dart
   rpcMutation -> rpc.dart
   rpcQuery -> rpc.dart
@@ -9932,22 +10759,37 @@ void main() {
   runWithBloomSignalScopeValue -> _signal_scope.dart
   scheduleTransition -> transition.dart
   scopedCss -> scoped_css.dart
+  section -> tags.dart
+  select -> tags.dart
   setActiveContainer -> di.dart
   setLocale -> i18n.dart
+  shouldInterceptLinkClick -> router.dart
   signal -> signals.dart
+  small -> tags.dart
+  span -> tags.dart
   srOnlyClass -> a11y.dart
   ssrCloseMarker -> hydration_contract.dart
   ssrKeyCloseMarker -> hydration_contract.dart
   ssrKeyOpenMarker -> hydration_contract.dart
   ssrOpenMarker -> hydration_contract.dart
+  ssrTextSeparator -> hydration_contract.dart
   startTransition -> transition.dart
   storeBrowserSignalValue -> _signals_stub.dart
+  strong -> tags.dart
   supportedRelativeTimeLocales -> i18n.dart
   suspenseClaimedAttribute -> hydration_contract.dart
   suspenseStreamId -> hydration_contract.dart
   t -> i18n.dart
-  tr -> i18n.dart
+  table -> tags.dart
+  tbody -> tags.dart
+  td -> tags.dart
+  textarea -> tags.dart
+  tfoot -> tags.dart
+  th -> tags.dart
+  thead -> tags.dart
+  tr -> tags.dart
   typedRequired -> form.dart
+  ul -> tags.dart
   unescapeHydrationKey -> hydration_contract.dart
   unregisterIsland -> islands.dart
   untracked -> signals.dart (re-export)

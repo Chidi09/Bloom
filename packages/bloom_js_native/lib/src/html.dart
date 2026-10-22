@@ -98,7 +98,7 @@ String escapeHtml(String input) {
 ///   Div(
 ///     className: 'user-profile',
 ///     children: [
-///       const H1(text: 'Account Details'),
+///       H1(text: 'Account Details'),
 ///       P(text: 'Welcome, Alice'),
 ///     ],
 ///   ),
@@ -538,8 +538,8 @@ Map<String, String> _combinedAttrs(
 /// ```dart
 /// final html = renderToHtmlAll([
 ///   const StyleNode('body { margin: 0; }'),
-///   const Header(text: 'Bloom Header'),
-///   const Main(text: 'Main content'),
+///   Header(text: 'Bloom Header'),
+///   Main(text: 'Main content'),
 /// ]);
 /// ```
 String renderToHtmlAll(List<BloomNode> nodes) {
@@ -854,10 +854,10 @@ Stream<String> renderToStream(BloomNode node) {
 /// final stream = renderToStreamWithSuspense(
 ///   Div(
 ///     children: [
-///       const H1(text: 'Live Dashboard'),
+///       H1(text: 'Live Dashboard'),
 ///       Suspense<UserProfile>(
 ///         resource: fetchUserProfile,
-///         fallback: const Div(text: 'Loading profile...'),
+///         fallback: Div(text: 'Loading profile...'),
 ///         builder: (profile) => Div(text: 'Hello, ${profile.name}'),
 ///       ),
 ///     ],

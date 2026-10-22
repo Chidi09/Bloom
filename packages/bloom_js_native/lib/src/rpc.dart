@@ -96,7 +96,7 @@ T _defaultDecode<T>(dynamic json) => json as T;
 ///   );
 /// }
 ///
-/// const createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
+/// final createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
 ///   '/tasks',
 ///   encodeInput: (input) => input.toJson(),
 ///   decodeOutput: Task.fromJson,
@@ -157,7 +157,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Creates a [BloomRpcContract] with explicit [method], [pathTemplate], and codecs.
   ///
   /// ```dart
-  /// const getUser = BloomRpcContract<void, User>(
+  /// final getUser = BloomRpcContract<void, User>(
   ///   method: BloomHttpMethod.get,
   ///   pathTemplate: '/users/:id',
   ///   decodeOutput: User.fromJson,
@@ -178,7 +178,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Shorthand constructor for an HTTP GET endpoint contract.
   ///
   /// ```dart
-  /// const getPost = BloomRpcContract<void, Post>.get(
+  /// final getPost = BloomRpcContract<void, Post>.get(
   ///   '/posts/:id',
   ///   decodeOutput: Post.fromJson,
   /// );
@@ -207,7 +207,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Shorthand constructor for an HTTP POST endpoint contract.
   ///
   /// ```dart
-  /// const createPost = BloomRpcContract<CreatePostInput, Post>.post(
+  /// final createPost = BloomRpcContract<CreatePostInput, Post>.post(
   ///   '/posts',
   ///   encodeInput: (input) => input.toJson(),
   ///   decodeOutput: Post.fromJson,
@@ -237,7 +237,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Shorthand constructor for an HTTP PUT endpoint contract.
   ///
   /// ```dart
-  /// const updatePost = BloomRpcContract<UpdatePostInput, Post>.put(
+  /// final updatePost = BloomRpcContract<UpdatePostInput, Post>.put(
   ///   '/posts/:id',
   ///   encodeInput: (input) => input.toJson(),
   ///   decodeOutput: Post.fromJson,
@@ -267,7 +267,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Shorthand constructor for an HTTP PATCH endpoint contract.
   ///
   /// ```dart
-  /// const patchPost = BloomRpcContract<Map<String, dynamic>, Post>.patch(
+  /// final patchPost = BloomRpcContract<Map<String, dynamic>, Post>.patch(
   ///   '/posts/:id',
   ///   decodeOutput: Post.fromJson,
   /// );
@@ -296,7 +296,7 @@ class BloomRpcContract<TInput, TOutput> {
   /// Shorthand constructor for an HTTP DELETE endpoint contract.
   ///
   /// ```dart
-  /// const deletePost = BloomRpcContract<void, void>.delete(
+  /// final deletePost = BloomRpcContract<void, void>.delete(
   ///   '/posts/:id',
   /// );
   /// ```
@@ -1787,7 +1787,7 @@ class BloomRpcBinding<TInput, TOutput> {
 /// ### Server Integration Example
 /// ```dart
 /// // 1. Define shared contract
-/// const getTask = BloomRpcContract<void, Task>.get(
+/// final getTask = BloomRpcContract<void, Task>.get(
 ///   '/tasks/:id',
 ///   decodeOutput: Task.fromJson,
 /// );

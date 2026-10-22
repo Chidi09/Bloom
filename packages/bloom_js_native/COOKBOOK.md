@@ -162,7 +162,7 @@ import 'app.dart';
 
 void main() {
   final router = BloomRouterController(appRouter);
-  mount(appShell(router), '#app');
+  mountApp(appShell(router), '#app');
 }
 ```
 
@@ -202,11 +202,42 @@ void main() {
     ],
   );
 
-  mount(app, '#app');
+  mountApp(app, '#app');
 }
 ```
 
-Watch out: `mount` throws a `StateError` if the selector matching the target element is not present in `web.document`.
+`mountApp(root, selector)` is the default browser entry point. It hydrates
+pre-rendered content in place and mounts into an empty target. It throws a
+`StateError` if the selector does not match an element. Use `mount()` when you
+explicitly want to append a fresh tree, or `hydrate()` when hydration is
+required.
+
+#### Less nesting: `tags.dart`
+
+Import `package:bloom_js_native/tags.dart` as `h` for concise lowercase HTML
+builders. Strings and numbers become text, nested iterables are flattened,
+and null/false children are omitted. Use `cls:` for classes.
+
+```dart
+import 'package:bloom_js_native/tags.dart' as h;
+
+final card = h.div([
+  h.h2(['Welcome']),
+  h.p(['Hello ', h.strong(['world'])]),
+], cls: 'card');
+```
+
+#### Flutter-style layout: `widgets.dart`
+
+For optional Flutter-shaped layout and styling helpers, import
+`package:bloom_js_native/widgets.dart`. These produce Bloom descriptors for
+the real DOM; they do not use Flutter.
+
+```dart
+import 'package:bloom_js_native/widgets.dart';
+
+final layout = Row(children: [StyledText('Hello')]);
+```
 
 ---
 
@@ -229,6 +260,23 @@ void mountWidget(web.Element container) {
   // When tearing down:
   // handle.unmount();
 }
+```
+
+Use `Mount(child, onMount:, onUnmount:)` when a browser lifecycle callback is
+needed. `onMount` runs after the child enters the DOM; `onUnmount` runs when
+it leaves. Both callbacks are ignored during SSR. `onMountElement` additionally
+receives the first element created by the child as a platform-neutral
+`BloomElement`. It exposes safe attribute/class helpers, `focus()`, `blur()`,
+and `scrollIntoView()`; use `raw` only when browser-specific interop is needed.
+
+```dart
+BloomNode mountedStatus() => Mount(
+  Div(text: 'Ready'),
+  onMountElement: (element) {
+    element.addClass('mounted');
+    element.setAttribute('data-ready', 'true');
+  },
+);
 ```
 
 ---
@@ -372,6 +420,43 @@ BloomNode counterView() {
 ```
 
 Watch out: Keep `Live` boundaries as granular as possible. Placing a single `Live` around your entire page forces the entire page tree to re-evaluate on any state change.
+
+### How do I reactively update an element without losing focus?
+
+Use `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, and `classIf` on any
+element descriptor when only its attributes or styling should change. Bloom
+updates the existing DOM element in place, preserving focus and selection. A
+`Live` that replaces the element would lose them.
+
+`reactiveAttrs` maps attribute names to getters: `null` removes the attribute;
+boolean values for `aria-*` become `"true"` or `"false"`; for other names,
+`true` writes an empty-valued attribute and `false` removes it. Other values
+use `toString()`. The `value`, `checked`, and `selected` DOM properties also
+update. `reactiveClass` appends classes, `reactiveStyle` appends inline CSS,
+and `classIf` adds each class whose predicate is true.
+
+```dart
+final activeTab = signal('overview');
+
+BloomNode tabBar() => Nav(children: [
+  Button(
+    text: 'Overview',
+    classIf: {'tab-active': () => activeTab.value == 'overview'},
+    reactiveAttrs: {
+      'aria-selected': () => activeTab.value == 'overview',
+    },
+    onClick: (_) => activeTab.value = 'overview',
+  ),
+  Button(
+    text: 'Activity',
+    classIf: {'tab-active': () => activeTab.value == 'activity'},
+    reactiveAttrs: {
+      'aria-selected': () => activeTab.value == 'activity',
+    },
+    onClick: (_) => activeTab.value = 'activity',
+  ),
+]);
+```
 
 ---
 
@@ -717,6 +802,42 @@ BloomNode emailInput() {
 ```
 
 Watch out: Setting `emailField.setValue(...)` marks `isDirty` as `true` but does **not** validate automatically. Call `field.validate()` or `form.validate()` to execute validation rules.
+
+Prefer typed common parameters instead of placing standard attributes in an
+`attrs` map. All elements accept `id`, `role`, `data` (keys omit `data-`),
+`hidden`, `title`, `tabIndex`, and `aria` (keys omit `aria-`). Prefer these
+typed parameters for common attributes:
+
+- `Input`: `placeholder`, `value`, `type`, `checked`, `disabled`, `name`,
+  `required`, `readOnly`, `autofocus`, `multiple`, `min`, `max`, `step`,
+  `minLength`, `maxLength`, `pattern`, `autocomplete`, `accept`, `inputMode`.
+- `Textarea`: `placeholder`, `value`, `name`, `rows`, `cols`, `required`,
+  `readOnly`, `autofocus`, `minLength`, `maxLength`.
+- `Select`: `name`, `multiple`, `disabled`, `required`; `Button`: `type`, `disabled`;
+  `A`: `href`, `target`, `rel`, `download`.
+- `Img`: required `src`, plus `alt`, `width`, `height`, `loading`, `decoding`,
+  `fetchPriority`, `srcset`, and `sizes`.
+
+Use `InputType.email` and other `InputType` constants for input types, and
+`ButtonType.submit`, `.button`, or `.reset` for button types.
+`SvgPath.strokeWidth` accepts `num`, so integer and decimal widths both work.
+
+```dart
+BloomNode formControls() => Fragment(children: [
+  Input(
+    id: 'email',
+    type: InputType.email,
+    autocomplete: 'email',
+    required: true,
+    aria: {'label': 'Email address'},
+  ),
+  Button(type: ButtonType.submit, text: 'Save'),
+  Dl(children: [
+    Dt(text: 'Bloom'),
+    Dd(text: 'A reactive Dart web framework.'),
+  ]),
+]);
+```
 
 > ⚠️ **Never wrap `<input>`/`<textarea>` inside `Live(...)`.** When a signal
 > read inside a `Live(...)` block changes (e.g. `field.errors.value` or
@@ -1174,7 +1295,7 @@ void main() {
     ],
   );
 
-  mount(app, '#app');
+  mountApp(app, '#app');
 }
 ```
 
@@ -1269,24 +1390,41 @@ final rootRoutes = [
 
 ---
 
-### How do I navigate with prefetching links?
-Use `Link` with `PrefetchMode.hover` or `PrefetchMode.visible`.
+### How do I navigate with router-aware links?
+Use `RouterLink` for in-app navigation. It intercepts eligible same-origin
+clicks, updates route state, and can track the active path. Modified clicks,
+downloads, and links targeting another context retain browser behavior.
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
 
-BloomNode navigationBar() {
+BloomNode navigationBar(BloomNavigator router) {
   return Nav(
     children: [
-      Link(href: '/', text: 'Home'),
-      // Prefetches route when user hovers over link
-      Link(href: '/pricing', prefetch: PrefetchMode.hover, text: 'Pricing'),
-      // Prefetches route when link scrolls into viewport
-      Link(href: '/features', prefetch: PrefetchMode.visible, text: 'Features'),
+      RouterLink(controller: router, href: '/', text: 'Home'),
+      RouterLink(
+        controller: router,
+        href: '/pricing',
+        prefetch: PrefetchMode.hover,
+        activeClassName: 'active',
+        text: 'Pricing',
+      ),
+      RouterLink(
+        controller: router,
+        href: '/features',
+        prefetch: PrefetchMode.visible,
+        text: 'Features',
+      ),
     ],
   );
 }
 ```
+
+`RouterLink` takes a `BloomNavigator`, implemented by
+`BloomRouterController`. To handle ordinary `<a href>` elements outside
+`RouterLink`, call `controller.interceptLinks()` once; it returns a disposer
+and the controller also removes the listener on `dispose()`. Prefer
+`RouterLink` for links declared by the app.
 
 ---
 
@@ -1315,7 +1453,8 @@ void handleHttpRequest() {
 ---
 
 ### How do I render a complete HTML5 document?
-Use `renderToDocument` to emit `<!DOCTYPE html>` with headers, stylesheets, and scripts.
+Use `renderToDocument` to emit `<!DOCTYPE html>` with metadata, stylesheets,
+head descriptors, and scripts.
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
@@ -1326,7 +1465,94 @@ String generateFullDocument(BloomNode bodyNode) {
     title: 'Bloom Application',
     lang: 'en',
     stylesheets: ['/styles/bundle.css'],
+    scriptTags: [
+      DocumentScript('/client/bootstrap.js', module: true),
+    ],
     scripts: ['/client/main.dart.js'],
+  );
+}
+```
+
+`DocumentScript` has `src`, `module = false`, `defer = true`, and
+`async = false`. The `renderToDocument` order is metadata/import map,
+stylesheets, `head` nodes, `scriptTags`, then deferred legacy `scripts`.
+
+`Title`, `Meta`, `HeadLink`, and `StylesheetLink` are `BloomNode` descriptors
+that can appear anywhere in the component tree. Browser mounting updates the
+document title and head tags, then restores/removes those changes when the
+owning tree unmounts. Under SSR, `renderToDocument` hoists them out of the body
+into `<head>`, deduplicates matching metadata and links, and escapes values.
+`renderToDocumentInScope` has the same behavior. `generateStaticSite` renders
+each page with `renderToDocument`, so it also hoists page head descriptors.
+`Title` takes its title as the positional `text` argument. `Meta` requires
+`content` and accepts `name`, `property`, or `httpEquiv`; `HeadLink` requires
+`rel` and `href` and optionally accepts extra `attrs`.
+
+Put a title inside `Live` to keep it synchronized with reactive state in the
+browser:
+
+```dart
+final cartCount = signal(0);
+
+BloomNode cartTitle() => Live(
+  () => Title('Cart (${cartCount.value})'),
+);
+```
+
+```dart
+BloomNode pageMetadata() => Fragment(children: [
+  const Title('Catalog'),
+  const Meta(name: 'description', content: 'Browse the catalog.'),
+  const HeadLink(rel: 'icon', href: '/favicon.svg'),
+  const StylesheetLink('/css/reset.css'),
+  const StylesheetLink('/css/design-system.css'),
+]);
+```
+
+`renderToDocument` supports `title`, `head`, `stylesheets`, `scriptTags`, and
+`scripts`. Use `stylesheets: ['/css/reset.css', '/css/app.css']` to link a
+copied multi-file CSS design system instead of pasting `<style>` into
+`web/index.html`. `generateStaticSite` also accepts `stylesheets:`; it adds
+those links to every generated page and copies files under `web/` to the output
+directory. For example, keep the design system files under `web/css/` and pass
+their root-relative URLs:
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ssg.dart';
+
+Future<void> main() async {
+  await generateStaticSite(
+    pages: {'/': () => Div(text: 'Home')},
+    stylesheets: ['/css/reset.css', '/css/design-system.css'],
+  );
+}
+```
+
+For script ordering, `scriptTags` emits `DocumentScript` descriptors in
+`<head>` after custom head nodes; the `scripts` URL list follows those tags
+and emits deferred classic scripts. `DocumentScript(src, module: true)` emits
+an ES module script.
+
+SSG also hoists `Title`, `Meta`, `HeadLink`, and `StylesheetLink` descriptors
+from each page tree and the `head:` list. `stylesheets:` is the concise option
+for shared CSS; use descriptor links when a page needs additional head content:
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ssg.dart';
+
+Future<void> main() async {
+  await generateStaticSite(
+    pages: {
+      '/': () => Fragment(children: [
+        const Title('Home'),
+        const Meta(name: 'description', content: 'Welcome home.'),
+        Div(text: 'Home'),
+      ]),
+    },
+    head: const [HeadLink(rel: 'icon', href: '/favicon.svg')],
+    stylesheets: ['/css/reset.css', '/css/design-system.css'],
   );
 }
 ```
@@ -1358,7 +1584,10 @@ Stream<String> streamPage() {
 ---
 
 ### How do I hydrate server-rendered HTML in the browser?
-Use `hydrate` from `browser.dart`.
+Use `mountApp` from `browser.dart` for the usual entry point: it hydrates when
+the target has server-rendered element or non-whitespace text content, and
+mounts when it is empty. Use `hydrate` when you specifically require existing
+HTML to be hydrated.
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
@@ -1373,12 +1602,16 @@ void main() {
     ],
   );
 
-  // Attaches event listeners in-place without rebuilding DOM
-  hydrate(app, '#app');
+  // Adopts existing SSR markup or mounts into an empty target.
+  mountApp(app, '#app');
 }
 ```
 
-Watch out: In-place hydration works on static descriptor nodes (`ElNode`, `TextNode`, `FragmentNode`). If dynamic sentinel nodes (`Live`, `Show`, `ForEach`) are encountered, the hydrator clears the SSR container and performs one clean client mount (`mountToElement`) to ensure complete reactivity. **Do not call `mount()` after emitting SSR HTML**: it appends a second application tree, producing duplicate IDs, navbars, dialogs, and event targets. Use `hydrate()` for a shared SSR/client entry point. Because reactive root trees with dynamic sentinels currently remount during hydration, avoid running automated screenshot comparisons during the initial font/CSS/animation startup window, and mount browser-only state (such as global modals, command palettes, and theme synchronizers) cleanly at the root level.
+Hydration adopts static and reactive SSR nodes, preserving existing DOM,
+input values, focus, and selection. Mismatches recover at their smallest
+marked boundary; only a root structural mismatch remounts the target. Do not
+call `mount()` after emitting SSR HTML: it appends a second application tree.
+Use `mountApp()` for a shared SSR/client entry point.
 
 ### How do I ship a static site generated (SSG) Bloom app?
 
@@ -1388,20 +1621,26 @@ and every browser-facing asset. A rendered document that contains
 hydration: every click handler, router, signal update, and dialog is inert.
 
 ```bash
-bloom js build                 # writes web/main.js
-dart run bin/ssg.dart          # renders dist/**/*.html
-test -s dist/main.js           # required: copy web/main.js into dist/main.js
+bloom js build --ssg           # builds the bundle and renders dist/**/*.html
 ```
 
-An SSG script must copy, at minimum: `web/main.js`, `web/vendor/`, images and
-video assets, generated font CSS/files, and the favicon. Test the **served
-`dist/` directory**, not just `web/`: open a page, trigger a control, and
-confirm that `/main.js` returns HTTP 200.
+`bloom js build --ssg` builds the browser bundle and runs the scaffolded
+`bin/ssg.dart`. Or call `generateStaticSite` from
+`package:bloom_js_native/ssg.dart` with a `pages` map. Current options include
+`outDir`, `webDir`, `title`, `titleFor`, `head`, `lang`, `appElementId`,
+`mainScript`, `includeNpm`, and `bloomYamlPath`. It copies assets from `web/`
+into the output. Build the client bundle first when invoking SSG yourself.
+
+`generateStaticSite` copies files below `webDir` (except `index.html` and
+`.deps` files), then copies generated font assets to the URL path used by
+`fontStylesheetLink()`. Keep CSS, images, vendor files, and the favicon under
+`web/` so they reach `dist/`. Test the **served `dist/` directory**, not just
+`web/`: open a page, trigger a control, and confirm that `/main.js` loads.
 
 Keep browser-only startup in `lib/main.dart`. Do not rely on inline `<script>`
-nodes emitted by `renderToHtml()` for client behavior: once a dynamic tree is
-hydrated via its clean-remount fallback, newly inserted script elements do not
-reliably execute. Register event listeners, scroll observers, focus work, and
+nodes emitted by `renderToHtml()` for client behavior: mismatch recovery can
+recreate part of the DOM, and inserted script elements do not reliably
+execute. Register event listeners, scroll observers, focus work, and
 theme synchronization from the browser entry point or a `Mount.onMount`
 lifecycle hook, with cleanup on unmount.
 
@@ -1764,6 +2003,11 @@ BloomNode heroBanner() {
 }
 ```
 
+For a plain `<img>`, `Img` requires `src` and accepts `alt`, `width`,
+`height`, `loading: ImageLoading.lazy` (or `.eager`),
+`decoding: ImageDecoding.async` (or `.sync` / `.auto`), and
+`fetchPriority: FetchPriority.high` (or `.low` / `.auto`).
+
 ---
 
 ### How do I render art-directed `<picture>` elements?
@@ -1925,6 +2169,53 @@ void processRecord(dynamic record) {}
 ```
 
 ---
+
+### How do I add a CSS keyframe transition?
+
+Use `Animated` with a `BloomAnimation` or a preset from
+`BloomAnimationPresets`. This emits the keyframes and wraps the child in an
+animation descriptor for both browser mounting and SSR.
+
+```dart
+BloomNode savedNotice() => Animated(
+  animation: BloomAnimationPresets.fadeIn,
+  child: Div(text: 'Saved'),
+);
+```
+
+`Show` accepts optional `enter:` and `exit:` `BloomAnimation`s. They animate
+the first element of the shown child when a later visibility change occurs;
+the initial render is not animated, and SSR ignores the options.
+
+```dart
+final isOpen = signal(false);
+
+BloomNode details() => Show(
+  () => isOpen.value,
+  child: Div(text: 'Details'),
+  enter: BloomAnimationPresets.fadeIn,
+  exit: BloomAnimationPresets.fadeOut,
+);
+```
+
+For viewport-triggered effects, `Reveal` shows its child when it enters the
+viewport, and `InView` calls callbacks as its child enters or exits. `revealCss`
+provides the default CSS for `Reveal`'s `bloom-reveal` and `is-visible` classes.
+Include it in a stylesheet so SSR-hidden content has its reveal styling before
+the browser observer runs.
+
+```dart
+const revealStyles = Style(revealCss);
+
+BloomNode featureSection() => Fragment(children: [
+  revealStyles,
+  Reveal(child: P(text: 'Now visible')),
+  InView(
+    child: Div(text: 'Watch this section'),
+    onEnter: () => print('visible'),
+  ),
+]);
+```
 
 ## 16. Testing
 
@@ -2145,12 +2436,12 @@ class CreateTaskInput {
       CreateTaskInput(title: (json as Map)['title'] as String? ?? '');
 }
 
-const getTaskContract = BloomRpcContract<void, Task>.get(
+final getTaskContract = BloomRpcContract<void, Task>.get(
   '/tasks/:id',
   decodeOutput: Task.fromJson,
 );
 
-const createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
+final createTaskContract = BloomRpcContract<CreateTaskInput, Task>.post(
   '/tasks',
   encodeInput: (input) => input.toJson(),
   decodeInput: CreateTaskInput.fromJson,
@@ -2698,7 +2989,7 @@ BloomNode iconAndClassDemo({required bool isActive, required bool isPending}) {
     className: cn([
       'flex items-center gap-2 p-3 rounded-[var(--radius-md)] border select-none',
       isActive ? 'border-[var(--primary)] bg-[var(--primary)]/10' : 'border-[var(--border)] bg-[var(--card)]',
-      isPending && 'opacity-60 pointer-events-none',
+      if (isPending) 'opacity-60 pointer-events-none',
     ]),
     children: [
       uiIcon('search', className: 'w-4 h-4 text-[var(--primary)]'),
@@ -2715,8 +3006,8 @@ BloomNode iconAndClassDemo({required bool isActive, required bool isPending}) {
 ---
 
 ### When should I use SVG descriptors vs Raw HTML?
-- **SVG Descriptors (`Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, `SvgUse`)**: Prefer pure AST descriptors for standard vector graphics and inline icons. Test browser output for complex SVG until the browser mount path's SVG namespace handling is verified.
-- **Raw HTML / SVG (`Raw` / `RawHtmlNode`)**: `Raw` is an unescaped HTML string passthrough. On the server (`renderToHtml`), it streams raw HTML directly; the current browser mount path wraps raw fragments. Because this changes DOM boundaries, **`Raw` must never be used as a general layout wrapper**; prefer AST descriptors (`Div`, `Span`, `Section`, `Svg`, etc.) for UI layout. When embedding complex third-party SVG illustrations or rich media snippets via `Raw`, always test the rendered browser DOM output directly.
+- **SVG Descriptors (`Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, `SvgUse`)**: Prefer pure AST descriptors for standard vector graphics and inline icons. SVG descriptors mount in the SVG namespace and hydrate against server-rendered SVG markup. Shape descriptors provide their applicable presentation parameters such as `fill`, `stroke`, `strokeWidth`, `strokeLinecap`, `strokeLinejoin`, `opacity`, and `transform`; `SvgPath.strokeWidth` accepts `num`.
+- **Raw HTML / SVG (`Raw` / `RawHtmlNode`)**: `Raw` is a trusted HTML string passthrough. SSR wraps the fragment in hydration markers, and browser mounting parses it into its actual DOM nodes without a wrapper element. Never pass user-supplied content to `Raw`; prefer descriptors for ordinary layout and untrusted text.
 
 ---
 
@@ -3983,23 +4274,23 @@ A consolidated reference of every mistake this framework's own gotchas invite. E
 ### The Two Entry Points (Section 1)
 
 - `package:bloom_js_native/bloom_js_native.dart` — pure Dart, safe everywhere (SSR, VM tests, shared files). Never import `browser.dart` here.
-- `package:bloom_js_native/browser.dart` — `mount()`, `mountToElement()`, `hydrate()`, `BloomRouterController`, Web Component interop. Only your client entry point (`lib/main.dart`) should import this.
-- **Symptom of getting this backwards**: `Error: Method not found: 'mount'.` at compile time if you only imported the base package, or a broken/non-portable build if you leak `browser.dart` into code SSR or tests also load.
+- `package:bloom_js_native/browser.dart` — `mountApp()`, `mount()`, `mountToElement()`, `hydrate()`, `BloomRouterController`, Web Component interop. Only your client entry point (`lib/main.dart`) should import this.
+- **Symptom of getting this backwards**: `Error: Method not found: 'mountApp'.` at compile time if you only imported the base package, or a broken/non-portable build if you leak `browser.dart` into code SSR or tests also load.
 
 ### SSR / Hydration (Section 2, Section 10)
 
 - Under `renderToHtml()`, reactive builders inside `Live`/`Show`/`ForEach` run **exactly once, synchronously** — there is no re-render loop on the server.
-- **These do nothing under SSR** — silently, with no error: event handlers (`onClick`, `onInput`, etc.), lifecycle hooks (`Mount.onMount`/`onUnmount`), `Ref`, client router listeners, and any signal `effect()`. Code that must run server-side (data fetching, redirects) belongs in loader/route-guard hooks (Section 8, Section 9), not in these.
-- **Use `hydrate(app, '#app')` when the page was produced by `renderToHtml()`, not `mount(app, '#app')`.** `mount` appends a second tree; `hydrate` either attaches in place or does one clean fallback remount for dynamic sentinels. Mount global dialogs/toasts exactly once at that root.
-- **Reactive root trees currently remount on dynamic sentinels**: In-place hydration handles static nodes, while dynamic sentinels (`Live`, `Show`, `ForEach`) currently trigger a clean client container remount (`mountToElement`) to attach reactive subscriptions. Avoid taking automated screenshot comparisons during the initial font/CSS/animation startup window, and mount browser-only state (global modals, toasts, theme synchronizers) cleanly at the root level.
+- **These do nothing under SSR** — silently, with no error: event handlers (`onClick`, `onInput`, etc.), lifecycle hooks (`Mount.onMount`/`onMountElement`/`onUnmount`), `Ref`, client router listeners, and any signal `effect()`. Code that must run server-side (data fetching, redirects) belongs in loader/route-guard hooks (Section 8, Section 9), not in these.
+- **Use `mountApp(app, '#app')` for either SSR markup or an empty client target.** It hydrates existing content and mounts into an empty target. Calling `mount()` after SSR appends a second tree. Mount global dialogs/toasts exactly once at that root.
+- **Hydration mismatch recovery is boundary-local**: matching reactive boundaries are adopted in place; a mismatch remounts within its smallest marked boundary, and only an unrecoverable root mismatch remounts the app container. Observe mismatches with `onMismatch` when debugging.
 - **Responsive UI is CSS-first**: Implement responsive layouts mobile-first using CSS media queries (`@media`), container queries (`@container`), and responsive image primitives (`bloomImage`, `bloomPicture`). Never branch ordinary layout in Dart based on viewport dimensions (`window.innerWidth`). Note that `HydrationStrategy.media` in `bloomIsland` is strictly for deferring interactive island hydration until a query matches, not for switching layout structures.
 - **Do not put required browser behavior in an SSR-emitted inline script.** A dynamic hydration fallback recreates the DOM, and inserted scripts do not reliably run. Register listeners/observers in `lib/main.dart` or `Mount.onMount`; dispose them on unmount.
 - **Scroll-reveal animations must begin hidden and be revealed per viewport entry.** Adding the visible class to all targets on startup makes the blur/fade animation invisible.
 
 ### Raw HTML and SVG Descriptors (Section 4, Section 19)
 
-- **`Raw` is not a general layout wrapper**: `Raw` (`RawHtmlNode`) behaves differently between SSR (direct HTML string stream) and browser DOM mounting (a current wrapper element). Always use pure Dart AST descriptors (`Div`, `Span`, `Section`, `Svg`, etc.) for page layout and component containers.
-- **Use SVG descriptors for vector graphics**: Use `Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, and `SvgUse` for normal SVG elements, and test browser output for complex SVG until namespace behavior is verified. When embedding complex raw SVG or media via `Raw`, test the rendered browser DOM output directly.
+- **`Raw` is not a general layout wrapper**: `Raw` (`RawHtmlNode`) emits trusted HTML between hydration markers, and browser mounting parses it into actual DOM nodes without a wrapper. Never pass user input to `Raw`; use descriptors for page layout and untrusted text.
+- **Use SVG descriptors for vector graphics**: Use `Svg`, `SvgPath`, `SvgCircle`, `SvgRect`, `SvgLine`, `SvgText`, `SvgG`, and `SvgUse` for normal SVG elements. The browser mount path creates SVG elements in the SVG namespace.
 
 ### Disposal (Section 2)
 
@@ -4025,9 +4316,24 @@ Anything that attaches an external listener, DOM observer, or timer must be disp
   - Maintain a single font stylesheet source in `<head>` (via `fontStylesheetLink()`) and avoid duplicate font loads from CDN links, `@import`, or `<body>` links.
   - Prefer static Tailwind CSS output over browser JIT (`@tailwindcss/browser`) when performing screenshot comparisons to avoid timing race conditions.
   - Compare browser-computed font metrics (`getComputedStyle` font-family, font-size, font-weight, line-height) and line wrapping against reference targets to ensure zero layout shift.
+- **Stylesheet links in `web/index.html`**: local `<link rel="stylesheet">` URLs must resolve to files under `web/`; `missing_stylesheet` reports missing local files. Remote stylesheet URLs are allowed. Avoid hand-authored `<style>` blocks there; put CSS in files or use `Style()` for Dart-owned tokens.
 - Prefer `scopedCss()` for component-local styles — it produces class names that match bit-for-bit between SSR output and client hydration; hand-rolled unique class names risk a hydration mismatch.
 - The UI primitives library (Section 19) is themed entirely through CSS custom properties (`uiTokensCss` — `--n-0`…`--n-950`, `--primary`, `--radius`, etc.). Override a token in your own `lib/design/tokens.dart`, not by overriding a component's generated classes directly — the components read the variables, not hardcoded colors.
 - Merge conditional class names with `cn([...])` (filters `null`/`false`/empty/whitespace-only entries and joins with a single space) rather than string-interpolating ternaries — every UI primitive's `extraClassName`/`className` parameter is designed to compose with `cn()`.
+
+### CLI linting and formatting
+
+- `bloom lint` checks `conflicting_classes`, missing local stylesheet links,
+  and signal reads that are not tracked by a reactive context. Local
+  `<link rel="stylesheet">` targets must exist under `web/`; remote stylesheet
+  URLs are allowed. Resolve conflicting utility classes directly or compose
+  conditional classes with `cn([...])`.
+- `bloom add npm:<package>` follows declaration re-exports when generating
+  typed bindings, so packages whose public entry point re-exports another
+  package can still expose the correct declarations.
+- `bloom format` formats Dart by default. Pass `--css` to format CSS inside
+  Dart strings; it is opt-in and skips a string when formatting could change
+  its meaning.
 
 ### Project Structure (Section 3)
 

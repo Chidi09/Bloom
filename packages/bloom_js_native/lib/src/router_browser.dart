@@ -43,8 +43,8 @@ external JSAny? _reflectGet(JSAny target, String key);
 ///
 /// ```dart
 /// final router = BloomRouter([
-///   BloomRoute('/', (params) => const Div(text: 'Home')),
-///   BloomRoute('/search', (params) => const Div(text: 'Search')),
+///   BloomRoute('/', (params) => Div(text: 'Home')),
+///   BloomRoute('/search', (params) => Div(text: 'Search')),
 /// ]);
 ///
 /// final controller = BloomRouterController(router);

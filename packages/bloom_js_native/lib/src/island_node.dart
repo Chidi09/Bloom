@@ -107,7 +107,7 @@ const String bloomHydratedAttribute = 'data-bloom-hydrated';
 /// BloomIsland(
 ///   name: 'image-gallery',
 ///   strategy: HydrationStrategy.visible,
-///   child: const Div(text: 'Loading gallery...'),
+///   child: Div(text: 'Loading gallery...'),
 /// )
 /// ```
 enum HydrationStrategy {
@@ -202,7 +202,7 @@ enum HydrationStrategy {
 ///   child: Div(
 ///     className: 'counter-box',
 ///     children: [
-///       const Span(text: 'Count: 5'),
+///       Span(text: 'Count: 5'),
 ///       Button(text: '+1'),
 ///     ],
 ///   ),

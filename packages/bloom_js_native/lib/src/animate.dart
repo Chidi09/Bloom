@@ -116,7 +116,7 @@ class BloomAnimation {
 /// ```dart
 /// Animated(
 ///   animation: BloomAnimationPresets.fadeIn,
-///   child: const Div(
+///   child: Div(
 ///     className: 'notification-toast',
 ///     text: 'Changes saved successfully',
 ///   ),
@@ -133,7 +133,7 @@ class Animated extends AnimatedNode {
 /// content from flashing before the browser observer runs.
 ///
 /// ```dart
-/// Reveal(child: const P(text: 'Hello'));
+/// Reveal(child: P(text: 'Hello'));
 /// ```
 class Reveal extends RevealNode {
   /// Creates a scroll reveal wrapper around [child].
@@ -170,7 +170,7 @@ const String revealCss = '''
 /// Calls callbacks when [child] enters and exits the viewport.
 ///
 /// ```dart
-/// InView(child: const Div(), onEnter: () => print('visible'));
+/// InView(child: Div(), onEnter: () => print('visible'));
 /// ```
 class InView extends InViewNode {
   /// Creates an intersection observer callback boundary.

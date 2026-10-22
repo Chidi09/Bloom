@@ -739,7 +739,7 @@ class RawHtmlNode extends BloomNode {
 /// content from flashing before the browser observer runs.
 ///
 /// ```dart
-/// Reveal(child: const P(text: 'Hello'));
+/// Reveal(child: P(text: 'Hello'));
 /// ```
 class RevealNode extends BloomNode {
   /// Content observed for visibility.
@@ -774,7 +774,7 @@ class RevealNode extends BloomNode {
 /// Use [InView]. Calls callbacks when [child] enters and exits the viewport.
 ///
 /// ```dart
-/// InView(child: const Div(), onEnter: () => print('visible'));
+/// InView(child: Div(), onEnter: () => print('visible'));
 /// ```
 class InViewNode extends BloomNode {
   /// Content whose first element is observed.

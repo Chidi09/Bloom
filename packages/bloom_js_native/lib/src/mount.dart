@@ -580,7 +580,7 @@ class BloomMountHandle {
 ///     Div(
 ///       className: 'container',
 ///       children: [
-///         const H1(text: 'Bloom Web App'),
+///         H1(text: 'Bloom Web App'),
 ///         Live(() => P(text: 'Current count: ${count.value}')),
 ///       ],
 ///     ),

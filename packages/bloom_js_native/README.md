@@ -6,6 +6,22 @@ Dart owns reactivity, compilation, and tooling; the browser owns rendering; npm 
 
 **No Flutter on web. No VDOM. No hand-rolled package manager. Real DOM, real CSS, fine-grained signals.**
 
+## What's new in 0.4
+
+- Reactive element updates preserve focus: `Button(classIf: {'active': () => selected.value})`.
+- Default browser entry point: `mountApp(app(), '#app')` hydrates or mounts.
+- UI primitives and `cn()` have a separate import: `import 'package:bloom_js_native/ui.dart';` then `cn(['p-2', 'p-4'])`.
+- Router-aware links: `RouterLink(controller: router, href: '/about', text: 'About')`.
+- Concise markup: `import 'package:bloom_js_native/tags.dart' as h;`.
+- Optional Flutter-shaped layout: `import 'package:bloom_js_native/widgets.dart';`.
+- Static output: `bloom js build --ssg` runs the app's `bin/ssg.dart`.
+- Typed element attributes: `Input(type: InputType.email, required: true)`.
+- Head management: `Title`, `Meta`, `HeadLink`, and `StylesheetLink` work anywhere in a tree; SSR/SSG hoist them into `<head>`, and browser mounts restore head state on unmount.
+- Shared SSG stylesheets: `generateStaticSite(..., stylesheets: ['/css/app.css'])` links copied files from `web/css/` on every generated page.
+- Lifecycle and transitions: `Mount(onMountElement:)` exposes a safe `BloomElement`; `Show(enter:, exit:)`, `Reveal`, and `InView` support animation and viewport effects.
+- CSS animation descriptors: `Animated(animation: BloomAnimationPresets.fadeIn, child: Div(text: 'Saved'))`.
+- `bloom lint` checks `conflicting_classes`, `missing_stylesheet`, and precise signal reads.
+
 ## One-liner mental model
 
 ```
@@ -33,7 +49,7 @@ and the `bloom_js_native` dependency. Open the local URL printed by the dev
 server. Use `bloom js build` for an optimized production bundle.
 
 For a custom `lib/main.dart`, import the pure-Dart API and browser API
-separately. `mount()` is browser-only and comes from `browser.dart`:
+separately. `mountApp()` is browser-only and comes from `browser.dart`:
 
 ```dart
 import 'package:bloom_js_native/bloom_js_native.dart';
@@ -58,7 +74,7 @@ void main() {
     ),
   ]);
 
-  mount(app, '#app'); // real DOM, effects auto-disposed on unmount
+  mountApp(app, '#app'); // hydrates existing HTML or mounts into an empty target
 }
 ```
 

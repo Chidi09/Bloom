@@ -37,7 +37,7 @@ import '_signal_scope.dart';
 ///
 /// ```dart
 /// final lazySettings = BloomLazyComponent(() async {
-///   return const Div(
+///   return Div(
 ///     className: 'settings-panel',
 ///     text: 'Account Settings',
 ///   );
@@ -78,9 +78,9 @@ class BloomLazyComponent {
 ///   () async {
 ///     // await editor.loadLibrary();
 ///     // return editor.EditorView();
-///     return const Div(className: 'editor', text: 'Editor Ready');
+///     return Div(className: 'editor', text: 'Editor Ready');
 ///   },
-///   fallback: const Div(
+///   fallback: Div(
 ///     className: 'skeleton-placeholder',
 ///     text: 'Loading editor...',
 ///   ),
