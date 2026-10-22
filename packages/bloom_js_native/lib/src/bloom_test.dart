@@ -55,7 +55,8 @@ class BloomTestRenderer {
   /// Returns `null` if no matching element is found.
   ElNode? queryByTestId(String testId) {
     final found =
-        _find(root, (n) => n is ElNode && n.attrs?['data-testid'] == testId);
+        _find(root, (n) =>
+            n is ElNode && _attributeValue(n, 'data-testid') == testId);
     return found as ElNode?;
   }
 
@@ -185,6 +186,17 @@ class BloomFireEvent {
 /// fireEvent.click(btn);
 /// ```
 const fireEvent = BloomFireEvent._();
+
+String? _attributeValue(ElNode node, String name) {
+  final getter = node.reactiveAttrs?[name];
+  if (getter == null) return node.attrs?[name];
+  final value = getter();
+  if (value == null || (value == false && !name.startsWith('aria-'))) {
+    return null;
+  }
+  if (value is bool && !name.startsWith('aria-')) return '';
+  return value.toString();
+}
 
 // ─── Internal tree walking ──────────────────────────────────────────────────
 

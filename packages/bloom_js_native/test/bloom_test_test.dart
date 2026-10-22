@@ -18,6 +18,15 @@ void main() {
       expect(renderer.queryByTestId('nope'), isNull);
     });
 
+    test('getByTestId reads a reactive data-testid attribute', () {
+      final id = signal('reactive-btn');
+      final tree = Button.raw(
+        reactiveAttrs: {'data-testid': () => id.value},
+        text: 'Submit',
+      );
+      expect(renderForTest(tree).getByTestId('reactive-btn').tag, 'button');
+    });
+
     test('getByTestId throws StateError when not found', () {
       final tree = Div(children: [Text('hello')]);
       final renderer = renderForTest(tree);

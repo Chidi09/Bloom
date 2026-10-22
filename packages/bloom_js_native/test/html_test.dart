@@ -152,6 +152,36 @@ void main() {
       expect(html, '<div class="foo" style="color:red">x</div>');
     });
 
+    test('serializes reactive classes and attributes', () {
+      final html = renderToHtml(ElNode(
+        'button',
+        className: 'base same',
+        attrs: {'title': 'static', 'data-live': 'old'},
+        reactiveClass: () => 'extra same',
+        classIf: {'active': () => true, 'hidden': () => false},
+        reactiveAttrs: {
+          'aria-expanded': () => false,
+          'disabled': () => true,
+          'hidden': () => false,
+          'title': () => null,
+          'data-live': () => 'new',
+        },
+      ));
+      expect(
+          html,
+          '<button class="base same extra active" '
+          'data-live="new" aria-expanded="false" disabled=""></button>');
+    });
+
+    test('rejects unsafe reactive URL attributes', () {
+      expect(
+        () => renderToHtml(A(reactiveAttrs: {
+          'href': () => 'javascript:alert(1)',
+        })),
+        throwsArgumentError,
+      );
+    });
+
     test('complex nested with Live + Show + ForEach', () {
       final count = signal(0);
       final items = signal([1, 2]);

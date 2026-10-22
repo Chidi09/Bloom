@@ -569,6 +569,75 @@ class _HotComponentInstance {
 final Expando<_HotComponentInstance> _hotComponentInstances =
     Expando<_HotComponentInstance>('Bloom HMR component boundary');
 
+final _domAttributeNameRegex = RegExp(r'^[a-zA-Z0-9_.:-]+$');
+
+void _validateDomAttributeName(String name) {
+  if (!_domAttributeNameRegex.hasMatch(name)) {
+    throw ArgumentError('Invalid attribute name "$name".');
+  }
+}
+
+String _combinedClassValue(
+  String? base,
+  String extra,
+  Map<String, bool Function()>? classIf,
+) {
+  final result = <String>[];
+  final seen = <String>{};
+  void add(String? value) {
+    if (value == null) return;
+    for (final name in value.split(RegExp(r'\s+'))) {
+      if (name.isNotEmpty && seen.add(name)) result.add(name);
+    }
+  }
+
+  add(base);
+  add(extra);
+  classIf?.forEach((name, include) {
+    if (include()) add(name);
+  });
+  return result.join(' ');
+}
+
+String _combinedStyleValue(String? base, String? extra) {
+  final first = base ?? '';
+  final second = extra ?? '';
+  if (first.isEmpty) return second;
+  if (second.isEmpty) return first;
+  return '$first; $second';
+}
+
+void _applyReactiveAttrs(
+  web.Element el,
+  Map<String, Object? Function()> reactiveAttrs,
+) {
+  for (final entry in reactiveAttrs.entries) {
+    final name = entry.key;
+    final value = entry.value();
+    validateBloomAttribute(name, value?.toString() ?? '');
+    final aria = name.toLowerCase().startsWith('aria-');
+    if (value == null || (value == false && !aria)) {
+      if (el.hasAttribute(name)) el.removeAttribute(name);
+    } else if (value is bool && !aria) {
+      if (el.getAttribute(name) != '') el.setAttribute(name, '');
+    } else {
+      final rendered = value.toString();
+      if (el.getAttribute(name) != rendered) {
+        el.setAttribute(name, rendered);
+      }
+    }
+    final lower = name.toLowerCase();
+    if (lower == 'value' || lower == 'checked' || lower == 'selected') {
+      final jsValue = switch (value) {
+        bool v => v.toJS,
+        null => null,
+        _ => value.toString().toJS,
+      };
+      _reflectSet(el as JSAny, lower, jsValue);
+    }
+  }
+}
+
 /// Mount a single [BloomNode] and return the created DOM nodes.
 /// Side-effect: registers disposers into [region] for reactive boundaries.
 List<web.Node> _mountNode(
@@ -620,6 +689,10 @@ List<web.Node> _mountNode(
         :final className,
         :final style,
         :final attrs,
+        :final reactiveClass,
+        :final reactiveStyle,
+        :final reactiveAttrs,
+        :final classIf,
         :final on,
         :final children
       ):
@@ -639,19 +712,33 @@ List<web.Node> _mountNode(
         el = web.document.createElement(tag);
       }
 
-      if (className != null) {
+      final renderedClass = untracked(
+        () => _combinedClassValue(
+            className, reactiveClass?.call() ?? '', classIf),
+      );
+      validateBloomAttribute('class', renderedClass);
+      if (renderedClass.isNotEmpty) {
         if (inSvg) {
-          el.setAttribute('class', className);
+          el.setAttribute('class', renderedClass);
         } else {
-          el.className = className;
+          el.className = renderedClass;
         }
       }
-      if (style != null) el.setAttribute('style', style);
+      final renderedStyle =
+          untracked(() => _combinedStyleValue(style, reactiveStyle?.call()));
+      validateBloomAttribute('style', renderedStyle);
+      if (renderedStyle.isNotEmpty) el.setAttribute('style', renderedStyle);
       if (attrs != null) {
         for (final e in attrs.entries) {
           validateBloomAttribute(e.key, e.value);
           el.setAttribute(e.key, e.value);
         }
+      }
+      if (reactiveAttrs != null) {
+        for (final name in reactiveAttrs.keys) {
+          _validateDomAttributeName(name);
+        }
+        untracked(() => _applyReactiveAttrs(el, reactiveAttrs));
       }
       if (on != null) {
         for (final entry in on.entries) {
@@ -672,6 +759,40 @@ List<web.Node> _mountNode(
         }
       } finally {
         _currentSvgScope = prevSvgScope;
+      }
+      if (reactiveClass != null ||
+          reactiveStyle != null ||
+          (reactiveAttrs?.isNotEmpty ?? false) ||
+          (classIf?.isNotEmpty ?? false)) {
+        region.add(effect(() {
+          final nextClass = _combinedClassValue(
+            className,
+            reactiveClass?.call() ?? '',
+            classIf,
+          );
+          validateBloomAttribute('class', nextClass);
+          if (inSvg) {
+            if (el.getAttribute('class') != nextClass) {
+              if (nextClass.isEmpty) {
+                el.removeAttribute('class');
+              } else {
+                el.setAttribute('class', nextClass);
+              }
+            }
+          } else if (el.className != nextClass) {
+            el.className = nextClass;
+          }
+          final nextStyle = _combinedStyleValue(style, reactiveStyle?.call());
+          validateBloomAttribute('style', nextStyle);
+          if (el.getAttribute('style') != nextStyle) {
+            if (nextStyle.isEmpty) {
+              el.removeAttribute('style');
+            } else {
+              el.setAttribute('style', nextStyle);
+            }
+          }
+          if (reactiveAttrs != null) _applyReactiveAttrs(el, reactiveAttrs);
+        }));
       }
       return [el];
 
@@ -1509,6 +1630,9 @@ class _KeyedListController {
 
   /// Reconciles DOM against the current items (update path).
   void reconcile() {
+    final previousSvgScope = _currentSvgScope;
+    final parent = sentinel.start.parentNode;
+    _currentSvgScope = _isSvgParent(parent);
     try {
       final keyedItems = _keyedItems(_itemsInScope(), keyFn);
       final newKeys = keyedItems.map((pair) => pair.$2).toSet();
@@ -1632,6 +1756,7 @@ class _KeyedListController {
         _reportUnhandledError(err, stack);
       }
     }
+    _currentSvgScope = previousSvgScope;
   }
 
   /// Releases every per-item region and clears tracking state.
@@ -1743,13 +1868,22 @@ List<web.Node> _bindMemoRegion(
       }
 
       inner.reset();
-      final nodes = _withCapturedBloomSignalScope(
-        builderSignalScope,
-        () => runZoned(
-          () => _mountNode(newDescriptor, inner),
-          zoneValues: {_errorBoundaryZoneKey: boundary},
-        ),
-      );
+      final parent = sentinel.start.parentNode;
+      final parentIsSvg = _isSvgParent(parent);
+      final previousSvgScope = _currentSvgScope;
+      if (!isFirstRun) _currentSvgScope = parentIsSvg;
+      List<web.Node> nodes;
+      try {
+        nodes = _withCapturedBloomSignalScope(
+          builderSignalScope,
+          () => runZoned(
+            () => _mountNode(newDescriptor, inner),
+            zoneValues: {_errorBoundaryZoneKey: boundary},
+          ),
+        );
+      } finally {
+        _currentSvgScope = previousSvgScope;
+      }
       if (isFirstRun) {
         initialNodes = nodes;
       } else {
@@ -1863,13 +1997,22 @@ List<web.Node> _bindSentinelRegion<T>(
       inner.reset();
       final value = _withCapturedBloomSignalScope(capturedSignalScope, build);
       final node = wrap == null ? value as BloomNode : wrap(value);
-      final nodes = _withCapturedBloomSignalScope(
-        capturedSignalScope,
-        () => runZoned(
-          () => _mountNode(node, inner),
-          zoneValues: {_errorBoundaryZoneKey: boundary},
-        ),
-      );
+      final parent = sentinel.start.parentNode;
+      final parentIsSvg = _isSvgParent(parent);
+      final previousSvgScope = _currentSvgScope;
+      if (!isFirstRun) _currentSvgScope = parentIsSvg;
+      List<web.Node> nodes;
+      try {
+        nodes = _withCapturedBloomSignalScope(
+          capturedSignalScope,
+          () => runZoned(
+            () => _mountNode(node, inner),
+            zoneValues: {_errorBoundaryZoneKey: boundary},
+          ),
+        );
+      } finally {
+        _currentSvgScope = previousSvgScope;
+      }
       if (isFirstRun) {
         // The sentinel comments are not attached to the document yet on the
         // effect's synchronous initial run (mounting is still building the
@@ -2471,10 +2614,30 @@ int _hydrateNode(
           :final className,
           :final style,
           :final attrs,
+          :final reactiveClass,
+          :final reactiveStyle,
+          :final reactiveAttrs,
+          :final classIf,
           :final children
         ):
-        return _hydrateElement(tag, text, className, style, attrs, null,
-            children, sibs, index, parentLive, region, hctx);
+        return _hydrateElement(
+          tag,
+          text,
+          className,
+          style,
+          attrs,
+          null,
+          reactiveClass,
+          reactiveStyle,
+          reactiveAttrs,
+          classIf,
+          children,
+          sibs,
+          index,
+          parentLive,
+          region,
+          hctx,
+        );
 
       case ElNode(
           :final tag,
@@ -2482,11 +2645,31 @@ int _hydrateNode(
           :final className,
           :final style,
           :final attrs,
+          :final reactiveClass,
+          :final reactiveStyle,
+          :final reactiveAttrs,
+          :final classIf,
           :final on,
           :final children
         ):
-        return _hydrateElement(tag, text, className, style, attrs, on, children,
-            sibs, index, parentLive, region, hctx);
+        return _hydrateElement(
+          tag,
+          text,
+          className,
+          style,
+          attrs,
+          on,
+          reactiveClass,
+          reactiveStyle,
+          reactiveAttrs,
+          classIf,
+          children,
+          sibs,
+          index,
+          parentLive,
+          region,
+          hctx,
+        );
 
       case LiveNode(:final builder, :final hotReloadScopeId):
         return _hydrateLive(
@@ -2640,6 +2823,10 @@ int _hydrateElement(
   String? style,
   Map<String, String>? attrs,
   Map<String, BloomEventHandler>? on,
+  String Function()? reactiveClass,
+  String Function()? reactiveStyle,
+  Map<String, Object? Function()>? reactiveAttrs,
+  Map<String, bool Function()>? classIf,
   List<BloomNode> children,
   List<web.Node> sibs,
   int index,
@@ -2659,9 +2846,13 @@ int _hydrateElement(
     throw _HydrationAbort('element <$tag>', _describeDom(existing));
   }
 
+  final renderedClass = untracked(
+    () => _combinedClassValue(className, reactiveClass?.call() ?? '', classIf),
+  );
+  validateBloomAttribute('class', renderedClass);
   if (el.namespaceURI == _svgNamespace) {
     final currentClass = el.getAttribute('class') ?? '';
-    final desiredClass = className ?? '';
+    final desiredClass = renderedClass;
     if (currentClass != desiredClass) {
       if (desiredClass.isNotEmpty) {
         el.setAttribute('class', desiredClass);
@@ -2670,10 +2861,15 @@ int _hydrateElement(
       }
     }
   } else {
-    if ((className ?? '') != el.className) el.className = className ?? '';
+    if (renderedClass != el.className) el.className = renderedClass;
   }
-  if (style != null) {
-    if (el.getAttribute('style') != style) el.setAttribute('style', style);
+  final renderedStyle =
+      untracked(() => _combinedStyleValue(style, reactiveStyle?.call()));
+  validateBloomAttribute('style', renderedStyle);
+  if (renderedStyle.isNotEmpty) {
+    if (el.getAttribute('style') != renderedStyle) {
+      el.setAttribute('style', renderedStyle);
+    }
   } else if (el.hasAttribute('style')) {
     el.removeAttribute('style');
   }
@@ -2691,6 +2887,46 @@ int _hydrateElement(
         el.setAttribute(e.key, e.value);
       }
     }
+  }
+  if (reactiveAttrs != null) {
+    for (final name in reactiveAttrs.keys) {
+      _validateDomAttributeName(name);
+    }
+    untracked(() => _applyReactiveAttrs(el, reactiveAttrs));
+  }
+  if (reactiveClass != null ||
+      reactiveStyle != null ||
+      (reactiveAttrs?.isNotEmpty ?? false) ||
+      (classIf?.isNotEmpty ?? false)) {
+    region.add(effect(() {
+      final nextClass = _combinedClassValue(
+        className,
+        reactiveClass?.call() ?? '',
+        classIf,
+      );
+      validateBloomAttribute('class', nextClass);
+      if (el.namespaceURI == _svgNamespace) {
+        if ((el.getAttribute('class') ?? '') != nextClass) {
+          if (nextClass.isEmpty) {
+            el.removeAttribute('class');
+          } else {
+            el.setAttribute('class', nextClass);
+          }
+        }
+      } else if (el.className != nextClass) {
+        el.className = nextClass;
+      }
+      final nextStyle = _combinedStyleValue(style, reactiveStyle?.call());
+      validateBloomAttribute('style', nextStyle);
+      if ((el.getAttribute('style') ?? '') != nextStyle) {
+        if (nextStyle.isEmpty) {
+          el.removeAttribute('style');
+        } else {
+          el.setAttribute('style', nextStyle);
+        }
+      }
+      if (reactiveAttrs != null) _applyReactiveAttrs(el, reactiveAttrs);
+    }));
   }
   if (on != null) {
     for (final entry in on.entries) {
@@ -4121,4 +4357,12 @@ void _attachSuspenseContinuation({
   }
 
   ownerRegion.add(inner.disposeAll);
+}
+
+/// Whether children inserted into [parent] belong in the SVG namespace.
+bool _isSvgParent(web.Node? parent) {
+  if (parent == null || !parent.isA<web.Element>()) return false;
+  final element = parent as web.Element;
+  return element.namespaceURI == _svgNamespace &&
+      element.localName.toLowerCase() != 'foreignobject';
 }

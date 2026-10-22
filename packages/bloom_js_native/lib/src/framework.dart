@@ -229,8 +229,63 @@ class ElNode extends BloomNode {
   /// Child descriptors nested within this element.
   final List<BloomNode> children;
 
+  /// Extra CSS classes, appended after [className].
+  ///
+  /// Evaluated reactively in the browser without re-creating the DOM element.
+  ///
+  /// ```dart
+  /// Button(
+  ///   text: "Save",
+  ///   reactiveClass: () => isBusy.value ? "opacity-50" : "opacity-100",
+  /// )
+  /// ```
+  final String Function()? reactiveClass;
+
+  /// Extra inline CSS style string, appended after [style] with "; ".
+  ///
+  /// Evaluated reactively in the browser without re-creating the DOM element.
+  ///
+  /// ```dart
+  /// Div(
+  ///   reactiveStyle: () => "transform: translateX(${offset.value}px)",
+  /// )
+  /// ```
+  final String Function()? reactiveStyle;
+
+  /// Reactive attribute getters evaluated dynamically in place.
+  ///
+  /// Null removes the attribute; for names starting with "aria-" a bool is written
+  /// as "true"/"false"; for any other name true writes the attribute with an empty value
+  /// (boolean attributes like disabled/hidden/checked) and false removes it; any other value
+  /// is written with toString(). For "value", "checked" and "selected" the corresponding
+  /// DOM property is also updated.
+  ///
+  /// ```dart
+  /// Button(
+  ///   reactiveAttrs: {
+  ///     "aria-expanded": () => open.value,
+  ///     "disabled": () => isSubmitting.value,
+  ///   },
+  /// )
+  /// ```
+  final Map<String, Object? Function()>? reactiveAttrs;
+
+  /// Conditional class inclusion mapping class names to boolean predicates.
+  ///
+  /// Classes whose getters return `true` are appended to the element's class list.
+  ///
+  /// ```dart
+  /// Button(
+  ///   classIf: {
+  ///     "is-active": () => activeTab.value == "home",
+  ///     "has-error": () => hasError.value,
+  ///   },
+  /// )
+  /// ```
+  final Map<String, bool Function()>? classIf;
+
   /// Creates an element descriptor with [tag] and optional styling, attributes,
-  /// event handlers, and child descriptors.
+  /// event handlers, child descriptors, and reactive attribute/class bindings.
   const ElNode(
     this.tag, {
     this.text,
@@ -239,6 +294,10 @@ class ElNode extends BloomNode {
     this.attrs,
     this.on,
     this.children = const [],
+    this.reactiveClass,
+    this.reactiveStyle,
+    this.reactiveAttrs,
+    this.classIf,
   });
 }
 
@@ -1253,6 +1312,10 @@ class El extends ElNode {
     BloomEventHandler? onDragStart,
     BloomEventHandler? onTouchStart,
     BloomEventHandler? onTouchEnd,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           on: _mergeEvents(on,
               onClick: onClick,
@@ -1291,6 +1354,10 @@ class El extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   });
 }
 
@@ -1325,6 +1392,10 @@ class Div extends ElNode {
     BloomEventHandler? onContextMenu,
     BloomEventHandler? onDrop,
     BloomEventHandler? onDragOver,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'div',
           on: _mergeEvents(on,
@@ -1356,6 +1427,10 @@ class Div extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('div');
 }
 
@@ -1374,6 +1449,10 @@ class Span extends ElNode {
     BloomEventHandler? onDblClick,
     BloomEventHandler? onMouseEnter,
     BloomEventHandler? onMouseLeave,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'span',
           on: _mergeEvents(on,
@@ -1391,6 +1470,10 @@ class Span extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('span');
 }
 
@@ -1406,6 +1489,10 @@ class P extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'p',
           on: _mergeEvents(on, onClick: onClick),
@@ -1419,6 +1506,10 @@ class P extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('p');
 }
 
@@ -1433,6 +1524,10 @@ class H1 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h1',
           on: _mergeEvents(on, onClick: onClick),
@@ -1446,6 +1541,10 @@ class H1 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h1');
 }
 
@@ -1460,6 +1559,10 @@ class H2 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h2',
           on: _mergeEvents(on, onClick: onClick),
@@ -1473,6 +1576,10 @@ class H2 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h2');
 }
 
@@ -1487,6 +1594,10 @@ class H3 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h3',
           on: _mergeEvents(on, onClick: onClick),
@@ -1500,6 +1611,10 @@ class H3 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h3');
 }
 
@@ -1514,6 +1629,10 @@ class H4 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h4',
           on: _mergeEvents(on, onClick: onClick),
@@ -1527,6 +1646,10 @@ class H4 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h4');
 }
 
@@ -1541,6 +1664,10 @@ class H5 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h5',
           on: _mergeEvents(on, onClick: onClick),
@@ -1554,6 +1681,10 @@ class H5 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h5');
 }
 
@@ -1568,6 +1699,10 @@ class H6 extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'h6',
           on: _mergeEvents(on, onClick: onClick),
@@ -1581,6 +1716,10 @@ class H6 extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('h6');
 }
 
@@ -1607,6 +1746,10 @@ class Button extends ElNode {
     BloomEventHandler? onMouseUp,
     BloomEventHandler? onKeyDown,
     BloomEventHandler? onKeyUp,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'button',
           on: _mergeEvents(on,
@@ -1630,6 +1773,10 @@ class Button extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('button');
 }
 
@@ -1671,6 +1818,10 @@ class Input extends ElNode {
     BloomEventHandler? onKeyPress,
     BloomEventHandler? onFocus,
     BloomEventHandler? onBlur,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'input',
           attrs: _mergeAttrs(attrs, {
@@ -1698,6 +1849,10 @@ class Input extends ElNode {
     super.style,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('input');
 }
 
@@ -1733,6 +1888,10 @@ class Textarea extends ElNode {
     BloomEventHandler? onBlur,
     BloomEventHandler? onKeyDown,
     BloomEventHandler? onKeyUp,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'textarea',
           attrs: _mergeAttrs(attrs, {
@@ -1757,6 +1916,10 @@ class Textarea extends ElNode {
     super.style,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('textarea');
 }
 
@@ -1789,6 +1952,10 @@ class A extends ElNode {
     BloomEventHandler? onMouseLeave,
     BloomEventHandler? onFocus,
     BloomEventHandler? onBlur,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'a',
           attrs: _mergeAttrs(attrs, {
@@ -1812,6 +1979,10 @@ class A extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('a');
 }
 
@@ -1840,6 +2011,10 @@ class Img extends ElNode {
     Map<String, String>? attrs,
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'img',
           attrs: _mergeAttrs(attrs, {
@@ -1857,6 +2032,10 @@ class Img extends ElNode {
     super.style,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('img');
 }
 
@@ -1869,6 +2048,10 @@ class Ul extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('ul');
 
   /// Const constructor for `<ul>`.
@@ -1878,6 +2061,10 @@ class Ul extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('ul');
 }
 
@@ -1890,6 +2077,10 @@ class Ol extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('ol');
 
   /// Const constructor for `<ol>`.
@@ -1899,6 +2090,10 @@ class Ol extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('ol');
 }
 
@@ -1913,6 +2108,10 @@ class Li extends ElNode {
     Map<String, BloomEventHandler>? on,
     super.children = const [],
     BloomEventHandler? onClick,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'li',
           on: _mergeEvents(on, onClick: onClick),
@@ -1926,6 +2125,10 @@ class Li extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('li');
 }
 
@@ -1941,6 +2144,10 @@ class Form extends ElNode {
     super.children = const [],
     Map<String, BloomEventHandler>? on,
     BloomEventHandler? onSubmit,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'form',
           on: _mergeEvents(on, onSubmit: onSubmit),
@@ -1953,6 +2160,10 @@ class Form extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('form');
 }
 
@@ -1969,6 +2180,10 @@ class Label extends ElNode {
     String? htmlFor,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'label',
           attrs: _mergeAttrs(attrs, {
@@ -1984,6 +2199,10 @@ class Label extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('label');
 }
 
@@ -1996,6 +2215,10 @@ class Header extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('header');
 
   /// Const constructor for `<header>`.
@@ -2005,6 +2228,10 @@ class Header extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('header');
 }
 
@@ -2017,6 +2244,10 @@ class Footer extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('footer');
 
   /// Const constructor for `<footer>`.
@@ -2026,6 +2257,10 @@ class Footer extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('footer');
 }
 
@@ -2038,6 +2273,10 @@ class Main extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('main');
 
   /// Const constructor for `<main>`.
@@ -2047,6 +2286,10 @@ class Main extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('main');
 }
 
@@ -2059,6 +2302,10 @@ class Nav extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('nav');
 
   /// Const constructor for `<nav>`.
@@ -2068,6 +2315,10 @@ class Nav extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('nav');
 }
 
@@ -2080,6 +2331,10 @@ class Section extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('section');
 
   /// Const constructor for `<section>`.
@@ -2089,6 +2344,10 @@ class Section extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('section');
 }
 
@@ -2101,6 +2360,10 @@ class Article extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('article');
 
   /// Const constructor for `<article>`.
@@ -2110,6 +2373,10 @@ class Article extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('article');
 }
 
@@ -2122,6 +2389,10 @@ class Aside extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('aside');
 
   /// Const constructor for `<aside>`.
@@ -2131,6 +2402,10 @@ class Aside extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('aside');
 }
 
@@ -2144,6 +2419,10 @@ class Strong extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('strong');
 
   /// Const constructor for `<strong>`.
@@ -2154,6 +2433,10 @@ class Strong extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('strong');
 }
 
@@ -2167,6 +2450,10 @@ class Em extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('em');
 
   /// Const constructor for `<em>`.
@@ -2177,6 +2464,10 @@ class Em extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('em');
 }
 
@@ -2190,6 +2481,10 @@ class Code extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('code');
 
   /// Const constructor for `<code>`.
@@ -2200,6 +2495,10 @@ class Code extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('code');
 }
 
@@ -2213,6 +2512,10 @@ class Pre extends ElNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('pre');
 
   /// Const constructor for `<pre>`.
@@ -2223,6 +2526,10 @@ class Pre extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('pre');
 }
 
@@ -2231,7 +2538,14 @@ class Pre extends ElNode {
 /// **Void element**: `<br>` cannot have children and is emitted without a closing tag.
 class Br extends ElNode {
   /// Creates a `<br>` line break descriptor.
-  const Br({super.className, super.attrs}) : super('br');
+  const Br({
+    super.className,
+    super.attrs,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('br');
 }
 
 /// `<hr>` — thematic break / horizontal rule (void element).
@@ -2239,43 +2553,63 @@ class Br extends ElNode {
 /// **Void element**: `<hr>` cannot have children and is emitted without a closing tag.
 class Hr extends ElNode {
   /// Creates an `<hr>` horizontal rule descriptor.
-  const Hr({super.className, super.style, super.attrs}) : super('hr');
+  const Hr({
+    super.className,
+    super.style,
+    super.attrs,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('hr');
 }
 
 /// `<blockquote>` — section quoted from another source.
 class Blockquote extends ElNode {
   /// Creates a `<blockquote>` element descriptor.
-  Blockquote(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('blockquote');
+  Blockquote({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('blockquote');
 
   /// Const constructor for `<blockquote>`.
-  const Blockquote.raw(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('blockquote');
+  const Blockquote.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('blockquote');
 }
 
 /// `<cite>` — title of a creative work or citation reference.
 class Cite extends ElNode {
   /// Creates a `<cite>` citation descriptor.
-  const Cite(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('cite');
+  const Cite({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('cite');
 }
 
 /// `<time>` — machine-readable date/time representation.
@@ -2283,79 +2617,103 @@ class Cite extends ElNode {
 /// Use [dateTime] to specify the ISO 8601 timestamp string (maps to `datetime` attribute).
 class TimeEl extends ElNode {
   /// Creates a `<time>` element descriptor with [dateTime] attribute shorthand.
-  TimeEl(
-      {super.text,
-      String? dateTime,
-      super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.children = const [],
-      super.on})
-      : super('time',
+  TimeEl({
+    super.text,
+    String? dateTime,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('time',
             attrs: _mergeAttrs(
                 attrs, {if (dateTime != null) 'datetime': dateTime}));
 
   /// Const constructor for `<time>` without attribute shorthand.
-  const TimeEl.raw(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('time');
+  const TimeEl.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('time');
 }
 
 /// `<mark>` — text highlighted for reference or relevance purposes.
 class Mark extends ElNode {
   /// Creates a `<mark>` highlight descriptor.
-  const Mark(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('mark');
+  const Mark({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('mark');
 }
 
 /// `<small>` — side-comments, small print, and legal disclaimers.
 class Small extends ElNode {
   /// Creates a `<small>` fine-print descriptor.
-  const Small(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('small');
+  const Small({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('small');
 }
 
 /// `<sub>` — subscript text.
 class Sub extends ElNode {
   /// Creates a `<sub>` subscript descriptor.
-  const Sub(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('sub');
+  const Sub({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('sub');
 }
 
 /// `<sup>` — superscript text.
 class Sup extends ElNode {
   /// Creates a `<sup>` superscript descriptor.
-  const Sup(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('sup');
+  const Sup({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('sup');
 }
 
 /// `<abbr>` — abbreviation or acronym.
@@ -2363,73 +2721,97 @@ class Sup extends ElNode {
 /// Use [title] to provide the expanded description shown on hover.
 class Abbr extends ElNode {
   /// Creates an `<abbr>` abbreviation descriptor with [title] shorthand.
-  Abbr(
-      {super.text,
-      String? title,
-      super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.children = const [],
-      super.on})
-      : super('abbr',
+  Abbr({
+    super.text,
+    String? title,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('abbr',
             attrs: _mergeAttrs(attrs, {if (title != null) 'title': title}));
 
   /// Const constructor for `<abbr>` without attribute shorthand.
-  const Abbr.raw(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('abbr');
+  const Abbr.raw({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('abbr');
 }
 
 /// `<kbd>` — keyboard input or key combination.
 class KbdEl extends ElNode {
   /// Creates a `<kbd>` keyboard input descriptor.
-  const KbdEl(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('kbd');
+  const KbdEl({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('kbd');
 }
 
 /// `<figure>` — self-contained figure content (images, charts, code blocks).
 class Figure extends ElNode {
   /// Creates a `<figure>` element descriptor.
-  Figure(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('figure');
+  Figure({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('figure');
 
   /// Const constructor for `<figure>`.
-  const Figure.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('figure');
+  const Figure.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('figure');
 }
 
 /// `<figcaption>` — caption or legend for a parent `<figure>`.
 class Figcaption extends ElNode {
   /// Creates a `<figcaption>` element descriptor.
-  const Figcaption(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('figcaption');
+  const Figcaption({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('figcaption');
 }
 
 /// `<details>` — interactive disclosure widget.
@@ -2437,37 +2819,49 @@ class Figcaption extends ElNode {
 /// Use [open] to control whether disclosure is expanded initially.
 class Details extends ElNode {
   /// Creates a `<details>` element descriptor with [open] attribute shorthand.
-  Details(
-      {super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.children = const [],
-      super.on,
-      bool? open})
-      : super('details',
+  Details({
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+    bool? open,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('details',
             attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
   /// Const constructor for `<details>` without attribute shorthand.
-  const Details.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('details');
+  const Details.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('details');
 }
 
 /// `<summary>` — disclosure summary or caption heading for a parent `<details>`.
 class Summary extends ElNode {
   /// Creates a `<summary>` element descriptor.
-  const Summary(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('summary');
+  const Summary({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('summary');
 }
 
 /// `<dialog>` — interactive modal or non-modal dialog window.
@@ -2475,24 +2869,32 @@ class Summary extends ElNode {
 /// Use [open] to control whether the dialog is open upon mounting.
 class Dialog extends ElNode {
   /// Creates a `<dialog>` element descriptor with [open] attribute shorthand.
-  Dialog(
-      {super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.children = const [],
-      super.on,
-      bool? open})
-      : super('dialog',
+  Dialog({
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.children = const [],
+    super.on,
+    bool? open,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('dialog',
             attrs: _mergeAttrs(attrs, {if (open == true) 'open': 'open'}));
 
   /// Const constructor for `<dialog>` without attribute shorthand.
-  const Dialog.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('dialog');
+  const Dialog.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('dialog');
 }
 
 /// `<canvas>` — 2D and WebGL bitmap graphics surface.
@@ -2500,37 +2902,53 @@ class Dialog extends ElNode {
 /// [width] and [height] configure the coordinate space dimensions of the canvas.
 class Canvas extends ElNode {
   /// Creates a `<canvas>` element descriptor with [width] and [height] dimension shorthands.
-  Canvas(
-      {int? width,
-      int? height,
-      super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.on})
-      : super('canvas',
+  Canvas({
+    int? width,
+    int? height,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('canvas',
             attrs: _mergeAttrs(attrs, {
               if (width != null) 'width': '$width',
               if (height != null) 'height': '$height'
             }));
 
   /// Const constructor for `<canvas>` without dimension shorthands.
-  const Canvas.raw({super.className, super.style, super.attrs, super.on})
-      : super('canvas');
+  const Canvas.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('canvas');
 }
 
 /// `<iframe>` — inline frame embedding an external browsing context.
 class IFrame extends ElNode {
   /// Creates an `<iframe>` element descriptor with [src], [title], and dimension shorthands.
-  IFrame(
-      {String? src,
-      String? title,
-      int? width,
-      int? height,
-      super.className,
-      super.style,
-      Map<String, String>? attrs,
-      super.on})
-      : super('iframe',
+  IFrame({
+    String? src,
+    String? title,
+    int? width,
+    int? height,
+    super.className,
+    super.style,
+    Map<String, String>? attrs,
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('iframe',
             attrs: _mergeAttrs(attrs, {
               if (src != null) 'src': src,
               if (title != null) 'title': title,
@@ -2539,8 +2957,16 @@ class IFrame extends ElNode {
             }));
 
   /// Const constructor for `<iframe>` without attribute shorthands.
-  const IFrame.raw({super.className, super.style, super.attrs, super.on})
-      : super('iframe');
+  const IFrame.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('iframe');
 }
 
 // ── Table Elements ────────────────────────────────────────────────────
@@ -2548,119 +2974,163 @@ class IFrame extends ElNode {
 /// `<table>` — tabular data container element.
 class Table extends ElNode {
   /// Creates a `<table>` element descriptor.
-  Table(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('table');
+  Table({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('table');
 
   /// Const constructor for `<table>`.
-  const Table.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('table');
+  const Table.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('table');
 }
 
 /// `<caption>` — title or accessibility description for a parent `<table>`.
 class Caption extends ElNode {
   /// Creates a `<caption>` table description descriptor.
-  const Caption(
-      {super.text,
-      super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('caption');
+  const Caption({
+    super.text,
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('caption');
 }
 
 /// `<thead>` — group of header rows in a `<table>`.
 class Thead extends ElNode {
   /// Creates a `<thead>` element descriptor.
-  Thead(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('thead');
+  Thead({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('thead');
 
   /// Const constructor for `<thead>`.
-  const Thead.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('thead');
+  const Thead.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('thead');
 }
 
 /// `<tbody>` — group of body data rows in a `<table>`.
 class Tbody extends ElNode {
   /// Creates a `<tbody>` element descriptor.
-  Tbody(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('tbody');
+  Tbody({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tbody');
 
   /// Const constructor for `<tbody>`.
-  const Tbody.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('tbody');
+  const Tbody.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tbody');
 }
 
 /// `<tfoot>` — group of summary footer rows in a `<table>`.
 class Tfoot extends ElNode {
   /// Creates a `<tfoot>` element descriptor.
-  Tfoot(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('tfoot');
+  Tfoot({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tfoot');
 
   /// Const constructor for `<tfoot>`.
-  const Tfoot.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('tfoot');
+  const Tfoot.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tfoot');
 }
 
 /// `<tr>` — row of cells in a `<table>`.
 class Tr extends ElNode {
   /// Creates a `<tr>` table row descriptor.
-  Tr(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.children = const [],
-      super.on})
-      : super('tr');
+  Tr({
+    super.className,
+    super.style,
+    super.attrs,
+    super.children = const [],
+    super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tr');
 
   /// Const constructor for `<tr>`.
-  const Tr.raw(
-      {super.className,
-      super.style,
-      super.attrs,
-      super.on,
-      super.children = const []})
-      : super('tr');
+  const Tr.raw({
+    super.className,
+    super.style,
+    super.attrs,
+    super.on,
+    super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
+  }) : super('tr');
 }
 
 /// `<th>` — header cell in a `<table>`.
@@ -2678,6 +3148,10 @@ class Th extends ElNode {
     Map<String, String>? attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'th',
           attrs: _mergeAttrs(attrs, {
@@ -2695,6 +3169,10 @@ class Th extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('th');
 }
 
@@ -2712,6 +3190,10 @@ class Td extends ElNode {
     Map<String, String>? attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'td',
           attrs: _mergeAttrs(attrs, {
@@ -2728,6 +3210,10 @@ class Td extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('td');
 }
 
@@ -2765,6 +3251,10 @@ class Select extends ElNode {
     BloomEventHandler? onChange,
     BloomEventHandler? onFocus,
     BloomEventHandler? onBlur,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'select',
           attrs: _mergeAttrs(attrs, {
@@ -2783,6 +3273,10 @@ class Select extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('select');
 }
 
@@ -2799,6 +3293,10 @@ class Option extends ElNode {
     super.className,
     Map<String, String>? attrs,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'option',
           attrs: _mergeAttrs(attrs, {
@@ -2814,6 +3312,10 @@ class Option extends ElNode {
     super.className,
     super.attrs,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('option');
 }
 
@@ -2827,6 +3329,10 @@ class Optgroup extends ElNode {
     super.className,
     Map<String, String>? attrs,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super(
           'optgroup',
           attrs: _mergeAttrs(attrs, {'label': label}),
@@ -2837,6 +3343,10 @@ class Optgroup extends ElNode {
     super.className,
     super.attrs,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('optgroup');
 }
 
@@ -2857,6 +3367,10 @@ class SvgNode extends ElNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   });
 }
 
@@ -2885,6 +3399,10 @@ class Svg extends SvgNode {
     Map<String, String>? attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('svg',
             attrs: _mergeAttrs(attrs, {
               if (viewBox != null) 'viewBox': viewBox,
@@ -2899,6 +3417,10 @@ class Svg extends SvgNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('svg');
 }
 
@@ -2911,6 +3433,10 @@ class SvgG extends SvgNode {
     super.attrs,
     super.children = const [],
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('g');
 
   /// Const constructor for SVG `<g>`.
@@ -2920,6 +3446,10 @@ class SvgG extends SvgNode {
     super.attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('g');
 }
 
@@ -2937,6 +3467,10 @@ class SvgPath extends SvgNode {
     super.className,
     Map<String, String>? attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('path',
             attrs: _mergeAttrs(attrs, {
               'd': d,
@@ -2950,6 +3484,10 @@ class SvgPath extends SvgNode {
     super.className,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('path');
 }
 
@@ -2967,6 +3505,10 @@ class SvgCircle extends SvgNode {
     super.className,
     Map<String, String>? attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('circle',
             attrs: _mergeAttrs(attrs, {
               'cx': '$cx',
@@ -2981,6 +3523,10 @@ class SvgCircle extends SvgNode {
     super.className,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('circle');
 }
 
@@ -3001,6 +3547,10 @@ class SvgRect extends SvgNode {
     super.className,
     Map<String, String>? attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('rect',
             attrs: _mergeAttrs(attrs, {
               if (x != null) 'x': '$x',
@@ -3017,6 +3567,10 @@ class SvgRect extends SvgNode {
     super.className,
     super.attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('rect');
 }
 
@@ -3034,6 +3588,10 @@ class SvgLine extends SvgNode {
     super.className,
     Map<String, String>? attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('line',
             attrs: _mergeAttrs(attrs, {
               'x1': '$x1',
@@ -3056,6 +3614,10 @@ class SvgText extends SvgNode {
     Map<String, String>? attrs,
     super.on,
     super.children = const [],
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('text',
             attrs: _mergeAttrs(attrs, {
               if (x != null) 'x': '$x',
@@ -3076,6 +3638,10 @@ class SvgUse extends SvgNode {
     super.className,
     Map<String, String>? attrs,
     super.on,
+    super.reactiveClass,
+    super.reactiveStyle,
+    super.reactiveAttrs,
+    super.classIf,
   }) : super('use',
             attrs: _mergeAttrs(attrs, {
               'href': href,

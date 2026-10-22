@@ -38,6 +38,35 @@ BloomMountHandle hydrate(
   return hydrateElement(root, el, onMismatch: onMismatch);
 }
 
+/// Starts a Bloom app in the element matching [selector]. Hydrates when the
+/// element already contains server-rendered content, otherwise mounts.
+///
+/// ```dart
+/// final handle = mountApp(App(), '#app');
+/// ```
+BloomMountHandle mountApp(
+  BloomNode root,
+  String selector, {
+  HydrationMismatchHandler? onMismatch,
+}) {
+  final element = web.document.querySelector(selector);
+  if (element == null) {
+    throw StateError('Bloom mountApp: selector "$selector" matched no element.');
+  }
+  final children = element.childNodes;
+  for (var i = 0; i < children.length; i++) {
+    final child = children.item(i)!;
+    if (child.nodeType == web.Node.ELEMENT_NODE) {
+      return hydrateElement(root, element, onMismatch: onMismatch);
+    }
+    if (child.nodeType == web.Node.TEXT_NODE &&
+        (child.textContent ?? '').trim().isNotEmpty) {
+      return hydrateElement(root, element, onMismatch: onMismatch);
+    }
+  }
+  return mountToElement(root, element);
+}
+
 /// Hydrates a server-rendered DOM tree inside [element] with event listeners in place.
 ///
 /// Matches SSR boundary markers (`<!--bloom:live-->`, `<!--bloom:show-->`,

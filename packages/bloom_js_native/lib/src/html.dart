@@ -180,19 +180,26 @@ void _render(BloomNode node, StringBuffer buf,
         :final className,
         :final style,
         :final attrs,
+        :final reactiveClass,
+        :final reactiveStyle,
+        :final reactiveAttrs,
+        :final classIf,
         :final children
       ):
       _validateTagName(tag);
       textCtx.lastEmittedText = false;
       buf.write('<$tag');
-      if (className != null && className.isNotEmpty) {
-        buf.write(' class="${escapeHtml(className)}"');
+      final classes = _combinedClasses(className, reactiveClass, classIf);
+      if (classes.isNotEmpty) {
+        buf.write(' class="${escapeHtml(classes)}"');
       }
-      if (style != null && style.isNotEmpty) {
-        buf.write(' style="${escapeHtml(style)}"');
+      final combinedStyle = _combinedStyle(style, reactiveStyle);
+      if (combinedStyle.isNotEmpty) {
+        buf.write(' style="${escapeHtml(combinedStyle)}"');
       }
-      if (attrs != null) {
-        for (final entry in attrs.entries) {
+      final renderedAttrs = _combinedAttrs(attrs, reactiveAttrs);
+      if (renderedAttrs.isNotEmpty) {
+        for (final entry in renderedAttrs.entries) {
           _validateAttributeName(entry.key);
           validateBloomAttribute(entry.key, entry.value);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
@@ -221,20 +228,27 @@ void _render(BloomNode node, StringBuffer buf,
         :final className,
         :final style,
         :final attrs,
+        :final reactiveClass,
+        :final reactiveStyle,
+        :final reactiveAttrs,
+        :final classIf,
         :final children
       ):
       _validateTagName(tag);
       textCtx.lastEmittedText = false;
       buf.write('<$tag');
 
-      if (className != null && className.isNotEmpty) {
-        buf.write(' class="${escapeHtml(className)}"');
+      final classes = _combinedClasses(className, reactiveClass, classIf);
+      if (classes.isNotEmpty) {
+        buf.write(' class="${escapeHtml(classes)}"');
       }
-      if (style != null && style.isNotEmpty) {
-        buf.write(' style="${escapeHtml(style)}"');
+      final combinedStyle = _combinedStyle(style, reactiveStyle);
+      if (combinedStyle.isNotEmpty) {
+        buf.write(' style="${escapeHtml(combinedStyle)}"');
       }
-      if (attrs != null) {
-        for (final entry in attrs.entries) {
+      final renderedAttrs = _combinedAttrs(attrs, reactiveAttrs);
+      if (renderedAttrs.isNotEmpty) {
+        for (final entry in renderedAttrs.entries) {
           _validateAttributeName(entry.key);
           validateBloomAttribute(entry.key, entry.value);
           buf.write(' ${entry.key}="${escapeHtml(entry.value)}"');
@@ -398,6 +412,56 @@ void _render(BloomNode node, StringBuffer buf,
       }
       textCtx.lastEmittedText = false;
   }
+}
+
+String _combinedClasses(
+  String? className,
+  String Function()? reactiveClass,
+  Map<String, bool Function()>? classIf,
+) {
+  final seen = <String>{};
+  final classes = <String>[];
+  void add(String? value) {
+    if (value == null) return;
+    for (final name in value.split(RegExp(r'\s+'))) {
+      if (name.isNotEmpty && seen.add(name)) classes.add(name);
+    }
+  }
+
+  add(className);
+  if (reactiveClass != null) add(reactiveClass());
+  classIf?.forEach((name, include) {
+    if (include()) add(name);
+  });
+  return classes.join(' ');
+}
+
+String _combinedStyle(String? style, String Function()? reactiveStyle) {
+  final base = style ?? '';
+  final extra = reactiveStyle?.call() ?? '';
+  if (base.isEmpty) return extra;
+  if (extra.isEmpty) return base;
+  return '$base; $extra';
+}
+
+Map<String, String> _combinedAttrs(
+  Map<String, String>? attrs,
+  Map<String, Object? Function()>? reactiveAttrs,
+) {
+  final result = <String, String>{...?attrs};
+  reactiveAttrs?.forEach((name, getter) {
+    final value = getter();
+    final normalizedName = name.toLowerCase();
+    if (value == null || (value is bool && value == false &&
+        !normalizedName.startsWith('aria-'))) {
+      result.remove(name);
+    } else if (value is bool && !normalizedName.startsWith('aria-')) {
+      result[name] = '';
+    } else {
+      result[name] = value.toString();
+    }
+  });
+  return result;
 }
 
 /// Renders multiple [BloomNode] root fragments sequentially into a single HTML string.
