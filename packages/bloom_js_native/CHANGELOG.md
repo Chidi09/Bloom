@@ -1,9 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-10-22
+
+### Added
+* `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, and `classIf` update element attributes and styling in place; `mountApp(root, selector)` hydrates existing HTML or mounts into an empty target.
+* Added `RouterLink` for router-aware anchor navigation and a separate `package:bloom_js_native/ui.dart` entry point for UI primitives.
+* Added compact markup builders through `package:bloom_js_native/tags.dart` and optional Flutter-shaped helpers through `package:bloom_js_native/widgets.dart`.
+* Added typed common element attributes, input/button type constants, image loading/decoding/fetch-priority enums, and `Dl`, `Dt`, and `Dd` descriptors.
+* Added static-site generation through `generateStaticSite` and `bloom js build --ssg` integration.
+* Added hydration mismatch diagnostics through `onMismatch` and `bloomLogHydrationMismatches`, reporting the deepest recoverable boundary path; added SVG namespace handling and text-node hydration.
+* Added `DocumentScript` and ordered `scriptTags` support in `renderToDocument`, plus parity for raw HTML rendering.
+* Added browser head descriptors `Title`, `Meta`, `HeadLink`, and `StylesheetLink`, plus the platform-neutral `BloomElement` handle and `Mount(onMountElement:)` callback.
+* Added head descriptor hoisting, deduplication, and escaping in `renderToDocument`, plus reactive browser title/head updates that restore on unmount.
+* Added shared `stylesheets:` support to `generateStaticSite` and `Show(enter:, exit:)`, `Reveal`, `InView`, and `revealCss` animation helpers.
+
+### Changed
+* **BREAKING:** UI primitives are imported from `package:bloom_js_native/ui.dart`, separate from the core `bloom_js_native.dart` entry point.
+* **BREAKING:** `SvgPath.strokeWidth` accepts `num` values.
+* Browser startup can use `mountApp` when the same entry point receives either server-rendered HTML or an empty client target.
 
 ### Fixed
 * `renderForTest` queries (`getByTestId`, `getByText`, `getByTag`) now traverse `Memo` boundaries, evaluating the builder with the current dependency value, so elements rendered inside a `Memo` can be found and driven with `fireEvent` in VM tests.
+* Hydration reports mismatches at their deepest recoverable boundary while preserving adopted DOM, and correctly handles SVG namespaces and text nodes.
+* Development output uses the safe `.dart_tool/bloom/dev` directory; static-site builds run through the CLI's SSG path.
 
 ## 0.3.8 - 2026-09-25
 

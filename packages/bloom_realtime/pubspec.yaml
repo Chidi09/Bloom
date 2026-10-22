@@ -1,6 +1,6 @@
 name: bloom_realtime
 description: Real-time pub/sub layer for Bloom server + client apps (channels, broadcast, presence, query invalidation bridge).
-version: 0.2.1
+version: 0.2.2
 repository: https://github.com/Chidi09/Bloom
 issue_tracker: https://github.com/Chidi09/Bloom/issues
 topics:
@@ -12,7 +12,7 @@ environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
-  bloom_js_native: ^0.3.0
+  bloom_js_native: '>=0.3.0 <0.5.0'
   bloom_security: ^0.2.0
 
 dev_dependencies:

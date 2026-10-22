@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.0 - 2026-10-22
+
+### Added
+* `bloom format --css` opts into formatting CSS inside Dart strings; CSS formatting preserves declaration values and property tokens.
+* `bloom js build --ssg` runs `bin/ssg.dart` after the production bundle is built.
+* `bloom lint` adds `conflicting_classes` and `missing_stylesheet` rules and more precise `untracked_signal_read` detection. Valid local stylesheet links under `web/` and remote stylesheet links are allowed.
+* `bloom add` follows re-exported TypeScript declaration files when generating typed bindings.
+* JS Native scaffolds include `lib/app.dart`, a `mountApp` browser entry point, `bin/ssg.dart`, Dart SDK constraint `^3.6.0`, and project-specific `AGENTS.md` guidance.
+* The CLI version constant is shared by `--version` and `bloom doctor`.
+
+### Changed
+* CSS formatting is opt-in; `bloom format` continues to format Dart by default.
+* The JS development dashboard labels a route-less project as a single-page app.
+
+### Fixed
+* `bloom js dev` writes its development bundle under `.dart_tool/bloom/dev` and keeps the watch/rebuild loop active after source changes.
+
 ## 0.7.6 - 2026-09-25
 
 ### Added

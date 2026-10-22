@@ -1,3 +1,8 @@
+# 0.2.2
+
+- Widened the `bloom_js_native` constraint to also allow 0.4.x, so this package
+  can be used with `bloom_js_native` 0.4.0. No functional changes.
+
 # 0.2.1
 
 - **Fixed: `bloom_realtime` could not be installed alongside `bloom_server` or

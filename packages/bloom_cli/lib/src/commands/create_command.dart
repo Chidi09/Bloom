@@ -287,7 +287,7 @@ class CreateCommand extends Command<int> {
       BloomTemplates.jsNativePubspec(
         name: appName,
         description: description,
-        bloomJsNativeVersion: '0.3.0',
+        bloomJsNativeVersion: '0.4.0',
       ),
     );
     File(p.join(targetDir.path, 'web', 'index.html')).writeAsStringSync(
