@@ -45,7 +45,7 @@ commands:
           command: |
             set -euo pipefail
             curl -fsSL https://storage.googleapis.com/dart-archive/channels/stable/release/latest/VERSION \
-              | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' > /tmp/dart-sdk.key
+              | jq -r .version > /tmp/dart-sdk.key
             find packages -maxdepth 2 \( -name 'pubspec.yaml' -o -name 'pubspec.lock' \) | LC_ALL=C sort \
               | xargs sha256sum > /tmp/pub-cache.key
             echo "Dart SDK target: $(cat /tmp/dart-sdk.key)"
@@ -57,6 +57,10 @@ commands:
           command: |
             set -euo pipefail
             if [[ ! -x "$HOME/dart-sdk/bin/dart" ]]; then
+              if ! command -v unzip >/dev/null 2>&1; then
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq --no-install-recommends unzip
+              fi
               version=$(cat /tmp/dart-sdk.key)
               curl -fsSL "https://storage.googleapis.com/dart-archive/channels/stable/release/${version}/sdk/dartsdk-linux-x64-release.zip" -o /tmp/dartsdk.zip
               unzip -q -o /tmp/dartsdk.zip -d "$HOME"
@@ -64,6 +68,10 @@ commands:
             fi
             echo 'export PATH="$HOME/dart-sdk/bin:$HOME/.pub-cache/bin:$HOME/.bun/bin:$PATH"' >> "$BASH_ENV"
             "$HOME/dart-sdk/bin/dart" --version
+      - save_cache:
+          key: dart-sdk-v1-{{ checksum "/tmp/dart-sdk.key" }}
+          paths:
+            - ~/dart-sdk
       - restore_cache:
           keys:
             - pub-cache-v1-{{ checksum "/tmp/pub-cache.key" }}
@@ -121,7 +129,7 @@ commands:
 jobs:
   js-native-fast:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
     steps:
       - checkout
       - path-guard:
@@ -205,7 +213,9 @@ jobs:
             echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} files: ${test_files[*]}"
             status=0
             dart test -p chrome -c dart2js -j 1 --file-reporter="json:test-results/dart2js.json" "${test_files[@]}" || status=$?
-            python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2js.json test-results/dart2js.xml --suite-name bloom_js_native_dart2js
+            if command -v python3 >/dev/null 2>&1; then
+              python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2js.json test-results/dart2js.xml --suite-name bloom_js_native_dart2js
+            fi
             exit "$status"
       - save-pub-cache
       - store_test_results:
@@ -236,7 +246,9 @@ jobs:
             echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} files: ${test_files[*]}"
             status=0
             dart test -p chrome -c dart2wasm -j 1 --file-reporter="json:test-results/dart2wasm.json" "${test_files[@]}" || status=$?
-            python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2wasm.json test-results/dart2wasm.xml --suite-name bloom_js_native_dart2wasm
+            if command -v python3 >/dev/null 2>&1; then
+              python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2wasm.json test-results/dart2wasm.xml --suite-name bloom_js_native_dart2wasm
+            fi
             exit "$status"
       - save-pub-cache
       - store_test_results:
@@ -271,7 +283,9 @@ jobs:
             echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} test files"
             status=0
             dart test -j 1 --file-reporter="json:test-results/cli.json" "${test_files[@]}" || status=$?
-            python3 ../../tool/ci/dart_json_to_junit.py test-results/cli.json test-results/cli.xml --suite-name bloom_cli
+            if command -v python3 >/dev/null 2>&1; then
+              python3 ../../tool/ci/dart_json_to_junit.py test-results/cli.json test-results/cli.xml --suite-name bloom_cli
+            fi
             exit "$status"
       - save-pub-cache
       - store_test_results:
@@ -279,7 +293,7 @@ jobs:
 
   bloom-db:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
       - image: postgres:16-alpine
         environment:
           POSTGRES_USER: postgres
@@ -338,24 +352,24 @@ jobs:
 
   server-web-packages:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
     steps:
       - checkout
       - path-guard:
-          pattern: '^packages/bloom_(js_native|seo|server|errors|i18n|rest|security|validate|realtime|storage)/'
+          pattern: '^packages/bloom_(js_native|seo|server|errors|i18n|security|validate|realtime|storage)/'
       - setup-dart
       - run:
           name: Analyze and test server/web Dart packages
           command: |
             set -euo pipefail
             mkdir -p test-results/server-web
-            for pkg in bloom_seo bloom_server bloom_errors bloom_i18n bloom_rest bloom_security bloom_validate bloom_realtime bloom_storage; do
+            for pkg in bloom_seo bloom_server bloom_errors bloom_i18n bloom_security bloom_validate bloom_realtime bloom_storage; do
               echo "=== $pkg ==="
               (
                 cd "packages/$pkg"
                 dart pub get --offline || dart pub get
                 dart analyze
-                if compgen -G "test/*_test.dart" >/dev/null || compgen -G "test/**/*_test.dart" >/dev/null; then
+                if [[ -d test ]] && find test -name '*_test.dart' -print -quit | grep -q .; then
                   status=0
                   dart test -p vm -j "$(nproc)" --file-reporter="json:../../test-results/server-web/${pkg}.json" || status=$?
                   python3 ../../tool/ci/dart_json_to_junit.py "../../test-results/server-web/${pkg}.json" "../../test-results/server-web/${pkg}.xml" --suite-name "$pkg" --suite-prefix "packages/$pkg"
@@ -369,12 +383,12 @@ jobs:
 
   server-data-packages:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
       - image: redis:7-alpine
     steps:
       - checkout
       - path-guard:
-          pattern: '^packages/bloom_(db|admin|auth_server|cache|jobs|mail|migrate)/'
+          pattern: '^packages/bloom_(js_native|server|db|admin|auth_server|cache|jobs|mail|migrate|rest)/'
       - setup-dart
       - setup-sqlite
       - run:
@@ -382,13 +396,13 @@ jobs:
           command: |
             set -euo pipefail
             mkdir -p test-results/server-data
-            for pkg in bloom_admin bloom_auth_server bloom_cache bloom_jobs bloom_mail bloom_migrate; do
+            for pkg in bloom_admin bloom_auth_server bloom_cache bloom_jobs bloom_mail bloom_migrate bloom_rest; do
               echo "=== $pkg ==="
               (
                 cd "packages/$pkg"
                 dart pub get --offline || dart pub get
                 dart analyze
-                if compgen -G "test/*_test.dart" >/dev/null || compgen -G "test/**/*_test.dart" >/dev/null; then
+                if [[ -d test ]] && find test -name '*_test.dart' -print -quit | grep -q .; then
                   status=0
                   dart test -p vm -j 2 --file-reporter="json:../../test-results/server-data/${pkg}.json" || status=$?
                   python3 ../../tool/ci/dart_json_to_junit.py "../../test-results/server-data/${pkg}.json" "../../test-results/server-data/${pkg}.xml" --suite-name "$pkg" --suite-prefix "packages/$pkg"
@@ -402,7 +416,7 @@ jobs:
 
   publish-dry-run:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
     steps:
       - checkout
       - path-guard:
@@ -413,6 +427,14 @@ jobs:
           command: |
             set -euo pipefail
             pkgs=(bloom_js_native bloom_cli bloom_db bloom_server bloom_seo)
+            for pkg in "${pkgs[@]}"; do
+              (
+                cd "packages/$pkg"
+                dart pub get --offline || dart pub get
+              )
+            done
+            git checkout -- packages/*/pubspec.lock 2>/dev/null || true
+
             pids=()
             logs=()
             for pkg in "${pkgs[@]}"; do
@@ -420,7 +442,6 @@ jobs:
               logs+=("$log")
               (
                 cd "packages/$pkg"
-                dart pub get --offline || dart pub get
                 dart pub publish --dry-run
               ) >"$log" 2>&1 &
               pids+=($!)
@@ -448,7 +469,7 @@ jobs:
 
   auto-merge:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.12
     steps:
       - checkout
       - run:
