@@ -3,10 +3,283 @@ version: 2.1
 orbs:
   browser-tools: circleci/browser-tools@1.5.3
 
+commands:
+  path-guard:
+    description: Halt non-main builds early when changed files do not touch this job's scope
+    parameters:
+      pattern:
+        type: string
+    steps:
+      - run:
+          name: Check if job scope is affected
+          command: |
+            set -euo pipefail
+            if [[ "${CIRCLE_BRANCH:-}" == "main" ]]; then
+              echo "Running full suite on main"
+              exit 0
+            fi
+            git fetch --no-tags --depth=50 origin main 2>/dev/null || true
+            if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+              echo "origin/main unavailable; running job"
+              exit 0
+            fi
+            changed=$(git diff --name-only origin/main...HEAD || true)
+            if [[ -z "$changed" ]]; then
+              echo "No diff against origin/main; running job"
+              exit 0
+            fi
+            scope='<< parameters.pattern >>|^\.circleci/config\.yml$|^tool/ci/'
+            if echo "$changed" | grep -Eq "$scope"; then
+              echo "Matched scope ($scope):"
+              echo "$changed" | grep -E "$scope"
+            else
+              echo "No files matched ($scope); halting job early."
+              circleci-agent step halt
+            fi
+
+  setup-dart:
+    description: Install cached Dart SDK from GCS and restore ~/.pub-cache
+    steps:
+      - run:
+          name: Compute Dart SDK and pubspec cache keys
+          command: |
+            set -euo pipefail
+            curl -fsSL https://storage.googleapis.com/dart-archive/channels/stable/release/latest/VERSION \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' > /tmp/dart-sdk.key
+            find packages -maxdepth 2 \( -name 'pubspec.yaml' -o -name 'pubspec.lock' \) | LC_ALL=C sort \
+              | xargs sha256sum > /tmp/pub-cache.key
+            echo "Dart SDK target: $(cat /tmp/dart-sdk.key)"
+      - restore_cache:
+          keys:
+            - dart-sdk-v1-{{ checksum "/tmp/dart-sdk.key" }}
+      - run:
+          name: Install Dart SDK if not cached
+          command: |
+            set -euo pipefail
+            if [[ ! -x "$HOME/dart-sdk/bin/dart" ]]; then
+              version=$(cat /tmp/dart-sdk.key)
+              curl -fsSL "https://storage.googleapis.com/dart-archive/channels/stable/release/${version}/sdk/dartsdk-linux-x64-release.zip" -o /tmp/dartsdk.zip
+              unzip -q -o /tmp/dartsdk.zip -d "$HOME"
+              rm -f /tmp/dartsdk.zip
+            fi
+            echo 'export PATH="$HOME/dart-sdk/bin:$HOME/.pub-cache/bin:$HOME/.bun/bin:$PATH"' >> "$BASH_ENV"
+            "$HOME/dart-sdk/bin/dart" --version
+      - restore_cache:
+          keys:
+            - pub-cache-v1-{{ checksum "/tmp/pub-cache.key" }}
+            - pub-cache-v1-
+
+  save-pub-cache:
+    description: Persist ~/.pub-cache for faster subsequent builds
+    steps:
+      - save_cache:
+          key: pub-cache-v1-{{ checksum "/tmp/pub-cache.key" }}
+          paths:
+            - ~/.pub-cache
+
+  setup-bun:
+    description: Install cached Bun binary for npm and Tailwind CLI integration tests
+    steps:
+      - restore_cache:
+          keys:
+            - bun-v1
+      - run:
+          name: Ensure Bun is installed
+          command: |
+            set -euo pipefail
+            if [[ ! -x "$HOME/.bun/bin/bun" ]]; then
+              curl -fsSL https://bun.sh/install | bash
+            fi
+            "$HOME/.bun/bin/bun" --version
+      - save_cache:
+          key: bun-v1
+          paths:
+            - ~/.bun
+
+  setup-chrome:
+    description: Install Chrome and export CHROME_EXECUTABLE
+    steps:
+      - browser-tools/install-chrome
+      - run:
+          name: Export CHROME_EXECUTABLE
+          command: |
+            chrome_bin=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)
+            echo "export CHROME_EXECUTABLE='$chrome_bin'" >> "$BASH_ENV"
+            "$chrome_bin" --version
+
+  setup-sqlite:
+    description: Install libsqlite3-dev for sqlite3 FFI tests
+    steps:
+      - run:
+          name: Ensure libsqlite3-dev is installed
+          command: |
+            if ! ldconfig -p | grep -q 'libsqlite3\.so '; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq --no-install-recommends libsqlite3-dev
+            fi
+
 jobs:
-  js-native:
+  js-native-fast:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/bloom_js_native/'
+      - setup-dart
+      - run:
+          name: Analyze, check reference, and run VM tests
+          command: |
+            set -euo pipefail
+            cd packages/bloom_js_native
+            mkdir -p test-results
+            dart pub get --offline || dart pub get
+            dart analyze
+            dart run tool/generate_reference.dart --check
+            status=0
+            dart test -p vm -j "$(nproc)" --file-reporter="json:test-results/vm.json" || status=$?
+            python3 ../../tool/ci/dart_json_to_junit.py test-results/vm.json test-results/vm.xml --suite-name bloom_js_native_vm
+            exit "$status"
+      - run:
+          name: Check JS, Wasm, and i18n bundle budgets in parallel
+          command: |
+            set -euo pipefail
+            cd packages/bloom_js_native
+            build_js=$(mktemp "${TMPDIR:-/tmp}/bloom-js-native.XXXXXX")
+            build_wasm=$(mktemp "${TMPDIR:-/tmp}/bloom-js-native-wasm.XXXXXX.wasm")
+            build_mjs="${build_wasm%.wasm}.mjs"
+            build_support="${build_wasm%.wasm}.support.js"
+            build_i18n_js=$(mktemp "${TMPDIR:-/tmp}/bloom-js-native-i18n.XXXXXX")
+            trap 'rm -f "$build_js" "$build_js.map" "$build_js.deps" "$build_wasm" "$build_wasm.map" "$build_mjs" "$build_support" "$build_i18n_js" "$build_i18n_js.map" "$build_i18n_js.deps"' EXIT
+
+            dart compile js -O4 -o "$build_js" example/main.dart &
+            pid_js=$!
+            dart compile wasm -O4 -o "$build_wasm" example/main.dart &
+            pid_wasm=$!
+            dart compile js -O4 -o "$build_i18n_js" tool/i18n_size.dart &
+            pid_i18n=$!
+
+            wait "$pid_js"
+            wait "$pid_wasm"
+            wait "$pid_i18n"
+
+            gzip_bytes=$(gzip -c "$build_js" | wc -c | tr -d '[:space:]')
+            wasm_gzip_bytes=$(gzip -c "$build_wasm" | wc -c | tr -d '[:space:]')
+            mjs_gzip_bytes=$(gzip -c "$build_mjs" | wc -c | tr -d '[:space:]')
+            total_wasm_gzip=$((wasm_gzip_bytes + mjs_gzip_bytes))
+            i18n_gzip_bytes=$(gzip -c "$build_i18n_js" | wc -c | tr -d '[:space:]')
+
+            echo "Production JS: $gzip_bytes bytes gzip (budget 51200)"
+            echo "Production Wasm: $total_wasm_gzip bytes gzip ($wasm_gzip_bytes wasm + $mjs_gzip_bytes mjs, budget 51200)"
+            echo "Localized JS: $i18n_gzip_bytes bytes gzip (budget 102400)"
+
+            ((gzip_bytes <= 51200))
+            ((total_wasm_gzip <= 51200))
+            ((i18n_gzip_bytes <= 102400))
+      - save-pub-cache
+      - store_test_results:
+          path: packages/bloom_js_native/test-results
+
+  js-native-browser-dart2js:
     docker:
       - image: cimg/node:lts-browsers
+    parallelism: 3
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/bloom_js_native/'
+      - setup-dart
+      - setup-chrome
+      - run:
+          name: Run timing-split Chrome tests (dart2js)
+          command: |
+            set -euo pipefail
+            cd packages/bloom_js_native
+            mkdir -p test-results
+            dart pub get --offline || dart pub get
+            mapfile -t test_files < <(grep -l "^@TestOn('browser')" test/*_test.dart | LC_ALL=C sort | circleci tests split --split-by=timings)
+            if ((${#test_files[@]} == 0)); then
+              echo "No browser tests assigned to this worker"
+              exit 0
+            fi
+            echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} files: ${test_files[*]}"
+            status=0
+            dart test -p chrome -c dart2js -j 1 --file-reporter="json:test-results/dart2js.json" "${test_files[@]}" || status=$?
+            python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2js.json test-results/dart2js.xml --suite-name bloom_js_native_dart2js
+            exit "$status"
+      - save-pub-cache
+      - store_test_results:
+          path: packages/bloom_js_native/test-results
+
+  js-native-browser-wasm:
+    docker:
+      - image: cimg/node:lts-browsers
+    parallelism: 3
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/bloom_js_native/'
+      - setup-dart
+      - setup-chrome
+      - run:
+          name: Run timing-split Chrome tests (dart2wasm)
+          command: |
+            set -euo pipefail
+            cd packages/bloom_js_native
+            mkdir -p test-results
+            dart pub get --offline || dart pub get
+            mapfile -t test_files < <(grep -l "^@TestOn('browser')" test/*_test.dart | LC_ALL=C sort | circleci tests split --split-by=timings)
+            if ((${#test_files[@]} == 0)); then
+              echo "No browser tests assigned to this worker"
+              exit 0
+            fi
+            echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} files: ${test_files[*]}"
+            status=0
+            dart test -p chrome -c dart2wasm -j 1 --file-reporter="json:test-results/dart2wasm.json" "${test_files[@]}" || status=$?
+            python3 ../../tool/ci/dart_json_to_junit.py test-results/dart2wasm.json test-results/dart2wasm.xml --suite-name bloom_js_native_dart2wasm
+            exit "$status"
+      - save-pub-cache
+      - store_test_results:
+          path: packages/bloom_js_native/test-results
+
+  bloom-cli:
+    docker:
+      - image: cimg/node:lts-browsers
+    parallelism: 4
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/(bloom_cli|bloom_js_native)/'
+      - setup-dart
+      - setup-bun
+      - setup-chrome
+      - run:
+          name: Analyze and run timing-split bloom_cli tests
+          command: |
+            set -euo pipefail
+            cd packages/bloom_cli
+            mkdir -p test-results
+            dart pub get --offline || dart pub get
+            if [[ "${CIRCLE_NODE_INDEX}" == "0" ]]; then
+              dart analyze
+            fi
+            mapfile -t test_files < <(find test -name '*_test.dart' | sed 's|^\./||' | LC_ALL=C sort | circleci tests split --split-by=timings)
+            if ((${#test_files[@]} == 0)); then
+              echo "No test files assigned to this worker"
+              exit 0
+            fi
+            echo "Worker ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running ${#test_files[@]} test files"
+            status=0
+            dart test -j 1 --file-reporter="json:test-results/cli.json" "${test_files[@]}" || status=$?
+            python3 ../../tool/ci/dart_json_to_junit.py test-results/cli.json test-results/cli.xml --suite-name bloom_cli
+            exit "$status"
+      - save-pub-cache
+      - store_test_results:
+          path: packages/bloom_cli/test-results
+
+  bloom-db:
+    docker:
+      - image: cimg/base:stable
       - image: postgres:16-alpine
         environment:
           POSTGRES_USER: postgres
@@ -14,19 +287,18 @@ jobs:
           POSTGRES_DB: bloom_db_test
     steps:
       - checkout
+      - path-guard:
+          pattern: '^packages/bloom_db(_generator)?/'
+      - setup-dart
+      - setup-sqlite
       - run:
-          name: Install Dart SDK
+          name: Install PostgreSQL client and wait for database
           command: |
-            sudo apt-get update
-            sudo apt-get install -y apt-transport-https gpg
-            wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/dart.gpg
-            echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | sudo tee /etc/apt/sources.list.d/dart_stable.list
-            sudo apt-get update
-            sudo apt-get install -y dart postgresql-client
-            dart --version
-      - run:
-          name: Wait for PostgreSQL service
-          command: |
+            set -euo pipefail
+            if ! command -v pg_isready >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq --no-install-recommends postgresql-client
+            fi
             for attempt in $(seq 1 60); do
               if pg_isready -h localhost -p 5432 -U postgres -d bloom_db_test; then
                 exit 0
@@ -36,51 +308,144 @@ jobs:
             echo "PostgreSQL did not become ready within 60 seconds" >&2
             exit 1
       - run:
-          name: Install Bun for npm and Tailwind CLI integration tests
+          name: Analyze and test bloom_db and bloom_db_generator
           command: |
-            npm install --global bun
-            bun --version
-            command -v bunx
-      - browser-tools/install-chrome
+            set -euo pipefail
+            mkdir -p test-results/db
+
+            (
+              cd packages/bloom_db
+              dart pub get --offline || dart pub get
+              dart analyze
+              status=0
+              BLOOM_TEST_POSTGRES=1 dart test -p vm -j 1 --file-reporter="json:../../test-results/db/bloom_db.json" || status=$?
+              python3 ../../tool/ci/dart_json_to_junit.py ../../test-results/db/bloom_db.json ../../test-results/db/bloom_db.xml --suite-name bloom_db --suite-prefix packages/bloom_db
+              exit "$status"
+            )
+
+            (
+              cd packages/bloom_db_generator
+              dart pub get --offline || dart pub get
+              dart analyze
+              status=0
+              dart test -p vm -j "$(nproc)" --file-reporter="json:../../test-results/db/bloom_db_generator.json" || status=$?
+              python3 ../../tool/ci/dart_json_to_junit.py ../../test-results/db/bloom_db_generator.json ../../test-results/db/bloom_db_generator.xml --suite-name bloom_db_generator --suite-prefix packages/bloom_db_generator
+              exit "$status"
+            )
+      - save-pub-cache
+      - store_test_results:
+          path: test-results/db
+
+  server-web-packages:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/bloom_(js_native|seo|server|errors|i18n|rest|security|validate|realtime|storage)/'
+      - setup-dart
       - run:
-          name: JS Native analysis, tests, and size budgets
-          command: bash packages/bloom_js_native/tool/check.sh
-      - run:
-          name: CLI analysis and full test suite
+          name: Analyze and test server/web Dart packages
           command: |
-            cd packages/bloom_cli
-            dart pub get
-            dart analyze
-            dart test -j 1
+            set -euo pipefail
+            mkdir -p test-results/server-web
+            for pkg in bloom_seo bloom_server bloom_errors bloom_i18n bloom_rest bloom_security bloom_validate bloom_realtime bloom_storage; do
+              echo "=== $pkg ==="
+              (
+                cd "packages/$pkg"
+                dart pub get --offline || dart pub get
+                dart analyze
+                if compgen -G "test/*_test.dart" >/dev/null || compgen -G "test/**/*_test.dart" >/dev/null; then
+                  status=0
+                  dart test -p vm -j "$(nproc)" --file-reporter="json:../../test-results/server-web/${pkg}.json" || status=$?
+                  python3 ../../tool/ci/dart_json_to_junit.py "../../test-results/server-web/${pkg}.json" "../../test-results/server-web/${pkg}.xml" --suite-name "$pkg" --suite-prefix "packages/$pkg"
+                  exit "$status"
+                fi
+              )
+            done
+      - save-pub-cache
+      - store_test_results:
+          path: test-results/server-web
+
+  server-data-packages:
+    docker:
+      - image: cimg/base:stable
+      - image: redis:7-alpine
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/bloom_(db|admin|auth_server|cache|jobs|mail|migrate)/'
+      - setup-dart
+      - setup-sqlite
       - run:
-          name: Database analysis and SQLite/PostgreSQL integration suite
+          name: Analyze and test data-backed server packages
           command: |
-            cd packages/bloom_db
-            dart pub get
-            dart analyze
-            BLOOM_TEST_POSTGRES=1 dart test -p vm -j 1
+            set -euo pipefail
+            mkdir -p test-results/server-data
+            for pkg in bloom_admin bloom_auth_server bloom_cache bloom_jobs bloom_mail bloom_migrate; do
+              echo "=== $pkg ==="
+              (
+                cd "packages/$pkg"
+                dart pub get --offline || dart pub get
+                dart analyze
+                if compgen -G "test/*_test.dart" >/dev/null || compgen -G "test/**/*_test.dart" >/dev/null; then
+                  status=0
+                  dart test -p vm -j 2 --file-reporter="json:../../test-results/server-data/${pkg}.json" || status=$?
+                  python3 ../../tool/ci/dart_json_to_junit.py "../../test-results/server-data/${pkg}.json" "../../test-results/server-data/${pkg}.xml" --suite-name "$pkg" --suite-prefix "packages/$pkg"
+                  exit "$status"
+                fi
+              )
+            done
+      - save-pub-cache
+      - store_test_results:
+          path: test-results/server-data
+
+  publish-dry-run:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - path-guard:
+          pattern: '^packages/'
+      - setup-dart
       - run:
-          name: Server analysis and test suite
+          name: Validate public Dart package archives in parallel
           command: |
-            cd packages/bloom_server
-            dart pub get
-            dart analyze
-            dart test -p vm -j 1
-      - run:
-          name: SEO analysis and test suite
-          command: |
-            cd packages/bloom_seo
-            dart pub get
-            dart analyze
-            dart test -p vm -j 1
-      - run:
-          name: Validate public Dart package archives
-          command: |
-            for package in bloom_js_native bloom_cli bloom_db bloom_server bloom_seo; do
-              (cd "packages/$package" && dart pub publish --dry-run)
+            set -euo pipefail
+            pkgs=(bloom_js_native bloom_cli bloom_db bloom_server bloom_seo)
+            pids=()
+            logs=()
+            for pkg in "${pkgs[@]}"; do
+              log=$(mktemp "${TMPDIR:-/tmp}/pub-dry-${pkg}.XXXXXX")
+              logs+=("$log")
+              (
+                cd "packages/$pkg"
+                dart pub get --offline || dart pub get
+                dart pub publish --dry-run
+              ) >"$log" 2>&1 &
+              pids+=($!)
             done
 
+            failed=0
+            for i in "${!pkgs[@]}"; do
+              echo "=== ${pkgs[$i]} ==="
+              if ! wait "${pids[$i]}"; then
+                failed=1
+              fi
+              cat "${logs[$i]}"
+              rm -f "${logs[$i]}"
+            done
+            exit "$failed"
+      - save-pub-cache
+
 workflows:
-  js-native:
+  ci:
     jobs:
-      - js-native
+      - js-native-fast
+      - js-native-browser-dart2js
+      - js-native-browser-wasm
+      - bloom-cli
+      - bloom-db
+      - server-web-packages
+      - server-data-packages
+      - publish-dry-run
