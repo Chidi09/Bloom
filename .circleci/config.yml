@@ -446,6 +446,15 @@ jobs:
           name: All CircleCI jobs passed
           command: echo "All CircleCI checks passed"
 
+  auto-merge:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Squash-merge PR if eligible
+          command: python3 tool/ci/circleci_automerge.py
+
 workflows:
   ci:
     jobs:
@@ -467,3 +476,9 @@ workflows:
             - server-web-packages
             - server-data-packages
             - publish-dry-run
+      - auto-merge:
+          requires:
+            - ci-pass
+          filters:
+            branches:
+              ignore: main
