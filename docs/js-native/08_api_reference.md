@@ -63,16 +63,36 @@ Groups sibling nodes without emitting a wrapper DOM container.
 
 ## 3. Browser Mounting (`package:bloom_js_native/browser.dart`)
 
+### `BloomMountHandle mountApp(BloomNode root, String selector)`
+Default browser entry point. Hydrates pre-rendered SSR HTML in place when present, or mounts into an empty target container.
+
 ### `BloomMountHandle mount(BloomNode root, String selector)`
 Mounts an AST descriptor tree onto the target DOM selector (e.g. `'#app'`).
 - `handle.unmount()`: Cleans up DOM and disposes all active reactive effect subscriptions.
 
 ### `BloomMountHandle hydrate(BloomNode root, String selector)`
-Hydrates server-rendered markup at `selector`. Reuses existing DOM nodes in
-place (attaching listeners, patching only what differs) for purely static
-trees; falls back to a full `mount()` remount for any tree containing a
-reactive node or a structural mismatch against the actual DOM. See
+Hydrates server-rendered markup at `selector` in place, reusing static and reactive SSR DOM nodes (`Live`, `Memo`, `Show`, keyed `ForEach`, `ErrorBoundary`, `Suspense`), attaching event listeners and effects, and recovering mismatches at the smallest marker-delimited boundary. See
 [05 — SSR & SSG §3](05_server_side_rendering_and_ssg.md#3-hydration--hydrate--hydrateelement).
+
+### `T bloomHmrState<T>(String key, T Function() create)`
+Preserves non-signal state across DDC hot remounts under `key` (zero overhead outside dev hot reload).
+
+### Additional Entry Points
+- `package:bloom_js_native/ui.dart` — shadcn-style UI primitives, composites, and `uiTokensCss` / `cn()`
+- `package:bloom_js_native/tags.dart` — concise lowercase HTML builders (`import '.../tags.dart' as h;`)
+- `package:bloom_js_native/widgets.dart` — optional Flutter-shaped layout helpers (`Row`, `Column`, `Stack`, `StyledText`)
+- `package:bloom_js_native/ssg.dart` — `generateStaticSite` static site generator (VM-only)
+
+### Page-Level ISR (`BloomRevalidateConfig`, `BloomIsrRenderer`)
+- `BloomRevalidateConfig.ssr()`, `.ssg()`, `.isr(revalidate:, tags:, varyHeaders:, varyQueryParams:)` — attached via `BloomRoute(..., revalidate: ...)`
+- `BloomIsrRenderer` — stale-while-revalidate HTML renderer with `MemoryBloomIsrStore`, deduplicated background regeneration, `revalidatePath()`, and `revalidateTag()`
+
+### Head, Routing, Transitions & Typed Attributes
+- `Title`, `Meta`, `HeadLink`, `StylesheetLink`, `DocumentScript` — hoisted into `<head>` by `renderToDocument()` and SSG
+- `RouterLink`, `interceptLinks()` — router-aware anchor navigation
+- `Show(enter:, exit:)`, `Reveal`, `InView`, `revealCss` — enter/exit and viewport reveal transitions
+- `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, `classIf` — in-place reactive attribute/class/style patching
+- `InputType`, `ButtonType`, `ImageLoading`, `ImageDecoding`, `FetchPriority`, `Dl`, `Dt`, `Dd`
 
 ### `bool bloomDevErrorOverlayEnabled`
 When `true`, an uncaught mount-time error renders as a full-screen dev error

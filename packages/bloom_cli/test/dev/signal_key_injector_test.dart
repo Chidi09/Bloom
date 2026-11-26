@@ -1038,5 +1038,57 @@ void main() {
           SignalKeyInjector.injectKeys(badSource, relativePath: 'lib/bad.dart');
       expect(output, equals(badSource));
     });
+
+    test('auto-keys useReducer calls and preserves explicit key', () {
+      const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+int inc(int s, String a) => s + 1;
+
+final top = useReducer(inc, 0);
+final explicit = useReducer(inc, 0, key: 'custom-reducer');
+''';
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
+      expect(
+        output,
+        contains("useReducer(inc, 0, key: 'lib/main.dart#top#0')"),
+      );
+      expect(
+        output,
+        contains("useReducer(inc, 0, key: 'custom-reducer')"),
+      );
+    });
+
+    test('scopes variable-initializer calls to same-file signal-bearing factories',
+        () {
+      const source = '''
+import 'package:bloom_js_native/bloom_js_native.dart';
+
+class Store {
+  final count = signal(0);
+}
+
+Store makeStore() => Store();
+
+void main() {
+  final a = makeStore();
+  final b = makeStore();
+}
+''';
+      final output =
+          SignalKeyInjector.injectKeys(source, relativePath: 'lib/main.dart');
+      expect(
+        output,
+        contains(
+            "final a = bloomHmrScope('lib/main.dart#main#a#makeStore', () => (makeStore()));"),
+      );
+      expect(
+        output,
+        contains(
+            "final b = bloomHmrScope('lib/main.dart#main#b#makeStore', () => (makeStore()));"),
+      );
+      expect(output, contains('Store makeStore() => Store();'));
+    });
   });
 }

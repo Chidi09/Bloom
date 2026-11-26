@@ -79,6 +79,39 @@ T bloomHmrScope<T>(String scopeId, T Function() callback) {
   return runWithBloomSignalScope(scopeId, callback);
 }
 
+/// Preserves a non-signal value of type [T] across DDC hot remounts under [key].
+///
+/// Outside an active browser hot-reload session (including production builds and
+/// SSR), this calls [create] directly with zero overhead.
+T bloomHmrState<T>(String key, T Function() create) {
+  if (!isBrowserHotReloadActive()) return create();
+
+  final scope = currentBloomSignalScope;
+  final scopedKey = scope == null ? key : '$scope|$key';
+
+  try {
+    final registry = getBrowserSignalRegistry();
+    if (registry == null) return create();
+
+    if (scope != null) {
+      registerBloomScopedSignal(scope, scopedKey);
+    }
+
+    if (registry.containsKey(scopedKey)) {
+      final stored = registry[scopedKey];
+      if (stored is T) {
+        return stored;
+      }
+    }
+
+    final value = create();
+    storeBrowserSignalValue(registry, scopedKey, value);
+    return value;
+  } catch (_) {
+    return create();
+  }
+}
+
 /// Runs [compute] reactively and returns a function that stops the effect.
 ///
 /// While Bloom DDC hot-reload tracking is active, the returned cleanup is also

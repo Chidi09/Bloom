@@ -42,12 +42,12 @@ void main() {
     open.value = true;
     value.value = 'after';
 
-    expect(identical(container.firstElementChild, input), isTrue);
+    expect(container.firstElementChild, equals(input));
     expect(input.className, 'field is-open');
     expect(input.getAttribute('aria-expanded'), 'true');
     expect(input.hasAttribute('disabled'), isTrue);
     expect(input.value, 'after');
-    expect(web.document.activeElement, same(input));
+    expect(web.document.activeElement, equals(input));
 
     handle.dispose();
     expect(() => open.value = false, returnsNormally);
@@ -73,7 +73,7 @@ void main() {
     active.value = true;
 
     expect(builds, 1);
-    expect(identical(container.querySelector('.tab'), tab), isTrue);
+    expect(container.querySelector('.tab'), equals(tab));
     expect(tab.className, 'tab active');
     expect(tab.getAttribute('aria-selected'), 'true');
   });
@@ -111,7 +111,7 @@ void main() {
     addTearDown(handle.dispose);
 
     open.value = true;
-    expect(container.querySelector('button'), same(before));
+    expect(container.querySelector('button'), equals(before));
     expect(before!.getAttribute('aria-expanded'), 'true');
     expect(before.className, 'is-open');
   });

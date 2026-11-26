@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 dart pub get
 dart analyze
+dart run tool/generate_reference.dart --check
 dart test -p vm
 
 browser_tests=()
@@ -37,9 +38,14 @@ if [[ "$browser_platform" == "chrome" ]]; then
   export CHROME_EXECUTABLE
 fi
 dart test -p "$browser_platform" -j 1 "${browser_tests[@]}"
+dart test -p "$browser_platform" -c dart2wasm -j 1 "${browser_tests[@]}"
 
 build_js=$(mktemp "${TMPDIR:-/tmp}/bloom-js-native.XXXXXX")
-trap 'rm -f "$build_js" "$build_js.map" "$build_js.deps"' EXIT
+build_wasm=$(mktemp "${TMPDIR:-/tmp}/bloom-js-native-wasm.XXXXXX.wasm")
+build_mjs="${build_wasm%.wasm}.mjs"
+build_support="${build_wasm%.wasm}.support.js"
+trap 'rm -f "$build_js" "$build_js.map" "$build_js.deps" "$build_wasm" "$build_wasm.map" "$build_mjs" "$build_support"' EXIT
+
 dart compile js -O4 -o "$build_js" example/main.dart
 gzip_bytes=$(gzip -c "$build_js" | wc -c | tr -d '[:space:]')
 if ((gzip_bytes > 51200)); then
@@ -47,6 +53,16 @@ if ((gzip_bytes > 51200)); then
   exit 1
 fi
 echo "Production example: $gzip_bytes bytes gzip (50 KiB budget)"
+
+dart compile wasm -O4 -o "$build_wasm" example/main.dart
+wasm_gzip_bytes=$(gzip -c "$build_wasm" | wc -c | tr -d '[:space:]')
+mjs_gzip_bytes=$(gzip -c "$build_mjs" | wc -c | tr -d '[:space:]')
+total_wasm_gzip=$((wasm_gzip_bytes + mjs_gzip_bytes))
+if ((total_wasm_gzip > 51200)); then
+  echo "Production Wasm example exceeds 50 KiB gzip: $total_wasm_gzip bytes" >&2
+  exit 1
+fi
+echo "Production Wasm example: $total_wasm_gzip bytes gzip ($wasm_gzip_bytes wasm + $mjs_gzip_bytes mjs, 50 KiB budget)"
 
 dart compile js -O4 -o "$build_js" tool/i18n_size.dart
 i18n_gzip_bytes=$(gzip -c "$build_js" | wc -c | tr -d '[:space:]')

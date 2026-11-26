@@ -20,7 +20,7 @@ Live(() => P(text: 'Count: ${count.value}'))
 ```
 
 - The closure is re-evaluated **inside a `signal effect`** on mount.
-- Only the DOM region owned by that `Live` is patched (v0: container cleared and rebuilt; future: granular text-node patch).
+- Only the DOM region owned by that `Live` is patched (comment-node sentinel range; `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, and `classIf` patch element attributes and classes in place without rebuilding the element).
 - Nest arbitrarily — `Live` inside `Li` inside `ForEach` is fine.
 
 ## Show — conditional
@@ -42,7 +42,7 @@ ForEach(() => todos.value, (t) => Li(children: [Text(t.title)]))
 ```
 
 - `items` is `List<T> Function()` — typically `() => todos.value`.
-- v0 rebuilds the whole list on any change (simple + correct). Keyed reconciliation (using `key:`) lands in M4 once profiled on big lists.
+- Supply `key:` for any list that can reorder, insert, or remove items to enable keyed in-place DOM reconciliation (preserving focus, input state, and per-item reactive regions). Unkeyed `ForEach` rebuilds the list region on updates.
 
 ```dart
 ForEach(() => users.value, (u) => Li(text: u.name), key: (u) => u.id)

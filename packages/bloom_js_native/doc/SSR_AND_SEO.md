@@ -78,10 +78,12 @@ s.add('https://example.com/about', priority: 0.8);
 final xml = s.buildXml();
 ```
 
-## Hydration
+## Hydration, Streaming, SSG & ISR
 
-- v1 ships `renderToHtml` + **full client re-mount** (acceptable gap). Server sends HTML, client discards and re-renders via `mount()`.
-- Stretch goal: event-delegation hydration (re-attach listeners without rebuild). Deferred to M5.
+- **Reactive hydration (`mountApp()` / `hydrate()`):** Adopts server-rendered DOM nodes for both static and reactive subtrees (`Live`, `Memo`, `Show`, keyed `ForEach`, `ErrorBoundary`, `Suspense`), attaches event listeners and effects in place, preserves pre-hydration form values and focus, and recovers mismatches within the smallest delimited boundary.
+- **Out-of-order streaming SSR:** `renderToStreamWithSuspense(node)` flushes every `Suspense` fallback immediately and streams replacement patches as each async boundary resolves.
+- **Static Site Generation (SSG):** `generateStaticSite(...)` from `package:bloom_js_native/ssg.dart` renders routes to static HTML in `dist/` (run via `bloom js build --ssg`).
+- **Incremental Static Regeneration (ISR):** `BloomRevalidateConfig` (`.ssr()`, `.ssg()`, `.isr(revalidate: ...)`) and `BloomIsrRenderer` define per-route cache keys, `Cache-Control` headers, stale-while-revalidate background regeneration, and `revalidatePath`/`revalidateTag` invalidation.
 
 ## Security
 

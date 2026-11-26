@@ -6,6 +6,7 @@ import 'package:meta/meta.dart' show internal;
 
 import 'events.dart';
 import 'framework.dart';
+import 'isr.dart';
 import 'signals.dart' show ReadonlySignal;
 
 /// What a [RouterLink] needs from a router. [BloomRouterController]
@@ -485,6 +486,9 @@ class BloomRoute {
   /// Fallback descriptor displayed within [Suspense] while [loader] is pending.
   final BloomNode Function()? loadingFallback;
 
+  /// Optional page-level SSR/SSG/ISR caching and revalidation configuration.
+  final BloomRevalidateConfig? revalidate;
+
   /// Creates a route definition matching [path].
   const BloomRoute(
     this.path,
@@ -495,6 +499,7 @@ class BloomRoute {
     this.loader,
     this.dataBuilder,
     this.loadingFallback,
+    this.revalidate,
   });
 
   /// Factory constructor for persistent shell layouts enclosing nested [routes].
@@ -522,6 +527,7 @@ class BloomRoute {
         layout,
     required List<BloomRoute> routes,
     List<BloomRouteGuard> guards = const [],
+    BloomRevalidateConfig? revalidate,
   }) {
     return BloomRoute(
       '',
@@ -529,6 +535,7 @@ class BloomRoute {
       layout: layout,
       guards: guards,
       children: routes,
+      revalidate: revalidate,
     );
   }
 }

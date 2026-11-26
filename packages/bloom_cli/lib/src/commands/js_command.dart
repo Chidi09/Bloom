@@ -477,6 +477,12 @@ class JsBuildCommand extends Command<int> {
         'ssg',
         defaultsTo: false,
         help: 'Also render a static site into dist/ via bin/ssg.dart',
+      )
+      ..addFlag(
+        'wasm',
+        defaultsTo: false,
+        help:
+            'Compile WebAssembly (dart2wasm -O4) instead of JavaScript (dart2js).',
       );
   }
 
@@ -506,19 +512,23 @@ class JsBuildCommand extends Command<int> {
             ? File(p.join(project.rootDir.path, 'lib', 'main.dart'))
             : File(p.join(project.rootDir.path, 'example', 'main.dart')));
 
+    final useWasm = (argResults?['wasm'] as bool?) ?? false;
+    final analyze = (argResults?['analyze'] as bool?) ?? false;
+
     final outputFile = argResults?['output'] != null
         ? File(argResults!['output'])
-        : File(p.join(webDir.path, 'main.js'));
+        : File(p.join(webDir.path, useWasm ? 'main.wasm' : 'main.js'));
 
     print(Ansi.info('› Entry  : ${entryFile.path}'));
     print(Ansi.info('› Output : ${outputFile.path}'));
-    print(Ansi.info(
-        '› Mode   : -O4 Whole-Program Optimization & Tree-Shaking\n'));
+    print(Ansi.info(useWasm
+        ? '› Mode   : dart2wasm -O4 WebAssembly compilation\n'
+        : '› Mode   : -O4 Whole-Program Optimization & Tree-Shaking\n'));
 
     final sw = Stopwatch()..start();
     final compileRes = await Process.run('dart', [
       'compile',
-      'js',
+      useWasm ? 'wasm' : 'js',
       '-O4',
       '-o',
       outputFile.path,
@@ -538,6 +548,23 @@ class JsBuildCommand extends Command<int> {
     print(Ansi.success(
         '✓ Production build succeeded in ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)}s!'));
     print(Ansi.boldText('  • Output Bundle : ${outputFile.path} ($sizeKb kB)'));
+
+    if (useWasm) {
+      final mjsPath = outputFile.path.endsWith('.wasm')
+          ? '${outputFile.path.substring(0, outputFile.path.length - 5)}.mjs'
+          : '${outputFile.path}.mjs';
+      final mjsFile = File(mjsPath);
+      if (mjsFile.existsSync()) {
+        final mjsKb = (mjsFile.lengthSync() / 1024).toStringAsFixed(1);
+        print(Ansi.boldText('  • Wasm Loader   : ${mjsFile.path} ($mjsKb kB)'));
+      }
+    }
+
+    if (analyze) {
+      final gzipBytes = gzip.encode(outputFile.readAsBytesSync()).length;
+      final gzipKb = (gzipBytes / 1024).toStringAsFixed(1);
+      print(Ansi.info('  • Gzipped       : $gzipKb kB ($gzipBytes bytes)'));
+    }
 
     // Host configuration generation for production static hosting
     final config = project.loadBloomConfig();

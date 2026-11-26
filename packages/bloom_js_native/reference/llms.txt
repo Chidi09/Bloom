@@ -4,62 +4,6 @@ One line per public symbol. For full docs and examples see
 reference/llms-full.txt. If a symbol is not listed here, it
 does not exist.
 
-## _signal_scope.dart  [not exported]
-  T runWithBloomSignalScope<T>(String segment, T Function() callback)
-      Runs [callback] with a stable, nested scope for hot-reload signal keys.
-  T runWithBloomSignalScopeValue<T>(String? scope, T Function() callback)
-      Re-enters a previously captured full scope, independent of the caller's
-  T runWithBloomSignalScopeBoundary<T>(String? scope, T Function() callback)
-      Re-enters a captured signal-scope boundary, including a captured `null`.
-  String? get currentBloomSignalScope =>
-  String composeBloomSignalScope(String segment)
-      Stable full scope value that [runWithBloomSignalScope] will install for
-  void registerBloomScopedSignal(String scope, String key) =>
-  void releaseBloomSignalScope(String? scope)
-  void forgetBloomScopedSignal(String key) => registry.forgetScopedSignal(key)
-  void beginBloomSignalScopeTransition() => registry.beginSignalScopeTransition()
-  void finishBloomSignalScopeTransition() =>
-
-## _signal_scope_registry_browser.dart  [not exported]
-  void registerScopedSignal(String scope, String key)
-  void releaseSignalScope(String scope)
-  void forgetScopedSignal(String key)
-  void beginSignalScopeTransition()
-  void finishSignalScopeTransition()
-
-## _signal_scope_registry_stub.dart  [not exported]
-  void registerScopedSignal(String scope, String key)
-  void releaseSignalScope(String scope)
-  void forgetScopedSignal(String key)
-  void beginSignalScopeTransition()
-  void finishSignalScopeTransition()
-
-## _signals_browser.dart  [not exported]
-  const int kMaxSignalRegistryEntries = 512
-      Maximum number of entries kept in the browser hot-reload signal registry.
-  bool isBrowserHotReloadActive() => isHotReloadTrackingActive()
-  Set<void Function()>? getBrowserHotEffectRegistry()
-  void disposeBrowserHotEffects()
-      Disposes every user-created effect currently registered in this DDC session.
-  void prepareBrowserHotReloadEffects()
-      Moves effects from the old module aside so updated code can patch first.
-  void disposePreviousBrowserHotEffects()
-      Disposes old module effects after updated code has mounted or patched.
-  Map<String, Object?>? getBrowserSignalRegistry()
-  void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
-      Stores [value] under [key] in the hot-reload signal [registry].
-
-## _signals_stub.dart  [not exported]
-  const int kMaxSignalRegistryEntries = 512
-      Mirrors the browser cap (`kMaxSignalRegistryEntries` in
-  bool isBrowserHotReloadActive() => false
-  Set<void Function()>? getBrowserHotEffectRegistry() => null
-  void disposeBrowserHotEffects()
-  void prepareBrowserHotReloadEffects()
-  void disposePreviousBrowserHotEffects()
-  Map<String, Object?>? getBrowserSignalRegistry() => null
-  void storeBrowserSignalValue( Map<String, Object?> registry, String key, Object? value, )
-
 ## a11y.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   enum AriaRole
       WAI-ARIA landmark, widget, and structure roles.
@@ -125,14 +69,6 @@ does not exist.
       Calls callbacks when [child] enters and exits the viewport.
   class BloomAnimationPresets
       Ready-to-use [BloomAnimation] presets for common UI transitions.
-
-## attribute_safety.dart  [not exported]
-  void validateBloomAttribute(String name, String value)
-      Rejects raw HTML attributes that can execute attacker-controlled content.
-  String escapeBloomHtml(String value) => value .replaceAll('&', '&amp;') .replaceAll('<', '&lt;') .replaceAll('>', '&gt;') .replaceAll('"', '&quot;') .replaceAll("'", '&#x27;')
-      Escapes text and quoted attribute content for safe HTML serialization.
-  String escapeBloomJsonForScript(String json) => json .replaceAll('<', r'\u003c') .replaceAll('\u2028', r'\u2028') .replaceAll('\u2029', r'\u2029')
-      Escapes JSON text placed inside an HTML `<script>` element.
 
 ## bloom_test.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   class BloomTestRenderer
@@ -771,6 +707,24 @@ does not exist.
   BloomIslandOrchestrator orchestrateIslands({ BloomIslandRegistry? registry, web.Element? rootElement, String defaultRootMargin = '200px', })
       Boots and starts an island orchestrator managing client-side island hydration.
 
+## isr.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
+  enum BloomRenderMode
+      Rendering and caching mode for a Bloom page or route.
+  enum BloomIsrCacheStatus
+      Cache lookup outcome returned by [BloomIsrRenderer.render].
+  class BloomRevalidateConfig
+      Declarative per-route caching and revalidation configuration.
+  class BloomIsrEntry
+      A cached HTML response entry stored by a [BloomIsrStore].
+  abstract interface class BloomIsrStore
+      Pluggable storage backend for [BloomIsrRenderer].
+  class MemoryBloomIsrStore implements BloomIsrStore
+      Bounded in-memory LRU [BloomIsrStore].
+  class BloomIsrResult
+      Result returned by [BloomIsrRenderer.render].
+  class BloomIsrRenderer
+      Coordinates stale-while-revalidate rendering, deduplication, and invalidation
+
 ## lazy.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
   class BloomLazyComponent
       Caches an asynchronous component [loader], ensuring the loader executes at most once across renders.
@@ -864,7 +818,7 @@ does not exist.
       A pure state-transition function that computes the next state from the current [state] and an [action].
   class BloomReducer<S, A>
       A signal-backed state container managing complex state transitions via a pure reducer function.
-  BloomReducer<S, A> useReducer<S, A>( BloomReducerFn<S, A> reducerFn, S initialState, )
+  BloomReducer<S, A> useReducer<S, A>( BloomReducerFn<S, A> reducerFn, S initialState,
       Creates a [BloomReducer] with the given [reducerFn] and [initialState].
 
 ## router.dart  [core (package:bloom_js_native/bloom_js_native.dart)]
@@ -970,18 +924,20 @@ does not exist.
       Creates a reactive [Signal] container initialized to [initialValue].
   T bloomHmrScope<T>(String scopeId, T Function() callback)
       Runs [callback] in a stable nested signal scope during DDC hot reload.
+  T bloomHmrState<T>(String key, T Function() create)
+      Preserves a non-signal value of type [T] across DDC hot remounts under [key].
   void Function() effect( BloomEffectCallback compute,
       Runs [compute] reactively and returns a function that stops the effect.
   s.ReadonlySignal<T> readonly<T>(s.Signal<T> signal)
       Creates a read-only view of [signal] to prevent external mutation.
 
-## ssg.dart  [not exported]
+## ssg.dart  [ssg / VM-only (package:bloom_js_native/ssg.dart)]
   class SsgResult
       Summary of static site generation execution.
   Future<SsgResult> generateStaticSite({ required Map<String, BloomNode Function()> pages, String outDir = 'dist', String webDir = 'web', String? title, String Function(String path)? titleFor, List<BloomNode> head = const [], /// Stylesheets shared by every generated page. List<String> stylesheets = const [], String lang = 'en', String appElementId = 'app', String mainScript = 'main.js', bool includeNpm = true, String bloomYamlPath = 'bloom.yaml', }) async
       Generates a static site into [outDir] from the supplied [pages] map and [webDir] assets.
 
-## tags.dart  [not exported]
+## tags.dart  [tags (package:bloom_js_native/tags.dart)]
   List<BloomNode> nodes(List<Object?> children)
       Converts nested child values into Bloom nodes.
   ElNode div(List<Object?> children,
@@ -1101,6 +1057,467 @@ does not exist.
   SchedulerTask<T> scheduleTransition<T>(FutureOr<T> Function() update)
       Schedules a non-urgent transition task returning a [SchedulerTask] handle.
 
+## ui/accordion.dart  [ui (package:bloom_js_native/ui.dart)]
+  typedef AccordionItem = ({String id, String title, BloomNode content})
+      Accordion item descriptor.
+  BloomNode accordion({ required List<AccordionItem> items, bool allowMultiple = false, Set<String>? initialOpen, String extraClassName = '', })
+      Accordion component primitive with local reactive state and smooth toggle animations.
+
+## ui/alert.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum AlertVariant
+  BloomNode alert({ required String title, String? description, AlertVariant variant = AlertVariant.info, String? icon, BloomNode? action, String extraClassName = '', })
+      Static inline alert banner primitive.
+
+## ui/alert_dialog.dart  [ui (package:bloom_js_native/ui.dart)]
+  void openAlertDialog({ required String title, String? description, BloomNode? body, String confirmLabel = 'Continue', String cancelLabel = 'Cancel', bool destructive = true, required VoidCallback onConfirm, VoidCallback? onCancel, })
+      Opens an alert confirmation dialog (destructive action confirmation).
+
+## ui/app_shell.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode appShell({ BloomNode? header, BloomNode? sidebar, required BloomNode body, BloomNode? footer, String extraClassName = '', })
+      Top-level application layout shell with optional header, sidebar, and footer.
+  BloomNode dashboardShell({ required BloomNode sidebar, BloomNode? topBar, required BloomNode content, String extraClassName = '', })
+      Dashboard layout shell pairing a persistent [sidebar] with an optional [topBar]
+
+## ui/aspect_ratio.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode aspectRatio({ required double ratio, required BloomNode child, String extraClassName = '', })
+      Aspect ratio container component primitive.
+
+## ui/auth_form.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode authForm({ String title = 'Sign in', String? subtitle, String submitLabel = 'Continue', Signal<String>? email, Signal<String>? password, Signal<String?>? error, Signal<bool>? loading, void Function(String email, String password)? onSubmit, List<BloomNode> socialActions = const [], BloomNode? footer, String extraClassName = '', })
+      Pre-built authentication form card with email/password inputs, validation,
+
+## ui/avatar.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum AvatarSize
+  BloomNode avatar({ String? src, String? alt, String? fallbackText, AvatarSize size = AvatarSize.md, String extraClassName = '', BloomNode? badge, Map<String, String> attrs = const
+      Avatar primitive with image and fallback initials.
+  BloomNode avatarGroup({ required List<BloomNode> children, String extraClassName = '', })
+      Avatar group container overlapping multiple avatars.
+
+## ui/badge.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum BadgeVariant
+  BloomNode badge({ required String label, BadgeVariant variant = BadgeVariant.defaultVariant, void Function()? onDismiss, String? icon, String extraClassName = '', })
+      Generic badge primitive for Bloom UI.
+
+## ui/banner.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum BannerVariant
+      Semantic variants for [banner].
+  BloomNode banner({ required String message, String? title, BannerVariant variant = BannerVariant.info, BloomNode? action, BloomEventHandler? onDismiss, String extraClassName = '', })
+      Top-level announcement banner with optional title, action, and dismiss button.
+
+## ui/breadcrumb.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode breadcrumb( List<({String label, String? href})> items,
+      Breadcrumb navigation hierarchy primitive.
+
+## ui/button.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum ButtonVariant
+  enum ButtonSize
+  String buttonClasses({ ButtonVariant variant = ButtonVariant.primary, ButtonSize size = ButtonSize.md, String extraClassName = '', })
+      Resolves CSS classes for [ButtonVariant] and [ButtonSize].
+  BloomNode button({ required String text, BloomEventHandler? onClick, String? href, ButtonVariant variant = ButtonVariant.primary, ButtonSize size = ButtonSize.md, bool disabled = false, String? icon, bool loading = false, String extraClassName = '', Map<String, String> attrs = const
+      Generic Button primitive for Bloom UI.
+
+## ui/button_group.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum ButtonGroupOrientation
+      Layout orientation for [buttonGroup].
+  BloomNode buttonGroup({ required List<BloomNode> children, ButtonGroupOrientation orientation = ButtonGroupOrientation.horizontal, String ariaLabel = 'Button group', String extraClassName = '', })
+      Groups related buttons or controls with joined borders and focus layering.
+  BloomNode buttonGroupText({ required String text, String extraClassName = '', })
+      Static text addon placed inside a [buttonGroup].
+
+## ui/calendar.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode calendar({ required DateTime month, DateTime? selected, required void Function(DateTime date) onSelect, required void Function(DateTime month) onMonthChange, String extraClassName = '', })
+      Controlled month-grid date picker component.
+
+## ui/card.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode card({ required List<BloomNode> children, String extraClassName = '', Map<String, String> attrs = const
+      Card container primitive.
+  BloomNode cardHeader({ required List<BloomNode> children, String extraClassName = '', })
+      Header section of a [card].
+  BloomNode cardTitle({ required String text, String extraClassName = '', })
+      Title element inside [cardHeader].
+  BloomNode cardDescription({ required String text, String extraClassName = '', })
+      Secondary description element inside [cardHeader].
+  BloomNode cardContent({ required List<BloomNode> children, String extraClassName = '', })
+      Main body content section of a [card].
+  BloomNode cardFooter({ required List<BloomNode> children, String extraClassName = '', })
+      Footer action section of a [card].
+
+## ui/carousel.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode carouselItem({ required BloomNode child, String extraClassName = '', })
+      Wraps a single slide inside [carousel].
+  BloomNode carousel({ required List<BloomNode> items, Signal<int>? activeIndex, bool showControls = true, bool showIndicators = true, String ariaLabel = 'Carousel', String extraClassName = '', })
+      Interactive slide carousel with previous/next controls and dot indicators.
+
+## ui/chart.dart  [ui (package:bloom_js_native/ui.dart)]
+  typedef ChartDataPoint = ({String label, double value})
+      Data point for a simple bar chart.
+  BloomNode barChart({ required List<ChartDataPoint> data, double? maxValue, double height = 160, String? color, String extraClassName = '', })
+      Simple pure-SVG bar chart component.
+  BloomNode sparkline({ required List<double> values, double width = 120, double height = 32, String? color, String extraClassName = '', })
+      Lightweight inline SVG sparkline component.
+
+## ui/checkbox.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode checkbox({ required String id, String? name, bool checked = false, bool indeterminate = false, bool disabled = false, String? label, BloomNode? labelNode, BloomEventHandler? onChange, void Function(bool)? onCheckedChange, String extraClassName = '', Map<String, String> attrs = const
+      Checkbox primitive with label and indeterminate state support.
+
+## ui/circular_progress.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode circularProgress({ required double value, double max = 100, double size = 40, double strokeWidth = 3.5, String? color, String? label, bool showValue = false, String extraClassName = '', })
+      Circular determinate progress indicator primitive.
+
+## ui/cn.dart  [ui (package:bloom_js_native/ui.dart)]
+  String cn(List<Object?> classes)
+      Plain Dart class name concatenation helper for Bloom UI primitives.
+
+## ui/collapsible.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode collapsible({ required BloomNode trigger, required BloomNode content, Signal<bool>? open, bool defaultOpen = false, String extraClassName = '', })
+      Disclosure container toggling [content] visibility when [trigger] is clicked.
+
+## ui/combobox.dart  [ui (package:bloom_js_native/ui.dart)]
+  class ComboboxOption
+      Option item displayed in [combobox].
+  BloomNode combobox({ required List<ComboboxOption> options, Signal<String?>? selected, String placeholder = 'Select option...', String searchPlaceholder = 'Search...', String emptyText = 'No results found.', void Function(String value)? onSelect, String extraClassName = '', })
+      Searchable autocomplete select primitive.
+
+## ui/command.dart  [ui (package:bloom_js_native/ui.dart)]
+  class CommandItemConfig
+      Descriptor for a single command item in the command palette.
+  class CommandPaletteConfig
+      Configuration descriptor for an active command palette overlay.
+  final Signal<CommandPaletteConfig?> activeCommandPalette = signal<CommandPaletteConfig?>(null)
+      Global active command palette state signal.
+  void openCommandPalette( List<({String label, String? group, VoidCallback onSelect})> items,
+      Opens the global command palette overlay.
+  void openCommandPaletteDetailed({ required List<CommandItemConfig> items, String placeholder = 'Type a command or search...', VoidCallback? onClose, })
+      Opens the global command palette with full item configuration.
+  void closeCommandPalette()
+      Closes the currently active command palette.
+  BloomNode commandViewport()
+      Root viewport component for rendering the global command palette modal overlay.
+
+## ui/context_menu.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode contextMenu({ required BloomNode child, required List<MenuItemConfig> items, String extraClassName = '', })
+      Context menu descriptor triggered by right-click.
+
+## ui/data_table.dart  [ui (package:bloom_js_native/ui.dart)]
+  class DataTableColumn<T>
+      Column definition for [dataTable].
+  BloomNode dataTable<T>({ required List<DataTableColumn<T>> columns, required List<T> rows, String Function(T row)? searchText, String? searchPlaceholder, String emptyTitle = 'No results', void Function(T row)? onRowClick, String extraClassName = '', })
+      Interactive data table with optional client-side search filtering and column sorting.
+
+## ui/date_picker.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode datePicker({ Signal<DateTime?>? selected, String placeholder = 'Pick a date', void Function(DateTime date)? onSelect, String extraClassName = '', })
+      Date picker input + quick calendar popover control.
+
+## ui/dialog.dart  [ui (package:bloom_js_native/ui.dart)]
+  typedef VoidCallback = void Function()
+  class DialogConfig
+      Configuration descriptor for a global dialog overlay.
+  final Signal<DialogConfig?> activeDialog = signal<DialogConfig?>(null)
+      Global active dialog state signal.
+  void openDialog({ required String title, String? description, BloomNode? body, String? confirmLabel, String? cancelLabel, bool destructive = false, VoidCallback? onConfirm, VoidCallback? onCancel, })
+      Opens a general modal dialog.
+  void openConfirmDialog({ required String title, String? description, String confirmLabel = 'Confirm', String cancelLabel = 'Cancel', bool destructive = false, required VoidCallback onConfirm, VoidCallback? onCancel, })
+      Helper for standard confirmation dialogs.
+  void closeDialog()
+      Closes the currently active dialog.
+  BloomNode dialogViewport()
+      Root viewport component for rendering the active modal dialog.
+
+## ui/direction.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum UiTextDirection
+      Text directionality for [direction].
+  BloomNode direction({ required UiTextDirection dir, required List<BloomNode> children, String extraClassName = '', })
+      Sets the HTML `dir` attribute (`ltr` or `rtl`) for its [children] subtree.
+
+## ui/drawer.dart  [ui (package:bloom_js_native/ui.dart)]
+  void openDrawer({ required String title, String? description, BloomNode? body, String side = 'bottom', bool showCloseButton = true, VoidCallback? onClose, })
+      Opens a mobile-style bottom drawer (or customizable slide-over).
+  void closeDrawer() => closeSheet()
+      Closes the currently active drawer.
+  BloomNode drawerViewport() => sheetViewport()
+      Viewport component for rendering active drawer/sheet modals.
+
+## ui/dropdown_menu.dart  [ui (package:bloom_js_native/ui.dart)]
+  class MenuItemConfig
+      Configuration for a dropdown menu item.
+  BloomNode dropdownMenu({ required BloomNode trigger, required List<MenuItemConfig> items, String align = 'right', String extraClassName = '', })
+      Dropdown actions menu with local reactive state and backdrop click-to-close.
+
+## ui/empty.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode empty({ required String title, String? description, String? icon, BloomNode? action, String extraClassName = '', })
+      Structured empty-state container with icon, title, description, and optional action.
+  BloomNode emptyState({ required String title, String? description, String? icon, BloomNode? action, String extraClassName = '', }) =>
+      Alias for [empty] matching composite naming conventions.
+
+## ui/error_state.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode errorState({ String title = 'Something went wrong', String? message, String retryLabel = 'Try again', BloomEventHandler? onRetry, String extraClassName = '', })
+      Standardized error state container with optional retry action.
+
+## ui/field.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode formField({ required String label, required BloomNode control, String? id, String? error, String? help, bool required = false, String extraClassName = '', })
+      Form field layout wrapper with label, control, and optional help or error text.
+  BloomNode fieldSet({ required List<BloomNode> children, String? legend, String extraClassName = '', })
+      Fieldset container grouping related form fields.
+  BloomNode fieldGroup({ required List<BloomNode> children, String extraClassName = '', })
+      Field group container for stacking or arranging multiple fields.
+
+## ui/filter_bar.dart  [ui (package:bloom_js_native/ui.dart)]
+  class FilterChipOption
+      Filter chip option for [filterBar].
+  BloomNode filterBar({ required List<FilterChipOption> options, required Signal<Set<String>> selected, bool showClear = true, String clearLabel = 'Clear', String extraClassName = '', })
+      Interactive row of toggleable filter chips with an optional clear button.
+
+## ui/font_link.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode fontStylesheetLink({String href = '/generated/fonts/fonts.g.css'})
+      Returns a `<link rel="stylesheet" href="...">` [BloomNode] referencing
+
+## ui/hover_card.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode hoverCard({ required BloomNode trigger, required BloomNode content, String side = 'bottom', String align = 'center', String extraClassName = '', })
+      Pure CSS hover card preview component.
+
+## ui/icons.dart  [ui (package:bloom_js_native/ui.dart)]
+  String iconSvgString(String name,
+      Renders an inline SVG icon for Bloom UI primitives.
+  BloomNode uiIcon(String name,
+      Helper returning a BloomNode for an icon name.
+
+## ui/input.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode textInput({ required String id, String? name, String? value, String? placeholder, String type = 'text', String? prefix, BloomNode? prefixNode, String? suffix, BloomNode? suffixNode, bool disabled = false, bool required = false, bool hasError = false, String? ariaDescribedBy, String extraClassName = '', BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onKeyDown, BloomEventHandler? onFocus, BloomEventHandler? onBlur, Map<String, String> attrs = const
+      Text input primitive for Bloom UI.
+
+## ui/input_group.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode inputGroup({ required List<BloomNode> children, String extraClassName = '', })
+      Layout container for grouping an input control with leading/trailing addons.
+  BloomNode inputGroupAddon({ required List<BloomNode> children, String align = 'left', String extraClassName = '', })
+      Addon container placed inside an [inputGroup].
+  BloomNode inputGroupText({ required String text, String extraClassName = '', })
+      Text label helper for [inputGroupAddon].
+
+## ui/input_otp.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode inputOtp({ required int length, required String value, required void Function(String value) onChange, bool disabled = false, bool hasError = false, String extraClassName = '', })
+      Controlled one-time password (OTP) / PIN input primitive.
+
+## ui/item.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode uiItem({ required String title, String? subtitle, BloomNode? leading, BloomNode? trailing, BloomEventHandler? onClick, bool active = false, String extraClassName = '', })
+      Flexible list item row with leading, title/subtitle, and trailing slots.
+
+## ui/kbd.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode kbd({ required String text, String extraClassName = '', })
+      Styled keyboard shortcut keycap (`<kbd>`).
+  BloomNode kbdGroup({ required List<String> keys, String separator = '+', String extraClassName = '', })
+      Renders a keyboard shortcut combination as joined [kbd] keycaps.
+
+## ui/label.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode label({ String? text, String? htmlFor, bool required = false, String extraClassName = '', List<BloomNode>? children, Map<String, String> attrs = const
+      Form label primitive for Bloom UI.
+
+## ui/loading_state.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode loadingState({ String label = 'Loading...', bool useSkeleton = false, int skeletonRows = 3, String extraClassName = '', })
+      Standardized loading placeholder supporting spinner or skeleton rows.
+
+## ui/menubar.dart  [ui (package:bloom_js_native/ui.dart)]
+  typedef MenubarItem = ({String label, List<MenuItemConfig> items})
+      Single top-level menu in a [menubar].
+  BloomNode menubar({ required List<MenubarItem> menus, String extraClassName = '', })
+      Menubar component primitive.
+
+## ui/multi_select.dart  [ui (package:bloom_js_native/ui.dart)]
+  class MultiSelectOption
+      Option item for [multiSelect].
+  BloomNode multiSelect({ required List<MultiSelectOption> options, required Signal<List<String>> selected, String placeholder = 'Select items...', String extraClassName = '', })
+      Multi-value selection control with chip summary and toggleable dropdown.
+
+## ui/navigation_menu.dart  [ui (package:bloom_js_native/ui.dart)]
+  class NavMenuItem
+      Configuration descriptor for a navigation menu item.
+  BloomNode navigationMenu({ required List<NavMenuItem> items, String extraClassName = '', })
+      Navigation menu component primitive.
+
+## ui/pagination.dart  [ui (package:bloom_js_native/ui.dart)]
+  String nextPageHref( String path, Map<String, String> currentQuery, String nextCursor)
+      Builds a next page URL appending [nextCursor] to the back-stack query.
+  String prevPageHref(String path, Map<String, String> currentQuery)
+      Builds a previous page URL restoring the cursor from the back-stack query.
+  BloomNode paginationBar({ required String currentPath, required Map<String, String> currentQuery, required int total, required int itemCount, String? nextCursor, int pageSize = 24, String extraClassName = '', })
+      Reusable cursor-based pagination bar primitive.
+
+## ui/phone_input.dart  [ui (package:bloom_js_native/ui.dart)]
+  class PhoneCountryCode
+      Country calling-code descriptor for [phoneInput].
+  BloomNode phoneInput({ Signal<String>? countryDialCode, Signal<String>? number, List<PhoneCountryCode>? countries, String placeholder = '555-0100', void Function(String fullNumber)? onChanged, String extraClassName = '', })
+      International telephone input combining country dial code selector and number field.
+
+## ui/popover.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode popover({ required BloomNode trigger, required BloomNode content, String align = 'center', String extraClassName = '', })
+      Popover container with per-instance reactive state and backdrop click-to-close.
+
+## ui/pricing_card.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode pricingCard({ required String tier, required String price, String period = '/mo', String? description, required List<String> features, required String ctaLabel, BloomEventHandler? onSelect, bool highlighted = false, String? badgeText, String extraClassName = '', })
+      SaaS pricing tier card with feature checklist and call-to-action button.
+
+## ui/progress.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode progress({ required double value, double max = 100.0, String? label, bool showValue = false, String extraClassName = '', })
+      Determinate linear progress bar primitive.
+
+## ui/radio_group.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode radioGroup({ required List<({String value, String label})> options, required String value, required void Function(String value) onChange, String? name, bool disabled = false, String orientation = 'vertical', String extraClassName = '', })
+      Controlled radio group primitive.
+
+## ui/resizable.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode resizablePanels({ required BloomNode first, required BloomNode second, bool vertical = false, double initialSplit = 0.5, double minSplit = 0.1, double maxSplit = 0.9, bool withHandle = true, String extraClassName = '', })
+      Resizable split-pane layout component.
+
+## ui/scroll_area.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode scrollArea({ required BloomNode child, double? maxHeight, double? maxWidth, String orientation = 'vertical', String extraClassName = '', })
+      Scroll area component with customized lightweight scrollbars.
+
+## ui/search_bar.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode searchBar({ required Signal<String> query, String placeholder = 'Search...', String? shortcutHint, void Function(String query)? onSubmit, String extraClassName = '', })
+      Search input bar with leading search icon, optional keyboard shortcut hint, and clear action.
+
+## ui/select.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode selectInput({ required String id, String? name, required String value, required List<({String value, String label})> options, bool disabled = false, bool hasError = false, String? placeholder, BloomEventHandler? onChange, void Function(String)? onValueChange, String extraClassName = '', Map<String, String> attrs = const
+      Native styled `<select>` dropdown primitive for Bloom UI.
+
+## ui/separator.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode separator({ bool vertical = false, String extraClassName = '', Map<String, String> attrs = const
+      Horizontal or vertical divider primitive.
+
+## ui/settings_list.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode settingsSection({ required String title, String? description, required List<BloomNode> children, String extraClassName = '', })
+      Grouped settings section with title, optional description, and list of [settingsTile] rows.
+  BloomNode settingsTile({ required String title, String? description, required BloomNode control, String extraClassName = '', })
+      Individual setting row pairing label/description with a trailing [control].
+
+## ui/sheet.dart  [ui (package:bloom_js_native/ui.dart)]
+  class SheetConfig
+      Configuration descriptor for slide-over side panels and drawers.
+  final Signal<SheetConfig?> activeSheet = signal<SheetConfig?>(null)
+      Global active sheet / drawer state signal.
+  void openSheet({ required String title, String? description, BloomNode? body, String side = 'right', bool showCloseButton = true, VoidCallback? onClose, })
+      Opens a side-panel sheet.
+  void closeSheet()
+      Closes the currently active sheet / drawer.
+  BloomNode sheetViewport()
+      Root viewport component for rendering active slide-over sheets and bottom drawers.
+
+## ui/sidebar.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode sidebar({ required List<BloomNode> children, BloomNode? header, BloomNode? footer, Signal<bool>? collapsed, String ariaLabel = 'Sidebar navigation', String extraClassName = '', })
+      Expandable application navigation sidebar.
+  BloomNode sidebarGroup({ String? label, required List<BloomNode> children, String extraClassName = '', })
+      Labeled navigation group inside [sidebar].
+  BloomNode sidebarItem({ required String label, String? href, String? icon, BloomNode? badge, bool active = false, BloomEventHandler? onClick, String extraClassName = '', })
+      Navigation item inside a [sidebarGroup].
+
+## ui/skeleton.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode skeleton({ String extraClassName = '', String? style, })
+      Skeleton placeholder primitive with pulse loading animation.
+
+## ui/slider.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode slider({ required double value, required double min, required double max, double step = 1, required void Function(double value) onChange, bool disabled = false, String extraClassName = '', })
+      Controlled range slider primitive.
+
+## ui/sonner.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum ToastVariant
+  class ToastItem
+      Descriptor representing an active toast notification item.
+  final Signal<List<ToastItem>> toastList = signal<List<ToastItem>>([])
+      Global reactive signal list of active toast items.
+  void showToast( String message,
+      Dispatches a toast notification to the global toast queue.
+  void dismissToast(String id)
+      Dismisses a toast by its [id].
+  BloomNode toastViewport()
+      Viewport container mounted at application root to render active toasts.
+
+## ui/spinner.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum SpinnerSize
+      Size presets for [spinner].
+  BloomNode spinner({ SpinnerSize size = SpinnerSize.md, String label = 'Loading', String extraClassName = '', })
+      Accessible animated loading spinner.
+
+## ui/switch.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode switchToggle({ required bool checked, required void Function(bool) onChange, bool disabled = false, String? id, String? name, String extraClassName = '', })
+      Toggle switch primitive (named `switchToggle` as `switch` is a reserved word in Dart).
+
+## ui/table.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode table({ required List<BloomNode> children, String extraClassName = '', })
+      Semantic `<table>` wrapper container primitive.
+  BloomNode tableHeader({ required List<BloomNode> children, String extraClassName = '', })
+      Semantic `<thead>` table header element.
+  BloomNode tableBody({ required List<BloomNode> children, String extraClassName = '', })
+      Semantic `<tbody>` table body element.
+  BloomNode tableFooter({ required List<BloomNode> children, String extraClassName = '', })
+      Semantic `<tfoot>` table footer element.
+  BloomNode tableRow({ required List<BloomNode> children, String extraClassName = '', BloomEventHandler? onClick, })
+      Semantic `<tr>` table row element.
+  BloomNode tableHead({ String? text, List<BloomNode>? children, String extraClassName = '', int? colSpan, int? rowSpan, })
+      Semantic `<th>` table header cell element.
+  BloomNode tableCell({ String? text, List<BloomNode>? children, String extraClassName = '', int? colSpan, int? rowSpan, })
+      Semantic `<td>` table data cell element.
+  BloomNode tableCaption({ required String text, String extraClassName = '', })
+      Semantic `<caption>` table caption element.
+
+## ui/tabs.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode tabs({ required List<({String key, String label})> items, required String activeKey, required void Function(String key) onChange, required BloomNode Function(String key) content, String extraClassName = '', })
+      Controlled tabs component.
+
+## ui/tags_input.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode tagsInput({ required Signal<List<String>> tags, String placeholder = 'Add tag...', int? maxTags, String extraClassName = '', })
+      Interactive tag-chip input allowing users to add and remove string tags.
+
+## ui/textarea.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode textarea({ required String id, String? name, String? value, String? placeholder, int rows = 4, int? cols, bool disabled = false, bool required = false, bool hasError = false, String? ariaDescribedBy, String extraClassName = '', BloomEventHandler? onInput, BloomEventHandler? onChange, BloomEventHandler? onFocus, BloomEventHandler? onBlur, Map<String, String> attrs = const
+      Multi-line text editing primitive for Bloom UI.
+
+## ui/toast.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode toastBanner({ required String title, String? description, ToastVariant variant = ToastVariant.info, BloomEventHandler? onDismiss, String extraClassName = '', })
+      Standalone floating toast notification card.
+
+## ui/toggle.dart  [ui (package:bloom_js_native/ui.dart)]
+  enum ToggleVariant
+      Visual style variant for [toggle] buttons.
+  enum ToggleSize
+      Size options for [toggle] buttons.
+  BloomNode toggle({ required bool pressed, required void Function(bool pressed) onChange, required BloomNode child, ToggleVariant variant = ToggleVariant.defaultVariant, ToggleSize size = ToggleSize.defaultSize, bool disabled = false, String extraClassName = '', })
+      Single two-state toggle button primitive.
+
+## ui/toggle_group.dart  [ui (package:bloom_js_native/ui.dart)]
+  typedef ToggleGroupItem<T> = ({T value, BloomNode child, String? ariaLabel})
+      Single item in a [toggleGroupSingle] or [toggleGroupMultiple].
+  BloomNode toggleGroupSingle<T>({ required List<ToggleGroupItem<T>> items, required T? value, required void Function(T value) onChange, ToggleVariant variant = ToggleVariant.defaultVariant, ToggleSize size = ToggleSize.defaultSize, String orientation = 'horizontal', String extraClassName = '', })
+      Controlled toggle group supporting single-selection.
+  BloomNode toggleGroupMultiple<T>({ required List<ToggleGroupItem<T>> items, required Set<T> value, required void Function(Set<T> value) onChange, ToggleVariant variant = ToggleVariant.defaultVariant, ToggleSize size = ToggleSize.defaultSize, String orientation = 'horizontal', String extraClassName = '', })
+      Controlled toggle group supporting multiple selections.
+
+## ui/tokens.dart  [ui (package:bloom_js_native/ui.dart)]
+  const uiTokensCss = r''' /* Bloom UI Core Design Tokens — Default Slate/Indigo Theme */ :root
+      Bloom UI Design Tokens.
+
+## ui/tooltip.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode tooltip({ required String label, required BloomNode child, String side = 'top', String extraClassName = '', })
+      Pure CSS tooltip component with hover and focus-within reveal triggers.
+
+## ui/typography.dart  [ui (package:bloom_js_native/ui.dart)]
+  BloomNode uiH1(String text,
+      Display heading level 1 (`<h1>`).
+  BloomNode uiH2(String text,
+      Section heading level 2 (`<h2>`).
+  BloomNode uiH3(String text,
+      Subsection heading level 3 (`<h3>`).
+  BloomNode uiH4(String text,
+      Minor heading level 4 (`<h4>`).
+  BloomNode uiP(String text,
+      Standard body paragraph (`<p>`).
+  BloomNode uiLead(String text,
+      Emphasized introductory lead paragraph.
+  BloomNode uiMuted(String text,
+      Secondary muted text span.
+  BloomNode uiBlockquote(String text,
+      Styled blockquote (`<blockquote>`).
+  BloomNode uiInlineCode(String text,
+      Inline monospace code snippet (`<code>`).
+
 ## virtual.dart  [browser-only (package:bloom_js_native/browser.dart)]
   class BloomVirtualItem
       Represents a single visible row or item calculated by [BloomVirtualizer].
@@ -1126,4 +1543,84 @@ does not exist.
       Context provided to the component [builder] inside [defineCustomElement].
   void defineCustomElement( String tagName, BloomNode Function(CustomElementContext context) builder,
       Registers a native browser Custom Element with [tagName] backed by a Bloom descriptor tree.
+
+## widgets/widgets.dart  [widgets (package:bloom_js_native/widgets.dart)]
+  class Color
+      An ARGB color convertible to CSS.
+  class Colors
+      Common CSS colors.
+  class EdgeInsets
+      Four-sided padding or margin in logical pixels.
+  class BorderRadius
+      Rounded corner radius in logical pixels.
+  class Border
+      A solid border around a box.
+  class BoxShadow
+      A CSS box shadow.
+  class BoxDecoration
+      CSS decoration values for a [Container].
+  enum MainAxisAlignment
+      Main-axis placement for [Row] and [Column].
+  enum CrossAxisAlignment
+      Cross-axis placement for [Row] and [Column].
+  enum MainAxisSize
+      Whether a flex layout takes minimum or maximum main-axis space.
+  enum Alignment
+      Nine-point box alignment.
+  class Row extends ElNode
+      A horizontal flex layout.
+  class Column extends ElNode
+      A vertical flex layout.
+  class Stack extends ElNode
+      A relative positioning layout.
+  class Positioned extends ElNode
+      Absolutely positions a child within a [Stack].
+  class Padding extends ElNode
+      Adds padding around a child.
+  class Center extends ElNode
+      Centers a child on both axes.
+  class Align extends ElNode
+      Aligns a child within available space.
+  class SizedBox extends ElNode
+      Sets explicit dimensions around an optional child.
+  class Container extends ElNode
+      A box with dimensions, spacing, alignment, and decoration.
+  class Expanded extends ElNode
+      Flexible expansion for a flex parent.
+  class Flexible extends ElNode
+      Flexible sizing for a flex parent.
+  class Spacer extends ElNode
+      Flexible empty space in a flex parent.
+  class Wrap extends ElNode
+      A wrapping flex layout with row and run spacing.
+  enum Axis
+      The direction a scrollable list lays out its children.
+  class ListView extends ElNode
+      A scrollable list of children.
+  class GestureDetector extends ElNode
+      A clickable child with keyboard activation and button semantics.
+  enum TextAlign
+      Horizontal text alignment.
+  enum FontWeight
+      Font weight values supported by CSS.
+  enum TextDecoration
+      Text decoration values.
+  class TextStyle
+      CSS text styles.
+  class StyledText extends ElNode
+      Text rendered as a span, optionally styled and line-clamped.
+  class ThemeData
+      Theme values shared by descendants through CSS custom properties.
+  class Theme extends ElNode
+      A wrapper that exposes theme values as CSS custom properties.
+  class ThemeColors
+      CSS references to the nearest [Theme] custom properties.
+  class Curve
+      A CSS transition timing function.
+  class Curves
+      CSS transition timing functions.
+  class AnimatedOpacity extends ElNode
+      Reactively transitions an element's opacity.
+  class AnimatedContainer extends ElNode
+      Reactively transitions container size, color, padding, and decoration.
 

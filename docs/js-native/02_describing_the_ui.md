@@ -53,15 +53,19 @@ BloomNode buildCard() {
 | **Structure & Layout** | `Div`, `Span`, `Header`, `Footer`, `Main`, `Nav`, `Section`, `Article`, `Aside` |
 | **Typography** | `H1`, `H2`, `H3`, `H4`, `H5`, `H6`, `P`, `Pre`, `Code`, `Blockquote`, `Strong`, `Em` |
 | **Interactive & Forms** | `Button`, `Input`, `Textarea`, `Select`, `Option`, `Form`, `Label` |
-| **Lists** | `Ul`, `Ol`, `Li` |
-| **Media & Navigation** | `A`, `Img`, `Svg`, `Raw` |
+| **Lists** | `Ul`, `Ol`, `Li`, `Dl`, `Dt`, `Dd` |
+| **Media & Navigation** | `A`, `Img`, `Svg`, `Raw`, `RouterLink` |
+| **Head & Document** | `Title`, `Meta`, `HeadLink`, `StylesheetLink`, `DocumentScript` |
+| **Transitions & Viewport** | `Animated`, `Reveal`, `InView` |
 | **Generic & Custom** | `El(tag, ...)`, `Fragment.fromList(...)` |
+
+For concise lowercase builders, import `package:bloom_js_native/tags.dart` as `h` (`h.div([...], cls: 'card')`). For optional Flutter-shaped layout helpers, import `package:bloom_js_native/widgets.dart` (`Row`, `Column`, `Stack`, `StyledText`). For prebuilt shadcn-style UI primitives and composites, import `package:bloom_js_native/ui.dart`.
 
 ---
 
 ## 2. Element Attributes & Props
 
-All element constructors accept strongly-typed common properties along with an extensible `attrs` map:
+All element constructors accept strongly-typed common properties (`InputType`, `ButtonType`, `ImageLoading`, `ImageDecoding`, `FetchPriority`, `reactiveAttrs`, `reactiveClass`, `reactiveStyle`, `classIf`) along with an extensible `attrs` map:
 
 ```dart
 Input(

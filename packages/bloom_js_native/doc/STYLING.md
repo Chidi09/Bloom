@@ -40,20 +40,18 @@ Style('''
 
 Combined with generated class-name hashing (M5) to avoid collisions.
 
-### 5. CSS-in-Dart theme object
+### 5. UI Design Tokens (`uiTokensCss`)
 
-Mirror the `GEMINI.md` palette in Dart for shared tokens:
+Import `package:bloom_js_native/ui.dart` for `uiTokensCss` (CSS custom properties `--bg`, `--bg-soft`, `--border`, `--primary`, `--text`, `--text-muted`, `--radius-md`) and inject them via `Style(uiTokensCss)` or a stylesheet:
 
 ```dart
-abstract class BloomTheme {
-  static const carbon = '#09090B';
-  static const surface = '#14141A';
-  static const border = '#1E1E24';
-  static const indigo = '#6366F1';
-}
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
+
+Style(uiTokensCss)
 ```
 
-Use directly: `Div(style: 'background: ${BloomTheme.carbon}')` or generate classes.
+Use directly: `Div(className: 'bg-[var(--bg-soft)] border border-[var(--border)]')` or `Div(style: 'background: var(--bg-soft)')`.
 
 ## Why this looks as good as JS frameworks
 

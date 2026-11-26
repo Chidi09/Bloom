@@ -287,7 +287,8 @@ List<Decl> _parse(String source, {required bool topLevel, int? fromLine, int? to
   return out;
 }
 
-void main() {
+void main(List<String> args) {
+  final checkOnly = args.contains('--check');
   final libDir = Directory('lib/src');
   if (!libDir.existsSync()) {
     stderr.writeln('Run this from the bloom_js_native package root.');
@@ -300,19 +301,39 @@ void main() {
   // gets wrong, so it is recorded per file.
   final core = File('lib/bloom_js_native.dart').readAsStringSync();
   final browser = File('lib/browser.dart').readAsStringSync();
-  String barrelFor(String base) {
-    final inCore = core.contains("src/$base");
-    final inBrowser = browser.contains("src/$base");
-    if (inCore && inBrowser) return 'both';
+  final uiBarrel = File('lib/ui.dart').readAsStringSync();
+  final uiSrc = File('lib/src/ui.dart').readAsStringSync();
+  final widgets = File('lib/widgets.dart').readAsStringSync();
+  final tags = File('lib/tags.dart').readAsStringSync();
+  final ssg = File('lib/ssg.dart').readAsStringSync();
+
+  String? barrelFor(String rel) {
+    final inCore = core.contains("src/$rel");
+    final inBrowser = browser.contains("src/$rel");
+    final inUi = (rel == 'ui.dart' && uiBarrel.contains('src/ui.dart')) ||
+        (rel.startsWith('ui/') && uiSrc.contains("'$rel'"));
+    final inWidgets = widgets.contains("src/$rel");
+    final inTags = tags.contains("src/$rel");
+    final inSsg = ssg.contains("src/$rel");
+
+    if (inCore && inBrowser) return 'both (core + browser)';
     if (inBrowser) return 'browser-only (package:bloom_js_native/browser.dart)';
     if (inCore) return 'core (package:bloom_js_native/bloom_js_native.dart)';
-    return 'not exported';
+    if (inUi) return 'ui (package:bloom_js_native/ui.dart)';
+    if (inWidgets) return 'widgets (package:bloom_js_native/widgets.dart)';
+    if (inTags) return 'tags (package:bloom_js_native/tags.dart)';
+    if (inSsg) return 'ssg / VM-only (package:bloom_js_native/ssg.dart)';
+    return null;
   }
 
   final files = libDir
-      .listSync()
+      .listSync(recursive: true)
       .whereType<File>()
       .where((f) => f.path.endsWith('.dart'))
+      .where((f) {
+        final rel = f.path.replaceAll('\\', '/').replaceFirst('lib/src/', '');
+        return barrelFor(rel) != null;
+      })
       .toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 
@@ -327,9 +348,13 @@ void main() {
   buf.writeln('not listed here, it does not exist -- do not guess at APIs, and do');
   buf.writeln('not invent parameters, constructors, or fields.');
   buf.writeln();
-  buf.writeln('Two entry points:');
+  buf.writeln('Entry points:');
   buf.writeln('  import \'package:bloom_js_native/bloom_js_native.dart\';  // core, SSR-safe');
   buf.writeln('  import \'package:bloom_js_native/browser.dart\';          // browser/DOM only');
+  buf.writeln('  import \'package:bloom_js_native/ui.dart\';               // UI primitives & tokens');
+  buf.writeln('  import \'package:bloom_js_native/widgets.dart\';          // Flutter-shaped layout helpers');
+  buf.writeln('  import \'package:bloom_js_native/tags.dart\';             // concise lowercase tag builders');
+  buf.writeln('  import \'package:bloom_js_native/ssg.dart\';              // static site generator (VM-only)');
   buf.writeln();
   buf.writeln('Anything marked "browser-only" touches package:web and must never be');
   buf.writeln('imported from server-side rendering code.');
@@ -374,17 +399,17 @@ void main() {
 
   var total = 0;
   for (final f in files) {
-    final base = f.path.split('/').last;
+    final rel = f.path.replaceAll('\\', '/').replaceFirst('lib/src/', '');
     final decls = _parse(f.readAsStringSync(), topLevel: true);
     if (decls.isEmpty) continue;
 
-    buf.writeln('## $base');
-    buf.writeln('Availability: ${barrelFor(base)}');
+    buf.writeln('## $rel');
+    buf.writeln('Availability: ${barrelFor(rel)}');
     buf.writeln();
 
     for (final d in decls) {
       total++;
-      index[d.name] = base;
+      index[d.name] = rel;
       buf.writeln('### ${d.name}  [${d.kind}]');
       buf.writeln('```dart');
       buf.writeln(d.signature);
@@ -417,8 +442,7 @@ void main() {
     buf.writeln('  $k -> ${index[k]}');
   }
 
-  Directory('reference').createSync(recursive: true);
-  File('reference/llms-full.txt').writeAsStringSync(buf.toString());
+  final fullContent = buf.toString();
 
   // The full digest is ~450 KB, which is too large to paste wholesale into a
   // context window. `llms.txt` is the same surface reduced to one line per
@@ -432,10 +456,10 @@ void main() {
   compact.writeln('does not exist.');
   compact.writeln();
   for (final f in files) {
-    final base = f.path.split('/').last;
+    final rel = f.path.replaceAll('\\', '/').replaceFirst('lib/src/', '');
     final decls = _parse(f.readAsStringSync(), topLevel: true);
     if (decls.isEmpty) continue;
-    compact.writeln('## $base  [${barrelFor(base)}]');
+    compact.writeln('## $rel  [${barrelFor(rel)}]');
     for (final d in decls) {
       final summary =
           d.doc.firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
@@ -444,7 +468,28 @@ void main() {
     }
     compact.writeln();
   }
-  File('reference/llms.txt').writeAsStringSync(compact.toString());
+  final compactContent = compact.toString();
+
+  if (checkOnly) {
+    final fullFile = File('reference/llms-full.txt');
+    final compactFile = File('reference/llms.txt');
+    final fullMatches =
+        fullFile.existsSync() && fullFile.readAsStringSync() == fullContent;
+    final compactMatches =
+        compactFile.existsSync() && compactFile.readAsStringSync() == compactContent;
+    if (!fullMatches || !compactMatches) {
+      stderr.writeln(
+          'reference/llms*.txt is out of date. Run: dart run tool/generate_reference.dart');
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln('reference/llms-full.txt and reference/llms.txt are up to date.');
+    return;
+  }
+
+  Directory('reference').createSync(recursive: true);
+  File('reference/llms-full.txt').writeAsStringSync(fullContent);
+  File('reference/llms.txt').writeAsStringSync(compactContent);
 
   stdout.writeln('Wrote reference/llms-full.txt');
   stdout.writeln('Wrote reference/llms.txt');

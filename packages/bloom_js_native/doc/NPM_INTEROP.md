@@ -46,13 +46,12 @@ Shells out to `bun add` / offline cache to snapshot exact versions into `vendor/
 - Reproducible builds, works behind firewalls.
 - Bun is an **implementation detail** — no Dart package manager is shipped. Dart just generates the map and shells out.
 
-## v2 — Typed bindings (later)
+## v2 — Typed bindings (`bloom_cli`)
 
-Codegen generates typed Dart wrappers for a curated set of popular packages (zod schemas → `bloom_validate` bridges as example). Arbitrary packages keep working via `dart:js_interop`.
+`bloom add npm:<package>` vendors the ESM bundle via Bun and generates typed Dart `dart:js_interop` wrappers under `lib/src/plugins/` (following package re-exports). Arbitrary packages also keep working via manual `dart:js_interop` extension types.
 
-```
-dart run bloom_js_native:codegen --package zod
-# → lib/src/bindings/zod.g.dart with JS interop types
+```bash
+bloom add npm:zod
 ```
 
 ## Import map generation API

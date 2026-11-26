@@ -31,10 +31,12 @@ bloom js dev -p 8080
 
 ## 2. Production Optimized Build (`bloom js build`)
 
-Compiles an optimized production JavaScript bundle using the Dart `-O4` whole-program tree-shaking compiler:
+Compiles an optimized production JavaScript bundle using the Dart `-O4` whole-program tree-shaking compiler, or WebAssembly (`dart2wasm -O4`) with `--wasm`:
 
 ```bash
 bloom js build
+bloom js build --wasm
+bloom js build --ssg
 ```
 
 ### Performance & Budget Analysis (`--analyze`)
@@ -127,3 +129,13 @@ non-empty and start with a letter (`snake_case`/`PascalCase` are both
 accepted as input; the CLI derives both the Dart class name and the
 `snake_case` file name from whatever's given). Running against a name whose
 target file already exists is an error — it will not silently overwrite.
+
+---
+
+## 5. Editor Language Server (`bloom lsp`)
+
+Starts the Bloom Language Server (LSP) over stdio to surface `bloom lint` diagnostics (`untracked_signal_read`, `foreach_missing_key`, `forbidden_browser_import_in_shared_code`, etc.), quick-fix code actions, Bloom component/signal snippet completions, and hover documentation:
+
+```bash
+bloom lsp
+```
