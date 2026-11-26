@@ -438,6 +438,14 @@ jobs:
             exit "$failed"
       - save-pub-cache
 
+  ci-pass:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: All CircleCI jobs passed
+          command: echo "All CircleCI checks passed"
+
 workflows:
   ci:
     jobs:
@@ -449,3 +457,13 @@ workflows:
       - server-web-packages
       - server-data-packages
       - publish-dry-run
+      - ci-pass:
+          requires:
+            - js-native-fast
+            - js-native-browser-dart2js
+            - js-native-browser-wasm
+            - bloom-cli
+            - bloom-db
+            - server-web-packages
+            - server-data-packages
+            - publish-dry-run

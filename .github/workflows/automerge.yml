@@ -1,0 +1,216 @@
+name: Auto-Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  pull_request_review:
+    types: [submitted]
+  status: {}
+  check_suite:
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+concurrency:
+  group: automerge-${{ github.event.pull_request.number || github.event.sha || github.event.check_suite.head_sha || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    name: Auto-Merge Eligible PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name != 'status' || github.event.state == 'success'
+    steps:
+      - name: Evaluate and squash-merge eligible PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            async function collectCandidatePrNumbers() {
+              const ev = context.eventName;
+              if (ev === 'pull_request' || ev === 'pull_request_review') {
+                const num = context.payload.pull_request?.number;
+                return num ? [num] : [];
+              }
+              if (ev === 'status' || ev === 'check_suite') {
+                const sha = context.payload.sha || context.payload.check_suite?.head_sha;
+                if (!sha) return [];
+                const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: sha,
+                });
+                return prs.filter((pr) => pr.state === 'open').map((pr) => pr.number);
+              }
+              if (ev === 'workflow_dispatch') {
+                const { data: prs } = await github.rest.pulls.list({
+                  owner,
+                  repo,
+                  state: 'open',
+                  per_page: 50,
+                });
+                return prs
+                  .filter((pr) => (pr.labels || []).some((l) => l.name.toLowerCase() === 'automerge'))
+                  .map((pr) => pr.number);
+              }
+              return [];
+            }
+
+            async function evaluateAndMerge(prNumber) {
+              let { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+
+              if (pr.state !== 'open') {
+                core.info(`PR #${prNumber}: state is ${pr.state}; skipping.`);
+                return;
+              }
+              if (pr.draft) {
+                core.info(`PR #${prNumber}: still a draft; skipping.`);
+                return;
+              }
+              if (!pr.head.repo || pr.head.repo.full_name !== pr.base.repo.full_name) {
+                core.info(`PR #${prNumber}: fork PRs are not eligible for auto-merge.`);
+                return;
+              }
+
+              const hasLabel = (pr.labels || []).some(
+                (label) => label.name.toLowerCase() === 'automerge'
+              );
+              if (!hasLabel) {
+                core.info(`PR #${prNumber}: missing 'automerge' label; skipping.`);
+                return;
+              }
+
+              if (pr.mergeable === null) {
+                await sleep(3000);
+                ({ data: pr } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                }));
+              }
+
+              if (
+                pr.mergeable === false ||
+                ['dirty', 'blocked', 'behind'].includes(pr.mergeable_state)
+              ) {
+                core.info(
+                  `PR #${prNumber}: not mergeable yet (mergeable=${pr.mergeable}, state=${pr.mergeable_state}).`
+                );
+                return;
+              }
+
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner,
+                repo,
+                pull_number: prNumber,
+                per_page: 100,
+              });
+              const latestReviewByUser = new Map();
+              for (const review of reviews) {
+                if (
+                  review.user &&
+                  ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state)
+                ) {
+                  latestReviewByUser.set(review.user.login, review.state);
+                }
+              }
+              const blockingReviewers = [...latestReviewByUser.entries()]
+                .filter(([, state]) => state === 'CHANGES_REQUESTED')
+                .map(([login]) => login);
+              if (blockingReviewers.length > 0) {
+                core.info(
+                  `PR #${prNumber}: changes requested by ${blockingReviewers.join(', ')}; skipping.`
+                );
+                return;
+              }
+
+              const sha = pr.head.sha;
+              const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: sha,
+              });
+              const statuses = combined.statuses || [];
+              const ciPass = statuses.find((s) => s.context === 'ci/circleci: ci-pass');
+              if (!ciPass || ciPass.state !== 'success') {
+                core.info(
+                  `PR #${prNumber}: waiting for ci/circleci: ci-pass (current=${ciPass?.state || 'missing'}).`
+                );
+                return;
+              }
+              const failingStatuses = statuses.filter((s) => s.state !== 'success');
+              if (combined.state !== 'success' || failingStatuses.length > 0) {
+                core.info(
+                  `PR #${prNumber}: commit statuses not all green (${failingStatuses.map((s) => `${s.context}=${s.state}`).join(', ')}).`
+                );
+                return;
+              }
+
+              const { data: checksData } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: sha,
+                per_page: 100,
+              });
+              const allowedConclusions = new Set(['success', 'neutral', 'skipped']);
+              const pendingOrBadChecks = (checksData.check_runs || []).filter((run) => {
+                const name = (run.name || '').toLowerCase();
+                if (name === 'auto-merge eligible prs' || name === 'automerge') {
+                  return false;
+                }
+                if (run.status !== 'completed') return true;
+                return !allowedConclusions.has(run.conclusion);
+              });
+              if (pendingOrBadChecks.length > 0) {
+                core.info(
+                  `PR #${prNumber}: waiting on check runs (${pendingOrBadChecks.map((r) => `${r.name}:${r.status}/${r.conclusion}`).join(', ')}).`
+                );
+                return;
+              }
+
+              core.info(`PR #${prNumber}: all gates passed; squash-merging ${sha}...`);
+              await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                sha,
+                merge_method: 'squash',
+              });
+              core.info(`PR #${prNumber}: squash-merged.`);
+
+              if (pr.head.ref && pr.head.ref !== pr.base.ref) {
+                try {
+                  await github.rest.git.deleteRef({
+                    owner,
+                    repo,
+                    ref: `heads/${pr.head.ref}`,
+                  });
+                  core.info(`PR #${prNumber}: deleted branch ${pr.head.ref}.`);
+                } catch (err) {
+                  core.info(
+                    `PR #${prNumber}: could not delete branch ${pr.head.ref} (${err.status || err.message}).`
+                  );
+                }
+              }
+            }
+
+            const candidates = await collectCandidatePrNumbers();
+            if (candidates.length === 0) {
+              core.info('No candidate open PRs found for this event.');
+              return;
+            }
+            for (const prNumber of candidates) {
+              await evaluateAndMerge(prNumber);
+            }
