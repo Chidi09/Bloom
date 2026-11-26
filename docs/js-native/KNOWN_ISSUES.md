@@ -268,14 +268,14 @@ inline imported constructors when it cannot prove instance identity; those
 patterns remain open.
 
 **Still open:** computed values are re-derived and effect subscriptions are
-recreated on each reload. Closure-local variables are not preserved. Signals
-inside unkeyed lists or
+recreated on each reload. Closure-local variables are not preserved unless wrapped
+in `bloomHmrState(key, () => ...)`. Signals inside unkeyed lists or
 other repeated closures without an instance-specific identity remain
-unkeyed. `Memo`, `Suspense`, `ErrorBoundary`, `lazy()`, `defineCustomElement`,
-`Mount`, `effect()`, `batch()`, and `untracked()` callback handling and DOM
-event handlers are supported;
-unsupported callback patterns
-still need explicit signal keys.
+unkeyed. `useReducer` calls and variable-initializer calls to same-file
+signal-bearing factory functions are now auto-keyed/scoped alongside `signal()`,
+`Memo`, `Suspense`, `ErrorBoundary`, `lazy()`, `defineCustomElement`,
+`Mount`, `effect()`, `batch()`, and `untracked()` callbacks and DOM
+event handlers; unsupported callback patterns still need explicit signal keys.
 This is still not general HMR state preservation for every pattern.
 
 **Owner package:** `bloom_cli` (compile-time keying,
@@ -450,12 +450,10 @@ inserted; it is included in the JS Native browser test gate.
 
 **Owner package:** `bloom_js_native` (`mount.dart`, `html.dart`).
 
-**Editor schema:** A JSON Schema for `bloom.yaml` now ships at
-`packages/bloom_cli/schema/bloom.schema.json`. Both project templates include
-the YAML language server modeline, which enables completion and diagnostics
-for known manifest fields in compatible editors. The schema leaves plugin
-settings and unknown future fields open. In-editor signal/component
-IntelliSense beyond the Dart LSP is still open.
+**Editor schema & LSP:** A JSON Schema for `bloom.yaml` ships at
+`packages/bloom_cli/schema/bloom.schema.json`, and `bloom lsp` provides a
+zero-dependency Language Server over stdio for live `bloom lint` diagnostics,
+quick-fix code actions, Bloom component/signal completions, and hover docs.
 
 ## Review summary (for context)
 

@@ -66,7 +66,7 @@ void main() {
     element.remove();
     web.document.body!.appendChild(element);
 
-    expect(identical(element.shadowRoot, shadowRoot), isTrue);
+    expect(element.shadowRoot, equals(shadowRoot));
     expect(shadowRoot.textContent, 'connected');
     expect(shadowRoot.querySelectorAll('[data-bloom-shadow-root]').length, 1);
     addTearDown(() => element.remove());

@@ -4261,6 +4261,36 @@ String renderHtmlDocument(BloomNode rootNode) {
 }
 ```
 
+### Extended UI Primitives & Composites (from `bloom_ui` parity)
+
+`package:bloom_js_native/ui.dart` also exports the full set of base primitives (`buttonGroup`, `buttonGroupText`, `carousel`, `carouselItem`, `collapsible`, `combobox`, `direction`, `empty`, `emptyState`, `uiItem`, `kbd`, `kbdGroup`, `sidebar`, `sidebarGroup`, `sidebarItem`, `spinner`, `toastBanner`, `uiH1`–`uiH4`, `uiP`, `uiLead`, `uiMuted`, `uiBlockquote`, `uiInlineCode`) and composite layouts/forms (`appShell`, `dashboardShell`, `authForm`, `banner`, `dataTable`, `datePicker`, `errorState`, `filterBar`, `loadingState`, `multiSelect`, `phoneInput`, `pricingCard`, `searchBar`, `settingsSection`, `settingsTile`, `tagsInput`):
+
+```dart
+import 'package:bloom_js_native/bloom_js_native.dart';
+import 'package:bloom_js_native/ui.dart';
+
+final searchQuery = signal('');
+
+BloomNode buildDashboard(BloomNode content) {
+  return dashboardShell(
+    sidebar: sidebar(
+      header: uiH4('Bloom App'),
+      children: [
+        sidebarGroup(
+          label: 'Workspace',
+          children: [
+            sidebarItem(label: 'Overview', href: '/', active: true),
+            sidebarItem(label: 'Settings', href: '/settings'),
+          ],
+        ),
+      ],
+    ),
+    topBar: searchBar(query: searchQuery, shortcutHint: '/'),
+    content: content,
+  );
+}
+```
+
 ---
 
 ## 20. Best Practices & Common Pitfalls Checklist

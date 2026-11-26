@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+* `bloom js build --wasm` for `dart2wasm -O4` WebAssembly builds.
+* `bloom lsp` zero-dependency Language Server over stdio for `bloom lint` diagnostics, quick-fix code actions, Bloom component/signal completions, and hover documentation.
+* Extended `SignalKeyInjector` to auto-key `useReducer(...)` calls and scope variable-initializer calls to same-file signal-bearing factory functions.
+
 ## 0.9.0 - 2026-10-22
 
 ### Added

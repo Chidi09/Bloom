@@ -54,13 +54,13 @@ void main() {
 
       expect(mismatches, isEmpty);
       // DOM identity: the same nodes, not remounts.
-      expect(container.querySelector('h1'), same(h1Before));
-      expect(container.querySelector('p'), same(pBefore));
+      expect(container.querySelector('h1'), equals(h1Before));
+      expect(container.querySelector('p'), equals(pBefore));
 
       count.value = 42;
       expect(container.querySelector('p')!.textContent, 'Count: 42');
       // Static sibling untouched by the reactive update.
-      expect(container.querySelector('h1'), same(h1Before));
+      expect(container.querySelector('h1'), equals(h1Before));
     });
 
     test('Show swaps branches without remounting siblings', () {
@@ -79,7 +79,7 @@ void main() {
 
       flag.value = false;
       expect(container.querySelector('p')!.textContent, 'no');
-      expect(container.querySelector('span'), same(spanBefore));
+      expect(container.querySelector('span'), equals(spanBefore));
     });
 
     test('event listeners attach to SSR nodes exactly once', () {
@@ -130,13 +130,13 @@ void main() {
       final handle = hydrateElement(page(), container, onMismatch: collect());
       addTearDown(handle.dispose);
 
-      expect(web.document.activeElement, same(input));
+      expect(web.document.activeElement, equals(input));
       expect(input.selectionStart, 6);
       expect(input.selectionEnd, 11);
       // Reactive updates elsewhere keep working.
       count.value = 1;
       expect(container.querySelector('p')!.textContent, 'n=1');
-      expect(web.document.activeElement, same(input));
+      expect(web.document.activeElement, equals(input));
     });
 
     test('keyed ForEach hydrates by key and reorders without remount', () {
@@ -164,8 +164,8 @@ void main() {
       }
       expect(order, ['b', 'a']);
       // Same node instances, reordered — not recreated.
-      expect(container.querySelector('li[data-k="a"]'), same(liA));
-      expect(container.querySelector('li[data-k="b"]'), same(liB));
+      expect(container.querySelector('li[data-k="a"]'), equals(liA));
+      expect(container.querySelector('li[data-k="b"]'), equals(liB));
     });
 
     test('corrupted keyed marker recovers instead of throwing', () {
@@ -302,7 +302,7 @@ void main() {
       expect(mismatches.where((m) => m.boundary == 'bloom:live'), isNotEmpty,
           reason: 'the Live boundary recovers itself');
       // Untouched sibling keeps its node identity.
-      expect(container.querySelector('span'), same(spanBefore));
+      expect(container.querySelector('span'), equals(spanBefore));
       expect(container.textContent, contains('keep'));
       expect(container.textContent, contains('new'));
     });
@@ -431,7 +431,7 @@ void main() {
       addTearDown(handle.dispose);
 
       expect(mismatches, isEmpty);
-      expect(container.firstElementChild, same(rootBefore));
+      expect(container.firstElementChild, equals(rootBefore));
       expect(container.textContent, 'hello world');
     });
 
@@ -450,7 +450,7 @@ void main() {
       addTearDown(handle.dispose);
 
       expect(mismatches, isEmpty);
-      expect(container.firstElementChild, same(rootBefore));
+      expect(container.firstElementChild, equals(rootBefore));
       expect(container.textContent, 'ab');
     });
 
@@ -465,7 +465,7 @@ void main() {
       addTearDown(handle.dispose);
 
       expect(mismatches, isEmpty);
-      expect(container.firstElementChild, same(rootBefore));
+      expect(container.firstElementChild, equals(rootBefore));
       expect(container.querySelector('span'), isNull);
       expect(container.querySelector('em'), isNotNull);
       expect(container.querySelector('em')!.textContent, 'emphasized');

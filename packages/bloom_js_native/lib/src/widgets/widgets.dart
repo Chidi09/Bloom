@@ -370,14 +370,13 @@ class Row extends ElNode {
   /// Row(children: [StyledText('A'), StyledText('B')], gap: 8);
   /// ```
   Row(
-      {List<BloomNode> children = const [],
+      {super.children = const [],
       MainAxisAlignment mainAxisAlignment = MainAxisAlignment.start,
       CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
       MainAxisSize mainAxisSize = MainAxisSize.max,
       num gap = 0,
       bool wrap = false})
       : super('div',
-            children: children,
             style: _css([
               'display: flex',
               'flex-direction: row',
@@ -401,14 +400,13 @@ class Column extends ElNode {
   /// Column(children: [StyledText('A'), StyledText('B')]);
   /// ```
   Column(
-      {List<BloomNode> children = const [],
+      {super.children = const [],
       MainAxisAlignment mainAxisAlignment = MainAxisAlignment.start,
       CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
       MainAxisSize mainAxisSize = MainAxisSize.max,
       num gap = 0,
       bool wrap = false})
       : super('div',
-            children: children,
             style: _css([
               'display: flex',
               'flex-direction: column',
@@ -432,10 +430,9 @@ class Stack extends ElNode {
   /// Stack(children: [Positioned(left: 0, top: 0, child: StyledText('Hi'))]);
   /// ```
   Stack(
-      {List<BloomNode> children = const [],
+      {super.children = const [],
       Alignment alignment = Alignment.topLeft})
       : super('div',
-            children: children,
             style:
                 'position: relative; display: grid; place-items: ${_place(alignment)}');
 }
@@ -656,11 +653,10 @@ class Wrap extends ElNode {
   /// Wrap(children: [StyledText('A'), StyledText('B')], spacing: 8);
   /// ```
   Wrap(
-      {List<BloomNode> children = const [],
+      {super.children = const [],
       num spacing = 0,
       num runSpacing = 0})
       : super('div',
-            children: children,
             style: 'display: flex; flex-wrap: wrap; '
                 'column-gap: ${_px(spacing)}; row-gap: ${_px(runSpacing)}');
 }
@@ -690,11 +686,10 @@ class ListView extends ElNode {
   /// ListView(children: [StyledText('Item')]);
   /// ```
   ListView(
-      {List<BloomNode> children = const [],
+      {super.children = const [],
       EdgeInsets? padding,
       Axis scrollDirection = Axis.vertical})
       : super('div',
-            children: children,
             style: _css([
               'overflow: auto',
               'display: flex',

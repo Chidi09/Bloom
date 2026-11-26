@@ -19,9 +19,7 @@ Descriptor tree (BloomNode)   ← pure Dart, VM-testable, no DOM
 
 - Fine-grained signals already know exactly which nodes depend on which state.
 - VDOM diff is O(n) reconciliation of a tree you just built to discover what already-known signals could tell you.
-- Instead: each `Live`/`Show`/`ForEach` registers a `signal effect` that patches only its own DOM region. No tree diff, no `key` dance for the common case.
-
-Tradeoff: `ForEach` full-rebuild on list change in v0 is O(n) DOM churn. Keyed reconciliation lands in M4 once measured.
+- Instead: each `Live`/`Show`/`ForEach` registers a `signal effect` that patches only its own DOM region using comment-node sentinels. No tree diff, and `ForEach(..., key:)` performs keyed in-place DOM reconciliation.
 
 ## Why no Flutter on web target
 
@@ -32,12 +30,19 @@ Tradeoff: `ForEach` full-rebuild on list change in v0 is O(n) DOM churn. Keyed r
 
 ```
 packages/bloom_js_native/
-  lib/src/framework.dart  — BloomNode sealed hierarchy + capitalized builders
-  lib/src/events.dart     — BloomEvent abstraction (browser impl + test fake)
-  lib/src/html.dart       — renderToHtml backend (SSR), XSS escaping
-  lib/src/mount.dart      — BrowserMount backend (package:web + signals)
-  lib/src/npm.dart        — NpmDependency registry → import map generation
-  lib/src/router.dart     — history/hash routing (phase 3)
+  lib/bloom_js_native.dart — pure-Dart core entry point (SSR/VM-safe)
+  lib/browser.dart         — browser DOM entry point (mountApp, mount, hydrate, router)
+  lib/ui.dart              — shadcn-style UI primitives & design tokens
+  lib/tags.dart            — concise lowercase HTML builders (`as h`)
+  lib/widgets.dart         — optional Flutter-shaped layout helpers
+  lib/ssg.dart             — static site generator (`generateStaticSite`, VM-only)
+  lib/src/framework.dart   — BloomNode sealed hierarchy + capitalized builders
+  lib/src/events.dart      — BloomEvent abstraction (browser impl + test fake)
+  lib/src/html.dart        — renderToHtml / renderToDocument / streaming Suspense (SSR)
+  lib/src/isr.dart         — BloomRevalidateConfig & BloomIsrRenderer (ISR contract)
+  lib/src/mount.dart       — BrowserMount & in-place reactive hydration (package:web + signals)
+  lib/src/npm.dart         — NpmDependency registry → import map generation
+  lib/src/router.dart      — history/hash routing, guards, nested shells, loaders
 
 packages/bloom_seo/
   HeadManager, JsonLd, SitemapBuilder, prerenderRoute() over renderToHtml

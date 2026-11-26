@@ -422,8 +422,8 @@ void main() {
           container.querySelector('[data-id="b"]') as web.HTMLDivElement;
 
       // Identity equality check: the DOM element instances MUST be identical
-      expect(identical(afterDivA, initialDivA), isTrue);
-      expect(identical(afterDivB, initialDivB), isTrue);
+      expect(afterDivA, equals(initialDivA));
+      expect(afterDivB, equals(initialDivB));
 
       // Content was patched in place
       expect(afterDivA.textContent, 'Alpha Updated');
@@ -502,7 +502,7 @@ void main() {
       dep.value = 3;
       expect(builderCallCount, 3);
       final updatedDiv = container.querySelector('.memo-box')!;
-      expect(identical(updatedDiv, initialDiv), isTrue);
+      expect(updatedDiv, equals(initialDiv));
       expect(updatedDiv.textContent, 'Val: 3');
     });
 
@@ -580,7 +580,7 @@ void main() {
       final after = container.querySelector('[data-id="a"]')!;
 
       expect(after.textContent, 'Alpha Updated');
-      expect(identical(after, before), isTrue);
+      expect(after, equals(before));
     });
 
     test('patched element fires only the NEWEST handler, exactly once', () {

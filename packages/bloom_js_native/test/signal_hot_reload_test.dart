@@ -546,9 +546,9 @@ void main() {
       );
 
       expect(identical(nextHandle, firstHandle), isTrue);
-      expect(identical(container.children.item(0), appRoot), isTrue);
-      expect(identical(appRoot.children.item(0), cardRoot), isTrue);
-      expect(identical(appRoot.children.item(1), outside), isTrue);
+      expect(container.children.item(0), equals(appRoot));
+      expect(appRoot.children.item(0), equals(cardRoot));
+      expect(appRoot.children.item(1), equals(outside));
       expect(cardRoot.textContent, 'After');
       expect(outside.textContent, 'Outside');
     });
@@ -577,9 +577,9 @@ void main() {
       );
 
       expect(identical(updatedHandle, handle), isTrue);
-      expect(identical(appRoot.children.item(0), oldCard), isFalse);
+      expect(appRoot.children.item(0), isNot(equals(oldCard)));
       expect(appRoot.children.item(0)?.textContent, 'After');
-      expect(identical(appRoot.children.item(1), outside), isTrue);
+      expect(appRoot.children.item(1), equals(outside));
     });
 
     test('multi-root component updates within its boundary', () {
@@ -624,7 +624,7 @@ void main() {
       expect(after.item(0)?.textContent, 'After one');
       expect(after.item(1)?.textContent, 'After two');
       expect(after.item(2)?.textContent, 'After three');
-      expect(identical(appRoot.querySelector('h1'), outside), isTrue);
+      expect(appRoot.querySelector('h1'), equals(outside));
 
       final singleRootHandle = mountToElement(
         Div(children: [
@@ -639,7 +639,7 @@ void main() {
       expect(identical(singleRootHandle, firstHandle), isTrue);
       expect(appRoot.querySelectorAll('p').length, 0);
       expect(appRoot.querySelector('section')?.textContent, 'Single root');
-      expect(identical(appRoot.querySelector('h1'), outside), isTrue);
+      expect(appRoot.querySelector('h1'), equals(outside));
     });
 
     test('multi-root component mounted directly can hot update', () {
@@ -704,8 +704,8 @@ void main() {
 
       expect(firstHandle.isDisposed, isFalse);
       expect(identical(nextHandle, firstHandle), isTrue);
-      expect(identical(appRoot.children.item(0), oldCard), isFalse);
-      expect(identical(appRoot.children.item(1), outside), isTrue);
+      expect(appRoot.children.item(0), isNot(equals(oldCard)));
+      expect(appRoot.children.item(1), equals(outside));
       expect(container.querySelector('p')?.textContent, 'Value: 8');
       oldValue.value = 2;
       expect(container.querySelector('p')?.textContent, 'Value: 8');
@@ -944,5 +944,35 @@ void main() {
 
     expect(
         container.querySelector('button[data-row="1"]')?.textContent, '1: 0');
+  });
+
+  test('bloomHmrState preserves value across remounts and resets on type mismatch',
+      () {
+    bloomHotReloadTrackingEnabled = true;
+
+    final list = bloomHmrState<List<String>>('hmr-state-items', () => ['a']);
+    list.add('b');
+
+    final restored =
+        bloomHmrState<List<String>>('hmr-state-items', () => ['fresh']);
+    expect(restored, ['a', 'b']);
+
+    // Type mismatch resets cleanly.
+    final mismatched = bloomHmrState<int>('hmr-state-items', () => 99);
+    expect(mismatched, 99);
+  });
+
+  test('useReducer preserves state across remounts when keyed', () {
+    bloomHotReloadTrackingEnabled = true;
+    int reducer(int state, String action) =>
+        action == 'inc' ? state + 1 : state;
+
+    final first = useReducer(reducer, 0, key: 'hmr-reducer');
+    first.dispatch('inc');
+    first.dispatch('inc');
+    expect(first.state.value, 2);
+
+    final second = useReducer(reducer, 0, key: 'hmr-reducer');
+    expect(second.state.value, 2);
   });
 }

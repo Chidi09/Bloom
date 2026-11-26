@@ -72,5 +72,12 @@ void main() {
       reducer.dispatch('add');
       expect(reducer.state.value['count'], 2);
     });
+
+    test('accepts optional hot-reload key parameter', () {
+      final reducer = useReducer(counterReducer, 5, key: 'counter-reducer');
+      expect(reducer.state.value, 5);
+      reducer.dispatch(CounterAction.increment);
+      expect(reducer.state.value, 6);
+    });
   });
 }

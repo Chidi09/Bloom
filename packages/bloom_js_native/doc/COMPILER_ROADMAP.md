@@ -35,20 +35,19 @@ bloom js build --analyze
 
 ## T3 — Bun orchestration (M4)
 
-```
-bloom js vendor      # bun add + offline cache → vendor/
-bloom js install     # hydrate vendor/ on CI
+```bash
+bloom js vendor      # bun add + offline cache → web/vendor/
+bloom add npm:<pkg>  # declare in bloom.yaml, vendor, and generate typed bindings
 ```
 
 - `NpmRegistry` Dart declarations drive `bun add <pkg>@<version>` under the hood.
-- Import map flips from `esm.sh` URLs to `/vendor/...` local files.
+- Import map points at `/vendor/...` local files.
 - Reproducible builds; works behind firewalls.
 
-## T4 — Wasm target evaluation (deferred)
+## T4 — Wasm target (`dart2wasm`)
 
-- Evaluate `dart2wasm` + DOM interop once `package:web` wasm interop stabilizes.
-- Explicitly **deferred** — not on the M1–M6 critical path.
-- Success criteria: wasm payload + JS glue < dart2js payload for hello-world, with equivalent perf.
+- Supported via `bloom js build --wasm` (`dart compile wasm -O4`), verified against headless Chrome (`dart test -p chrome -c dart2wasm`) and the 50 KiB combined `.wasm` + `.mjs` gzip budget on `example/main.dart` (~36.8 KiB gzipped: 33.6 KiB `.wasm` + 3.2 KiB `.mjs`).
+- When comparing `package:web` DOM node references in `dart2wasm`, use `==`/`!=` (or `equals()` in tests) rather than `identical()`/`same()`, because JS DOM objects are boxed in `JSValue`.
 
 ## Non-goals
 

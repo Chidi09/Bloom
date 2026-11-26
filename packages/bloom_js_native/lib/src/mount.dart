@@ -347,7 +347,7 @@ void _installHotReloadHooks() {
           if (node is! BloomNode ||
               active == null ||
               active.isDisposed ||
-              !identical(active._root, root)) {
+              active._root != root) {
             return false;
           }
           if (active._tryHotReplace(node)) return true;
@@ -626,7 +626,7 @@ BloomMountHandle mountToElement(
       _isHotReloadTrackingActive() &&
       active != null &&
       !active.isDisposed &&
-      identical(active._root, root)) {
+      active._root == root) {
     if (active._tryHotReplace(node)) return active;
     active.dispose();
   }
@@ -785,7 +785,7 @@ class _HotComponentInstance {
     if (isDisposed) return;
     isDisposed = true;
     region.disposeAll();
-    _hotComponentInstances[root] = null;
+    _hotComponentInstances.remove(root);
   }
 
   void replace({
@@ -796,7 +796,7 @@ class _HotComponentInstance {
     required _Region nextRegion,
   }) {
     region.disposeAll();
-    _hotComponentInstances[root] = null;
+    _hotComponentInstances.remove(root);
     id = nextId;
     root = nextRoot;
     end = nextEnd;
@@ -807,8 +807,8 @@ class _HotComponentInstance {
   }
 }
 
-final Expando<_HotComponentInstance> _hotComponentInstances =
-    Expando<_HotComponentInstance>('Bloom HMR component boundary');
+final Map<web.Node, _HotComponentInstance> _hotComponentInstances =
+    <web.Node, _HotComponentInstance>{};
 
 final _domAttributeNameRegex = RegExp(r'^[a-zA-Z0-9_.:-]+$');
 
@@ -1482,7 +1482,7 @@ List<int>? _pathToNode(List<web.Node> roots, web.Node target) {
 }
 
 List<int>? _searchPath(web.Node node, web.Node target, List<int> soFar) {
-  if (identical(node, target)) return soFar;
+  if (node == target) return soFar;
   final children = node.childNodes;
   for (var i = 0; i < children.length; i++) {
     final found = _searchPath(children.item(i)!, target, [...soFar, i]);
@@ -1851,12 +1851,12 @@ bool _patchNode(
 /// attached to the same parent. This is used by multi-root component anchors.
 List<web.Node>? _nodesFromThrough(web.Node start, web.Node end) {
   final parent = start.parentNode;
-  if (parent == null || !identical(parent, end.parentNode)) return null;
+  if (parent == null || parent != end.parentNode) return null;
   final nodes = <web.Node>[];
   web.Node? current = start;
   while (current != null) {
     nodes.add(current);
-    if (identical(current, end)) return nodes;
+    if (current == end) return nodes;
     current = current.nextSibling;
   }
   return null;

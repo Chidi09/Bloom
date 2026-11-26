@@ -63,7 +63,7 @@ void main() {
     visible.value = false;
     final original = container.querySelector('#shown')!;
     visible.value = true;
-    expect(identical(container.querySelector('#shown'), original), isTrue);
+    expect(container.querySelector('#shown'), equals(original));
     expect(original.getAttribute('style'), isNull);
   });
 

@@ -5,7 +5,7 @@
 // framework's reactivity — dispatching an action updates a signal, so
 // existing `effect()`/component-rebuild machinery picks up the change
 // exactly like any other signal write.
-import 'package:signals_core/signals_core.dart';
+import 'signals.dart';
 
 /// A pure state-transition function that computes the next state from the current [state] and an [action].
 ///
@@ -116,8 +116,8 @@ class BloomReducer<S, A> {
   /// ```dart
   /// final reducer = BloomReducer<int, CounterAction>(counterReducer, 0);
   /// ```
-  BloomReducer(this.reducerFn, S initialState) {
-    _state = signal<S>(initialState, debugLabel: '$runtimeType.state');
+  BloomReducer(this.reducerFn, S initialState, {String? key}) {
+    _state = signal<S>(initialState, key: key);
   }
 
   /// Reactive signal holding the current state.
@@ -169,7 +169,8 @@ class BloomReducer<S, A> {
 /// ```
 BloomReducer<S, A> useReducer<S, A>(
   BloomReducerFn<S, A> reducerFn,
-  S initialState,
-) {
-  return BloomReducer<S, A>(reducerFn, initialState);
+  S initialState, {
+  String? key,
+}) {
+  return BloomReducer<S, A>(reducerFn, initialState, key: key);
 }

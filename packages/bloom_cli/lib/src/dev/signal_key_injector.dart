@@ -156,6 +156,101 @@ class _SignalBearingClassVisitor extends RecursiveAstVisitor<void> {
   }
 }
 
+class _SignalBearingFunctionVisitor extends RecursiveAstVisitor<void> {
+  final List<_SignalImport> signalImports;
+  final List<_SignalImport> useReducerImports;
+  final Set<String> signalBearingClasses;
+  final Set<String> declaredNames;
+  final Set<String> functions = {};
+  final Map<String, Set<String>> _calls = {};
+  String? _currentFunction;
+
+  _SignalBearingFunctionVisitor({
+    required this.signalImports,
+    required this.useReducerImports,
+    required this.signalBearingClasses,
+    required this.declaredNames,
+  });
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    if (node.parent is CompilationUnit) {
+      final previous = _currentFunction;
+      _currentFunction = node.name.lexeme;
+      _calls.putIfAbsent(_currentFunction!, () => <String>{});
+      super.visitFunctionDeclaration(node);
+      _currentFunction = previous;
+    } else {
+      super.visitFunctionDeclaration(node);
+    }
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (_currentFunction != null &&
+        signalBearingClasses.contains(node.constructorName.type.name2.lexeme)) {
+      functions.add(_currentFunction!);
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final current = _currentFunction;
+    if (current != null) {
+      final name = node.methodName.name;
+      if (name == 'signal' && _matchesImports(node, signalImports, 'signal')) {
+        functions.add(current);
+      } else if (name == 'useReducer' &&
+          _matchesImports(node, useReducerImports, 'useReducer')) {
+        functions.add(current);
+      } else if (node.target == null) {
+        if (signalBearingClasses.contains(name)) {
+          functions.add(current);
+        } else {
+          _calls.putIfAbsent(current, () => <String>{}).add(name);
+        }
+      }
+    }
+    super.visitMethodInvocation(node);
+  }
+
+  bool _matchesImports(
+    MethodInvocation node,
+    List<_SignalImport> imports,
+    String fnName,
+  ) {
+    for (final import in imports) {
+      final target = node.target;
+      if ((import.prefix == null &&
+              target == null &&
+              !declaredNames.contains(fnName)) ||
+          (import.prefix != null &&
+              !declaredNames.contains(import.prefix) &&
+              target is SimpleIdentifier &&
+              target.name == import.prefix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Set<String> get statefulFunctions {
+    final result = Set<String>.of(functions);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final entry in _calls.entries) {
+        if (!result.contains(entry.key) && entry.value.any(result.contains)) {
+          result.add(entry.key);
+          changed = true;
+        }
+      }
+    }
+    return result;
+  }
+}
+
 class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
   final String fileRelativePath;
   final String source;
@@ -177,6 +272,7 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
     required this.fileRelativePath,
     required this.source,
     required this.signalImports,
+    required this.useReducerImports,
     required this.componentImports,
     required this.forEachImports,
     required this.liveImports,
@@ -192,10 +288,12 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
     required this.untrackedImports,
     required this.hmrScopeImports,
     required this.signalBearingClasses,
+    required this.signalBearingFunctions,
     required this.declaredNames,
   });
 
   final List<_SignalImport> signalImports;
+  final List<_SignalImport> useReducerImports;
   final List<_SignalImport> componentImports;
   final List<_SignalImport> forEachImports;
   final List<_SignalImport> liveImports;
@@ -211,6 +309,7 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
   final List<_SignalImport> untrackedImports;
   final List<_SignalImport> hmrScopeImports;
   final Set<String> signalBearingClasses;
+  final Set<String> signalBearingFunctions;
 
   @override
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
@@ -255,7 +354,12 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
             (callTarget == null && _isUppercaseIdentifier(typeName)) ||
             (callTarget is SimpleIdentifier &&
                 _isUppercaseIdentifier(typeName)));
-    if (!signalBearingClasses.contains(typeName) && !constructorVariable) {
+    final sameFileFactoryVariable = _isDirectVariableInitializer(node) &&
+        callTarget == null &&
+        signalBearingFunctions.contains(node.methodName.name);
+    if (!signalBearingClasses.contains(typeName) &&
+        !constructorVariable &&
+        !sameFileFactoryVariable) {
       return;
     }
     _injectStatefulScope(node, typeName);
@@ -971,11 +1075,19 @@ class _SignalKeyVisitor extends RecursiveAstVisitor<void> {
   }
 
   void _checkAndInject(MethodInvocation node) {
-    if (node.methodName.name != 'signal') return;
+    final methodName = node.methodName.name;
+    final List<_SignalImport> candidateImports;
+    if (methodName == 'signal') {
+      candidateImports = signalImports;
+    } else if (methodName == 'useReducer') {
+      candidateImports = useReducerImports;
+    } else {
+      return;
+    }
     _SignalImport? matchingImport;
-    for (final import in signalImports) {
+    for (final import in candidateImports) {
       final prefix = import.prefix;
-      final importedName = prefix ?? 'signal';
+      final importedName = prefix ?? methodName;
       // Without resolved ASTs, a same-named declaration anywhere in this
       // compilation unit could shadow the import at this call site. Skip
       // auto-keying rather than changing an unrelated function call.
@@ -1610,6 +1722,7 @@ class SignalKeyInjector {
     }
 
     final signalImports = <_SignalImport>[];
+    final useReducerImports = <_SignalImport>[];
     final hmrScopeImports = <_SignalImport>[];
     final effectImports = <_SignalImport>[];
     final lazyImports = <_SignalImport>[];
@@ -1619,6 +1732,23 @@ class SignalKeyInjector {
     for (final directive in parseResult.unit.directives) {
       if (directive is! ImportDirective) continue;
       final uri = directive.uri.stringValue;
+      if (uri == 'package:bloom_js_native/bloom_js_native.dart' ||
+          uri == 'package:bloom_js_native/src/reducer.dart') {
+        var exportsUseReducer = true;
+        for (final combinator in directive.combinators) {
+          if (combinator is ShowCombinator &&
+              !combinator.shownNames.any((name) => name.name == 'useReducer')) {
+            exportsUseReducer = false;
+          }
+          if (combinator is HideCombinator &&
+              combinator.hiddenNames.any((name) => name.name == 'useReducer')) {
+            exportsUseReducer = false;
+          }
+        }
+        if (exportsUseReducer) {
+          useReducerImports.add(_SignalImport(directive.prefix?.name));
+        }
+      }
       if (uri != 'package:bloom_js_native/bloom_js_native.dart' &&
           uri != 'package:bloom_js_native/src/signals.dart') {
         continue;
@@ -1878,6 +2008,7 @@ class SignalKeyInjector {
     }
 
     if (signalImports.isEmpty &&
+        useReducerImports.isEmpty &&
         hmrScopeImports.isEmpty &&
         effectImports.isEmpty &&
         componentImports.isEmpty &&
@@ -1901,11 +2032,18 @@ class SignalKeyInjector {
       signalImports,
       declaredNames.names,
     )..visitCompilationUnit(parseResult.unit);
+    final signalBearingFunctionsVisitor = _SignalBearingFunctionVisitor(
+      signalImports: signalImports,
+      useReducerImports: useReducerImports,
+      signalBearingClasses: signalBearingClassesVisitor.statefulClasses,
+      declaredNames: declaredNames.names,
+    )..visitCompilationUnit(parseResult.unit);
 
     final visitor = _SignalKeyVisitor(
       fileRelativePath: relativePath.replaceAll(r'\', '/'),
       source: source,
       signalImports: signalImports,
+      useReducerImports: useReducerImports,
       effectImports: effectImports,
       componentImports: componentImports,
       forEachImports: forEachImports,
@@ -1921,6 +2059,7 @@ class SignalKeyInjector {
       untrackedImports: untrackedImports,
       hmrScopeImports: hmrScopeImports,
       signalBearingClasses: signalBearingClassesVisitor.statefulClasses,
+      signalBearingFunctions: signalBearingFunctionsVisitor.statefulFunctions,
       declaredNames: declaredNames.names,
     );
     parseResult.unit.accept(visitor);

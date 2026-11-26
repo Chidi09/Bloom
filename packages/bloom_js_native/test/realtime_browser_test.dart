@@ -151,7 +151,7 @@ void main() {
       final sub = hybridChannel.stream.listen((dynamic msg) {
         if (msg is Map) {
           if (msg['event'] == 'ready') {
-            readyCompleter.complete(msg['port'] as int);
+            readyCompleter.complete((msg['port'] as num).toInt());
           } else if (msg['event'] == 'frame') {
             final frameStr = msg['frame'] as String;
             final decoded = jsonDecode(frameStr) as Map<String, dynamic>;
@@ -253,7 +253,7 @@ void main() {
       final sub = hybridChannel.stream.listen((dynamic msg) {
         if (msg is Map) {
           if (msg['event'] == 'ready') {
-            readyCompleter.complete(msg['port'] as int);
+            readyCompleter.complete((msg['port'] as num).toInt());
           } else if (msg['event'] == 'frame') {
             final frameStr = msg['frame'] as String;
             final decoded = jsonDecode(frameStr) as Map<String, dynamic>;

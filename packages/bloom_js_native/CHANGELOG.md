@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+* Page-level ISR revalidation contract (`BloomRenderMode`, `BloomRevalidateConfig`, `BloomIsrStore`, `MemoryBloomIsrStore`, `BloomIsrRenderer`) and `BloomRoute(..., revalidate:)`.
+* `bloomHmrState<T>(key, create)` for preserving non-signal state across DDC hot remounts, plus optional `key:` on `BloomReducer` / `useReducer`.
+* Expanded `package:bloom_js_native/ui.dart` with 26 additional primitives and composites (`buttonGroup`, `carousel`, `collapsible`, `combobox`, `direction`, `empty`, `uiItem`, `kbd`, `sidebar`, `typography`, `spinner`, `toastBanner`, `appShell`, `dashboardShell`, `authForm`, `banner`, `dataTable`, `datePicker`, `errorState`, `filterBar`, `loadingState`, `multiSelect`, `phoneInput`, `pricingCard`, `searchBar`, `settingsSection`/`settingsTile`, `tagsInput`).
+
+### Fixed
+* `dart2wasm` DOM node identity comparisons in `mount.dart` (replacing `identical()`/`Expando` on `package:web` nodes with `==`/`Map`) and browser tests, plus `dart compile wasm` verification in `tool/check.sh`.
+* `tool/generate_reference.dart` now covers all 6 public entry points (`bloom_js_native.dart`, `browser.dart`, `ui.dart`, `widgets.dart`, `tags.dart`, `ssg.dart`), excludes internal files, and supports `--check`.
+* Fixed 5 `use_super_parameters` analyzer infos in `lib/src/widgets/widgets.dart` and deflaked `test/transition_test.dart`.
+
 ## 0.4.0 - 2026-10-22
 
 ### Added

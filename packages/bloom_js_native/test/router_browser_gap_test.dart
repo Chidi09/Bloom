@@ -237,7 +237,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 80));
 
     expect(web.document.activeElement, isNotNull);
-    expect(web.document.activeElement, same(h1),
+    expect(web.document.activeElement, equals(h1),
         reason:
             'focus must land on the new page heading, not stay on the link');
   });
@@ -251,7 +251,7 @@ void main() {
     await c.navigate('/search');
     await Future<void>.delayed(const Duration(milliseconds: 80));
 
-    expect(web.document.activeElement, isNot(same(h1)));
+    expect(web.document.activeElement, isNot(equals(h1)));
   });
 
   test('navigation is announced to assistive technology', () async {
